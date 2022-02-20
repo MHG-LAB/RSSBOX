@@ -76,6 +76,7 @@ title: {title}
 categories: {cat}
 tags: {tag}
 date: {date}
+updated: {date}
 cover: {img}
 comments: false
 ---
