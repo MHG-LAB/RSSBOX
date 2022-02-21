@@ -30,6 +30,11 @@ def getRandUa():
                 )
   return ua
 
+proxies = {
+    'https': 'https://127.0.0.1:7890',
+    'http': 'http://127.0.0.1:7890'
+}
+
 def get_data(link):
   # print('正在获取数据...')
   # print('链接：', link)
@@ -42,6 +47,7 @@ def get_data(link):
     requests.adapters.DEFAULT_RETRIES = 55
     s = requests.session()
     s.keep_alive = False # 关闭多余连接
+    # r = s.get(link, headers=header, timeout=120,verify=True,proxies=proxies)
     r = s.get(link, headers=header, timeout=120,verify=True)
     s.close()
     r.encoding = 'utf-8'
@@ -106,9 +112,9 @@ def get_post(res,item):
       childName = child.name
       if str(type(childName)) == "<class 'str'>":
         childName = str.lower(childName)
-      if (childName == 'title'):
+      if (childName.startswith('title')):
         title = child.string
-      if (childName == 'description' or childName == 'content' or (text=="" and childName == 'summary')):
+      if (childName.startswith('description') or childName.startswith('content') or (text=="" and childName.startswith('summary'))):
         text = child.string
         soup_item = BeautifulSoup(text, 'html.parser')
         if soup_item.find('img'):
@@ -116,24 +122,24 @@ def get_post(res,item):
             img = soup_item.find('img')['data-lazy-src'].strip()
           else:
             img = soup_item.find('img')['src'].strip()
-      if (childName == 'link'):
+      if (childName.startswith('link')):
         if "href" in child.attrs:
           link = child["href"]
         else:
           link = child.string
       if (pubdate == ''):
         pubdate = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-      if pubdate == '' and (childName == 'lastbuilddate'):
+      if pubdate == '' and (childName.startswith('lastbuilddate')):
         pubdate = child.string
-      if (childName == 'pubdate'):
+      if (childName.startswith('pubdate')):
         pubdate = child.string
-      if (childName == 'updated'):
+      if (childName.startswith('updated')):
         pubdate = child.string
-      if (childName == 'published'):
+      if (childName.startswith('published')):
         pubdate = child.string
 
-        
-    # print(title)
+
+    text = TEXT的特殊处理(text)
     title = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
     print(link)
     if link:
@@ -154,7 +160,8 @@ def get_post(res,item):
       img = img.replace('http://','https://cors.mhuig.top/?url=https://')
     else:
       img = 'https://picsum.photos/400/300?random='+ str(random.randint(0,10000))
-    text = TEXT的特殊处理(text)
+
+    
     md_content = md_temple
     try:
       with open('source/_posts/' + dir + '/' + title.replace('\n', '').replace('#', '').replace('.','') + '.md',
@@ -286,7 +293,7 @@ def TEXT的特殊处理(text):
   # 反图片懒加载
   for img in soup.find_all('img'):
     if "srcset" in img.attrs:
-      img["data-src"] = img["srcset"]
+      img["data-src"] = "data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
       img.attrs.pop('srcset')
       img.wrap(soup.new_tag('img'))
   text = str(soup)
