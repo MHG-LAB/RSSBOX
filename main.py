@@ -112,30 +112,34 @@ def get_post(res,item):
       childName = child.name
       if str(type(childName)) == "<class 'str'>":
         childName = str.lower(childName)
-      if (childName.startswith('title')):
+      if (childName == 'title'):
         title = child.string
-      if (childName.startswith('description') or childName.startswith('content') or (text=="" and childName.startswith('summary'))):
-        text = child.string
-        soup_item = BeautifulSoup(text, 'html.parser')
-        if soup_item.find('img'):
-          if 'data-lazy-src' in soup_item.find('img'):
-            img = soup_item.find('img')['data-lazy-src'].strip()
-          else:
-            img = soup_item.find('img')['src'].strip()
-      if (childName.startswith('link')):
+      if (childName == 'encoded'
+        or (text=="" and childName == 'description')
+        or (text=="" and childName == 'content') 
+        or (text=="" and childName == 'summary')):
+        if child.string not in ["",None]:
+          text = child.string
+          soup_item = BeautifulSoup(text, 'html.parser')
+          if soup_item.find('img'):
+            if 'data-lazy-src' in soup_item.find('img'):
+              img = soup_item.find('img')['data-lazy-src'].strip()
+            else:
+              img = soup_item.find('img')['src'].strip()
+      if (childName == 'link'):
         if "href" in child.attrs:
           link = child["href"]
         else:
           link = child.string
       if (pubdate == ''):
         pubdate = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-      if pubdate == '' and (childName.startswith('lastbuilddate')):
+      if pubdate == '' and (childName == 'lastbuilddate'):
         pubdate = child.string
-      if (childName.startswith('pubdate')):
+      if (childName == 'pubdate'):
         pubdate = child.string
-      if (childName.startswith('updated')):
+      if (childName == 'updated'):
         pubdate = child.string
-      if (childName.startswith('published')):
+      if (childName == 'published'):
         pubdate = child.string
 
 
