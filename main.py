@@ -154,6 +154,7 @@ def get_post(res,item):
       img = img.replace('http://','https://cors.mhuig.top/?url=https://')
     else:
       img = 'https://picsum.photos/400/300?random='+ str(random.randint(0,10000))
+    text = TEXT的特殊处理(text)
     md_content = md_temple
     try:
       with open('source/_posts/' + dir + '/' + title.replace('\n', '').replace('#', '').replace('.','') + '.md',
@@ -235,13 +236,13 @@ class Crawl(threading.Thread):
       print('%d号线程采集：%s' % (self.number, item['path']))
       requests_url =  item['path']
       if requests_url.startswith('/'):
-        requests_url = "https://rsshub.mhuig.top" + requests_url + "?time=%s" % int(time.time())
+        requests_url = "https://rsshub.mhuig.top" + requests_url + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
         print("====== https://rsshub.mhuig.top ========> " + requests_url + " ======")
       else:
         print("====== " + requests_url + " ======")
       response = get_data(requests_url)
       if response.strip() == "" and item['path'].startswith('/'):
-        requests_url = "https://rsshub.app" + item['path'] + "?time=%s" % int(time.time())
+        requests_url = "https://rsshub.app" + item['path'] + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
         print("====== https://rsshub.app ========> " + requests_url + " ======")
         response = get_data(requests_url)
       # time.sleep(random.randint(1, 3))
@@ -280,6 +281,16 @@ def 解析文章():
   for t in parse_thread:
     t.join()
 
+def TEXT的特殊处理(text):
+  soup = BeautifulSoup(text, 'html.parser')
+  # 反图片懒加载
+  for img in soup.find_all('img'):
+    if "srcset" in img.attrs:
+      img["data-src"] = img["srcset"]
+      img.attrs.pop('srcset')
+      img.wrap(soup.new_tag('img'))
+  text = str(soup)
+  return text
 
 
 route_config = load_config('config.route.yml')
