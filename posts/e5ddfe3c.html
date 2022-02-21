@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>使用链式语法打造一个 ObjC 安全的对象类型转换库 - RSSBOX</title>
+
+  
+    <meta name="description" content="我就职过的公司，都出现过不止一次因为后台实际数据类型和文档不一致导致的程序线上崩溃问题。原则上即使服务器离线了，app 都不应该直接闪退，所以 app 应当具有对服务器异常情况进行处理的能力。使用 ValueX 可以有效避免后台返回数据类型异常导致的程序崩溃。异常场景场景1： NSString 类型变成 NSNull场景2： nil 变成 @&quot;&lt;null&gt;&quot; 值场景3： userId">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用链式语法打造一个 ObjC 安全的对象类型转换库">
+<meta property="og:url" content="https://rssbox.mhuig.top/posts/e5ddfe3c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="我就职过的公司，都出现过不止一次因为后台实际数据类型和文档不一致导致的程序线上崩溃问题。原则上即使服务器离线了，app 都不应该直接闪退，所以 app 应当具有对服务器异常情况进行处理的能力。使用 ValueX 可以有效避免后台返回数据类型异常导致的程序崩溃。异常场景场景1： NSString 类型变成 NSNull场景2： nil 变成 @&quot;&lt;null&gt;&quot; 值场景3： userId">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://xaoxuu.com&url=https://github-readme-stats.vercel.app/api/pin/?username=xaoxuu&amp;repo=ValueX&amp;&amp;show_owner=true">
+<meta property="article:published_time" content="2019-08-28T16:00:00.000Z">
+<meta property="article:modified_time" content="2019-08-28T16:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="博客">
+<meta property="article:tag" content="友链">
+<meta property="article:tag" content="XAOXUU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://xaoxuu.com&url=https://github-readme-stats.vercel.app/api/pin/?username=xaoxuu&amp;repo=ValueX&amp;&amp;show_owner=true">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BC%82%E5%B8%B8%E5%9C%BA%E6%99%AF"><span class="toc-text">异常场景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%97%AE%E9%A2%98%E6%8A%BD%E8%B1%A1"><span class="toc-text">问题抽象</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%AE%BE%E8%AE%A1%E6%8E%A5%E5%8F%A3"><span class="toc-text">设计接口</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B1%BB%E5%9E%8B%E5%AE%89%E5%85%A8"><span class="toc-text">类型安全</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B1%BB%E5%9E%8B%E8%BD%AC%E6%8D%A2"><span class="toc-text">类型转换</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%8D%9A%E5%AE%A2/">博客</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8D%9A%E5%AE%A2/%E5%8F%8B%E9%93%BE/">友链</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8D%9A%E5%AE%A2/%E5%8F%8B%E9%93%BE/xaoxuu/">XAOXUU</a></div><div id="post-meta">发布于&nbsp;<time datetime="2019-08-28T16:00:00.000Z">2019-08-29</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>使用链式语法打造一个 ObjC 安全的对象类型转换库</span></h1>
+<div>
+<p>我就职过的公司，都出现过不止一次因为后台实际数据类型和文档不一致导致的程序线上崩溃问题。原则上即使服务器离线了，app 都不应该直接闪退，所以 app 应当具有对服务器异常情况进行处理的能力。使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/ValueX/">ValueX</a> 可以有效避免后台返回数据类型异常导致的程序崩溃。</p><span id="more"></span><div class="tag-plugin ghcard"><a class="ghcard" target="_blank" href="https://github.com/xaoxuu/ValueX" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://xaoxuu.com&url=https://github-readme-stats.vercel.app/api/pin/?username=xaoxuu&amp;repo=ValueX&amp;&amp;show_owner=true"></a></div><h2 id="异常场景"><a class="headerlink" href="#异常场景" title="异常场景"></a>异常场景</h2><ul><li>场景1： NSString 类型变成 NSNull</li><li>场景2： nil 变成 <code>@"&lt;null&gt;"</code> 值</li><li>场景3： userId 不确定是 NSString 还是 NSNumber</li><li>场景4： NSDictionary 中嵌套的容器变成了 Json 字符串格式</li></ul><h2 id="问题抽象"><a class="headerlink" href="#问题抽象" title="问题抽象"></a>问题抽象</h2><ul><li>实际类型与定义类型不符</li><li>实际类型与期望类型不一致</li></ul><h2 id="设计接口"><a class="headerlink" href="#设计接口" title="设计接口"></a>设计接口</h2><p>假如我得到一个值 <code>NSString *obj</code>，实际上可能是 NSNull ，可能是 NSNumber ，可能是空数据的 <code>@"&lt;null&gt;"</code> 或者 <code>@"(null)"</code> 等各种表述。那么我需要确保 <code>NSSafeString(obj)</code> 的结果一定是 NSString 类型的值，如果是空数据，就应该是 nil。如果是 <code>@123</code> 这样的数字，那么应该得到 <code>@"123"</code> 这样的字符串。</p><p>如果是 json 数据，它可能以 NSData 类型存在，可能以 Json 字符串 NSString 类型存在，可能以 NSArray 或者 NSDictionary 对象形式存在。我需要的是我要什么类型就能直接获取。例如 <code>ValueX(obj).stringValue</code> 就得到这个数据的 Json 字符串，<code>ValueX(obj).dictionaryValue</code> 就得到这个数据的字典对象。</p><p>所以这个库就分为两部份工作，一部分是将实际类型与定义类型一致化；第二部分是将已知类型转换成它能够转换的其他类型。</p><h3 id="类型安全"><a class="headerlink" href="#类型安全" title="类型安全"></a>类型安全</h3><p>针对 ObjC 中常用的 6 种数据类型 NSString、NSNumber、NSData、NSArray、NSSet、NSDictionary 一一进行判断，写出6个函数：</p><figure class="highlight objc"><figcaption><span>得到安全类型：</span></figcaption><table><tr><td class="code"><pre><span class="line">FOUNDATION_EXTERN <span class="built_in">NSString</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeString</span>(<span class="keyword">id</span> obj);</span><br><span class="line">FOUNDATION_EXTERN <span class="built_in">NSNumber</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeNumber</span>(<span class="keyword">id</span> obj);</span><br><span class="line">FOUNDATION_EXTERN <span class="built_in">NSData</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeData</span>(<span class="keyword">id</span> obj);</span><br><span class="line">FOUNDATION_EXTERN <span class="built_in">NSArray</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeArray</span>(<span class="keyword">id</span> obj);</span><br><span class="line">FOUNDATION_EXTERN <span class="built_in">NSSet</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeSet</span>(<span class="keyword">id</span> obj);</span><br><span class="line">FOUNDATION_EXTERN <span class="built_in">NSDictionary</span> * __<span class="keyword">nullable</span> <span class="built_in">NSSafeDictionary</span>(<span class="keyword">id</span> obj);</span><br></pre></td></tr></table></figure><p>确保从这些函数出来的值是与定义类型一致的值。</p><h3 id="类型转换"><a class="headerlink" href="#类型转换" title="类型转换"></a>类型转换</h3><p>即使拿到的值与定义类型一致，有时候我们要用的可能又是其他类型。</p><figure class="highlight objc"><figcaption><span>数据类型转换函数：</span></figcaption><table><tr><td class="code"><pre><span class="line">FOUNDATION_EXTERN VXObject *ValueX(<span class="keyword">id</span> &lt;VXConvertable&gt;obj);</span><br></pre></td></tr></table></figure><p>确保 VXObject 类型可以通过点语法直接得到原数据所能够转换的其他类型。VXObject 是一种中间类型，针对上述 6 种数据类型，每一种可以转换成其他哪些类型进行一一判断。</p><p>其中，NSNumber 只可以转换为 NSString、NSData，遵循 VXConvertable 协议。表示数字的 NSString，可以转换成 NSNumber，表示 Json 的字符串可以转换成对应的 NSArray 或者 NSDictionary，遵守 VXConvertableData 协议。反过来 NSArray、NSSet 或者 NSDictionary 则遵守 VXConvertableObject 协议。</p><figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSString</span> (<span class="title">VXObject</span>) &lt;<span class="title">VXConvertableData</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSNumber</span> (<span class="title">VXObject</span>) &lt;<span class="title">VXConvertable</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSData</span> (<span class="title">VXObject</span>) &lt;<span class="title">VXConvertableData</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSArray</span> (<span class="title">VXObject</span>) &lt;<span class="title">VXConvertableObject</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSSet</span> (<span class="title">VCObject</span>) &lt;<span class="title">VXConvertableObject</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"><span class="class"><span class="keyword">@interface</span> <span class="title">NSDictionary</span> (<span class="title">VXObject</span>) &lt;<span class="title">VXConvertableObject</span>&gt;</span></span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure><p>它们的协议内容是：</p><figure class="highlight objc"><table><tr><td class="code"><pre><span class="line"><span class="class"><span class="keyword">@protocol</span> <span class="title">VXConvertable</span> &lt;<span class="title">NSObject</span>&gt;</span></span><br><span class="line">- (VXObject *)vx;</span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@protocol</span> <span class="title">VXConvertableObject</span> &lt;<span class="title">VXConvertable</span>&gt;</span></span><br><span class="line">- (VXObject *)vxWithOptions:(<span class="built_in">NSJSONWritingOptions</span>)opt;</span><br><span class="line"><span class="keyword">@end</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">@protocol</span> <span class="title">VXConvertableData</span> &lt;<span class="title">VXConvertable</span>&gt;</span></span><br><span class="line">- (VXObject *)vxWithOptions:(<span class="built_in">NSJSONReadingOptions</span>)opt;</span><br><span class="line"><span class="keyword">@end</span></span><br></pre></td></tr></table></figure><p>就按照这个思路进行开发，实现的代码就不再赘述了。</p><div class="tag-plugin link dis-select"><a class="link-card plain" target="_blank" rel="external nofollow noopener noreferrer" href="https://cors.mhuig.top/?r=https://xaoxuu.com&url=https://xaoxuu.com/wiki/valuex/" title="文档"><div class="left"><span class="title">文档</span><span class="desc fs12">https://xaoxuu.com/wiki/valuex/</span></div><div class="right"><div class="lazy img" data-bg="https://cdn.jsdelivr.net/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="使用链式语法打造一个 ObjC 安全的对象类型转换库" href="https://xaoxuu.com/blog/2019-08-29-valuex/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">使用链式语法打造一个 ObjC 安全的对象类型转换库</span><span class="desc fs12">https://xaoxuu.com/blog/2019-08-29-valuex/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/posts/ebfff019.html">设计一个样式和逻辑分离的 HUD 库<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/posts/571bd75e.html">苹果设计开发加速器《创建卓越的 Apple Watch 体验》活动现场体验<span class="note">较新</span></a></section></div>
+
+
+
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
