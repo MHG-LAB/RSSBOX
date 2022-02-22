@@ -8,6 +8,10 @@
 
 本项目使用 GitHub Actions, 如果您想搭建此项目, 请不要 fork 此仓库.
 
+## 文档
+
+咕咕咕
+
 ## Thanks
 
 [RSSHub](https://github.com/DIYgod/RSSHub)
