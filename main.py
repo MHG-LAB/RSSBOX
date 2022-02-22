@@ -1,4 +1,5 @@
 import queue
+import sys
 import threading
 import requests
 from bs4 import BeautifulSoup
@@ -8,8 +9,8 @@ import os
 import yaml
 import random
 
-CORS_API = 'https://cors.mhuig.top'
-RSSHUB_API = 'https://rsshub.mhuig.top'
+CORS_API = sys.argv[1]
+RSSHUB_API = sys.argv[2]
     
 def load_config(path):
   f = open(path, 'r', encoding='utf-8')
