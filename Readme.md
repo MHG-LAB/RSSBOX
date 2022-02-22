@@ -14,6 +14,8 @@
 
 [cloudflare-cors-anywhere](https://github.com/Zibri/cloudflare-cors-anywhere)
 
+[hexo-theme-stellar](https://github.com/xaoxuu/hexo-theme-stellar)
+
 [冰卡诺](https://zfe.space/)
 
 ## LICENSE
