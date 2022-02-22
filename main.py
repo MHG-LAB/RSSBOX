@@ -7,6 +7,9 @@ import re
 import os
 import yaml
 import random
+
+CORS_API = 'https://cors.mhuig.top'
+RSSHUB_API = 'https://rsshub.mhuig.top'
     
 def load_config(path):
   f = open(path, 'r', encoding='utf-8')
@@ -152,18 +155,18 @@ def get_post(res,item):
       url = urlparse(link)
       loc = url.scheme+"://"+url.netloc
       # 反防盗链 cors
-      text = text.replace('src="https://','src="https://cors.mhuig.top/?r='+loc+'&url=https://')
-      text = text.replace('="/','="https://cors.mhuig.top/?r='+loc+'&url='+loc+'/')
-      text = text.replace('="../','="https://cors.mhuig.top/?r='+loc+'&url='+loc+'/../')
+      text = text.replace('src="https://','src="'+CORS_API+'/?r='+loc+'&url=https://')
+      text = text.replace('="/','="'+CORS_API+'/?r='+loc+'&url='+loc+'/')
+      text = text.replace('="../','="'+CORS_API+'/?r='+loc+'&url='+loc+'/../')
       if img:
         print(img)
-        img = img.replace('https://','https://cors.mhuig.top/?r='+loc+'&url=https://')
-        img = img.replace('http://','https://cors.mhuig.top/?r='+loc+'&url=https://')
-        img = re.compile(r'^\/').sub('https://cors.mhuig.top/?r='+loc+'&url='+loc+'/', img, 1)
-        img = img.replace('../','https://cors.mhuig.top/?r='+loc+'&url='+loc+'/../',1)
-    if img:
-      img = img.replace('http://','https://cors.mhuig.top/?url=https://')
-    else:
+        img = img.replace('https://',''+CORS_API+'/?r='+loc+'&url=https://')
+        img = img.replace('http://',''+CORS_API+'/?r='+loc+'&url=http://')
+        img = re.compile(r'^\/').sub(''+CORS_API+'/?r='+loc+'&url='+loc+'/', img, 1)
+        img = img.replace('../',''+CORS_API+'/?r='+loc+'&url='+loc+'/../',1)
+    elif img:
+      img = img.replace('http://',''+CORS_API+'/?url=http://')
+    if not img:
       img = 'https://picsum.photos/400/300?random='+ str(random.randint(0,10000))
 
     
@@ -248,8 +251,8 @@ class Crawl(threading.Thread):
       print('%d号线程采集：%s' % (self.number, item['path']))
       requests_url =  item['path']
       if requests_url.startswith('/'):
-        requests_url = "https://rsshub.mhuig.top" + requests_url + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
-        print("====== https://rsshub.mhuig.top ========> " + requests_url + " ======")
+        requests_url = RSSHUB_API + requests_url + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
+        print("====== "+RSSHUB_API+" ========> " + requests_url + " ======")
       else:
         print("====== " + requests_url + " ======")
       response = get_data(requests_url)
