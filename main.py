@@ -1,3 +1,5 @@
+# From https://github.com/MHG-LAB/RSSBOX/
+
 import queue
 import sys
 import threading
