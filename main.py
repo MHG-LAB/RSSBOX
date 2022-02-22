@@ -156,7 +156,7 @@ def get_post(res,item):
       loc = url.scheme+"://"+url.netloc
       # 反防盗链 cors
       text = text.replace('src="https://','src="'+CORS_API+'/?r='+loc+'&url=https://')
-      text = text.replace('http://',CORS_API+'/?r='+loc+'&url=http://')
+      text = text.replace('src="http://','src="'+CORS_API+'/?r='+loc+'&url=http://')
       text = text.replace('="/','="'+CORS_API+'/?r='+loc+'&url='+loc+'/')
       text = text.replace('="../','="'+CORS_API+'/?r='+loc+'&url='+loc+'/../')
       if img:
