@@ -14,11 +14,11 @@
 
 ## Thanks
 
-[RSSHub](https://github.com/DIYgod/RSSHub)
+[RSSHub](https://docs.rsshub.app/)
 
-[cloudflare-cors-anywhere](https://github.com/Zibri/cloudflare-cors-anywhere)
+[cloudflare-cors-anywhere](https://test.cors.workers.dev/)
 
-[hexo-theme-stellar](https://github.com/xaoxuu/hexo-theme-stellar)
+[hexo-theme-stellar](https://xaoxuu.com/wiki/stellar/)
 
 [冰卡诺](https://zfe.space/)
 
