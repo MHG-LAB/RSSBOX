@@ -144,7 +144,8 @@ def get_post(res,item):
 
 
     text = TEXT的特殊处理(text)
-    title = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
+    filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
+    title = re.sub(r'[\'"]', '_', title)
     print(link)
     if link:
       from urllib.parse import urlparse
@@ -168,7 +169,7 @@ def get_post(res,item):
     
     md_content = md_temple
     try:
-      with open('source/_posts/' + dir + '/' + title.replace('\n', '').replace('#', '').replace('.','') + '.md',
+      with open('source/_posts/' + dir + '/' + filename.replace('\n', '').replace('#', '').replace('.','') + '.md',
         mode='w',
         encoding='utf-8') as f:
         if "'" in title:
