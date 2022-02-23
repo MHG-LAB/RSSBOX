@@ -137,16 +137,18 @@ def get_post(res,item):
           link = child["href"]
         else:
           link = child.string
-      if (pubdate == ''):
-        pubdate = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+      if pubdate == '' and (childName == 'published'):
+        pubdate = child.string
       if pubdate == '' and (childName == 'lastbuilddate'):
         pubdate = child.string
-      if (childName == 'pubdate'):
+      if pubdate == '' and (childName == 'pubdate'):
         pubdate = child.string
-      if (childName == 'updated'):
+      if pubdate == '' and (childName == 'updated'):
         pubdate = child.string
-      if (childName == 'published'):
-        pubdate = child.string
+
+    if (pubdate == ''):
+      pubdate = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
 
     text = TEXT的特殊处理(text)
