@@ -11,14 +11,20 @@ import os
 import yaml
 import random
 
-CORS_API = sys.argv[1]
-RSSHUB_API = sys.argv[2]
     
 def load_config(path):
   f = open(path, 'r', encoding='utf-8')
   ystr = f.read()
   ymllist = yaml.load(ystr, Loader=yaml.FullLoader)
   return ymllist
+
+if os.path.exists('config.api.yml'):
+  c=load_config('config.api.yml')
+  CORS_API = c['CORS_API']
+  RSSHUB_API = c['RSSHUB_API']
+else:
+  CORS_API = sys.argv[1]
+  RSSHUB_API = sys.argv[2]
 
 # 反反爬虫
 def getRandUa():
@@ -103,6 +109,16 @@ comments: false
 
 '''
 
+# 获取最长的text
+def get_long_text(list_text):
+  max_len = 0
+  max_text = ''
+  for text in list_text:
+    if len(text) > max_len:
+      max_len = len(text)
+      max_text = text
+  return max_text
+
 def get_post(res,item):
   cat = item['cat']
   tag = item['tag']
@@ -114,24 +130,28 @@ def get_post(res,item):
     pubdate = ''
     img = ''
     link = ''
+    # description
+    description=""
+    encoded=""
+    content=""
+    summary=""
+    
     for child in i.children:
       childName = child.name
       if str(type(childName)) == "<class 'str'>":
         childName = str.lower(childName)
       if (childName == 'title'):
         title = child.string
-      if (childName == 'encoded'
-        or (text=="" and childName == 'description')
-        or (text=="" and childName == 'content') 
-        or (text=="" and childName == 'summary')):
-        if child.string not in ["",None]:
-          text = child.string
-          soup_item = BeautifulSoup(text, 'html.parser')
-          if soup_item.find('img'):
-            if 'data-lazy-src' in soup_item.find('img'):
-              img = soup_item.find('img')['data-lazy-src'].strip()
-            else:
-              img = soup_item.find('img')['src'].strip()
+      
+      if (childName == 'description'):
+        description= child.string
+      if (childName == 'encoded'):
+        encoded = child.string
+      if (childName == 'content'):
+        content = child.string
+      if (childName == 'summary'):
+        summary = child.string
+
       if (childName == 'link'):
         if "href" in child.attrs:
           link = child["href"]
@@ -150,7 +170,14 @@ def get_post(res,item):
     if (pubdate == ''):
       pubdate = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-
+    text = get_long_text([description,encoded,content,summary])
+    if text not in ["",None]:
+      soup_item = BeautifulSoup(text, 'html.parser')
+      if soup_item.find('img'):
+        if 'data-lazy-src' in soup_item.find('img'):
+          img = soup_item.find('img')['data-lazy-src'].strip()
+        else:
+          img = soup_item.find('img')['src'].strip()
     text = TEXT的特殊处理(text)
     filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
     title = re.sub(r'[\'"]', '_', title)
