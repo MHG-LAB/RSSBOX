@@ -174,7 +174,7 @@ def get_post(res,item):
     if text not in ["",None]:
       soup_item = BeautifulSoup(text, 'html.parser')
       if soup_item.find('img'):
-        if 'data-lazy-src' in soup_item.find('img'):
+        if 'data-lazy-src' in soup_item.find('img').attrs:
           img = soup_item.find('img')['data-lazy-src'].strip()
         else:
           img = soup_item.find('img')['src'].strip()
