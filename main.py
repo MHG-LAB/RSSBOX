@@ -70,18 +70,17 @@ def get_data_result(link,rand_ua=False):
     result = r.text.encode("gbk", 'ignore').decode('gbk', 'ignore')
     print(f"{str(r)}::{link}")
     if str(r) != '<Response [200]>':
-      result = 'error'
+      result = ''
   except Exception as e:
     error_line = e.__traceback__.tb_lineno
     error_info = '第{error_line}行发生error为: {e}'.format(error_line=error_line, e=str(e))
     print(error_info)
-    result = 'error'
+    result = ''
   return result
 
 def get_data(link):
-  result = ''
   result = get_data_result(link,False)
-  if result == 'error':
+  if result == '':
     result = get_data_result(link,True)
   return result
 
