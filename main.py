@@ -47,12 +47,16 @@ proxies = {
     'http': 'http://127.0.0.1:7890'
 }
 
-def get_data(link):
+def get_data_result(link,rand_ua=False):
   # print('正在获取数据...')
   # print('链接：', link)
   result = ''
+  if rand_ua:
+    ua = getRandUa()
+  else:
+    ua = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
   header = {
-    'User-Agent': getRandUa(),
+    'User-Agent': ua,
     "Connection": "close",
     }
   try:
@@ -64,16 +68,22 @@ def get_data(link):
     s.close()
     r.encoding = 'utf-8'
     result = r.text.encode("gbk", 'ignore').decode('gbk', 'ignore')
-    if str(r) == '<Response [404]>':
-      # print('<Response [404]>')
-      result = ''
+    print(f"{str(r)}::{link}")
+    if str(r) != '<Response [200]>':
+      result = 'error'
   except Exception as e:
     error_line = e.__traceback__.tb_lineno
     error_info = '第{error_line}行发生error为: {e}'.format(error_line=error_line, e=str(e))
     print(error_info)
-    result = ''
+    result = 'error'
   return result
 
+def get_data(link):
+  result = ''
+  result = get_data_result(link,False)
+  if result == 'error':
+    result = get_data_result(link,True)
+  return result
 
 def dfs_route(route_config, path):
   for key, value in route_config.items():
@@ -114,6 +124,8 @@ def get_long_text(list_text):
   max_len = 0
   max_text = ''
   for text in list_text:
+    if text in [None,'', ' ', '\n', '\r\n', '\r', '\t']:
+      text = ""
     if len(text) > max_len:
       max_len = len(text)
       max_text = text
@@ -123,7 +135,7 @@ def get_post(res,item):
   cat = item['cat']
   tag = item['tag']
   dir = item['dir']
-  soup = BeautifulSoup(res, ["lxml", "xml"])
+  soup = BeautifulSoup(res, "lxml-xml")
   for i in soup.find_all(['item','entry'])[0:15]:
     title = ''
     text = ''
