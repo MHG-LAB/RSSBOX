@@ -216,7 +216,7 @@ def get_post(res,item):
     
     md_content = md_temple
     try:
-      with open('source/_posts/' + dir + '/' + filename.replace('\n', '').replace('#', '').replace('.','') + '.md',
+      with open('source/_posts/' + dir + '/' + str(time.time()) + filename.replace('\n', '').replace('#', '').replace('.','') + '.md',
         mode='w',
         encoding='utf-8') as f:
         if "'" in title:
