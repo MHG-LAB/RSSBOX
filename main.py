@@ -194,7 +194,8 @@ def get_post(res,item):
     #title = re.sub(r'[\'"]', '_', title)
     filename=filename.replace('\n', '').replace('#', '').replace('.','')
     if os.path.exists('source/_posts/' + dir + '/' + filename + '.md'):
-      filename = filename+'-'+str(time.time()) 
+      filename = filename+'-'+str(time.time())
+      title = title+'-'+str(time.time()) 
     print(link)
     if link:
       from urllib.parse import urlparse
