@@ -191,7 +191,10 @@ def get_post(res,item):
           img = soup_item.find('img')['src'].strip()
     text = TEXT的特殊处理(text)
     filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
-    title = re.sub(r'[\'"]', '_', title)
+    #title = re.sub(r'[\'"]', '_', title)
+    filename=filename.replace('\n', '').replace('#', '').replace('.','')
+    if os.path.exists('source/_posts/' + dir + '/' + filename + '.md'):
+      filename = filename+'-'+str(time.time()) 
     print(link)
     if link:
       from urllib.parse import urlparse
@@ -216,7 +219,7 @@ def get_post(res,item):
     
     md_content = md_temple
     try:
-      with open('source/_posts/' + dir + '/' + str(time.time()) + filename.replace('\n', '').replace('#', '').replace('.','') + '.md',
+      with open('source/_posts/' + dir + '/' + filename + '.md',
         mode='w',
         encoding='utf-8') as f:
         if "'" in title:
