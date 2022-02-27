@@ -67,7 +67,7 @@ def get_data_result(link,rand_ua=False):
     r = s.get(link, headers=header, timeout=120,verify=True)
     s.close()
     r.encoding = 'utf-8'
-    result = r.text.encode("gbk", 'ignore').decode('gbk', 'ignore')
+    result = r.text.encode("utf-8", 'ignore').decode('utf-8', 'ignore')
     print(f"{str(r)}::{link}")
     if str(r) != '<Response [200]>':
       result = ''
@@ -193,7 +193,6 @@ def get_post(res,item):
     filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
     #title = re.sub(r'[\'"]', '_', title)
     filename = filename.replace('\n', '').replace('#', '').replace('.','')
-    # filename = filename.encode().decode()
     if os.path.exists('source/_posts/' + dir + '/' + filename + '.md'):
       filename = filename+'-'+str(time.time())
       title = title+'-'+str(time.time()) 
