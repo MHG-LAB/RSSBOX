@@ -192,7 +192,8 @@ def get_post(res,item):
     text = TEXT的特殊处理(text)
     filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
     #title = re.sub(r'[\'"]', '_', title)
-    filename=filename.replace('\n', '').replace('#', '').replace('.','')
+    filename = filename.replace('\n', '').replace('#', '').replace('.','')
+    # filename = filename.encode().decode()
     if os.path.exists('source/_posts/' + dir + '/' + filename + '.md'):
       filename = filename+'-'+str(time.time())
       title = title+'-'+str(time.time()) 
@@ -355,6 +356,8 @@ def TEXT的特殊处理(text):
   text = str(soup)
   return text
 
+if os.path.exists('source/_posts/'):
+  os.system('rm -rf source/_posts/')
 
 route_config = load_config('config.route.yml')
 path=[]
