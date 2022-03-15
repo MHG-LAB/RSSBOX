@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Introducing: Backup Certificates - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="At Cloudflare, we pride ourselves in giving every customer the ability to provision a TLS certificate for their Internet application — for free. Today, we are responsible for managing the certificate">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Introducing: Backup Certificates">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/31b587a5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="At Cloudflare, we pride ourselves in giving every customer the ability to provision a TLS certificate for their Internet application — for free. Today, we are responsible for managing the certificate">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-header.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-header-1.png">
+<meta property="article:published_time" content="2022-03-14T12:59:10.000Z">
+<meta property="article:modified_time" content="2022-03-14T12:59:10.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-header.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#events-that-lead-to-certificate-re-issuance"><span class="toc-text">Events that lead to certificate re-issuance</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#key-compromises"><span class="toc-text">Key Compromises</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#the-heartbleed-vulnerability"><span class="toc-text">The Heartbleed Vulnerability</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#mass-revocations-from-cas"><span class="toc-text">Mass Revocations from CAs</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#challenges-when-renewing-certificates"><span class="toc-text">Challenges when Renewing Certificates</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#scale-with-great-power-comes-great-responsibility"><span class="toc-text">Scale: With great power, comes great responsibility</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#manual-intervention-for-completing-dcv"><span class="toc-text">Manual intervention for completing DCV</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#backup-certificates-deployment-plan"><span class="toc-text">Backup Certificates Deployment Plan</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#next-up-backup-certificates-for-all"><span class="toc-text">Next Up: Backup Certificates for All</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-03-14T12:59:10.000Z">2022-03-14</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Introducing: Backup Certificates</span></h1>
+<div>
+<img class="lazy" alt="Introducing: Backup Certificates" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-header.png"><p>At Cloudflare, we pride ourselves in giving every customer the ability to provision a TLS certificate for their Internet application — for free. Today, we are responsible for managing the certificate lifecycle for almost 45 million certificates from issuance to deployment to renewal. As we build out the most resilient, robust platform, we want it to be “future-proof” and resilient against events we can’t predict.</p><p>Events that cause us to re-issue certificates for our customers, like key compromises, vulnerabilities, and mass revocations require immediate action. Otherwise, customers can be left insecure or offline. When one of these events happens, we want to be ready to mitigate impact immediately. But how?</p><p>By having a backup certificate ready to deploy — wrapped with a different private key and issued from a different Certificate Authority than the primary certificate that we serve.</p><figure class="kg-card kg-image-card"><img alt="Introducing: Backup Certificates" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-header-1.png"></figure><h2 id="events-that-lead-to-certificate-re-issuance">Events that lead to certificate re-issuance</h2><p>Cloudflare re-issues certificates every day — we call this a certificate renewal. Because certificates come with an expiration date, when Cloudflare sees that a certificate is expiring soon, we initiate a new certificate renewal order. This way, by the time the certificate expires, we already have an updated certificate deployed and ready to use for TLS termination.</p><p>Unfortunately, not all certificate renewals are initiated by the expiration date. Sometimes, unforeseeable events like key compromises can lead to certificate renewals. This is because a new key needs to be issued, and therefore a corresponding certificate does as well.</p><h3 id="key-compromises">Key Compromises</h3><p>A key compromise is when an unauthorized person or system obtains the private key that is used to encrypt and decrypt secret information — security personnel’s worst nightmare. Key compromises can be the result of a vulnerability, such as Heartbleed, where a bug in a system can cause the private key to be leaked. They can also be the result of malicious actions, such as a rogue employee accessing unauthorized information. In the event of a key compromise, it's crucial that (1) new private keys are immediately issued, (2) new certificates are deployed, and (3) the old certificates are revoked.</p><h3 id="the-heartbleed-vulnerability">The Heartbleed Vulnerability</h3><p>In 2014, the <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/the-heartbleed-aftermath-all-cloudflare-certificates-revoked-and-reissued/">Heartbleed vulnerability</a> was exposed. It allowed attackers to extract the TLS certificate private key for any server that was running the affected version of OpenSSL, a popular encryption library. We <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/staying-ahead-of-openssl-vulnerabilities/">patched the bug</a> and then as a precaution, quickly reissued private keys and TLS certificates belonging to all of our customers, even though none of our keys were leaked. Cloudflare’s ability to act quickly protected our customers’ data from being exposed.</p><p>Heartbleed was a wake-up call. At the time, Cloudflare’s scale was a magnitude smaller. A similar vulnerability at today’s scale would take us weeks, not hours to re-issue all of our customers certificates.</p><p>Now, with backup certificates, we don’t need to worry about initiating a mass re-issuance in a small time frame. Instead, customers will already have a certificate that we’ll be able to instantly deploy. Not just that, but the backup certificate will also be wrapped with a different key than the primary certificate, preventing it from being impacted by a key compromise.</p><p>Key compromises are one of the main reasons certificates need to be re-issued at scale. But other events can prompt re-issuance as well, including mass revocations by Certificate Authorities.</p><h3 id="mass-revocations-from-cas">Mass Revocations from CAs</h3><p>Today, the Certificate Authority/Browser Forum (CA/B Forum) is the governing body that sets the rules and standards for certificates. One of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://cabforum.org/wp-content/uploads/CA-Browser-Forum-BR-1.8.1.pdf">Baseline Requirements</a> set by the CA/B Forum states that Certificate Authorities are required to revoke certificates whose keys are at risk of being compromised within 24 hours. For less immediate issues, such as certificate misuse or violation of a CA’s Certificate Policy, certificates need to be revoked within <a target="_blank" rel="external nofollow noopener noreferrer" href="https://cabforum.org/2018/09/14/ballot-sc6-revocation-timeline-extension/">five days</a>. In both scenarios, certificates will be revoked by the CA in a short timeframe and immediate re-issuance of certificates is required.</p><p>While mass revocations aren’t commonly initiated by CAs, there have been a few occurrences throughout the last few years. Recently, Let’s Encrypt had to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugzilla.mozilla.org/show_bug.cgi?id=1751984#c20">revoke</a> roughly 2.7 million certificates when they found a non-compliance in their implementation of a DCV challenge. In this case, Cloudflare customers were unaffected.</p><p>Another time, one of the Certificate Authorities that we use found that they were <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugzilla.mozilla.org/show_bug.cgi?id=1714628">renewing certificates based on validation tokens</a> that did not comply with the CA/B Forum standards. This caused them to invoke a mass revocation, impacting about five thousand Cloudflare-managed domains. We worked with our customers and the CA to issue new certificates before the revocation, resulting in minimal impact.</p><p>We understand that mistakes happen, and we have been lucky enough that as these issues have come up, our engineering teams were able to mitigate quickly so that no customers were impacted. But that’s not enough: our systems need to be future-proof so that a revocation of 45 million certificates will have no impact on our customers. With backup certificates, we’ll be ready for a mass re-issuance, no matter the scale.</p><p>To be resilient against mass revocations initiated by our CAs, we are going to issue every backup certificate from a different CA than the primary certificate. This will add a layer of protection if one of our CAs will have to invoke a mass revocation — something that when initiated, is a ticking time bomb.</p><h2 id="challenges-when-renewing-certificates">Challenges when Renewing Certificates</h2><h3 id="scale-with-great-power-comes-great-responsibility">Scale: With great power, comes great responsibility</h3><p>When the Heartbleed vulnerability was exposed, we had to re-issue about 100,000 certificates. At the time, this wasn’t a challenge for Cloudflare. Now, we are responsible for tens of millions of certificates. Even if our systems are able to handle this scale, we rely on our Certificate Authority partners to be able to handle it as well. In the case of an emergency, we don’t want to rely on systems that we do not control. That’s why it’s important for us to issue the certificates ahead of time, so that during a disaster, all we need to worry about is getting the backup certificates deployed.</p><h3 id="manual-intervention-for-completing-dcv">Manual intervention for completing DCV</h3><p>Another challenge that comes with re-issuing certificates is Domain Control Validation (DCV). DCV is a check used to validate the ownership of a domain before a Certificate Authority can issue a certificate for it. When customers onboard to Cloudflare, they can either delegate Cloudflare to be their DNS provider, or they can choose to use Cloudflare as a proxy while maintaining their current DNS provider.</p><p>When Cloudflare acts as the DNS provider for a domain, we can add Domain Control Validation (DCV) records on our customer’s behalf. This makes the certificate issuance and renewal process much simpler.</p><p>Domains that don’t use Cloudflare as their DNS provider — we call them <em>partial zones</em> — have to rely on other methods for completing DCV. When those domains proxy their traffic through us, we can complete HTTP DCV on their behalf, serving the HTTP DCV token from our Edge. However, customers that want their certificate issued before proxying their traffic need to manually complete DCV. In an event where Cloudflare has to re-issue thousands or millions of certificates, but cannot complete DCV on behalf of the customer, manual intervention will be required. While completing DCV is not an arduous task, it's not something that we should rely on our customers to do in an emergency, when they have a small time frame, with high risk involved.</p><p>This is where backup certificates come into play. From now on, every certificate issuance will fire two orders: one for a certificate from the primary CA and one for the backup certificate. When we can complete the DCV on behalf of the customer, we will do so for both CAs.</p><p>Today, we’re only issuing backup certificates for domains that use Cloudflare as an Authoritative DNS provider. In the future, we’ll order backup certificates for partial zones. That means that for backup certificates for which we are unable to complete DCV, we will give customers the corresponding DCV records to get the certificate issued. </p><h2 id="backup-certificates-deployment-plan">Backup Certificates Deployment Plan</h2><p>We are happy to announce that Cloudflare has started deploying backup certificates on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/">Universal Certificate</a> orders for Free customers that use Cloudflare as an Authoritative DNS provider. We have been slowly ramping up the number of backup certificate orders and in the next few weeks, we expect every new Universal certificate pack order initiated on a Free, Pro, or Biz account to include a backup certificate, wrapped with a different key and issued from a different CA than the primary certificate.</p><p>At the end of April we will start issuing backup certificates for our Enterprise customers. If you’re an Enterprise customer and have any questions about backup certificates, please reach out to your Account Team.</p><h2 id="next-up-backup-certificates-for-all">Next Up: Backup Certificates for All</h2><p>Today, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/">Universal certificates</a> make up 72% of the certificates in our pipeline. But we want full coverage! That’s why our team will continue building out our backup certificates pipeline to support Advanced Certificates and SSL for SaaS certificates. In the future, we will also issue backup certificates for certificates that our customers upload themselves, so they can have a backup they can rely on.</p><p>In addition, we will continue to improve our pipeline to make the deployment of backup certificates instantaneous — leaving our customers secure and online in an emergency.</p><p>At Cloudflare, our mission is to help build a better Internet. With backup certificates, we’re helping build a secure, reliable Internet that’s ready for any disaster. Interested in helping us out? <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/careers/jobs/">We’re hiring</a>.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Introducing: Backup Certificates" href="https://blog.cloudflare.com/introducing-backup-certificates/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Introducing: Backup Certificates</span><span class="desc fs12">https://blog.cloudflare.com/introducing-backup-certificates/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/efe67939.html">#27 やっぱ、春、憂鬱<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/3f593921.html">Leverage IBM QRadar SIEM to Get Insights From Cloudflare Logs<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/48a8090f.html" title="Announcing Experimental DDR in 1.1.1.1"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/Screen-Shot-2022-03-08-at-11.36.08-AM-1.png"></div><span class="title">Announcing Experimental DDR in 1.1.1.1</span></a><a class="item" href="/rss/d267b2c5.html" title="CVE-2022-26143: A Zero-Day Vulnerability for Launching UDP Amplification DDoS Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image3-2.png"></div><span class="title">CVE-2022-26143: A Zero-Day Vulnerability for Launching UDP Amplification DDoS Attacks</span></a><a class="item" href="/rss/30c447e6.html" title="CVE-2022-26143: TP240PhoneHome Reflection/amplification DDoS Attack Vector"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-80.png"></div><span class="title">CVE-2022-26143: TP240PhoneHome Reflection/amplification DDoS Attack Vector</span></a><a class="item" href="/rss/d91f9fad.html" title="Cloudflare, CrowdStrike, and Ping Identity Launch the Critical Infrastructure Defense Project"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/unnamed--1--1.png"></div><span class="title">Cloudflare, CrowdStrike, and Ping Identity Launch the Critical Infrastructure Defense Project</span></a><a class="item" href="/rss/dc8214d8.html" title="DNSSEC Issues Take Fiji Domains Offline"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-8.png"></div><span class="title">DNSSEC Issues Take Fiji Domains Offline</span></a><a class="item" href="/rss/96955.html" title="Democratizing Email Security: Protecting Individuals and Businesses of All Sizes From Phishing and Malware Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-9.png"></div><span class="title">Democratizing Email Security: Protecting Individuals and Businesses of All Sizes From Phishing and Malware Attacks</span></a><a class="item" href="/rss/a6d175b5.html" title="Get Full Observability Into Your Cloudflare Logs With New Relic"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-14.png"></div><span class="title">Get Full Observability Into Your Cloudflare Logs With New Relic</span></a><a class="item" href="/rss/d84997a5.html" title="How Cloudflare Verifies the Code WhatsApp Web Serves to Users"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/unnamed-1.png"></div><span class="title">How Cloudflare Verifies the Code WhatsApp Web Serves to Users</span></a><a class="item" href="/rss/dab1c405.html" title="International Women’s Day 2022"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/International-Womens-Day-2022-Cloudflare_blog-OG.png"></div><span class="title">International Women’s Day 2022</span></a><a class="item" href="/rss/cf03fe30.html" title="Investigating Threats Using the Cloudflare Security Center"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-12.png"></div><span class="title">Investigating Threats Using the Cloudflare Security Center</span></a><a class="item" href="/rss/3f593921.html" title="Leverage IBM QRadar SIEM to Get Insights From Cloudflare Logs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-12.png"></div><span class="title">Leverage IBM QRadar SIEM to Get Insights From Cloudflare Logs</span></a><a class="item" href="/rss/27503c8c.html" title="Steps We've Taken Around Cloudflare's Services in Ukraine, Belarus, and Russia"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/Cloudflare-logo-generic-blog-OG.png"></div><span class="title">Steps We've Taken Around Cloudflare's Services in Ukraine, Belarus, and Russia</span></a><a class="item" href="/rss/b6b6d7b9.html" title="Stream Now Supports SRT as a Drop-in Replacement for RTMP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=https://lh6.googleusercontent.com/rtr3vWNrtk3X2HSUuSSIHvNud8K6WeNHokdbx231vi9-TIC87GeD6QJ6dMR0vlSJF4qFzv-heJHGXFzhVDygIdHsm3Jh0kGw47QyVx8vtmxPVShb8YsE7CqBRaWJpIivB2kiGX03"></div><span class="title">Stream Now Supports SRT as a Drop-in Replacement for RTMP</span></a><a class="item" href="/rss/ff1df251.html" title="Welcome to Security Week 2022!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-7.png"></div><span class="title">Welcome to Security Week 2022!</span></a><a class="item" href="/rss/8f464e3d.html" title="All Customers Will Soon Be Granted Access to Our New Threat Investigations Portal, Investigate, in the Cloudflare Security Center (First Launched in D..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7168"></div><span class="title">All Customers Will Soon Be Granted Access to Our New Threat Investigations Portal, Investigate, in the Cloudflare Security Center (First Launched in D...</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+  
+    <img no-lazy src="https://min.smallwhitemouse.cf/logo.gif" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';">
+  
+    <script src="https://min.smallwhitemouse.cf/logo.gif"></script>
+  
+
+
+  </div>
+</body>
+</html>
