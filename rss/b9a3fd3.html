@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Optimizing Magic Firewall’s IP Lists - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="Magic Firewall is Cloudflare’s replacement for network-level firewall hardware. It evaluates gigabits of traffic every second against user-defined rules that can include millions of IP addresses. Wri">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Optimizing Magic Firewall’s IP Lists">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b9a3fd3.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Magic Firewall is Cloudflare’s replacement for network-level firewall hardware. It evaluates gigabits of traffic every second against user-defined rules that can include millions of IP addresses. Wri">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image6-10.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image6-11.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-111.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image3-45.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image5-25.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-97.png">
+<meta property="og:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image4-29.png">
+<meta property="article:published_time" content="2022-03-29T16:54:58.000Z">
+<meta property="article:modified_time" content="2022-03-29T16:54:58.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image6-10.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#life-inside-a-network-namespace"><span class="toc-text">Life inside a network namespace</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#scaling-to-many-customers"><span class="toc-text">Scaling to many customers</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#one-more-step-with-ebpf"><span class="toc-text">One more step with eBPF</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#nftables-befriends-ebpf"><span class="toc-text">nftables befriends eBPF</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#results"><span class="toc-text">Results</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-03-29T16:54:58.000Z">2022-03-30</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Optimizing Magic Firewall’s IP Lists</span></h1>
+<div>
+<figure class="kg-card kg-image-card"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image6-10.png" title="Optimizing Magic Firewall’s IP Lists"></figure><img class="lazy" alt="Optimizing Magic Firewall’s IP lists" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image6-11.png"><p>Magic Firewall is Cloudflare’s replacement for network-level firewall hardware. It evaluates gigabits of traffic every second against user-defined rules that can include millions of IP addresses. Writing a firewall rule for each IP address is cumbersome and verbose, so we have been building out support for various <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/magic-firewall/about/list-types">IP lists</a> in Magic Firewall—essentially named groups that make the rules easier to read and write. Some users want to reject packets based on our growing <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/magic-firewall-gets-smarter/">threat intelligence</a> of bad actors, while others know the exact set of IPs they want to match, which Magic Firewall supports via the same <a target="_blank" rel="external nofollow noopener noreferrer" href="https://api.cloudflare.com/#rules-lists-create-list">API</a> as Cloudflare’s WAF.</p><p>With all those IPs, the system was using more of our memory budget than we’d like. To understand why, we need to first peek behind the curtain of our magic.</p><h3 id="life-inside-a-network-namespace">Life inside a network namespace</h3><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/magic-transit/">Magic Transit</a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/magic-wan-firewall/">Magic WAN</a> enable Cloudflare to route layer 3 traffic, and they are the front door for Magic Firewall. We have <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/magic-transit-network-functions/">previously written</a> about how Magic Transit uses network namespaces to route packets and isolate customer configuration. Magic Firewall operates inside these namespaces, using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://wiki.nftables.org/">nftables</a> as the primary implementation of packet filtering.</p><figure class="kg-card kg-image-card"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-111.png" title="Magic Firewall Architecture"></figure><p>When a user makes an API request to configure their firewall, a daemon running on every server detects the change and makes the corresponding changes to nftables. Because nftables configuration is stored within the namespace, each user’s firewall rules are isolated from the next. Every Cloudflare server routes traffic for all of our customers, so it’s important that the firewall only applies a customer’s rules to their own traffic.</p><p>Using our existing technologies, we built IP lists using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://wiki.nftables.org/wiki-nftables/index.php/Sets">nftables sets</a>. In practice, this means that the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/ruleset-engine/rules-language/">wirefilter</a> expression</p><!--kg-card-begin: markdown--><pre><code>ip.geoip.country == “US”
+</code></pre>
+<!--kg-card-end: markdown--><p>is implemented as</p><!--kg-card-begin: markdown--><pre><code>table ip mfw &#123;
+    set geoip.US &#123;
+        typeof ip saddr
+        elements = &#123; 192.0.2.0, … &#125;
+    &#125;
+    chain input &#123;
+        ip saddr @geoip.US block
+    &#125;
+&#125;
+</code></pre>
+<!--kg-card-end: markdown--><p>This design for the feature made it very easy to extend our wirefilter syntax so that <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/magic-firewall/how-to/use-rules-list">users could write rules</a> using all the different IP lists we support.</p><h3 id="scaling-to-many-customers">Scaling to many customers</h3><p>We chose this design since sets fit easily into our existing use of nftables. We shipped quickly with just a few, relatively small lists to a handful of customers. This approach worked well at first, but we eventually started to observe a dramatic increase in our system’s memory use. It’s common practice for our team to enable a new feature for just a few customers at first. Here’s what we observed as those customers started using IP lists:</p><figure class="kg-card kg-image-card kg-width-wide"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image3-45.png" title="Graph of Kmalloc64 Slab Memory"></figure><p>It turns out you can’t store millions of IPs in the kernel without someone noticing, but the real problem is that we pay that cost for each customer that uses them. Each network namespace gets a complete copy of all the lists that its rules reference. Just to make it perfectly clear, if 10 users have a rule that uses the anonymizer list, then a server has 10 copies of that list stored in the kernel. Yikes!</p><p>And it isn’t just the storage of these IPs that caused alarm; the sheer size of the nftables configuration causes nft (the command-line program for configuring nftables) to use quite a bit of compute power.</p><figure class="kg-card kg-image-card kg-width-wide"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image5-25.png" title="Graph of CPU Time"></figure><p>Can you guess when the nftables updates take place?  Now the CPU usage wasn’t particularly problematic, as the service is already quite lean. However, those spikes also create competition with other services that heavily use netlink sockets. At one point, a monitoring alert for another service started firing for high CPU, and a fellow development team went through the incident process only to realize our system was the primary contributor to the problem. They made use of the <code>-terse</code> flag to prevent nft from wasting precious time rendering huge lists of IPs, but degrading another team’s service was a harsh way to learn that lesson.</p><p>We put quite a bit of effort into working around this problem. We tried doing incremental updates of the sets, only adding or deleting the elements that had changed since the last update. It was helpful sometimes, but the complexity ended up not being worth the small savings. Through a lot of profiling, we found that splitting an update across multiple statements improved the situation some. This means we changed</p><!--kg-card-begin: markdown--><pre><code>add element ip mfw set0 &#123; 192.0.2.0, 192.0.2.2, …, 198.51.100.0, 198.51.100.2, … &#125;
+</code></pre>
+<!--kg-card-end: markdown--><p>to</p><!--kg-card-begin: markdown--><pre><code>add element ip mfw set0 &#123; 192.0.2.0, … &#125;
+add element ip mfw set0 &#123; 198.51.100.0, … &#125;
+</code></pre>
+<!--kg-card-end: markdown--><p>just to squeeze out a second or two of reduced time that nft took to process our configuration. We were spending a fair amount of development cycles looking for optimizations, and we needed to find a way to turn the tides.</p><h3 id="one-more-step-with-ebpf">One more step with eBPF</h3><p>As we mentioned <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/programmable-packet-filtering-with-magic-firewall/">on our blog</a> recently, Magic Firewall leverages eBPF for some advanced packet-matching. And it may not be a big surprise that eBPF can match an IP in a list, but it wasn’t a tool we thought to reach for a year ago. What makes eBPF relevant to this problem is that eBPF maps exist regardless of a network namespace. That’s right; eBPF gives us a way to share this data across all the network namespaces we create for our customers.</p><p>Since several of our IP lists contain ranges, we can’t use a simple <code>BPF_MAP_TYPE_HASH</code> or <code>BPF_MAP_TYPE_ARRAY</code> to perform a lookup. Fortunately, Linux already has a data structure that we can use to accommodate ranges: the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/kernel/bpf/lpm_trie.c"><code>BPF_MAP_TYPE_LPM_TRIE</code></a>.</p><p>Given an IP address, the trie’s implementation of <code>bpf_map_lookup_elem()</code> will return a non-null result if the IP falls within any of the ranges already inserted into the map. And using the map is about as simple as it gets for eBPF programs. Here’s an example:</p><!--kg-card-begin: markdown--><pre><code>typedef struct &#123;
+    __u32 prefix_len;
+    __u8 ip[4];
+&#125; trie_key_t;
+
+<p>SEC(“maps”)<br>struct bpf_map_def ip_list &#x3D; &amp;#123;<br>    .type &#x3D; BPF_MAP_TYPE_LPM_TRIE,<br>    .key_size &#x3D; sizeof(trie_key_t),<br>    .value_size &#x3D; 1,<br>    .max_entries &#x3D; 1,<br>    .map_flags &#x3D; BPF_F_NO_PREALLOC,<br>&amp;#125;;</p>
+<p>SEC(“socket&#x2F;saddr_in_list”)<br>int saddr_in_list(struct __sk_buff *skb) &amp;#123;<br>    struct iphdr iph;<br>    trie_key_t trie_key;</p>
+<pre><code>bpf_skb_load_bytes(skb, 0, &amp;amp;iph, sizeof(iph));
+
+trie_key.prefix_len = 32;
+trie_key.ip[0] = iph.saddr &amp;amp; 0xff;
+trie_key.ip[1] = (iph.saddr &amp;gt;&amp;gt; 8) &amp;amp; 0xff;
+trie_key.ip[2] = (iph.saddr &amp;gt;&amp;gt; 16) &amp;amp; 0xff;
+trie_key.ip[3] = (iph.saddr &amp;gt;&amp;gt; 24) &amp;amp; 0xff;
+
+void *val = bpf_map_lookup_elem(&amp;amp;ip_list, &amp;amp;trie_key);
+return val == NULL ? BPF_OK : BPF_DROP;
+</code></pre>
+<p>&amp;#125;</p>
+<p></p></code></pre><p></p>
+<!--kg-card-end: markdown--><h3 id="nftables-befriends-ebpf">nftables befriends eBPF</h3><p>One of the limitations of our prior work incorporating eBPF into the firewall involves how the program is loaded into the nftables ruleset. Because the nft command-line program does not support calling a BPF program from a rule, we formatted the Netlink messages ourselves. While this allowed us to insert a rule that executes an eBPF program, it came at the cost of losing out on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://wiki.nftables.org/wiki-nftables/index.php/Atomic_rule_replacement">atomic rule replacements</a>.</p><p>So any native nftables rules could be applied in one transaction, but any eBPF-based rules would have to be inserted afterwards. This introduces some headaches for handling failures—if inserting an eBPF rule fails, should we simply retry, or perhaps roll back the nftables ruleset as well? And what if those follow-up operations fail?</p><p>In other words, we went from a relatively simple operation—the new firewall configuration either fully applied or didn’t—to a much more complex one. We didn’t want to keep using more and more eBPF without solving this problem. After hacking on the nftables repo for a few days, we came out with a patch that adds a BPF keyword to the nftables configuration syntax.</p><p>I won’t cover all the changes, which we hope to upstream soon, but there were two key parts. The first is implementing <a target="_blank" rel="external nofollow noopener noreferrer" href="https://git.netfilter.org/nftables/tree/include/expression.h?v1.0.1#n158">struct expr_ops</a> and some methods required, which is how nft’s parser knows what to do with each keyword in its configuration language (like the “bpf” keyword we introduced). The second is just a different approach for what we solved previously. Instead of directly formatting <a target="_blank" rel="external nofollow noopener noreferrer" href="https://git.netfilter.org/iptables/tree/include/linux/netfilter/xt_bpf.h?h=v1.8.7#n27">struct xt_bpf_info_v1</a> into a byte array as iptables does, nftables uses the nftnl library to create the netlink messages.</p><p>Once we had our footing working in a foreign codebase, that code turned out fairly simple.</p><!--kg-card-begin: markdown--><pre><code>static void netlink_gen_bpf(struct netlink_linearize_ctx *ctx,
+<pre><code>                        const struct expr *expr,
+                        enum nft_registers dreg)
+</code></pre>
+<p>&amp;#123;<br>       struct nftnl_expr *nle;</p>
+<pre><code>   nle = alloc_nft_expr(&quot;match&quot;);
+   nftnl_expr_set_str(nle, NFTNL_EXPR_MT_NAME, &quot;bpf&quot;);
+   nftnl_expr_set_u8(nle, NFTNL_EXPR_MT_REV, 1);
+   nftnl_expr_set(nle, NFTNL_EXPR_MT_INFO, expr-&amp;gt;bpf.info, sizeof(struct xt_bpf_info_v1));
+   nft_rule_add_expr(ctx, nle, &amp;amp;expr-&amp;gt;location);
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<!--kg-card-end: markdown--><p>With the patch finally built, it became possible for us to write configuration like this where we can provide a path to any pinned eBPF program.</p><!--kg-card-begin: markdown--><pre><code># nft -f - &lt;&lt;EOF
+<p>table ip mfw &amp;#123;<br>  chain input &amp;#123;<br>    bpf pinned “&#x2F;sys&#x2F;fs&#x2F;bpf&#x2F;filter” drop<br>  &amp;#125;<br>&amp;#125;<br>EOF<br></p></code></pre><p></p>
+<!--kg-card-end: markdown--><p>And now we can mix native nftables matches with eBPF programs without giving up the atomic nature of nft commands. This unlocks the opportunity for us to build even more advanced packet inspection and protocol detection in eBPF.</p><h3 id="results">Results</h3><p>This plot shows kernel memory during the time of the deployment - the change was rolled out to each namespace over a few hours.</p><figure class="kg-card kg-image-card kg-width-wide"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-97.png" title="Graph of Kmalloc64 Slab Memory"></figure><p>Though at this point, we’ve merely moved memory out of this slab. Fortunately, the eBPF map memory now appears in the cgroup for our Golang process, so it’s relatively easy to report. Here’s the point at which we first started populating the maps:</p><figure class="kg-card kg-image-card kg-width-wide"><img alt="Optimizing Magic Firewall’s IP lists" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image4-29.png" title="Graph of Cgroup Memory"></figure><p>This change was pushed a couple of weeks before the maps were actually used in the firewall (i.e. the graph just above). And it has remained constant ever since—unlike our original design, the number of customers is no longer a predominant factor in this feature’s resource usage.  The new model makes us more confident about how the service will behave as our product continues to grow.</p><p>Other than being better positioned to use eBPF more in the future, we made a significant improvement on the efficiency of the product today. In any project that grows rapidly for a while, an engineer can often see a few pesky pitfalls looming on the horizon. It is very satisfying to dive deep into these technologies and come out with a creative, novel solution before experiencing too much pain. We love solving hard problems and improving our systems to handle rapid growth in addition to pushing lots of new features.</p><p>Does that sound like an environment you want to work in? Consider <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/careers/">applying</a>!</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Optimizing Magic Firewall’s IP lists" href="https://blog.cloudflare.com/magic-firewall-optimizing-ip-lists/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Optimizing Magic Firewall’s IP lists</span><span class="desc fs12">https://blog.cloudflare.com/magic-firewall-optimizing-ip-lists/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/da4ea586.html">2022 世预赛亚洲区 12 强赛国足客场挑战阿曼，如何评价本场比赛？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a93a319a.html">More and More Users Are Using Magic Firewall’s IP Lists to Filter Network Traffic en Route to Their Infrastructure. in Response to That Growth, We im...<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/56422617.html" title="A Primer on Proxies"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-73.png"></div><span class="title">A Primer on Proxies</span></a><a class="item" href="/rss/795e9987.html" title="Application Security: Cloudflare’s View"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image5-20.png"></div><span class="title">Application Security: Cloudflare’s View</span></a><a class="item" href="/rss/920e64fe.html" title="CVE-2022-1096: How Cloudflare Zero Trust Provides Protection From Zero Day Browser Vulnerabilities"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/cve-2022-1096-zero-trust-protection-from-zero-day-browser-vulnerabilities-header-1.png"></div><span class="title">CVE-2022-1096: How Cloudflare Zero Trust Provides Protection From Zero Day Browser Vulnerabilities</span></a><a class="item" href="/rss/bc5e5732.html" title="Cloudflare Radar’s New ASN Pages"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image3-41.png"></div><span class="title">Cloudflare Radar’s New ASN Pages</span></a><a class="item" href="/rss/27fec9b5.html" title="Cloudflare’s Investigation of the January 2022 Okta Compromise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/Okta-Breach.png"></div><span class="title">Cloudflare’s Investigation of the January 2022 Okta Compromise</span></a><a class="item" href="/rss/825244ed.html" title="Domain Scoped Roles - Early Access"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image3-30.png"></div><span class="title">Domain Scoped Roles - Early Access</span></a><a class="item" href="/rss/681e00df.html" title="Get Updates on the Health of Your Origin Where You Need Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image12-1.png"></div><span class="title">Get Updates on the Health of Your Origin Where You Need Them</span></a><a class="item" href="/rss/17340d7b.html" title="How the Oscars Impacted the Internet (At Least in the US)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/How-the-Oscars-impacted-the-Internet-header-1.png"></div><span class="title">How the Oscars Impacted the Internet (At Least in the US)</span></a><a class="item" href="/rss/d3c77f2f.html" title="Network Performance Update: Security Week"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-99.png"></div><span class="title">Network Performance Update: Security Week</span></a><a class="item" href="/rss/2697c44.html" title="New Cities on the Cloudflare Global Network: March 2022 Edition"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-90.png"></div><span class="title">New Cities on the Cloudflare Global Network: March 2022 Edition</span></a><a class="item" href="/rss/4627bbc6.html" title="Ridiculously Easy to Use Tunnels"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-106.png"></div><span class="title">Ridiculously Easy to Use Tunnels</span></a><a class="item" href="/rss/2d3c62a1.html" title="Securing Cloudflare Using Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/Securing-Cloudflare-with-Cloudflare.png"></div><span class="title">Securing Cloudflare Using Cloudflare</span></a><a class="item" href="/rss/62dcbfd8.html" title="Unlocking QUIC’s Proxying Potential With MASQUE"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image1-86.png"></div><span class="title">Unlocking QUIC’s Proxying Potential With MASQUE</span></a><a class="item" href="/rss/8077d96.html" title="Zero Trust for SaaS: Deploying mTLS on Custom Hostnames"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cos.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/03/image2-87.png"></div><span class="title">Zero Trust for SaaS: Deploying mTLS on Custom Hostnames</span></a><a class="item" href="/rss/8a967ddc.html" title="A Technical Dive Into Traditional TCP Proxying Over HTTP."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8857"></div><span class="title">A Technical Dive Into Traditional TCP Proxying Over HTTP.</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
