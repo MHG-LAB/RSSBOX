@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Secret Management With HashiCorp Vault - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="Many applications these days require authentication to external systems with resources, such as users and passwords to access databases and service accounts to access cloud services, and so on. In su">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Secret Management With HashiCorp Vault">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/2e5bc211.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Many applications these days require authentication to external systems with resources, such as users and passwords to access databases and service accounts to access cloud services, and so on. In su">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/Screen-Shot-2022-04-25-at-2.36.10-PM.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/Screen-Shot-2022-04-25-at-2.36.10-PM-1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image6-6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image2-14.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image3-13.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image5-11.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-19.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image4-8.png">
+<meta property="article:published_time" content="2022-04-28T13:00:26.000Z">
+<meta property="article:modified_time" content="2022-04-28T13:00:26.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/Screen-Shot-2022-04-25-at-2.36.10-PM.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#how-we-were-managing-secrets-in-the-service"><span class="toc-text">How we were managing secrets in the service</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#salt"><span class="toc-text">Salt</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#kubernetes"><span class="toc-text">Kubernetes</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#why-these-secrets-management-were-insufficient"><span class="toc-text">Why these secrets management were insufficient</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#hashicorp-vault"><span class="toc-text">HashiCorp Vault</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#service-integrations"><span class="toc-text">Service integrations</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#salt-1"><span class="toc-text">Salt</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#kubernetes-1"><span class="toc-text">Kubernetes</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#identity-provider-user-login"><span class="toc-text">Identity Provider - User login</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#integrated-ecosystem-auth-x-secret"><span class="toc-text">Integrated ecosystem - Auth x Secret</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#wrap-up"><span class="toc-text">Wrap up</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-04-28T13:00:26.000Z">2022-04-28</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Secret Management With HashiCorp Vault</span></h1>
+<div>
+<figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/Screen-Shot-2022-04-25-at-2.36.10-PM.png"></figure><img class="lazy" alt="Secret Management with HashiCorp Vault" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/Screen-Shot-2022-04-25-at-2.36.10-PM-1.png"><p>Many applications these days require authentication to external systems with resources, such as users and passwords to access databases and service accounts to access cloud services, and so on. In such cases, private information, like passwords and keys, becomes necessary. It is essential to take extra care in managing such sensitive data. For example, if you write your AWS key information or password in a script for deployment and then push it to a Git repository, all users who can read it will also be able to access it, and you could be in trouble. Even if it's an internal repository, you run the risk of a potential leak.</p><h2 id="how-we-were-managing-secrets-in-the-service">How we were managing secrets in the service</h2><p>Before we talk about Vault, let's take a look at how we've used to manage secrets.</p><h3 id="salt">Salt</h3><p>We use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://saltproject.io/">SaltStack</a> as a bare-metal configuration management tool. The core of the Salt ecosystem consists of two major components: the Salt Master and the Salt Minion. The configuration state is owned by Salt Master, and thousands of Salt Minions automatically install packages, generate configuration files, and start services to the node based on the state. The state may contain secrets, such as passwords and API keys. When we deploy secrets to the node, we encrypt plaintext using a Salt Master owned GPG key and fill an ASCII-armored secret into the state file. Once it is applied, the Salt Master decrypts the PGP message using its own key, then the Salt Minion retrieves rendered data from the Master.</p><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image6-6.png"></figure><h3 id="kubernetes">Kubernetes</h3><p>We were using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/lockbox">Lockbox</a>, a secure way to store your Kubernetes secrets offline. The secret is asymmetrically encrypted and can only be decrypted with the Lockbox Kubernetes controller. The controller synchronizes with Secret objects. A Secret generated from Lockbox will also be created in the corresponding namespace. Since namespaces have been assigned administrator privileges by each engineering team, ordinary users cannot read Secret objects.</p><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image2-14.png"></figure><h2 id="why-these-secrets-management-were-insufficient">Why these secrets management were insufficient</h2><p>Prior to Vault, GnuPG and Lockbox were used in this way to encrypt and decrypt most secrets in the data center. Nevertheless, they were inadequate in certain cases:</p><ul><li><strong>Lack of scoping secrets</strong>: The secret data in ASCII-armor could only be decrypted by a specific node when the client read it. This was still not enough control. Salt owns a GPG key for each Salt Master, and Core services (k8s, Databases, Storage, Logging, Tracing, Monitoring, etc) are deployed to hundreds of Salt Minions by a few Salt Masters. Nodes are often reused as different services after repairing hardware failure, so we use the same GPG key to decrypt the secrets of various services. Therefore, having a GPG key for each service is complicated. Also, a specific secret is used only for a specific service. For example, an access key for object storage is needed to back up the repository. In previous configurations, the API key is decrypted by a common Salt Master, so there is a risk that the API key will be referenced by another service or for another purpose. It is impossible to scope secret access, as long as we use the same GPG key.<br><br>Another case is Kubernetes. Namespace-scoped access control and API access restrictions by the RBAC model are excellent. And the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://etcd.io/">etcd</a> used by Kubernetes as storage is not encrypted by default, and the Secret object is also saved. We need to think about encryption-at-rest by a third party KMS, or how to prevent Secrets from being stored in etcd. In other words, it is also required to properly control access to the secret for the secret itself.<br></li><li><strong>Rotation and static secret</strong>: Anyone who has access to the Salt Master GPG key can theoretically decrypt all current and future secrets. And as long as we have many secrets, it's impossible to rotate the encryption of all the secrets. Current and future secret management requires a process for easy rotation and using dynamically generated secrets instead.<br></li><li><strong>Session management</strong>: Users/Services with GPG keys can decrypt secrets at any time. So GPG secret decryption is like having no TTL. (You can set an expiration date against the GPG key, but it's just metadata. If you try to encrypt a new secret, after the expiration date, you'll get a warning, but you can decrypt the existing secret). A temporary session is required to limit access when not needed.<br></li><li><strong>Audit</strong>: GPG doesn’t have a way to keep an audit trail. Audit trails help us to trace the event who/when/where read secrets. The audit trail should contain details including the date, time, and user information associated with the secret read (and login), which is required regardless of user or service.</li></ul><h2 id="hashicorp-vault">HashiCorp Vault</h2><p>Armed with our set of requirements, we chose <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.vaultproject.io/">HashiCorp Vault</a> to make better secret management with a better security model. </p><ul><li><strong>Scoping secrets</strong>: When a client logs in, a Vault token is generated through the Auth method (backend). This token has a policy that defines access policies, so it is clear what the client can access the data after logging in. <br></li><li><strong>Rotation and dynamic secret</strong>: Version-controlled static secret with KV V2 Secret Engine helps us to easily update/rollback secrets with a single request. In addition, dynamic secrets and credentials are available to eliminate manual rotation. Ideally, these are required to be short-lived and have frequent rotation. Service should have restricted access. These are essential to reduce the impact of an attack, but they are operationally difficult, and it is impossible to satisfy them without automation. Vault can solve this problem by allowing operators to provide dynamically generated credentials to their services. Vault manages the credential lifecycle and rotates and revokes it as needed.<br></li><li><strong>Session management</strong>: Vault provides a login process to get the token and various auth methods are provided. It is possible to link with an Identity Provider and authenticate using JWT. Since the vault token has a TTL, it can be managed as a short-lived credential to access secrets.<br></li><li><strong>Audit</strong>: Vault supports audit that records who accessed which Vault API, when, and from where.</li></ul><p>We also built Vault clusters for HA, Reliability, and handling large numbers of requests. </p><ul><li>Use Integrated Storage that every node in the Vault cluster has a duplicate copy of Vault's data. A client can retrieve the same result from any node.<br></li><li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.vaultproject.io/docs/enterprise/replication">Performance Replication</a> offers us the same result as any Vault clusters.<br></li><li>Requests from clients are routed from a single Service IP to one of the Clusters. Anycast routes incoming traffic to the nearest cluster that handles requests efficiently. If one cluster goes down, the request will be automatically routed to another available cluster.</li></ul><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image3-13.png"></figure><h2 id="service-integrations">Service integrations</h2><p>Use the appropriate Auth backend and Secret Engine to integrate the Service and Vault that are responsible for each core component.</p><h3 id="salt-1">Salt</h3><p>The configuration state is owned by Salt Master, and hundreds of Salt Minions automatically install packages, generate configuration files, and start services to the node based on the role. The state data may contain secrets, such as API keys, and Salt Minion retrieves them from Vault. Salt uses a JWT signed by the Salt Master to log in to the vault using the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.vaultproject.io/docs/auth/jwt">JWT Auth method</a>.</p><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image5-11.png"></figure><h3 id="kubernetes-1">Kubernetes</h3><p>Kubernetes reads Vault secrets through an operator that synchronizes with Secret objects. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.vaultproject.io/docs/auth/kubernetes">Kubernetes Auth method</a> uses the Service Account token JWT to login, just like the JWT Auth method. This JWT contains the service account name, UID, and namespace. Vault can scope namespace based on dynamic policy.</p><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-19.png"></figure><h3 id="identity-provider-user-login">Identity Provider - User login</h3><p>Additionally, Vault can work with the Identity Provider through a delegated authorization method based on OAuth 2.0 so that users can get tokens with the right policies. The JWT issued by the Identity Provider contains the group or user ID to which it belongs, and this metadata can be used to assign a Vault policy.</p><figure class="kg-card kg-image-card"><img alt="Secret Management with HashiCorp Vault" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image4-8.png"></figure><h2 id="integrated-ecosystem-auth-x-secret">Integrated ecosystem - Auth x Secret</h2><p>Vault provides a plugin system for two major components: authentication (Auth method) and secret management (Secret Engine). Vault can enable the officially provided plugins and the custom plugins you can build. The Auth method provides authentication for obtaining a Vault token by various methods. As mentioned in the service integration example above, we mainly use JWT, OIDC, and Kubernetes for login. On the other hand, the secret engine provides secrets in various ways, such as KV for a static secret, PKI for certificate signing, issuing, etc.</p><p>And they have an ecosystem. Vault can easily integrate auth methods and secret engines with each other. For instance, if we add a DB dynamic credential secret engine, all existing platforms will instantly be supported, without needing to reinvent the wheel, on how they will auth to a separate service. Similarly, we can add a platform into the mix, and it would instantly have access to all the existing secret engines and their functionalities. Additionally, the Vault can perform permission to the arbitrary endpoint path provided by secret engines based on the authentication method and policies.</p><h2 id="wrap-up">Wrap up</h2><p>Vault integration for the core component is already ongoing and many GPG secrets have been migrated to Vault. We aim to make service integrations in our data centers, dynamic credentials, and improve CI/CD for Vault. Interested? We’re hiring for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://boards.greenhouse.io/cloudflare/jobs/2440061?gh_jid=2440061">security platform engineering</a>!</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Secret Management with HashiCorp Vault" href="https://blog.cloudflare.com/secret-management-with-hashicorp-vault/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Secret Management with HashiCorp Vault</span><span class="desc fs12">https://blog.cloudflare.com/secret-management-with-hashicorp-vault/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/c62eca43.html">如何评价华为 4 月 28 日举办折叠旗舰及全场景新品发布会？有哪些值得关注的信息？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/5e8473f0.html">We Chose HashiCorp Vault to Make Better Secret Management With a Better Security Model. Here's Why.<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/101cdce1.html" title="Breaking Down Broadband Nutrition Labels"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-12.png"></div><span class="title">Breaking Down Broadband Nutrition Labels</span></a><a class="item" href="/rss/6e47ac72.html" title="Building Many Private Virtual Networks Through Cloudflare Zero Trust"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/942-1-1.png"></div><span class="title">Building Many Private Virtual Networks Through Cloudflare Zero Trust</span></a><a class="item" href="/rss/81402e08.html" title="Cloudflare Blocks 15M Rps HTTPS DDoS Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/1109-1.png"></div><span class="title">Cloudflare Blocks 15M Rps HTTPS DDoS Attack</span></a><a class="item" href="/rss/40ca0be.html" title="Cloudflare Partners With Kentik to Enhance On-Demand DDoS Protection"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-10.png"></div><span class="title">Cloudflare Partners With Kentik to Enhance On-Demand DDoS Protection</span></a><a class="item" href="/rss/7c682ffa.html" title="DDoS Attack Trends for 2022 Q1"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/DDoS-Report-Q1-2022-header.png"></div><span class="title">DDoS Attack Trends for 2022 Q1</span></a><a class="item" href="/rss/15d357b2.html" title="Email Routing Insights"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image5-10.png"></div><span class="title">Email Routing Insights</span></a><a class="item" href="/rss/a81a4bbb.html" title="Happy Earth Day: Announcing Green Compute Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image3-9.png"></div><span class="title">Happy Earth Day: Announcing Green Compute Open Beta</span></a><a class="item" href="/rss/da9ef91c.html" title="Internet Disruptions Overview for Q1 2022"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image5-2.png"></div><span class="title">Internet Disruptions Overview for Q1 2022</span></a><a class="item" href="/rss/bdd54997.html" title="Marcelo Affonso and Rebecca Weekly: Why We Joined Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-17.png"></div><span class="title">Marcelo Affonso and Rebecca Weekly: Why We Joined Cloudflare</span></a><a class="item" href="/rss/415f8c51.html" title="PIPEFAIL: How a Missing Shell Option Slowed Cloudflare Down"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image4-4.png"></div><span class="title">PIPEFAIL: How a Missing Shell Option Slowed Cloudflare Down</span></a><a class="item" href="/rss/d0270b40.html" title="The 2022 French Presidential Election Leaves Its Mark on the Internet"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image8-4.png"></div><span class="title">The 2022 French Presidential Election Leaves Its Mark on the Internet</span></a><a class="item" href="/rss/58a3c062.html" title="Two Voting Days, a Debate and a Polling Rule in France Impacts the Internet"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image2-17.png"></div><span class="title">Two Voting Days, a Debate and a Polling Rule in France Impacts the Internet</span></a><a class="item" href="/rss/79102d00.html" title="US Tax Day 2022. How Leaving It to the Last Day Impacts Tax Sites"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image1-15.png"></div><span class="title">US Tax Day 2022. How Leaving It to the Last Day Impacts Tax Sites</span></a><a class="item" href="/rss/fca17475.html" title="What Cloudflare Is Doing to Keep the Open Internet Flowing Into Russia and Keep Attacks From Getting Out"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/04/image2-6.png"></div><span class="title">What Cloudflare Is Doing to Keep the Open Internet Flowing Into Russia and Keep Attacks From Getting Out</span></a><a class="item" href="/rss/97ca9267.html" title="Be Sure to Register for #CloudflareConnect 2022 NYC, So You Don't Miss Ben Solomon (@Bensol) of Cloudflare Presenting With @Coinbase CSO Philip Martin..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://twitter.com&url=https://pbs.twimg.com/media/FRYJOeBXEAAm43B?format=jpg&name=orig"></div><span class="title">Be Sure to Register for #CloudflareConnect 2022 NYC, So You Don't Miss Ben Solomon (@Bensol) of Cloudflare Presenting With @Coinbase CSO Philip Martin...</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
