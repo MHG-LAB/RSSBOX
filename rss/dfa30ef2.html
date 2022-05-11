@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Introducing Cache Reserve: Massively Extending Cloudflare’s Cache - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="One hundred percent. 100%. One-zero-zero. That’s the cache ratio we’re all chasing. Having a high cache ratio means that more of a website’s content is served from a Cloudflare data center close to w">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Introducing Cache Reserve: Massively Extending Cloudflare’s Cache">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/dfa30ef2.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="One hundred percent. 100%. One-zero-zero. That’s the cache ratio we’re all chasing. Having a high cache ratio means that more of a website’s content is served from a Cloudflare data center close to w">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve-1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Why-is-cache-eviction-needed.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/How-does-Cache-Reserve-work.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Screen-Shot-2022-05-09-at-9.52.58-AM.png">
+<meta property="article:published_time" content="2022-05-11T12:59:20.000Z">
+<meta property="article:modified_time" content="2022-05-11T12:59:20.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#why-is-getting-a-100-cache-ratio-difficult"><span class="toc-text">Why is getting a 100% cache ratio difficult? </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#why-is-cache-eviction-needed"><span class="toc-text">Why is cache eviction needed? </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#cache-reserve"><span class="toc-text">Cache Reserve</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#how-does-cache-reserve-work"><span class="toc-text">How Does Cache Reserve Work? </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#how-do-you-use-cache-reserve"><span class="toc-text">How do you use Cache Reserve?</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#try-it-out-"><span class="toc-text">Try it out!</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-05-11T12:59:20.000Z">2022-05-11</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Introducing Cache Reserve: Massively Extending Cloudflare’s Cache</span></h1>
+<div>
+<figure class="kg-card kg-image-card"><img alt="Introducing Cache Reserve: massively extending Cloudflare’s cache" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve.png"></figure><img class="lazy" alt="Introducing Cache Reserve: massively extending Cloudflare’s cache" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve-1.png"><p>One hundred percent. 100%. One-zero-zero. That’s the cache ratio we’re all chasing. Having a high cache ratio means that more of a website’s content is served from a Cloudflare data center close to where a visitor is requesting the website. Serving content from Cloudflare’s cache means it loads faster for visitors, saves website operators money on egress fees from origins, and provides multiple layers of resiliency and protection to make sure that content is always available to be served.</p><p>Today, I’m delighted to announce a massive extension of the benefits of caching with Cache Reserve: a new way to <em>persistently</em> serve all static content from Cloudflare’s global cache. By using Cache Reserve, customers can see higher cache hit ratios and lower egress bills. </p><h3 id="why-is-getting-a-100-cache-ratio-difficult">Why is getting a 100% cache ratio difficult? </h3><p>Every second, Cloudflare serves tens-of-millions of requests from our cache which equates to multiple terabytes-per-second of cached data being delivered to website visitors around the world. With this massive scale, we must ensure that the most requested content is cached in the areas where it is most popular. Otherwise, visitors might wait too long for content to be delivered from farther away and our network would be running inefficiently. If cache storage in a certain region is full, our network avoids imposing these inefficiencies on our customers by evicting less-popular content from the data center and replacing it with more-requested content. </p><p>This works well for the majority of use cases, but all customers have long tail content that is rarely requested and may be evicted from cache. This can be a cause of concern for customers, as this unpopular content can be a major cost driver if it is evicted repeatedly and needs to be served from an origin. This concern can be especially significant for customers with massive content libraries. So how can we make sure to keep this less popular content in cache to shield the customer from origin egress? </p><p>Cache Reserve removes customer content from this popularity contest and ensures that even if the specific content hasn’t been requested in months, it can still be served from Cloudflare’s cache - avoiding the need to pull it from the origin and saving the customer money on egress. <strong>Cache Reserve helps get customers closer to that 100% cache ratio and helps serve all of their content from our global CDN, forever.  </strong></p><h3 id="why-is-cache-eviction-needed">Why is cache eviction needed? </h3><p>Most content served from our cache starts its journey from an origin server - where content is hosted. In order to be <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/">admitted</a> to Cloudflare’s cache the content sent from the origin must meet certain eligibility criteria that ensures it can be reused to respond to other requests for a website (content that doesn’t change based on who is visiting the site). </p><p>After content is admitted to cache, the next question to consider is how long it should remain in cache. Since cache ratios are calculated by taking the number of requests for content and identifying the portion that are answered from a cache server instead of an origin server, ensuring content remains cached in an area it is highly requested is paramount to achieving a high cache ratio. </p><figure class="kg-card kg-image-card"><img alt="Introducing Cache Reserve: massively extending Cloudflare’s cache" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Why-is-cache-eviction-needed.png"></figure><p>Some CDNs use a pay-to-play model that allows customers to pay more money to ensure content is cached in certain areas for some length of time. At Cloudflare, we don’t charge customers based on where or for how long something is cached. This means that we have to use signals other than a customer’s willingness to pay to make sure that the right content is cached for the right amount of time and in the right areas.</p><p>Where to cache a piece of content is pretty straightforward (where it’s being requested), how long content should remain in cache can be highly variable.</p><p>Beyond headers like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/about/cache-control/">cache-control</a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/about/cdn-cache-control/">cdn-cache-control</a>, which help determine how long a customer wants something to be served from cache, the other element that CDNs must consider is whether they need to evict content early to optimize storage of more popular assets. We do eviction based on an algorithm called “least recently used” or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)">LRU</a>. This means that the least-requested content can be evicted from cache first to make space for more popular content when storage space is full. </p><p>This caching strategy requires keeping track of a lot of information about when requests come in and constantly updating the cache to make sure that the hottest content is kept in cache and the least popular content is evicted. This works well and is fair for the wide-array of customers our CDN supports. </p><p>However, if a customer has a large library of content that might go through cycles of popularity and which they’d like to serve from cache regardless, then LRU might mean additional origin egress as assets that are requested sparingly over a long time frame are pulled more from the origin.     </p><p>That’s where Cache Reserve comes in. Cache Reserve is not an alternative to our popularity-based cache but a complement to it. By backstopping all cacheable content in Cache Reserve customers don't have to worry about cache eviction or ephemerality any longer.    </p><h3 id="cache-reserve">Cache Reserve</h3><p>Cache Reserve is a large, persistent data store that is <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/r2-open-beta/">implemented on top of R2</a>. By pushing a single button in the dashboard, all of your website’s cacheable content will be written to Cache Reserve. In the same way that <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/introducing-smarter-tiered-cache-topology-generation/">Tiered Cache</a> builds a hierarchy of caches between your visitors and your origin, Cache Reserve serves as the ultimate <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/about/tiered-cache/">upper-tier cache</a> that will reserve storage space for your assets for as long as you want. This ensures that your content is always served from cache, shielding your origin from unneeded egress fees, and improving response performance.</p><h3 id="how-does-cache-reserve-work">How Does Cache Reserve Work? </h3><figure class="kg-card kg-image-card"><img alt="Introducing Cache Reserve: massively extending Cloudflare’s cache" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/How-does-Cache-Reserve-work.png"></figure><p>Cache Reserve sits between our edge data centers and your origin and provides guaranteed SLAs for how long your content can remain in cache. </p><p>As content is pulled from the origin, it will be written to Cache Reserve, followed by upper-tier data centers, and lower-tier data centers until it reaches the client to fulfill the request. Subsequent requests for the same content will not need to go all the way back to the origin for the response and can, instead, be served from a cache closer to the visitor. Improving both performance and costs of serving the assets. As content gets evicted from lower-tiers and upper-tiers, it will be backstopped by Cache Reserve. </p><p>Cache Reserve voids the request-based eviction that’s implemented in LRU and ensures that assets will remain in cache as long as they are needed. Cache Reserve extends the benefits of Tiered Cache by reducing the number of times Cloudflare’s network needs to ask an origin for content we should have in cache, while simultaneously limiting the number of connections and requests that our data centers need to open to your origin to ask for missing content. Using Cache Reserve with tiered cache helps collapse the number of requests that result from multiple concurrent cache misses from lower-tiers for the same content.</p><p>As an example, let’s assume a cold request for example.com, something our network has never seen before. If a client request comes into the closest lower-tier data center and it is a miss, that lower-tier is mapped to an upper-tier data center. When the lower-tier asks the upper-tier for the content and it is also a miss, the upper-tier will ask Cache Reserve for the content. Now, being the ultimate upper-tier, it will be the only data center that can ask the origin for content if it is not stored on our network. This will help limit the origin resources you need to devote to serving this content as once it’s written to Cache Reserve, your origin doesn’t need to fan out the content to any other part of Cloudflare’s network. </p><p>When your content does need updating, Cache Reserve will respect cache-control headers and purge requests. This means that if you want to control how long something remains fresh in Cache Reserve, before Cloudflare goes back to your origin to revalidate the content, set it as a cache-control header and it will be respected without risk of early eviction. Or if you want to update content on the fly, you can send a purge request which will be respected in both Cloudflare’s cache and in Cache Reserve. </p><h3 id="how-do-you-use-cache-reserve">How do you use Cache Reserve?</h3><p>Currently, Cache Reserve is in <strong>closed beta</strong>, meaning that it’s available to anyone who wants to sign up but we will be slowly rolling it out to customers over the coming weeks to make sure that we are quickly triaging edge cases and making fundamental improvements before we make it generally available to everyone.</p><p>To sign up for the Cache Reserve beta:</p><ul><li>Simply go to the <strong>Caching tile</strong> in the dashboard.</li><li>Navigate to the<strong> </strong><a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/caching/cache-reserve"><strong>Cache Reserve</strong> page</a> and push the sign up button.</li></ul><figure class="kg-card kg-image-card"><img alt="Introducing Cache Reserve: massively extending Cloudflare’s cache" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Screen-Shot-2022-05-09-at-9.52.58-AM.png"></figure><p>The Cache Reserve Plan will mimic the low cost of R2. Storage will be \$0.015 per GB per month and operations will be \$0.36 per million reads, and \$4.50 per million writes. For more information about pricing, please refer to the R2 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/r2/platform/pricing/">page</a> to get a general idea (Cache Reserve pricing page will be out soon).   </p><h3 id="try-it-out-">Try it out!</h3><p>Cache Reserve holds tremendous promise to increase cache hit ratios — which will improve the economics of running any website while speeding up visitors' experiences. We’re excited to begin letting people use Cache Reserve soon. Be sure to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/caching/cache-reserve">check out the beta </a>and let us know what you think.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Introducing Cache Reserve: massively extending Cloudflare’s cache" href="https://blog.cloudflare.com/introducing-cache-reserve/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Introducing Cache Reserve: massively extending Cloudflare’s cache</span><span class="desc fs12">https://blog.cloudflare.com/introducing-cache-reserve/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/dfee2745.html">Durable Objects Alarms — a Wake-Up Call for Your Applications<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/be76e8f2.html">Logs on R2: Slash Your Logging Costs<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/5f6e0322.html" title="10 Things I Love About Wrangler v2.0"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image4-2.png"></div><span class="title">10 Things I Love About Wrangler v2.0</span></a><a class="item" href="/rss/76749e2d.html" title="A Community Group for Web-Interoperable JavaScript Runtimes"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-10.png"></div><span class="title">A Community Group for Web-Interoperable JavaScript Runtimes</span></a><a class="item" href="/rss/bdacfaa0.html" title="A New Hope for Object Storage: R2 Enters Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-20.png"></div><span class="title">A New Hope for Object Storage: R2 Enters Open Beta</span></a><a class="item" href="/rss/1360c7fc.html" title="A New Era for Cloudflare Pages Builds"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image4-6.png"></div><span class="title">A New Era for Cloudflare Pages Builds</span></a><a class="item" href="/rss/852748a8.html" title="Announcing D1: Our First SQL Database"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-23.png"></div><span class="title">Announcing D1: Our First SQL Database</span></a><a class="item" href="/rss/b2648de4.html" title="Announcing Workers for Platforms: Making Every Application on the Internet More Programmable"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image4-4.png"></div><span class="title">Announcing Workers for Platforms: Making Every Application on the Internet More Programmable</span></a><a class="item" href="/rss/2e3ee0ad.html" title="Cloudflare and StackBlitz Partner to Deliver an Instant and Secure Developer Experience"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image3-5.png"></div><span class="title">Cloudflare and StackBlitz Partner to Deliver an Instant and Secure Developer Experience</span></a><a class="item" href="/rss/81821746.html" title="Come Join Us at Cloudflare Connect New York This Thursday!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/BDES-2828_Rainfocus_DefaultSession_TileImage_900x350_16467709158110010bzh-3.png"></div><span class="title">Come Join Us at Cloudflare Connect New York This Thursday!</span></a><a class="item" href="/rss/dfee2745.html" title="Durable Objects Alarms — a Wake-Up Call for Your Applications"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Durable-Object-Alarms.png"></div><span class="title">Durable Objects Alarms — a Wake-Up Call for Your Applications</span></a><a class="item" href="/rss/72349daa.html" title="Introducing Direct Uploads for Cloudflare Pages"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image2-9.png"></div><span class="title">Introducing Direct Uploads for Cloudflare Pages</span></a><a class="item" href="/rss/be76e8f2.html" title="Logs on R2: Slash Your Logging Costs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/PW-Logs-on-R2_-Slash-your-storage-costs.png"></div><span class="title">Logs on R2: Slash Your Logging Costs</span></a><a class="item" href="/rss/bad4064.html" title="Service Bindings Are Generally Available, With Efficient Pricing"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image5-3.png"></div><span class="title">Service Bindings Are Generally Available, With Efficient Pricing</span></a><a class="item" href="/rss/3bbf69ef.html" title="Watching Eurovision 2022 on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image3-9.png"></div><span class="title">Watching Eurovision 2022 on Cloudflare Radar</span></a><a class="item" href="/rss/e3dc3da5.html" title="Workers Visibility: Announcing Logpush for Worker’s Trace Events"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-17.png"></div><span class="title">Workers Visibility: Announcing Logpush for Worker’s Trace Events</span></a><a class="item" href="/rss/8fca1e1d.html" title="Cloudflare Exists to Help Build a Better Internet. Today, the Internet Gets What It Deserves: R2 Is Now in Open Beta."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1165"></div><span class="title">Cloudflare Exists to Help Build a Better Internet. Today, the Internet Gets What It Deserves: R2 Is Now in Open Beta.</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
