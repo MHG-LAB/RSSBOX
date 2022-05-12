@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Announcing Pub/Sub: Programmable MQTT-Based Messaging - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="One of the underlying questions that drives Platform Week is “how do we enable developers to build full stack applications on Cloudflare?”. With Workers as a serverless environment for easily deployi">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Announcing Pub&#x2F;Sub: Programmable MQTT-Based Messaging">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/dbe5732c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="One of the underlying questions that drives Platform Week is “how do we enable developers to build full stack applications on Cloudflare?”. With Workers as a serverless environment for easily deployi">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-26.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-24.png">
+<meta property="article:published_time" content="2022-05-12T12:59:22.000Z">
+<meta property="article:modified_time" content="2022-05-12T12:59:22.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-26.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#why-and-what-is-mqtt"><span class="toc-text">Why, and what is, MQTT?</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#building-blocks"><span class="toc-text">Building Blocks</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#where-are-we-headed"><span class="toc-text">Where are we headed?</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#getting-started"><span class="toc-text">Getting Started</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-05-12T12:59:22.000Z">2022-05-12</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Announcing Pub/Sub: Programmable MQTT-Based Messaging</span></h1>
+<div>
+<figure class="kg-card kg-image-card"><img alt="Announcing Pub/Sub: Programmable MQTT-based Messaging" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-26.png"></figure><img class="lazy" alt="Announcing Pub/Sub: Programmable MQTT-based Messaging" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-24.png"><p>One of the underlying questions that drives Platform Week is “how do we enable developers to build full stack applications on Cloudflare?”. With Workers as a serverless environment for easily deploying distributed-by-default applications, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/learning/how-kv-works/">KV</a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/learning/using-durable-objects/">Durable Objects</a> for caching and coordination, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/r2">R2</a> as our zero-egress cost object store, we’ve continued to discuss what else we need to build to help developers both build new apps and/or bring existing ones over to Cloudflare’s Developer Platform.</p><p>With that in mind, we’re excited to announce the private beta of Cloudflare Pub/Sub, a <em>programmable</em> message bus built on the ubiquitous and industry-standard MQTT protocol supported by tens of millions of existing devices today.</p><p>In a nutshell, Pub/Sub allows you to:</p><ul><li>Publish event, telemetry or sensor data from any MQTT capable client (and in the future, other client-facing protocols)</li><li>Write code that can filter, aggregate and/or modify messages <em>as they’re published to the broker</em> using Cloudflare Workers, and before they’re distributed to subscribers, without the need to ferry messages to a single “cloud region”</li><li>Push events from applications in other clouds, or from on-prem, with Pub/Sub acting as a programmable event router or a hook into persistent data storage (such as R2 or KV)</li><li>Move logic out of the client, where it can be hard (or risky!) to push updates, or where running code on devices raises the materials cost (CPU, memory), while still keeping latency as low as possible (your code runs in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/">every location</a>).</li></ul><p>And there’s likely a long list of things we haven’t even predicted yet. We’ve seen developers <a target="_blank" rel="external nofollow noopener noreferrer" href="https://workers.cloudflare.com/built-with">build incredible things</a> on top of Cloudflare Workers, and we’re excited to see what they build with the power of a programmable message bus like Pub/Sub, too.</p><h3 id="why-and-what-is-mqtt">Why, and what is, MQTT?</h3><p>If you haven’t heard of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://mqtt.org/">MQTT</a> before, you might be surprised to know that it’s one of the most pervasive “messaging protocols” deployed today. There are tens of millions (at least!) of devices that speak MQTT today, from connected payment terminals through to autonomous vehicles, cell phones, and even video games. Sensor readings, telemetry, financial transactions and/or mobile notifications &amp; messages are all common use-cases for MQTT, and the flexibility of the protocol allows developers to make trade-offs around reliability, topic hierarchy and persistence specific to their use-case.</p><p>We chose MQTT as the foundation for Cloudflare Pub/Sub as we believe in building on top of open, accessible standards, as we did when we chose the Service Worker API as the foundation for Workers, and with our recently announced participation in the <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/introducing-the-wintercg/">Winter Community Group around server-side runtime APIs.</a> We also wanted to enable existing clients an easy path to benefit from Cloudflare’s scale and programmability, and ensure that developers have a rich ecosystem of client libraries in languages they’re familiar with today.</p><p>Beyond that, however, we also think MQTT meets the needs of a modern “publish-subscribe” messaging service. It has flexible delivery guarantees, TLS for transport encryption (no bespoke crypto!), a scalable topic creation and subscription model, extensible per-message metadata, and importantly, it provides a well-defined specification with clear error messages.</p><p>With that in mind, we expect to support many more “on-ramps” to Pub/Sub: a lot of the best parts of MQTT can be abstracted away from clients who might want to talk to us over HTTP or WebSockets.</p><h3 id="building-blocks">Building Blocks</h3><p>Given the ability to write code that acts on every message published to a Pub/Sub Broker, what does it look like in practice?</p><p>Here’s a simple-but-illustrative example of handling Pub/Sub messages directly in a Worker. We have clients (in this case, payment terminals) reporting back transaction data, and we want to capture the number of transactions processed in each region, so we can track transaction volumes over time.</p><p>Specifically, we:</p><ol><li>Filter on a specific topic prefix for messages we care about</li><li>Parse the message for a specific key:value pair as a metric</li><li>Write that metric directly into <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/workers-analytics-engine">Workers Analytics Engine</a>, our new serverless time-series analytics service, so we can directly query it with GraphQL.</li></ol><p>This saves us having to stand up and maintain an external metrics service, configure another cloud service, or think about how it will scale: we can do it all directly on Cloudflare.</p><!--kg-card-begin: markdown--><pre><code class="language-TypeScript">
+async function pubsub(
+  messages: Array&lt;PubSubMessage&gt;,
+  env: any,
+  ctx: ExecutionContext
+): Promise&lt;Array&lt;PubSubMessage&gt;&gt; &#123;
+  
+<p>  for (let msg of messages) &amp;#123;<br>    &#x2F;&#x2F; Extract a value from the payload and write it to Analytics Engine<br>    &#x2F;&#x2F; In this example, a transactionsProcessed counter that our clients are sending<br>    &#x2F;&#x2F; back to us.<br>    if (msg.topic.startsWith(“&#x2F;transactions&#x2F;”)) &amp;#123;<br>      &#x2F;&#x2F; This is non-blocking, and doesn’t hold up our message<br>      &#x2F;&#x2F; processing.<br>      env.TELEMETRY.writeDataPoint(&amp;#123;<br>        &#x2F;&#x2F; We label this metric so that we can query against these labels<br>        labels: [<code>$&amp;#123;msg.broker&amp;#125;.$&amp;#123;msg.namespace&amp;#125;</code>, msg.payload.region, msg.payload.merchantId],<br>        metrics: [msg.payload.transactionsProcessed ?? 0]<br>      &amp;#125;);<br>    &amp;#125;<br>  &amp;#125;</p>
+<p>  &#x2F;&#x2F; Return our messages back to the Broker<br>  return messages;<br>&amp;#125;</p>
+<p>const worker &#x3D; &amp;#123;<br>  async fetch(req: Request, env: any, ctx: ExecutionContext) &amp;#123;<br>    &#x2F;&#x2F; Critical: you must validate the incoming request is from your Broker<br>    &#x2F;&#x2F; In the future, Workers will be able to do this on your behalf for Workers<br>    &#x2F;&#x2F; in the same account as your Pub&#x2F;Sub Broker.<br>    if (await isValidBrokerRequest(req)) &amp;#123;</p>
+<pre><code>  // Parse the incoming PubSub messages
+  let incomingMessages: Array&amp;lt;PubSubMessage&amp;gt; = await req.json();
+  
+  // Pass the message to our pubsub handler, and capture the returned
+  // messages
+  let outgoingMessages = await pubsub(incomingMessages, env, ctx);
+
+  // Re-serialize the messages and return a HTTP 200 so our Broker
+  // knows we’ve successfully handled them
+  return new Response(JSON.stringify(outgoingMessages), &amp;#123; status: 200 &amp;#125;);
+&amp;#125;
+
+return new Response(&quot;not a valid Broker request&quot;, &amp;#123; status: 403 &amp;#125;);
+</code></pre>
+<p>  &amp;#125;,<br>&amp;#125;;</p>
+<p>export default worker;<br></p></code></pre><p></p>
+<!--kg-card-end: markdown--><p>We can then query these metrics directly using a familiar language: SQL. Our query takes the metrics we’ve written and gives us a breakdown of transactions processed by our payment devices, grouped by merchant (and again, all on Cloudflare):</p><!--kg-card-begin: markdown--><pre><code>SELECT
+<p>  label_2 as region,<br>  label_3 as merchantId,<br>  sum(metric_1) as total_transactions<br>FROM TELEMETRY<br>WHERE<br>  metric_1 &gt; 0<br>  AND timestamp &gt;&#x3D; now() - 604800<br>GROUP BY<br>  region,<br>  merchantId<br>ORDER BY<br>  total_transactions DESC<br>LIMIT 10<br></p></code></pre><p></p>
+<!--kg-card-end: markdown--><p>You could replace or augment the calls to Analytics Engine with any number of examples:</p><ul><li>Asynchronously writing messages (using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/runtime-apis/fetch-event/#waituntil">ctx.waitUntil</a>) on specific topics to our R2 object storage without blocking message delivery</li><li>Rewriting messages on-the-fly with data <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/runtime-apis/kv/">populated from KV</a>, before the message is pushed to subscribers</li><li>Aggregate messages based on their payload and HTTP POST them to legacy infrastructure hosted outside of Cloudflare</li></ul><p>Pub/Sub gives you a way to get data into Cloudflare’s network, filter, aggregate and/or mutate it, and push it back out to subscribers — whether there’s 10, 1,000 or 10,000 of them listening on that topic.</p><h3 id="where-are-we-headed">Where are we headed?</h3><p>As we often like to say: we’re just getting started. The private beta for Pub/Sub is just the beginning of our journey, and we have a long list of capabilities we’re already working on.</p><p>Critically, one of our priorities is to cover as much of the MQTT v5.0 specification as we can, so that customers can migrate existing deployments and have it “just work”. Useful capabilities like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901250">shared subscriptions</a> that allow you to load-balance messages across many subscribers; <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901242">wildcard subscriptions</a> (both single- and multi-tier) for aggregation use cases, stronger delivery guarantees (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901234">QoS</a>), and support for additional authentication modes (specifically, Mutual TLS) are just a few of the things we’re working on.</p><p>Beyond that, we’re focused on making sure Pub/Sub’s developer experience is the best it  can be, and during the beta we’ll be:</p><ul><li>Supporting a new set of “pubsub” sub-commands in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.npmjs.com/package/wrangler">Wrangler</a>, our developer CLI, so that getting started is as low-friction as possible</li><li>Building ‘native’ bindings (similar to how <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/runtime-apis/kv/">Workers KV</a> operates) that allow you to publish messages and subscribe to topics directly from Worker code, regardless of whether the message originates from (or is destined for) a client beyond Cloudflare</li><li>Exploring more ways to publish &amp; subscribe from non-MQTT based clients, including HTTP requests and WebSockets, so that integrating existing code is even easier.</li></ul><p>Our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/pub-sub/">developer documentation</a> will cover these capabilities as we land them.</p><p>We’re also aware that pricing is a huge part of developer experience, and are committed to ensuring that there is an accessible and flexible free tier. We want to enable developers to experiment, prototype and solve problems we haven’t thought of yet. We’ll be sharing more on pricing during the course of the beta.</p><h3 id="getting-started">Getting Started</h3><p>If you want to start using Pub/Sub, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/cloudflare-pub-sub-lightweight-messaging-private-beta/">sign up for the private beta</a>: we plan to start enabling access within the next month. We’re looking forward to collecting feedback from developers and seeing what folks start to build.</p><p>In the meantime, review the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/pub-sub/">brand-new Pub/Sub developer documentation</a> to understand how Pub/Sub works under the hood, the MQTT protocol, and how it integrates with Cloudflare Workers.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Announcing Pub/Sub: Programmable MQTT-based Messaging" href="https://blog.cloudflare.com/announcing-pubsub-programmable-mqtt-messaging/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Announcing Pub/Sub: Programmable MQTT-based Messaging</span><span class="desc fs12">https://blog.cloudflare.com/announcing-pubsub-programmable-mqtt-messaging/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/1d828dd6.html">外交部表示「中方随时准备为朝方抗击疫情全力提供支持帮助」，还有哪些信息值得关注？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8f6fd059.html">We’re Excited to Announce the Private Beta of Cloudflare Pub/Sub, a Programmable Message Bus Built on the Ubiquitous and Industry-Standard MQTT proto...<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bdacfaa0.html" title="A New Hope for Object Storage: R2 Enters Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-20.png"></div><span class="title">A New Hope for Object Storage: R2 Enters Open Beta</span></a><a class="item" href="/rss/852748a8.html" title="Announcing D1: Our First SQL Database"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-23.png"></div><span class="title">Announcing D1: Our First SQL Database</span></a><a class="item" href="/rss/b2648de4.html" title="Announcing Workers for Platforms: Making Every Application on the Internet More Programmable"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image4-4.png"></div><span class="title">Announcing Workers for Platforms: Making Every Application on the Internet More Programmable</span></a><a class="item" href="/rss/dfee2745.html" title="Durable Objects Alarms — a Wake-Up Call for Your Applications"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Durable-Object-Alarms.png"></div><span class="title">Durable Objects Alarms — a Wake-Up Call for Your Applications</span></a><a class="item" href="/rss/c6552f91.html" title="How We Built Config Staging and Versioning With HTTP Applications"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image3-20.png"></div><span class="title">How We Built Config Staging and Versioning With HTTP Applications</span></a><a class="item" href="/rss/dfa30ef2.html" title="Introducing Cache Reserve: Massively Extending Cloudflare’s Cache"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/Cache-Reserve.png"></div><span class="title">Introducing Cache Reserve: Massively Extending Cloudflare’s Cache</span></a><a class="item" href="/rss/657f827c.html" title="Introducing Custom Domains for Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image2-24.png"></div><span class="title">Introducing Custom Domains for Workers</span></a><a class="item" href="/rss/c2687533.html" title="Introducing Pages Plugins"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image1-30.png"></div><span class="title">Introducing Pages Plugins</span></a><a class="item" href="/rss/9622765f.html" title="Introducing Workers Analytics Engine"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image2-18.png"></div><span class="title">Introducing Workers Analytics Engine</span></a><a class="item" href="/rss/be76e8f2.html" title="Logs on R2: Slash Your Logging Costs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/PW-Logs-on-R2_-Slash-your-storage-costs.png"></div><span class="title">Logs on R2: Slash Your Logging Costs</span></a><a class="item" href="/rss/1234e894.html" title="Magic NAT: Everywhere, Unbounded, and Lower Cost"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image2-19.png"></div><span class="title">Magic NAT: Everywhere, Unbounded, and Lower Cost</span></a><a class="item" href="/rss/a59a2ab5.html" title="Our Growing Developer Platform Partner Ecosystem"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image6-8.png"></div><span class="title">Our Growing Developer Platform Partner Ecosystem</span></a><a class="item" href="/rss/bad4064.html" title="Service Bindings Are Generally Available, With Efficient Pricing"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image5-3.png"></div><span class="title">Service Bindings Are Generally Available, With Efficient Pricing</span></a><a class="item" href="/rss/3bbf69ef.html" title="Watching Eurovision 2022 on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/05/image3-9.png"></div><span class="title">Watching Eurovision 2022 on Cloudflare Radar</span></a><a class="item" href="/rss/8fca1e1d.html" title="Cloudflare Exists to Help Build a Better Internet. Today, the Internet Gets What It Deserves: R2 Is Now in Open Beta."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5891"></div><span class="title">Cloudflare Exists to Help Build a Better Internet. Today, the Internet Gets What It Deserves: R2 Is Now in Open Beta.</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
