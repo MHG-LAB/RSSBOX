@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Implementing a Robust Digital Identity - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="This post is part seven of GitHub Security Lab’s series on the OWASP Top 10 Proactive Controls, where we provide practical guidance for OSS developers on proactively improving your security posture.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Implementing a Robust Digital Identity">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/5a6c7524.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="This post is part seven of GitHub Security Lab’s series on the OWASP Top 10 Proactive Controls, where we provide practical guidance for OSS developers on proactively improving your security posture.">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-6.png?w=354&amp;resize=354%2C476">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/password_strength.png?w=300&amp;resize=740%2C601">
+<meta property="article:published_time" content="2022-06-10T11:12:59.000Z">
+<meta property="article:modified_time" content="2022-06-10T11:12:59.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-6.png?w=354&amp;resize=354%2C476">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Using single sign-on (SSO)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Handling passwords</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. Creating (and facilitating the creation of) secure passwords</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Provide guardrails to ensure users set strong passwords, without requirements that upset or confuse them.</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. Recovering passwords</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Verify your user’s identity using multi-factor authentication (MFA)</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. Storing passwords securely</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Never store passwords in plain text</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. Handling brute force attacks</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Multi-factor authentication (MFA)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Cryptographic-based authentication</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Session authentication</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Token authentication</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-06-10T11:12:59.000Z">2022-06-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Implementing a Robust Digital Identity</span></h1>
+<div>
+<p><em>This post is part seven of GitHub Security Lab’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2021-12-06-write-more-secure-code-owasp-top-10-proactive-controls/">series on the OWASP Top 10 Proactive Controls</a>, where we provide practical guidance for OSS developers on proactively improving your security posture. How can you robustly assert and identify a user’s identity? Guidance from the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://owasp.org/www-project-proactive-controls/v3/en/c6-digital-identity.html">OWASP Proactive Controls: C6</a></em></p>
+<p>One of the toughest problems is figuring out who’s who online.</p>
+<p><img><img alt class="width-fit aligncenter wp-image-65643 size-large" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="476" sizes="(max-width: 354px) 100vw, 354px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-6.png?w=354&amp;resize=354%2C476" width="354"></p>
+<p>Identity management is tricky, and improperly verifying identity can have <a target="_blank" rel="external nofollow noopener noreferrer" href="https://krebsonsecurity.com/2018/04/panerabread-com-leaks-millions-of-customer-records/">massive</a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.wired.com/story/cryptojacking-tesla-amazon-cloud/&amp;sa=D&amp;source=docs&amp;ust=1650565608337955&amp;usg=AOvVaw2O-UGNPQ0JaZ9j3YJ9DxvA">security</a> implications.</p>
+<p>We’re here to help offer some guidance about how to securely implement authentication (that is, how to verify digital identity) into your app. In the blog post below, we’ll discuss ways that will help you securely implement these features into your application.</p>
+<p>OWASP breaks down the three main approaches to managing digital identity into the following criteria:</p>
+<ol>
+<li aria-level="1">Passwords</li>
+<li aria-level="1">Multi-factor authentication (MFA)</li>
+<li aria-level="1">Cryptographic-based authentication</li>
+</ol>
+<p>Given the current authentication landscape, we’re adding another category:</p>
+<ul>
+<li aria-level="1">Single sign-on (SSO)</li>
+</ul>
+<p>We’ll discuss single sign-on first, as it can be the simplest form of authentication to implement into your application.</p>
+<h2>Using single sign-on (SSO)</h2>
+<p>The simplest way to assert whether a user is who they say they are is to have a trusted third party confirm their identity. Technically speaking, this means having your users sign into a platform with a robust authentication platform (like, GitHub, Google, or Apple), then having that platform tell your application “this user is &lt;some user&gt;.”</p>
+<p>By using SSO, neither you nor your users need to deal with having an additional password. You also don’t need to deal with any of the infrastructure needed to verify a user’s digital identity. Instead, this is the responsibility of a service provider.</p>
+<p>The main tradeoff with using SSO is that you need to trust the identity provider. However, generally speaking, identity providers tend to have robust security resources dedicated to protecting user authentication. As such, in most cases we’d advise you to consider using an authentication provider as opposed to writing your own authentication.</p>
+<p>There’s a couple of ways to implement this into your application. The most common way for a web application is to use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.digitalocean.com/community/tutorials/an-introduction-to-oauth-2">OAuth</a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/access-management/what-is-saml/">SAML</a>. Check out <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps">our documentation</a> for more information about how to use GitHub for OAuth!</p>
+<p>Next, let’s discuss the oldest and most common way of handling authentication—passwords.</p>
+<h2>Handling passwords</h2>
+<p>When handling user accounts and identities, the first thing that usually comes to mind is passwords. Passwords are the way most users are accustomed to creating a new account, and rely on a user generating a secret string, which they present to the application each time they want to be authenticated.</p>
+<p>There’s a couple of key issues to look out for when using passwords in your application as follows:</p>
+<h3>1. Creating (and facilitating the creation of) secure passwords</h3>
+<p><img><img alt=""" class="alignnone size-medium wp-image-65641 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="601" loading="lazy" sizes="(max-width: 740px) 100vw, 740px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/password_strength.png?w=300&amp;resize=740%2C601" width="740"></p>
+<p>Easily guessable passwords can lead to account compromises, so you need to ensure that your users are setting strong credentials.</p>
+<h4><strong>Provide guardrails to ensure users set strong passwords, without requirements that upset or confuse them.</strong></h4>
+<p>It’s important to strike a proper balance between a positive user experience and good security! Studies have shown that complexity requirements on passwords have mixed effectiveness, so you’re better off removing abstract character requirements<a target="_blank" rel="external nofollow noopener noreferrer" href="https://xkcd.com/936/"> in favor of longer passwords</a>.</p>
+<p>OWASP’s guidance for good password guardrails are the following:</p>
+<ol>
+<li aria-level="1">Ensure all passwords are at least 10 characters in length.</li>
+<li aria-level="1">Allow all printable ASCII characters.</li>
+<li aria-level="1">Block <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/List_of_the_most_common_passwords">commonly-used</a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://haveibeenpwned.com/Passwords">compromised passwords</a>.</li>
+</ol>
+<p>Allowing user-friendly, longer passwords means that your users will be happier, more likely to remember them, and less vulnerable to a brute force attack.</p>
+<p>This is a good place to mention that you should not prevent paste in password fields. This is extremely user unfriendly, and makes it harder for users to use tooling, like password managers, incentivizing bad passwords.</p>
+<p>Remember, user friendly comes first!</p>
+<h3>2. Recovering passwords</h3>
+<p>We’ve all forgotten our passwords at some point. Without them, how can we securely assert our identity? We can do this by using an alternate method, like multi-factor authentication!</p>
+<h4><strong>Verify your user’s identity using multi-factor authentication (MFA)</strong></h4>
+<p>We’ll discuss MFA in more depth later, but in a nutshell, in a secure MFA implementation, you should have a user prove their identity by using a combination of the following:</p>
+<ol>
+<li aria-level="1">Have them use something they know.
+<ul>
+<li aria-level="2">For example, have them answer a security question.</li>
+<li aria-level="2">For further guidance, specifically about security questions, check out the<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.owasp.org/index.php/Forgot_Password_Cheat_Sheet"> OWASP forgotten password cheat sheets</a>.</li>
+</ul>
+</li>
+<li aria-level="1">Have them use something they own.
+<ul>
+<li aria-level="1">For example, send a reset token to a device or other account that they own (email).</li>
+</ul>
+</li>
+</ol>
+<p>Make sure to provide a user friendly flow to reset their password using some combination of the above methods.</p>
+<p>Another good idea is to provide some instructions in your password recovery flow if the user did not expect to receive a password recovery email (for example, please change your password immediately).</p>
+<h3>3. Storing passwords securely</h3>
+<p>Passwords are the most critical part of a user asserting their identity. As such, we need to treat them carefully in our infrastructure. Especially with password dumps seemingly becoming more common every day, it’s extremely important to keep in mind the following.</p>
+<h4>Never store passwords in plain text</h4>
+<p>Storing passwords in plain text means that any user that gets access to your password database will be able to login as any other user. In the event of a breach, this would be catastrophic.</p>
+<p>On the other hand, only handling properly-hashed passwords ensures that a malicious user that does get access to the password database will need to spend an enormous amount of time trying to brute force each password.</p>
+<p>In order to properly implement this, keep in mind two things:</p>
+<ol>
+<li aria-level="1">Choose the right hashing algorithm.
+<ul>
+<li aria-level="2">Cryptography is tough! So, it’s important to use an algorithm/library that has been vetted by security experts and is well used.</li>
+<li aria-level="2">A good hashing algorithm should be slow from both a CPU and GPU perspective (to prevent brute forcing a password).</li>
+<li aria-level="2">We’d recommend using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Argon2">Argon2</a> or Bcrypt.</li>
+</ul>
+</li>
+<li aria-level="1">Salt your passwords.
+<ul>
+<li aria-level="2">Attackers have access to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Rainbow_table">rainbow tables,</a> which are massive databases of precomputed hash to string pairs. This can be used to map hashed versions of passwords back to their strings (for commonly-used strings). In order to add entropy to the hashes and thus make it less likely that the rainbow table contains the mapping, you should add a random string, known as a salt, to user passwords when hashing. See <a target="_blank" rel="external nofollow noopener noreferrer" href="https://auth0.com/blog/adding-salt-to-hashing-a-better-way-to-store-passwords/">the following blog post</a> for more information.</li>
+</ul>
+</li>
+</ol>
+<h3>4. Handling brute force attacks</h3>
+<p>Given an infinite number of guesses, any password can technically be guessed. To reduce the probability of a successful password being tried, implement rate limiting or lockout protections for a certain number of failed attempts. Dial this according to existing policies and sensitivity of the data you are protecting.</p>
+<p>For example, you could set up a counter to only allow five failed login attempts in an hour. Then, lock the account, and let the user know of the failed attempts via email.</p>
+<p>To implement this, it’s important to track the number of failed logins for any given resource. You can use Redis, or another similar tool, to implement rate limiting.</p>
+<p>This also helps prevent credential stuffing attacks, where leaked credentials from another site are tried against several other websites.</p>
+<p>Also consider adding monitoring services to reactively inform you when a resource is being attacked! Time is everything in security, so having automated monitoring can be the difference between a successful attack and one that is thwarted.</p>
+<p>Even the best password can sometimes be compromised. Next, we’ll talk about ways to protect your users beyond the use of passwords.</p>
+<h2>Multi-factor authentication (MFA)</h2>
+<p>What happens if your users have their passwords compromised? Not all is lost, as long as they have MFA enabled!</p>
+<p>MFA means that users have to produce multiple pieces of information (factors) in order to be granted access to your app. This also means that an attacker would need more than just a password to take control of a user’s account.</p>
+<p>As mentioned previously, MFA consists of either something a user knows, or something that a user owns. As such, there’s a variety of methods that you can use to implement this.</p>
+<p>It’s important to only support secure methods. These include <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.twilio.com/docs/glossary/totp">TOTP</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://webauthn.guide/">WebAuthn</a> or push-based notifications.</p>
+<p>Make sure not to support insecure methods, such as texting a user with a token. Texting a user is vulnerable to several kinds of attacks, such as spoofing, phishing, and SIM swapping. As such, keep things safe and easy for your user by only allowing one of the above options.</p>
+<p>As an example of how important this is to protecting your users, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2022-05-04-software-security-starts-with-the-developer-securing-developer-accounts-with-2fa/">GitHub recently announced</a> that we will require all users that contribute code on GitHub.com to enable one or more methods of two-factor authentication (2FA) on their accounts.</p>
+<p>Finally, let’s take a look at how to securely handle your user’s identity using cryptographic-based authentication.</p>
+<h2>Cryptographic-based authentication</h2>
+<p>Now that you’ve created the proper guardrails, and your users are behaving securely, the last pillar of securing your user’s identity is to ensure that your application is properly handling your user’s identity with cryptographic-based authentication. This can happen in two main ways:</p>
+<h3>Session authentication</h3>
+<p>A “session” is a server side object that stores information about who the current user is, when they logged in, and other aspects of their identity. Then, in order to identify the user, we typically put a cookie on the user’s browser that contains a session identifier, which maps back to the server side identity object.</p>
+<p>Some things to ensure when implementing session authentication are:</p>
+<ol>
+<li aria-level="1">Make sure to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies#security">use secure configuration settings</a> for the session cookie.
+<ul>
+<li aria-level="1">In most cases, you should set the `http-only`, `secure`, and `samesite=lax` flags.</li>
+</ul>
+</li>
+<li aria-level="1">Ensure that the session identifier is long, unique, and random.</li>
+<li aria-level="1">Generate a new session each time the user re-authenticates.</li>
+</ol>
+<h3>Token authentication</h3>
+<p>Tokens are an alternative form of authentication, where instead of storing anything on the server side, we cryptographically sign a piece of data and give it to the client. Then, the client can give us this signed piece of data, and we can thus ensure that we successfully authenticated them.</p>
+<p>Token authentication can be tricky to implement safely, so we’d recommend doing more research before implementing this yourself. However, some pointers to start, include:</p>
+<ol>
+<li aria-level="1"><strong>Use a long, random secret key.</strong>
+<ul>
+<li aria-level="1">The entire security posture of your application relies on your tokens being generated from a secure key.</li>
+<li aria-level="2">Having a weak secret key will leave you vulnerable to a brute force attack, where an attacker can try to guess your secret key, and thus hack all users at once.</li>
+</ul>
+</li>
+<li aria-level="1">Use a secure cryptographic algorithm, like ES256.</li>
+<li aria-level="1">Set an appropriate expiration date with your tokens, based on your application’s usage patterns.</li>
+<li aria-level="1">Store your tokens in a secure place.
+<ul>
+<li aria-level="2">For a mobile app, you can use KeyStore (for Android) or KeyChain (for iOS).</li>
+<li aria-level="2">For a web app, there are several places where you can store the token, each with different security considerations. For general guidance, we would recommend <strong>storing tokens in a cookie, with the `http-only`, `Secure` and `SameSite=Lax`</strong> being set.</li>
+</ul>
+</li>
+</ol>
+<p>As mentioned previously, using token authentication in a web app can be tricky, and best practices differ from framework to framework, so please do <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.youtube.com/watch?v=-zD11ubPsFM">further research</a> before implementing this yourself.</p>
+<p>Securely verifying your user’s identity can be tricky, but following the guidance above can help prevent common issues to keep your application and your users secure. Until next time, stay secure!</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Implementing a robust digital identity" href="https://github.blog/2022-06-10-implementing-a-robust-digital-identity/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Implementing a robust digital identity</span><span class="desc fs12">https://github.blog/2022-06-10-implementing-a-robust-digital-identity/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/be4739c0.html">36氪：【B站申请冻结古剑奇谭公司财产，官方称…<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/d0e2e178.html">2022 LPL 夏季赛揭幕战 WBG 2:1 击败 iG，如何评价这场比赛？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/be4f4a02.html" title="Dependabot Updates Hit GA in GHES"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://s.w.org/images/core/emoji/14.0.0/72x72/1f389.png"></div><span class="title">Dependabot Updates Hit GA in GHES</span></a><a class="item" href="/rss/98dcbcf3.html" title="GitHub Brings Supply Chain Security Features to the Rust Community"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-1.png?w=300&resize=1890%2C1438"></div><span class="title">GitHub Brings Supply Chain Security Features to the Rust Community</span></a><a class="item" href="/rss/5760d1b3.html" title="How We Think About Browsers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/05/browser-market-share.svg"></div><span class="title">How We Think About Browsers</span></a><a class="item" href="/rss/ed135c8.html" title="Introducing Achievements: Recognizing the Many Stages of a Developer’s Coding Journey"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://s.w.org/images/core/emoji/14.0.0/72x72/1f92f.png"></div><span class="title">Introducing Achievements: Recognizing the Many Stages of a Developer’s Coding Journey</span></a><a class="item" href="/rss/43c25aba.html" title="Introducing Entitlements: GitHub&#8217;s Open Source Identity and Access Management Solution"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-3.png?resize=1024%2C381"></div><span class="title">Introducing Entitlements: GitHub&#8217;s Open Source Identity and Access Management Solution</span></a><a class="item" href="/rss/8ab3ae15.html" title="Introducing GitHub Skills"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/171910792-e285ecbb-3e27-4e37-ad16-04c29aab32a5.png?resize=1024%2C815"></div><span class="title">Introducing GitHub Skills</span></a><a class="item" href="/rss/6f4acbe7.html" title="One Developer’s Journey Bringing Dependabot to GitHub Enterprise Server"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://s.w.org/images/core/emoji/14.0.0/72x72/1f915.png"></div><span class="title">One Developer’s Journey Bringing Dependabot to GitHub Enterprise Server</span></a><a class="item" href="/rss/afa7509e.html" title="Start Your Open Source Journey With Community Exchange"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://i0.wp.com/user-images.githubusercontent.com/76497559/172304097-d74e33ec-1179-4f40-8849-bd979903cfc0.gif?resize=1232%2C683&ssl=1"></div><span class="title">Start Your Open Source Journey With Community Exchange</span></a><a class="item" href="/rss/937f51b8.html" title="Sunsetting Atom"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7251"></div><span class="title">Sunsetting Atom</span></a><a class="item" href="/rss/dba2b06c.html" title="A New Portal for Project Galileo Participants"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/A-new-portal-for-Project-Galileo-participants-preview-3.png"></div><span class="title">A New Portal for Project Galileo Participants</span></a><a class="item" href="/rss/9b3b3bcd.html" title="AAE-1 & SMW5 Cable Cuts Impact Millions of Users Across Multiple Countries"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-8.png"></div><span class="title">AAE-1 & SMW5 Cable Cuts Impact Millions of Users Across Multiple Countries</span></a><a class="item" href="/rss/15339ea4.html" title="Cloudflare Customers Are Protected From the Atlassian Confluence CVE-2022-26134"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2021/12/image1-52.png"></div><span class="title">Cloudflare Customers Are Protected From the Atlassian Confluence CVE-2022-26134</span></a><a class="item" href="/rss/dc351804.html" title="Alleviate the Pain of Identity and Access Management (IAM). We’re Introducing Entitlements, Our Open Source Solution Built on GitHub. Get Started tod..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2127"></div><span class="title">Alleviate the Pain of Identity and Access Management (IAM). We’re Introducing Entitlements, Our Open Source Solution Built on GitHub. Get Started tod...</span></a><a class="item" href="/rss/67f53c76.html" title="Bike Hanging on Wall ✅ Three Screens, One Vertical ✅ Mona the Octocat Sticker on Desk ✅ Looks Like a Real Developer to Us! Can You Guess the Film w..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://twitter.com&url=https://pbs.twimg.com/media/FUmej_XWQAAw_5c?format=jpg&name=orig"></div><span class="title">Bike Hanging on Wall ✅ Three Screens, One Vertical ✅ Mona the Octocat Sticker on Desk ✅ Looks Like a Real Developer to Us! Can You Guess the Film w...</span></a><a class="item" href="/rss/89959ae0.html" title="Burnout Is a Real Issue for Open Source Maintainers! @CHAOSSproj Is Hosting an Interactive Working Group Session to Understand How Maintainers Manage ..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5910"></div><span class="title">Burnout Is a Real Issue for Open Source Maintainers! @CHAOSSproj Is Hosting an Interactive Working Group Session to Understand How Maintainers Manage ...</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
