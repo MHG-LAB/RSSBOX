@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>SQL注入新手教程（二）——基于报错的注入 - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="基础知识在学习本期内容之前，先介绍本期用到的基础知识。表行：又称为记录或数据列：一般称为字段常用语句select用法：select 字段1,字段2,字段3…… from 表名 （where 筛选条件）翻译一下就是如果满足某条件，从某表选择某字段展示出来（所有行）limit用法：加在上述语句后面，如limit 0,1。表示限制显示的行数第一个参数表示起始行（0开始计数），第二个参数表示显示的行数。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SQL注入新手教程（二）——基于报错的注入">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/fe727c82.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="基础知识在学习本期内容之前，先介绍本期用到的基础知识。表行：又称为记录或数据列：一般称为字段常用语句select用法：select 字段1,字段2,字段3…… from 表名 （where 筛选条件）翻译一下就是如果满足某条件，从某表选择某字段展示出来（所有行）limit用法：加在上述语句后面，如limit 0,1。表示限制显示的行数第一个参数表示起始行（0开始计数），第二个参数表示显示的行数。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://github.githubassets.com/images/icons/emoji/unicode/1f61c.png?v8">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e802006a.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e80b657d.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e825d03e.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e836a411.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e70786b7.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e71235d1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e71eb113.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e73c38eb.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7473d68.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e756c2d1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e75f190b.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e769f360.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e775fc4b.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e78060a6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e78b8b57.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7972037.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e79e4802.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7a920da.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7c14298.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7cce9c2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7d7736e.png">
+<meta property="article:published_time" content="2022-05-09T00:24:00.000Z">
+<meta property="article:modified_time" content="2022-05-09T00:24:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="友链">
+<meta property="article:tag" content="bowenyoung">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://github.githubassets.com/images/icons/emoji/unicode/1f61c.png?v8">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="toc-text">基础知识</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B3%A8%E5%85%A5%E5%8E%9F%E7%90%86"><span class="toc-text">注入原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%BC%80%E5%A7%8B%E5%AE%9E%E8%B7%B5"><span class="toc-text">开始实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="toc-text">准备工作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%A0%B4%E5%9D%8F%E6%9F%A5%E8%AF%A2"><span class="toc-text">破坏查询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B6%88%E9%99%A4%E8%AF%AD%E6%B3%95%E9%94%99%E8%AF%AF"><span class="toc-text">消除语法错误</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B7%BB%E5%8A%A0%E8%AF%AD%E5%8F%A5"><span class="toc-text">添加语句</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8E%B7%E5%8F%96%E6%95%8F%E6%84%9F%E4%BF%A1%E6%81%AF"><span class="toc-text">获取敏感信息</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BB%93%E8%AF%AD"><span class="toc-text">结语</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/">友链</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/bowenyoung/">bowenyoung</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-05-09T00:24:00.000Z">2022-05-09</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>SQL注入新手教程（二）——基于报错的注入</span></h1>
+<div>
+<div class="story post-story"><h2 id="基础知识"><a class="headerlink" href="#基础知识" title="基础知识"></a>基础知识</h2><p>在学习本期内容之前，先介绍本期用到的基础知识。<span id="more"></span></p><ul><li><p>表</p><ul><li>行：又称为记录或数据</li><li>列：一般称为字段</li></ul></li><li><p>常用语句</p><ul><li>select<br>用法：select 字段1,字段2,字段3…… from 表名 （where 筛选条件）<br>翻译一下就是如果满足某条件，从某表选择某字段展示出来（所有行）</li><li>limit<br>用法：加在上述语句后面，如limit 0,1。表示限制显示的行数<br>第一个参数表示起始行（0开始计数），第二个参数表示显示的行数。这一句就代表显示第0行。limit 2,3就是显示第2行到第4行</li><li>order by<br>用法：order by 字段名或字段序号<br>比如一张表users有三个字段（列），分别是id,username,passwd，你可以用select username from users order by id或者 by 1来这些记录按照id排序。默认升序，要降序可以order by 1 desc。也就是加一个descending的缩写。</li><li><strong>union（重要）</strong><br>用法：select 字段1,字段2,字段3 from 表1 union select 字段1,字段2,字段3 from 表2<br>用来将两条查询语句的查询结果拼接起来显示。<br>注意：两条语句查找的字段数要一致。可以想象两张表如果是有不同列数是不能拼接起来的。</li></ul></li><li><p>常用字符</p><ul><li>逻辑运算符<br>and 与；or 或；not 非。</li><li>单行注释<br><code>#</code>或<code>--</code></li><li>加号，连接（在URL中等同于空格）<br><code>+</code></li><li>通配符<ul><li>*通配符的作用是匹配所有结果集。<br>比如select * from users就是将users整张表展示出来</li><li>%通配符的作用是替代0个或多个字符，用在like中<br>相当于正则表达式里的*。比如select username from users where username like “a%min”。则可能匹配到username为amin,admin,aemin,addddddmin……这样的记录（如果有）</li><li>_通配符的作用是替代1个字符，用在like中<br>比如select username from users where username like “a_min”。则可能匹配到admin,aemin,afmin……这样的记录（如果有）</li></ul></li></ul></li><li><p>数据库指纹<br>所谓数据库指纹，就是说我们可以根据报错信息来判断数据库类型</p><table><thead><tr><th>NO</th><th>报错</th><th>数据库类型</th></tr></thead><tbody><tr><td>1</td><td>You have an error in your SQL syntax; check the manual that corresponds to your MySQL <br>server version for the right syntax to use near ”1” LIMIT 0,1′ at line 1</td><td>MySQL</td></tr><tr><td>2</td><td>ORA-00933: SQL command not properly ended</td><td>Oracle</td></tr><tr><td>3</td><td>Microsoft SQL Native Client error ‘80040e14’ Unclosed quotation mark after the character string</td><td>MSSQL</td></tr></tbody></table></li><li><p>GET和POST传参<br>我们在上网的过程中，需要和服务器进行交互。比如我们在搜索引擎搜索一个词语，就是向服务器传递了一个参数。服务器通过这个参数从数据库中找到我们想要的内容，再展示给我们。这就是传参的基本原理了。</p><ul><li><p>GET传参<br>如果你比较细心，你或许会发现你在浏览网站时有的时候浏览器地址栏你的URL是以?xx=xx这样的方式结尾的，这其实就是GET传参。GET方式传参的最大特点就是请求传递的参数最终都会显式地拼接到URL后面。</p></li><li><p>POST传参<br>这种方式的传参不会显示在地址栏中，相对来说比较安全。输入密码这类敏感信息时通常会使用POST传参。</p></li></ul><p>想象我的博客有这样一个界面：</p><figure class="highlight plaintext"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">username:</span><br><span class="line">password:</span><br></pre></td></tr></tbody></table></figure><p>需要你输入用户名和密码，你输入了zhangsan和123。如果我安全意识很低，做网站的时候给这个表单method属性设置为GET，那么你提交的时候地址栏可能就变成了<a target="_blank" rel="external nofollow noopener noreferrer" href="https://bowenyoung.cf/?username=zhangsan&amp;password=123%E3%80%82%E5%A6%82%E6%9E%9C%E6%88%91%E6%AF%94%E8%BE%83%E8%B4%B4%E5%BF%83%EF%BC%8C%E6%88%91%E5%B0%B1%E4%BC%9A%E8%AE%BE%E7%BD%AE%E6%88%90POST%EF%BC%8C%E9%82%A3%E4%B9%88%E4%BD%A0%E8%BF%98%E6%98%AF%E6%8A%8A%E5%8F%82%E6%95%B0%E4%BC%A0%E7%BB%99%E4%BA%86%E6%88%91%E8%BF%99%E4%B8%AA%E7%BD%91%E7%AB%99%E7%9A%84%E6%9C%8D%E5%8A%A1%E5%99%A8%EF%BC%8C%E4%BD%86%E6%98%AF%E5%9C%B0%E5%9D%80%E6%A0%8F%E4%B8%8A%E5%B0%B1%E7%9C%8B%E4%B8%8D%E5%88%B0%E4%BA%86~~%E4%BD%A0%E6%97%81%E8%BE%B9%E7%9A%84%E4%BA%BA%E4%B9%9F%E5%B0%B1%E6%B2%A1%E8%BF%99%E4%B9%88%E5%AE%B9%E6%98%93%E7%9C%8B%E5%88%B0%E4%BD%A0%E7%9A%84%E5%AF%86%E7%A0%81%E4%BA%86~~%E3%80%82">https://bowenyoung.cf/?username=zhangsan&amp;password=123。如果我比较贴心，我就会设置成POST，那么你还是把参数传给了我这个网站的服务器，但是地址栏上就看不到了~~你旁边的人也就没这么容易看到你的密码了~~。</a></p></li><li><p>网页URL编码<br>URL 只能使用 ASCII 字符集通过因特网进行发送。<br>由于 URL 通常包含 ASCII 集之外的字符，因此必须使用URL编码将 URL 转换为有效的 ASCII 格式。<br>URL编码也被用来防止SQL注入。<del>知己知彼，百战不殆<span class="github-emoji"><span>😜</span><img><img aria-hidden="true" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://github.githubassets.com/images/icons/emoji/unicode/1f61c.png?v8" onerror="this.parent.classList.add('github-emoji-fallback')" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://github.githubassets.com/images/icons/emoji/unicode/1f61c.png?v8"></span></del><br>可以参考W3School的这篇文章，还有编码转换工具：<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.w3school.com.cn/tags/html_ref_urlencode.asp">链接</a></p></li></ul></div><div class="story post-story"><h2 id="注入原理"><a class="headerlink" href="#注入原理" title="注入原理"></a>注入原理</h2><ul><li><p>Q:数据库后端如何执行查询操作？<br>想象我的博客有一个登录界面需要输入用户名和密码，当你输入用户名和密码后，后端就会产生   并执行一条查询（SQL查询），登录成功后该查询结果会被显示在我们的主页。例如:</p><figure class="highlight plaintext"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">username: zhangsan</span><br><span class="line">password: 123</span><br></pre></td></tr></tbody></table></figure><p>那么后端查询语句可能是这样：<br><code>SELECT * FROM 某张表 WHERE username='zhangsan' AND password='123';</code><br>如果用户名和密码都正确，就会返回这些内容。（当然会经过处理，一般不是直接看一张表）<br>当然，查询语句也可能是<code>SELECT * FROM 某张表 WHERE username="zhangsan" AND   password="123";</code><br>或者是<code>SELECT * FROM 某张表 WHERE username=（'zhangsan'）AND password=      （'123'）;</code><br>或者<code>SELECT * FROM 某张表 WHERE username=（"zhangsan"）AND password="123";</code><br>或是其他形式，这取决于开发人员如何将参数封装起来。</p></li><li><p>如果参数用单引号封装，输入<code>zhangsan'</code>会发生什么？<br>后端查询语句就变成：<code>SELECT * FROM 某张表 WHERE username='zhangsan'' AND password='123';</code><br>显然<code>'zhangsan''</code>这里多了一个单引号，发生了错误。在前端有报错回显的时候，这条语句的报错就直接显示在我们的浏览器上了。</p></li><li><p>除了去掉这个多余的单引号，还有什么方法能不报错呢？<br>这时候我们就要用到之前讲的<strong>注释</strong>了。<br>假如我们输入<code>zhangsan'--+</code>或者<code>zhangsan'# </code>，后端查询语句就变成了：<br><code>SELECT * FROM 某张表 WHERE username='zhangsan' --+' AND password='123';</code><br>或者<code>SELECT * FROM 某张表 WHERE username='zhangsan' #' AND password='123';</code><br>我们知道，被注释掉的内容是不会被执行的，因此上述语句如果忽略注释的内容就成了：<br><code>SELECT * FROM 某张表 WHERE username='zhangsan'</code><br>单引号就闭合了！这条语句是完全正确的！</p></li><li><p>上面这条语句只有用户名也能查询吗？<br>如果开发人员没有进行过滤筛查，那么答案是肯定的！也就是说我们通过注释的方式，修改了SQL语句，使得我们用非正常的方式查询到了数据，这其实就是SQL注入的原理了。</p></li></ul></div><div class="story post-story"><h2 id="开始实践"><a class="headerlink" href="#开始实践" title="开始实践"></a>开始实践</h2><h3 id="准备工作"><a class="headerlink" href="#准备工作" title="准备工作"></a>准备工作</h3><p>我们打开PHPstudy面板将服务开启</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="undefined" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e802006a.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e802006a.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e802006a.png"></a><span></span></div></div><p>在浏览器中输入<code>localhost/sqli/Less-1</code>，注意将sqli改成你设置的文件夹名称。这样我们就来到了第一课。</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="2" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e80b657d.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="2" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e80b657d.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e80b657d.png"></a><span class="image-caption">2</span></div></div><p>根据提示”请输入ID作为数值参数“，加上这关是GET方式传参（关卡的信息可以看到）。所以我们在地址栏URL末尾加上?id=1，意思是通过GET方式传递一个数值为1的参数。回车，观察页面显示：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="3" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e825d03e.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="3" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e825d03e.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e825d03e.png"></a><span class="image-caption">3</span></div></div><p>可以看到页面显示了登录名和密码。接下来我们增大id值2,3,4……一直到14，发现都显示了登录名和密码，但大于14之后不再显示。这是怎么回事？我们联系后端查询语句可以知道，这说明这张表有14个id对应了14条不同的记录（行)。我们已经获得了这张表的一些信息。</p><h3 id="破坏查询"><a class="headerlink" href="#破坏查询" title="破坏查询"></a>破坏查询</h3><p>接下来我们要<strong>破坏查询</strong>。记得之前说的在值后面加一个单引号会发生什么吗？<br>是的，会报错。<br>我们尝试输入将1改成1’。页面显示如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="4" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e836a411.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="4" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e836a411.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e836a411.png"></a><span class="image-caption">4</span></div></div><p>当然这里单引号被转换为了URL编码，可以参考之前在基础知识里提到的<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.w3school.com.cn/tags/html_ref_urlencode.asp">文章</a>。<br>现在我们分析这条报错语句，提示的是<code>near ''1'' LIMIT 0,1' at line 1</code>这里有一个语法错误。这里的语句内容使用单引号包裹起来的，因此我们先去除最外层的单引号，可以知道后端查询语句这部分为：<br><code>'1'' LIMIT 0,1</code><br>而我们输入的是1’，把这个值也去掉就会发现，我们输入的参数是被单引号包裹起来的。这样我们就判断出了注入的类型按参数分是单引号型。<br>如果你觉得使用单引号来判断注入类型看得不清楚，可以使用转义字符<code>\</code>来判断。<br>将参数改为<code>1\</code>。页面显示如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="5" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e70786b7.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="5" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e70786b7.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e70786b7.png"></a><span class="image-caption">5</span></div></div><p>这样，转义字符<code>\</code>后的字符就是将参数封装起来的字符。<br>值得一提的是，并非所有参数都由单引号封装。我们可以尝试用同样的方法去破坏LESS2,3,4,5,6的查询。结果分别如下图：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="LESS2" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e71235d1.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="LESS2" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e71235d1.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e71235d1.png"></a><span class="image-caption">LESS2</span></div></div><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="LESS3" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e71eb113.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="LESS3" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e71eb113.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e71eb113.png"></a><span class="image-caption">LESS3</span></div></div><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="LESS4" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e73c38eb.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="LESS4" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e73c38eb.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e73c38eb.png"></a><span class="image-caption">LESS4</span></div></div><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="LESS5" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7473d68.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="LESS5" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7473d68.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7473d68.png"></a><span class="image-caption">LESS5</span></div></div><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="LESS6" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e756c2d1.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="LESS6" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e756c2d1.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e756c2d1.png"></a><span class="image-caption">LESS6</span></div></div><p>通过分析报错语句我们可以知道2中的参数是裸露的，没有用任何字符封装，3用<code>')</code>封装，4用<code>")</code>封装，5用<code>'</code>封装，6用<code>"</code>封装。</p><h3 id="消除语法错误"><a class="headerlink" href="#消除语法错误" title="消除语法错误"></a>消除语法错误</h3><p>知道了注入的参数是被什么字符封装起来的以后，我们就要考虑去除语法错误。<br>在前面我们已经讲过如何去除语法错误了。我们回到LESS1进行实验。<br>在地址栏URL末尾输入<code>?id=1--+</code><br>或者<code>?id=1'--%20</code>（%20 URL编码为空格）<br>或者<code>?id=1'%23</code>（%23 URL编码为 # ）</p><p>输入<code>?id=1</code>时后端查询语句我们可以通过报错信息猜测后端查询语句为：</p><figure class="highlight sql"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">from</span> table_name <span class="keyword">WHERE</span> id<span class="operator">=</span><span class="string">'1'</span> LIMIT <span class="number">0</span>,<span class="number">1</span></span><br></pre></td></tr></tbody></table></figure><p>那么现在变成了</p><figure class="highlight sql"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">from</span> table_name <span class="keyword">WHERE</span> id<span class="operator">=</span><span class="string">'1'</span><span class="comment">-- ' LIMIT 0,1</span></span><br><span class="line">或者</span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">from</span> table_name <span class="keyword">WHERE</span> id<span class="operator">=</span><span class="string">'1'</span>#<span class="string">' LIMIT 0,1</span></span><br></pre></td></tr></tbody></table></figure><p>忽略注释掉的内容就是：</p><figure class="highlight sql"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">from</span> table_name <span class="keyword">WHERE</span> id<span class="operator">=</span><span class="string">'1'</span></span><br></pre></td></tr></tbody></table></figure><p>这时候单引号被我们闭合了，后面的语句被我们注释掉了，当然仍然能够成功执行！</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="undefined" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e75f190b.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e75f190b.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e75f190b.png"></a><span></span></div></div><p>同理，LESS2-6也可以根据参数被封装的类型，使用注释去除语法错误。</p><h3 id="添加语句"><a class="headerlink" href="#添加语句" title="添加语句"></a>添加语句</h3><p>我们通过注释的方法减少了原来语句的内容，那我们能否增加我们想要查询的内容呢？当然可以！</p><p><code>SELECT * from table_name WHERE id='1'【插入语句】-- ' LIMIT 0,1</code><br>我们在注释前插入语句，就可以增加查询的内容。如何实现呢？<br>我们会想到，在这里再加一条SELECT语句不就完事儿了吗？是的，但我们需要用到之前划重点的<strong>union</strong>。这里就涉及到一个问题，union连接的select语句必须查询字段数相同，但是我们并不知道原来的SELECT查询了多少个字段。我们先要知道查询结果有多少个字段（不一定所有查询结果都会显示再页面上，所以从页面上得不到信息）。<br>这时候就要用到<strong>order by</strong>了。我们在插入语句的地方加上<code>order by 1</code>，如下图：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="12" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e769f360.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="12" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e769f360.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e769f360.png"></a><span class="image-caption">12</span></div></div><p><code>order by 1</code>表示按照查询结果的第一列进行排序。页面显示正确，说明查询结果有第一列（废话）。我们再增大列数，一直到<code>order by 4</code>，出现了报错：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="13" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e775fc4b.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="13" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e775fc4b.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e775fc4b.png"></a><span class="image-caption">13</span></div></div><p>提示没有第4列，因此我们得到查询结果有且仅有3列。这时候就可以用<strong>union</strong>了。<br>新的问题来了，我们查询了3列，但每次改变id只改变了login name和password后面的内容，这不是两列吗？<br>的确是两列，因为经过开发人员处理，回显给我们的是3列中的两列。因此我们要判断显示的是哪两列。<br>这里先讲一下字面量的概念。我们之前说select后面加的是字段名，这时候会查询相应的列。但如果我们select 1,2,3呢？这时候并不是查询第1,2,3列，而是直接查询出来这几个数字1,2,3。这些数字就叫做字面量。利用查询字面量的方式我们可以判断回显了第几列。<br>试想一下，select 1,2,3这个语句被执行。页面上如果显示：</p><figure class="highlight plaintext"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Your Login name:1</span><br><span class="line">Your Password:2</span><br></pre></td></tr></tbody></table></figure><p>这不就代表页面回显了查询结果的第1，2列吗？<br>因此我们会想到在插入语句处加上<code>union select 1,2,3</code>。但是发现页面回显没有变化。这是因为总共只显示了id=1对应的两条记录。union后面的语句查询到了也没地方显示了。<br>只要让union之前的语句什么都查不到，就可以显示union后面的语句了！<br>也就是让where后面的条件对应不上表里的内容，我们可以将id改成0（或者负数，比记录数14还大的数），毕竟很有可能没有id=0的记录。也就是url末尾改成<code>?id=0' union select 1,2,3--+</code>，如图：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="14" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e78060a6.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="14" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e78060a6.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e78060a6.png"></a><span class="image-caption">14</span></div></div><p>发现页面回显2，3。说明页面回显了查询结果的第2，3列。这时候我们就可以把我们想要查询的数据放在第2，3列的位置，页面就会回显出来给我们。<br>通常来说，我们可能会想要获取的基本信息有：数据库类型、版本号，当前数据库名称，当前执行查询的用户名……通常都有相应的函数或常量来查询这些基本信息。下表给出了部分函数或常量：</p><table><thead><tr><th>函数或常量名</th><th>返回值</th></tr></thead><tbody><tr><td>system_user()</td><td>系统用户名</td></tr><tr><td>user()</td><td>用户名</td></tr><tr><td>current_user()</td><td>当前用户名</td></tr><tr><td>session_user()</td><td>链接数据库的用户名</td></tr><tr><td>database()</td><td>当前使用的数据库名</td></tr><tr><td>version()</td><td>数据库版本</td></tr><tr><td>@@datadir</td><td>数据库目录</td></tr><tr><td>@@tmpdir</td><td>操作系统缓存的临时目录</td></tr></tbody></table><p>这里以获取数据库版本和当前数据库名为例<br>将<code>1,2,3</code>改为<code>1,version(),database()</code>，得到如下结果：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="15" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e78b8b57.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="15" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e78b8b57.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e78b8b57.png"></a><span class="image-caption">15</span></div></div><p>之前讲了数据库指纹，通过之前的报错信息我们可以知道使用的是MySQL数据库，结合此处5.7.26可知使用的是MySQL5.7.26版本，当前使用的数据库是security。</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="16" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7972037.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="16" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7972037.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7972037.png"></a><span class="image-caption">16</span></div></div><p>从PHPStudy面板来看，的确如此。</p><h3 id="获取敏感信息"><a class="headerlink" href="#获取敏感信息" title="获取敏感信息"></a>获取敏感信息</h3><p>但光知道这点信息我们肯定不满足啊，我们肯定想知道当前数据库里有什么敏感信息，比如用户名密码以及用户的其他信息。</p><p>这时候要用到之前提到过的information_schema数据库以及其中的tables,columns表。<br>先来解释一下这些内容。</p><ul><li>information_schema数据库是MySQL自带的数据库。它提供了访问数据库元数据的方式。元数据是关于数据的数据，如数据库名或表名，列的数据类型，或访问权限等。</li><li>其中的tables表存储了所有的表名(table_name)，以及表所在的数据库名(table_schema)等信息</li><li>其中的columns表存储了所有的字段名(column_name)，以及字段所在的表名(table_name)等信息</li></ul><p>接下来开始实验：<br>输入<code>?id=0' union select 1,table_name,3 from information_schema.tables where table_schema=database() --+</code>。意思是从information_schema数据库中的tables表查询表名，条件是表所在的数据库是当前数据库。页面显示如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="17" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e79e4802.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="17" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e79e4802.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e79e4802.png"></a><span class="image-caption">17</span></div></div><p>显示了emails，但数据库不太可能只有这一张表。这是因为开发人员让每一列只显示了一条记录。我们可以在语句后加上LIMIT 数字,1来限制显示第几行。比如加上LIMIT 0,1表示显示第0行，LIMIT 1,1表示显示第1行，第一行显示如下（<code>?id=0' union select 1,table_name,3 from information_schema.tables where table_schema=database() limit 1,1--+</code>）：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="18" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7a920da.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="18" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7a920da.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7a920da.png"></a><span class="image-caption">18</span></div></div><p>我们当然可以一次次改变limit的第一个参数来获取数据，但还有一种方法让所有记录一起显示出来。就是使用group_concat()这个函数。<br>例如，<code>?id=0' union select 1,group_concat(table_name),3 from information_schema.tables where table_schema=database() --+</code>，页面显示如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="19" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7c14298.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="19" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7c14298.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7c14298.png"></a><span class="image-caption">19</span></div></div><p>这时候我们发现，所有的表就被列举出来了。我们可以看到这里存储的其实都是一些敏感信息，我们以users表为例去查看里面有哪些字段名。<br>输入<code>?id=0' union select 1,group_concat(column_name),3 from information_schema.columns where table_name='users' --+</code>。意思是从information_schema数据库中的columns表查询存储的字段名数据，条件是该记录的table_name表名是users。显示结果如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="20" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7cce9c2.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="20" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7cce9c2.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7cce9c2.png"></a><span class="image-caption">20</span></div></div><p>东西很多，我们就看看用户名和密码吧<br>输入<code>?id=0' union select 1,group_concat(username),group_concat(password) from users--+</code>。意思是从当前数据库（security）中的users表查询其中的username列和password列。显示如下：</p><div class="gallery" data-group="one" galleryflag itemscope itemtype="http://schema.org/ImageGallery"><div class="fancybox"><a class="fancybox" data-caption="21" data-fancybox="one" target="_blank" rel="external nofollow noopener noreferrer" href="https://oc.arcitcgn.cn/2022/06/12/62a53e7d7736e.png" itemprop="url" itemscope itemtype="http://schema.org/ImageObject" pjax-fancybox><img><img alt="21" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://oc.arcitcgn.cn/2022/06/12/62a53e7d7736e.png" fancybox itemprop="contentUrl" src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53e7d7736e.png"></a><span class="image-caption">21</span></div></div><p>可以看到用户名和密码就一一对应地显示出来了！我们的目标基本就达到了!<br>当然这仅仅是以LESS1为例查询了部分信息，有兴趣的朋友可以尝试2-6关、查询其他的一些数据（因为是演示项目有些表里面可能没有数据)</p></div><div class="story post-story"><h2 id="结语"><a class="headerlink" href="#结语" title="结语"></a>结语</h2><p>至此，我们对于基于报错的注入的学习就结束了。原理非常简单，但是需要练习来消化一下。<br>下一期的内容我们讲解布尔盲注，也就是LESS8。LESS7是将查询的内容输出为文件，不涉及注入的原理，我们就跳过了。<br>可以通过<a target="_blank" rel="external nofollow noopener noreferrer" href="https://bowenyoung.cf/atom.xml">RSS订阅本篇博客</a>来更早获知更新信息。也欢迎在博文下方留言或者<a href="mailto:yys958257943@gmail.com" rel="external nofollow noopener noreferrer" target="_blank">邮箱</a>联系我！</p></div>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="SQL注入新手教程（二）——基于报错的注入" href="https://bowenyoung.cn/posts/sqli2/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">SQL注入新手教程（二）——基于报错的注入</span><span class="desc fs12">https://bowenyoung.cn/posts/sqli2/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/6c83be63.html">SQL注入新手教程（一）——sqli-Labs靶场搭建<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ab688311.html">Flex布局<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/b46e92a8.html" title="GitHub个人资料页美化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53c2347ee3.png"></div><span class="title">GitHub个人资料页美化</span></a><a class="item" href="/rss/d40b0d84.html" title="Markdown基础教程（Typora为例）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53bb3c7038.png"></div><span class="title">Markdown基础教程（Typora为例）</span></a><a class="item" href="/rss/409cde35.html" title="Markdown进阶教程（以Typora为例）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53bbd6d419.png"></div><span class="title">Markdown进阶教程（以Typora为例）</span></a><a class="item" href="/rss/ea532b2d.html" title="SQL注入新手教程——前言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8068"></div><span class="title">SQL注入新手教程——前言</span></a><a class="item" href="/rss/6c83be63.html" title="SQL注入新手教程（一）——sqli-Labs靶场搭建"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/12/62a53def80f09.png"></div><span class="title">SQL注入新手教程（一）——sqli-Labs靶场搭建</span></a><a class="item" href="/rss/f08a81.html" title="SQL注入新手教程（三）——布尔盲注"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://oc.arcitcgn.cn/2022/06/21/62b1bc0d87e23.png"></div><span class="title">SQL注入新手教程（三）——布尔盲注</span></a><a class="item" href="/rss/2c5edf81.html" title="Shields.io使用之添加自定义图标"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://bowenyoung.cn/img/volantis.svg"></div><span class="title">Shields.io使用之添加自定义图标</span></a><a class="item" href="/rss/f6d80c12.html" title="Hexo本地服务器更换端口"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1489"></div><span class="title">Hexo本地服务器更换端口</span></a><a class="item" href="/rss/b8f57b4c.html" title="初来乍到，请多指教！"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4906"></div><span class="title">初来乍到，请多指教！</span></a><a class="item" href="/rss/b6864d89.html" title="利用GitHub Action自动发布你的静态资源到npm"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://bowenyoung.cn&url=https://static.npmjs.com/7a7ffabbd910fc60161bc04f2cee4160.png"></div><span class="title">利用GitHub Action自动发布你的静态资源到npm</span></a><a class="item" href="/rss/f54978c8.html" title="编辑器之神——Vim基础教程"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5958"></div><span class="title">编辑器之神——Vim基础教程</span></a><a class="item" href="/rss/a61fc650.html" title="2016美国总统候选人辩论"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=317"></div><span class="title">2016美国总统候选人辩论</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
