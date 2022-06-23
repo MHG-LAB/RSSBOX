@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Using Cloudflare Tunnel and Access With Postgres - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="For a long time we used the traditional method of accessing internal database clusters by SSHing to a bastion host. Due to the overhead and limitations of maintaining the SSH configuration, we’ve mov">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Using Cloudflare Tunnel and Access With Postgres">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b4f360a1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="For a long time we used the traditional method of accessing internal database clusters by SSHing to a bastion host. Due to the overhead and limitations of maintaining the SSH configuration, we’ve mov">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-41.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-40.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-39.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image4-24.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image3-26.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image5-13.png">
+<meta property="article:published_time" content="2022-06-23T13:35:14.000Z">
+<meta property="article:modified_time" content="2022-06-23T13:35:14.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-41.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link" href="#how-we-used-to-work"><span class="toc-text">How we used to work</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#the-pain-we-experienced"><span class="toc-text">The pain we experienced</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#the-solution-cloudflare-zero-trust"><span class="toc-text">The solution: Cloudflare Zero Trust</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#what-we-learned"><span class="toc-text">What we learned</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-06-23T13:35:14.000Z">2022-06-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Using Cloudflare Tunnel and Access With Postgres</span></h1>
+<div>
+<figure class="kg-card kg-image-card"><img alt="Using Cloudflare Tunnel and Access with Postgres" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-41.png"></figure><img class="lazy" alt="Using Cloudflare Tunnel and Access with Postgres" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-40.png"><p>For a long time we used the traditional method of accessing internal database clusters by SSHing to a bastion host. Due to the overhead and limitations of maintaining the SSH configuration, we’ve moved to using Cloudflare Tunnels combined with Cloudflare Access to dramatically improve the user experience and onboarding times related to database access.</p><h3 id="how-we-used-to-work">How we used to work</h3><p>Internally we rely heavily on PostgreSQL to power many services at Cloudflare – including Stream, Images and the Cloudflare Dashboard itself. We run our Postgres clusters on our own hardware within our data centers, and they are not accessible to the public Internet, including employee laptops.</p><p>When an employee requires access to one of these databases – be it for staging environments, incident management, or supporting production services – an SSH user account is required. This SSH account has limited access on a bastion host, purely for querying databases within the data center.</p><figure class="kg-card kg-image-card"><img alt="Using Cloudflare Tunnel and Access with Postgres" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-39.png"></figure><h3 id="the-pain-we-experienced">The pain we experienced</h3><p>Provisioning an SSH account to these bastion hosts requires submitting a pull request to our main Infrastructure-as-Code git repository. For engineers this is a cumbersome process, and for non-engineers it is either an unnecessary learning experience, or a burden to whomever they have to ask to complete the work for them.</p><p>Both the Security and Site Reliability Engineering (SRE) teams had tolerated this solution as a necessary evil, but had reservations about handing out shell access to machines for this purpose. While the user accounts had few privileges within the bastion hosts, this still allowed users to run commands within a host and requires a lot of trust that the whole stack is secure.</p><h3 id="the-solution-cloudflare-zero-trust">The solution: Cloudflare Zero Trust</h3><p>As it turns out, the problems we encountered were the same as problems many of our customers encounter as well. We also knew these concerns could be easily addressed with our own products, Cloudflare Tunnel and Cloudflare Access.</p><p>To get started, we deployed Cloudflare Tunnel on a pod set up within our internal Kubernetes cluster that maintains access to the database clusters. This established connectivity from our origin to the Cloudflare global network. At this point, our newly created Tunnel was ready to serve traffic to our origin, in this case our PostgreSQL database server. This already simplified orchestration and management as we no longer needed to manage any Access Control List (ACL) changes for the pod itself in order for cloudflared to connect to it.</p><figure class="kg-card kg-image-card"><img alt="Using Cloudflare Tunnel and Access with Postgres" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image4-24.png"></figure><p>Next, to ensure that only eligible Cloudflare employees could access the database endpoints, we implemented Cloudflare Access and created identity-driven Zero Trust policies. Access then handled all user authentication for each incoming request over Tunnel and enforced a set of pre-defined identity-based policies to ensure that only certain Cloudflare employees could make connections to our database.</p><p>We were also able to better delineate access to staging and production databases by creating independent Tunnels for each. This allowed us to enforce more granular restrictions for production access without impeding our more accessible staging environments. It also had the added benefit of clearly separating the network policies used internally.</p><figure class="kg-card kg-image-card"><img alt="Using Cloudflare Tunnel and Access with Postgres" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image3-26.png"></figure><p>Finally, in order for our internal users to connect to these databases, they simply needed to install cloudflared client side on their machine. Once installed, they could run cloudflared access from their endpoint to establish a long-lived TCP connection from their local laptop to the desired database cluster. Each request was then routed to Cloudflare first for policy evaluation through Cloudflare Access. This prompted the user to complete an authentication event which ensured only the Cloudflare engineers defined within our Zero Trust policies were able to establish a connection to the database.</p><figure class="kg-card kg-image-card"><img alt="Using Cloudflare Tunnel and Access with Postgres" class="kg-image lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image5-13.png"></figure><p>With cloudflared running locally, the user is then free to fire up their favorite database client to connect to the local port and run queries against the remote database cluster as if it is running locally. In short, our users were now able to run a lightweight daemon, cloudflared, on their local machine to route traffic to Cloudflare. Cloudflare Access then evaluated each request against the identity-driven Zero Trust security policies we defined. If the user met these requirements, the request was forwarded onto Cloudflare Tunnel which securely connected internal users to our databases behind Tunnel.</p><p>While we enjoy the benefits this workflow gives us, we needed to include a <em>break glass</em> procedure to ensure that we aren’t locked out of fixing our infrastructure if our infrastructure itself is having issues. For this reason, we continue to maintain SSH-based jump-hosts for a limited number of senior staff members to get in and re-establish connectivity.</p><h3 id="what-we-learned">What we learned</h3><p>By implementing our own solutions, we were able to enhance our security posture and improve the overall experience for our internal users. We were also able to become a customer of our own products and provide value feedback, insight, and feature requests to the Access and Tunnel teams internally. Oftentimes, we get to be the first to try new features or report regressions in beta builds which ultimately leads to a better experience for our customers as well.</p><p>Overall, by implementing Access and Tunnel to forward arbitrary TCP connections, users are able to focus on their job rather than worrying about the nuances of sending strings of complex commands through an SSH client. Our Security and SRE teams are also happier knowing that any connection to our data centers have been authenticated, authorized and logged by Cloudflare Access. If you’d like to get started Cloudflare Tunnel is free for any user and any use case. To get started, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/sign-up/teams">sign-up</a> for a Cloudflare Zero Trust account and <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/ridiculously-easy-to-use-tunnels/">create your first Tunnel</a> directly from the Zero Trust dashboard.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Using Cloudflare Tunnel and Access with Postgres" href="https://blog.cloudflare.com/cloudflare-tunnel-for-postgres/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Using Cloudflare Tunnel and Access with Postgres</span><span class="desc fs12">https://blog.cloudflare.com/cloudflare-tunnel-for-postgres/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/f76ca8ee.html">Cloudflare Integrates With Microsoft Intune to Give CISOs Secure Control Across Devices, Applications, and Corporate Networks<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/fb3cf2b2.html">没考上普高是不是就没有未来了？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2bca0bb9.html" title="Announcing the Cloudflare One Partner Program"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-34.png"></div><span class="title">Announcing the Cloudflare One Partner Program</span></a><a class="item" href="/rss/6c70e343.html" title="Cloudflare Gateway Dedicated Egress and Egress Policies"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-37.png"></div><span class="title">Cloudflare Gateway Dedicated Egress and Egress Policies</span></a><a class="item" href="/rss/f76ca8ee.html" title="Cloudflare Integrates With Microsoft Intune to Give CISOs Secure Control Across Devices, Applications, and Corporate Networks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-39.png"></div><span class="title">Cloudflare Integrates With Microsoft Intune to Give CISOs Secure Control Across Devices, Applications, and Corporate Networks</span></a><a class="item" href="/rss/e0464d27.html" title="Cloudflare Outage on June 21, 2022"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/BLOG-1226-Global-Latency.png"></div><span class="title">Cloudflare Outage on June 21, 2022</span></a><a class="item" href="/rss/59296764.html" title="Cloudflare Recognized by Microsoft as a Security Software Innovator"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image4-16.png"></div><span class="title">Cloudflare Recognized by Microsoft as a Security Software Innovator</span></a><a class="item" href="/rss/4fbbe8d0.html" title="How Cloudflare One Solves Your Observability Problems"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-24.png"></div><span class="title">How Cloudflare One Solves Your Observability Problems</span></a><a class="item" href="/rss/aae839a7.html" title="How to Augment or Replace Your VPN With Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-31.png"></div><span class="title">How to Augment or Replace Your VPN With Cloudflare</span></a><a class="item" href="/rss/2ede14c9.html" title="Infinitely Extensible Access Policies"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-24.png"></div><span class="title">Infinitely Extensible Access Policies</span></a><a class="item" href="/rss/cc4ad41e.html" title="Introducing Cloudforce One: Our New Threat Operations and Research Team"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-18.png"></div><span class="title">Introducing Cloudforce One: Our New Threat Operations and Research Team</span></a><a class="item" href="/rss/91a0b548.html" title="Introducing Private Network Discovery"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image4-19.png"></div><span class="title">Introducing Private Network Discovery</span></a><a class="item" href="/rss/6a2e7ea7.html" title="Introducing Browser Isolation for Email Links to Stop Modern Phishing Threats"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image6-7.png"></div><span class="title">Introducing Browser Isolation for Email Links to Stop Modern Phishing Threats</span></a><a class="item" href="/rss/cef1b6d4.html" title="MPLS to Zero Trust in 30 Days"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image7-9.png"></div><span class="title">MPLS to Zero Trust in 30 Days</span></a><a class="item" href="/rss/59530c8c.html" title="Next Generation Intrusion Detection: An Update on Cloudflare’s IDS Capabilities"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-21.png"></div><span class="title">Next Generation Intrusion Detection: An Update on Cloudflare’s IDS Capabilities</span></a><a class="item" href="/rss/74036891.html" title="Verify Apple Devices With No Installed Software"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-33.png"></div><span class="title">Verify Apple Devices With No Installed Software</span></a><a class="item" href="/rss/e37fe5d0.html" title="Chrono24, a Luxury Watch Online Marketplace, Saw a 67% Reduction in Costs Attributed to Website Security and Performance After Switching to Cloudflare..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2869"></div><span class="title">Chrono24, a Luxury Watch Online Marketplace, Saw a 67% Reduction in Costs Attributed to Website Security and Performance After Switching to Cloudflare...</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
