@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 5.4.1">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>为什么现代CPU每秒数亿次计算，但是程序仍旧很卡? - RSSBOX</title>
+
+  
+
+  
+    <meta name="description" content="欧阳思七的回答我这样拉跨程序员写的程序经常这样:不做异步,就在UI线程上搞事情.任何事做完之前.程序都是卡的不做并行,不管你是多少核cpu.我只有单线程使用网络资源的时候,不处理UI.甚至就干等,如果网络不稳定.程序就卡住,其实CPU根本没干活写很多大量无效的类型转换&#x2F;装箱拆箱,声明使用一大堆集合为了重用代码,同时也懒得优化代码,一件简单的事情,交给一个很复杂的模块处理,说人话就是, 你需要一个">
+<meta property="og:type" content="article">
+<meta property="og:title" content="为什么现代CPU每秒数亿次计算，但是程序仍旧很卡?">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/fc9de5d7.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="欧阳思七的回答我这样拉跨程序员写的程序经常这样:不做异步,就在UI线程上搞事情.任何事做完之前.程序都是卡的不做并行,不管你是多少核cpu.我只有单线程使用网络资源的时候,不处理UI.甚至就干等,如果网络不稳定.程序就卡住,其实CPU根本没干活写很多大量无效的类型转换&#x2F;装箱拆箱,声明使用一大堆集合为了重用代码,同时也懒得优化代码,一件简单的事情,交给一个很复杂的模块处理,说人话就是, 你需要一个">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic1.zhimg.com/v2-6edae56a80992a9cb2c08bc83f0f1800_1440w.jpg?source=b1748391">
+<meta property="article:published_time" content="2022-07-10T09:02:26.000Z">
+<meta property="article:modified_time" content="2022-07-10T09:02:26.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="知乎">
+<meta property="article:tag" content="知乎热榜">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic1.zhimg.com/v2-6edae56a80992a9cb2c08bc83f0f1800_1440w.jpg?source=b1748391">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+
+<div class="widget-wrap" id="recent"><div class="widget-header cap dis-select"><span class="name">最近更新</span><a class="cap-action" id="rss" title="Subscribe" href="/atom.xml"><svg class="icon" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8938"><path d="M800.966 947.251c0-404.522-320.872-732.448-716.69-732.448V62.785c477.972 0 865.44 395.987 865.44 884.466h-148.75z m-162.273 0h-148.74c0-228.98-181.628-414.598-405.678-414.598v-152.01c306.205 0 554.418 253.68 554.418 566.608z m-446.24-221.12c59.748 0 108.189 49.503 108.189 110.557 0 61.063-48.44 110.563-108.188 110.563-59.747 0-108.18-49.5-108.18-110.563 0-61.054 48.433-110.556 108.18-110.556z" p-id="8939"/></svg></a></div><div class="widget-body fs14"><div class="more-item"><a class="title" href="/rss/3e1ef433.html">Child Working on Construction in the Streets of Juba - South Sudan</a></div><div class="more-item"><a class="title" href="/rss/83f8737e.html">Morning in Torres Del Paine</a></div><div class="more-item"><a class="title" href="/rss/b87b3dd.html">My Kitchen &Me</a></div><div class="more-item"><a class="title" href="/rss/de8c30c4.html">Play in the Grassland</a></div><div class="more-item"><a class="title" href="/rss/6d7b6fb2.html">Spider</a></div></div></div>
+
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E7%9F%A5%E4%B9%8E/">知乎</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E7%9F%A5%E4%B9%8E/%E7%9F%A5%E4%B9%8E%E7%83%AD%E6%A6%9C/">知乎热榜</a></div><div id="post-meta">发布于&nbsp;<time datetime="2022-07-10T09:02:26.000Z">2022-07-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>为什么现代CPU每秒数亿次计算，但是程序仍旧很卡?</span></h1>
+<div>
+欧阳思七的回答<br><br><p data-pid="r1f-ngek">我这样拉跨程序员写的程序经常这样:</p><ul><li data-pid="_LUOjXan">不做异步,就在UI线程上搞事情.任何事做完之前.程序都是卡的</li><li data-pid="3HDUrLzZ">不做并行,不管你是多少核cpu.我只有单线程</li><li data-pid="1Hk0DZCj">使用网络资源的时候,不处理UI.甚至就干等,如果网络不稳定.程序就卡住,其实CPU根本没干活</li><li data-pid="hA-gaKHg">写很多大量无效的类型转换/装箱拆箱,声明使用一大堆集合</li><li data-pid="askoaDiP">为了重用代码,同时也懒得优化代码,一件简单的事情,交给一个很复杂的模块处理,说人话就是, 你需要一个螺母,你不直接买一个螺母,你买了一辆汽车,然后把螺母拆下来用,下次我需要一个螺丝,我甚至不用之前买的那辆汽车的螺丝,我再买一辆新的....</li><li data-pid="k5VMgoKC">不管用不用得着,总是使用原始的高清资源.比如用户头像.贪方便.我直接用1080P的图也不压缩...</li><li data-pid="lfVzhmsf">不缓存任何资源,哪怕一个东西反复被使用,依然不停从数据源获取数据...</li><li data-pid="gx-4vkkd">使用完数据不释放.... 比如我买了车取下它的螺母用,但是我车也不处理掉,还放在那做摆设.</li><li data-pid="TLdoHGHh">因为懒得写合理的数据传递.明明要用参数传递的数据一股脑放在全局变量. 拿生活做比喻就是我明明只是和你发私信,但是因为懒得写收件人信息,直接登人民日报...</li><li data-pid="fDDrPLFY">我们拉跨程序员多半知道写的东西垃圾在哪里,他们只是不知道这垃圾啥时候会在实际运行中爆发出问题来.偶尔也不知道这些垃圾组合在一起为啥居然可以运行,更不不知道这些垃圾组合在一起产生哪些新的特性.</li></ul><p data-pid="_xDEJx4B">哦.最重要的,我们拉跨程序员不觉得卡是bug.我们只觉得报错/崩溃/错误的数据展示是BUG...</p><p data-pid="SULEet9n">______________________________________________</p><p data-pid="xhvCVNvH">2022.7.10 更新，我说怎么有人来骂我骗人炒股，问题又上热榜了。我随便说几句，那些在华为batm，月入几狗的，可以去拼，去996，但是还有很多在普通公司鬼混的程序员，我说难听一点，35岁，我们这些破程序员竞争力都要下降，各位程序员好好想想，10年前学的技术还有多少有用，业务经验架构倒是有用，但是绝大多数普通人根本进不去那些真的有架构师的公司。在小破公司996有屁用，加班费都不一定有，公司业务好就涨点薪水，最近行情差我那些老同事日子也难过。我自己在前一家公司拼了7年，然后恋爱了，不肯加班了，因为相对薪水好点就被各种搞，我不是让人去股市追涨杀跌做韭菜，平时学一些金融知识，了解一些世界变化，到股市里选一些你觉得未来中国能崛起的公司，在低估值的时候投资，没让你们做敢死队。我过去一年半不到收益90%左右根本没买多少个股，也没有高频交易，也没有盯盘做T。真就是结合一下世界经济的现状，国家产业的优势，国家战略买而已，也没说买到什么很好的位置。也劝大家不要搞什么追涨杀跌。这不叫投机，叫分享国家发展机遇，就像现在房产不行了，但是过去20年房子涨了多少。但是有兴趣的人，可以看看富时a50那些中国龙头过去20年涨了多少，少则几倍多则几十倍比房价还离谱，不要被那些叫上证3000点玩了10年叫骂的骗了，一个程序员，最基本的逻辑能力有吧，能颅内做点推演吧（否则真就全程单步debug？)。未来中国什么行业好什么行业差能有判断吧。年轻的时候拿点闲钱投资，你该上班上班，过几年收益也是支持国家产业升级呀。搞得我多缺德似的。平时多了解世界，多看点书，然后别看太多荐股的，教你搞短线的，你还得上班呢对吧。我过去很长时间家里人都做股票，但是我不屑一顾，觉得程序员工资也还行，也会稳稳上涨，但是等到奔35去了，年纪大了就知道肝不动了，是后悔没有早一点学着存钱学着理财的。我工作这么多年，觉得能坚持做程序的，不管是不是优秀，人普遍都没啥坏心思都是憨憨，所以我知道我们程序员什么勾心斗角，钻营马屁那是多半不太行的。估计就是脑子普遍还行，所以建议大家可以花点心思了解下，基本的东西没那么复杂，但是可以一点闲钱建立习惯，知道自己是不是真的合适。评论我也不处理了，随便吧。</p><p data-pid="pWX_WZvS">2021.11.19 更新，最近还是有人点赞，有点小离谱，这问题生命力真强。</p><p data-pid="R7Ur_NE6">作为彩 大龄程序员，给后辈一个建议，就是多学，但是学精就算了，我等悟性学不精，学得精也很难遇到精密要求自己的自己和要求自己的岗位/公司。多学新东西，就可以去新公司混/或者混到新兴岗位上。</p><p data-pid="_tDcyspZ">目前我在用xamarin搞app 应用。搞得屎一样，好在用户量很少，企业内部用用，也能对付。算是独立开发者，比较自由。可以决定自由的时间是用来学习/游戏/股票。就是觉悟得太晚了。现在房价都不怎么涨，后辈如果现在收入不错，赶紧开始理财吧，不要像我这么大年纪才开始搞。</p><p data-pid="mhaO1hoh">不要脸的说一句，咱们在搞程序里面的，不见得算脑子好用的，但是在搞股票的里面，咱们一定是好用的，程序员不要内卷了，去买股票吧。我今年3月份开始炒股收益率都40%多了</p><p data-pid="j7oWVwai">（更新一下，去年21年3月-22年7月 目前收益90%）。</p><figure data-size="normal"><img class="origin_image zh-lightbox-thumb lazy" data-caption data-default-watermark-src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic3.zhimg.com/v2-286773f269f62ffd7370adbb6963e98d_720w.jpg?source=b1748391" data-original="https://pic1.zhimg.com/v2-6edae56a80992a9cb2c08bc83f0f1800_r.jpg?source=b1748391" data-rawheight="2340" data-rawwidth="1080" data-size="normal" referrerpolicy="no-referrer" src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic1.zhimg.com/v2-6edae56a80992a9cb2c08bc83f0f1800_1440w.jpg?source=b1748391"></figure><hr><p data-pid="sH0xoTev">一天下来，惊呆了，这么多赞，看来获赞的主要原因还是达成共鸣了。</p><p data-pid="xan14TEW">我干程序员也差不多10年了.小学就接触了一些VB,后来工作就发现,很多时候确实工作上很难都高标准要求自己.所以很佩服那些业余时间还会自己做做项目的人. 自己经常项目初期搭个讲究的框架,到开发中期,发现原来设计有点不合理.开始重构,然后一天过去发现业务功能非但没有增加,甚至还制造了更多待优化的项目. 随着时间推移,项目进度就更紧张了.越往后就越随意,再往后就是破窗效应了.一旦你容忍了几个自己项目的白痴代码,接下来就开始放飞自我了. 这就有点像我刚追女朋友的时候,我每天早期刷牙洗脸刮胡子.到同居后,我就要女朋友逼我洗澡了... 现在十几年职业生涯过去.发现所有的技术进步无非集中在:</p><ul><li data-pid="dCOuBubt">经验积累,掌握了更多更快的更容易维护开发的手段.虽然这些手段的性能不见得更好.</li><li data-pid="Gzvh4diu">即使程序未必比过去跑得快,但是程序出问题的时候的bug比过去容易显示了.</li><li data-pid="G2mncq3k">进入职业的中期,深感老板也不在乎的技术,他们脑子都是业务,而你做出自己有成就感的设计提高开发效率的成就感在老板那边甚至你无法和他分享快乐. 最后逼着自己向老板兜售业务.</li><li data-pid="jsiLKdvI">所有的技能居然都来自新业务. 比如搞xamarin 因为我需要做ios了.仅此而已.</li></ul><p data-pid="h62jmptZ">知乎上很多微软 谷歌 BAT 的大牛.他们看看着很潇洒的完成工作. 业余还能发发知乎,带大家逛,甚至做几个牛逼的轮子让大家瞻仰,但是我知道更多的程序员都是我这样平平无奇的人,在大牛眼中可能只是码农码畜,把网络上复制的代码组合加点业务就是我们的工作写照了.但这真的是多数程序员的工作, 没成就更无聊. </p><p data-pid="puPstETg">看到评论大家开心的血压拉满,能给大家带来一点快乐. 或许是我给程序员们带来过的最大价值了.</p><hr><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="为什么现代CPU每秒数亿次计算，但是程序仍旧很卡?" href="https://www.zhihu.com/question/458730114/answer/1879754851" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">为什么现代CPU每秒数亿次计算，但是程序仍旧很卡?</span><span class="desc fs12">https://www.zhihu.com/question/458730114/answer/1879754851</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/7572b9fe.html">小米12s Ultra实际使用体验如何？有哪些换机的理由？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/44121470.html">《幸福到万家》第 18-20 集拍得怎么样？哪些剧情点值得关注？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/44121470.html" title="《幸福到万家》第 18-20 集拍得怎么样？哪些剧情点值得关注？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4514"></div><span class="title">《幸福到万家》第 18-20 集拍得怎么样？哪些剧情点值得关注？</span></a><a class="item" href="/rss/a2e7f907.html" title="《王者荣耀》中最接近完美的射手应该是谁？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pica.zhimg.com/v2-fdfe25177f31f5f29b31897820dd8daf_1440w.jpg?source=b1748391"></div><span class="title">《王者荣耀》中最接近完美的射手应该是谁？</span></a><a class="item" href="/rss/55b2cace.html" title="前是华为，后到比亚迪，为什么让国人承认国产优秀这么难？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic1.zhimg.com/v2-0dd15ae6b9f17db400aea6ac9b357fd2_1440w.jpg?source=b1748391"></div><span class="title">前是华为，后到比亚迪，为什么让国人承认国产优秀这么难？</span></a><a class="item" href="/rss/ff65d468.html" title="同样都是走高端路线，为什么钟薛高被骂上热搜，而哈根达斯却没有？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic4.zhimg.com/v2-e91ce9118d62dbb8b2091fb8f23bbfa3_1440w.jpg?source=b1748391"></div><span class="title">同样都是走高端路线，为什么钟薛高被骂上热搜，而哈根达斯却没有？</span></a><a class="item" href="/rss/88a36736.html" title="如何看待胡锡进表示改善中日关系是中国国家利益的一个重要契合项，是时候把中日之间的结逐渐打开了？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2196"></div><span class="title">如何看待胡锡进表示改善中日关系是中国国家利益的一个重要契合项，是时候把中日之间的结逐渐打开了？</span></a><a class="item" href="/rss/1225933c.html" title="如何评价国产动画《凡人修仙传》第58话即年番三十七集？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic1.zhimg.com/v2-773b5c8a7c3486d16cb0e207e6206e00_720w.jpg?source=b1748391"></div><span class="title">如何评价国产动画《凡人修仙传》第58话即年番三十七集？</span></a><a class="item" href="/rss/b71816b9.html" title="媒体报道我国一人户家庭超 1.25 亿户，养猫人群数超过养狗人群，有哪些值得关注的信息？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4540"></div><span class="title">媒体报道我国一人户家庭超 1.25 亿户，养猫人群数超过养狗人群，有哪些值得关注的信息？</span></a><a class="item" href="/rss/cefc7473.html" title="媒体评「易烊千玺考编」文章中提到「小镇做题家」，什么是小镇做题家？这个说法是怎么来的？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5729"></div><span class="title">媒体评「易烊千玺考编」文章中提到「小镇做题家」，什么是小镇做题家？这个说法是怎么来的？</span></a><a class="item" href="/rss/7572b9fe.html" title="小米12s Ultra实际使用体验如何？有哪些换机的理由？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic3.zhimg.com/v2-5f85590fcd466264379f988b6d940e6b_1440w.jpg?source=b1748391"></div><span class="title">小米12s Ultra实际使用体验如何？有哪些换机的理由？</span></a><a class="item" href="/rss/6c59737b.html" title="张雪峰回应「建议高考结束即可准备考研」，称本意是说有些专业注定要考研，如何看待张雪峰这一观点？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pica.zhimg.com/v2-82eab001e283c72702ecbde9183fc788_1440w.jpg?source=b1748391"></div><span class="title">张雪峰回应「建议高考结束即可准备考研」，称本意是说有些专业注定要考研，如何看待张雪峰这一观点？</span></a><a class="item" href="/rss/a1bc9f57.html" title="我是2024届高考考生，未来想当一位临床医生，我确定选了物理化学，请问是还有一门是选地理还是生物呢？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8633"></div><span class="title">我是2024届高考考生，未来想当一位临床医生，我确定选了物理化学，请问是还有一门是选地理还是生物呢？</span></a><a class="item" href="/rss/6785f74f.html" title="现在俄罗斯发动的对乌特别军事行动，可以认为是美国霸权崩坏的开始吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3255"></div><span class="title">现在俄罗斯发动的对乌特别军事行动，可以认为是美国霸权崩坏的开始吗？</span></a><a class="item" href="/rss/18e07f2f.html" title="约翰逊下台、安倍遇刺，与上世纪初「世界乱局前夜」相似的情景接连上演，2022 会陷入历史轮回吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3538"></div><span class="title">约翰逊下台、安倍遇刺，与上世纪初「世界乱局前夜」相似的情景接连上演，2022 会陷入历史轮回吗？</span></a><a class="item" href="/rss/471adca.html" title="该上大一了过来人有什么忠告吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.zhihu.com&url=https://pic3.zhimg.com/v2-fc147f15d7ce8da27d3439306800c2f2_720w.jpg?source=b1748391"></div><span class="title">该上大一了过来人有什么忠告吗？</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+<p>本站由 <a href="https://rssbox.mhuig.top/">@MHuiG</a> 创建，使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1" title="v1.6.1">Stellar</a> 作为主题，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.6.1';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+  
+    <script async defer data-website-id="37e2cdbd-4a8e-4398-9365-211491aa5e27" src="https://rssbox.mhuig.top/vues.js"></script>
+  
+
+
+  </div>
+</body>
+</html>
