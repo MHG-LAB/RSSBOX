@@ -152,7 +152,7 @@ def get_post(res,item):
       if str(type(childName)) == "<class 'str'>":
         childName = str.lower(childName)
       if (childName == 'title'):
-        title = child.string
+        title = child.string or str(time.time()) 
       
       if (childName == 'description'):
         description= child.string
@@ -190,7 +190,10 @@ def get_post(res,item):
         else:
           img = soup_item.find('img')['src'].strip()
     text = TEXT的特殊处理(text)
-    filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
+    try:
+      filename = re.sub(r'[:/\\?\*“”\'"<>\.|\[\]]', '_', title)
+    except:
+      filename = str(time.time())
     #title = re.sub(r'[\'"]', '_', title)
     filename = filename.replace('\n', '').replace('#', '').replace('.','')
     if os.path.exists('source/_posts/' + dir + '/' + filename + '.md'):
