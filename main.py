@@ -149,7 +149,7 @@ def get_post(res,item):
     
     for child in i.children:
       childName = child.name
-      child.string = child.string.replace('<![CDATA[', '')
+      child.string = str(child.string).replace('<![CDATA[', '')
       if str(type(childName)) == "<class 'str'>":
         childName = str.lower(childName)
       if (childName == 'title'):
