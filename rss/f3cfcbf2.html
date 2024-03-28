@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>基于爱快路由的 IPV6 网络防火墙设置 - RSSBOX</title>
+
+  
+    <meta name="description" content="本文介绍了如何在爱快路由设备上配置 IPV6 网络防火墙，我们设置该防火墙的主要原因有以下几点：内网设备需要访问纯 IPV6 资源，例如观看 IPTV；某些内网设备缺乏防火墙保护，如果这些设备暴露在外网，将面临严重的安全风险。事实上只有部分内网设备需要外网访问权限，例如 NAS 和虚拟机，其他设备并不需要被外网访问。为了方便使用，在内网部署了 DDNS，将动态 IP 地址绑定到易于记忆的域名，这">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于爱快路由的 IPV6 网络防火墙设置">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/f3cfcbf2.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="本文介绍了如何在爱快路由设备上配置 IPV6 网络防火墙，我们设置该防火墙的主要原因有以下几点：内网设备需要访问纯 IPV6 资源，例如观看 IPTV；某些内网设备缺乏防火墙保护，如果这些设备暴露在外网，将面临严重的安全风险。事实上只有部分内网设备需要外网访问权限，例如 NAS 和虚拟机，其他设备并不需要被外网访问。为了方便使用，在内网部署了 DDNS，将动态 IP 地址绑定到易于记忆的域名，这">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-11-07T01:20:00.000Z">
+<meta property="article:modified_time" content="2023-11-07T01:20:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="友链">
+<meta property="article:tag" content="枋柚梓的猫会发光">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#IPV6-%E5%9C%B0%E5%9D%80%E8%8E%B7%E5%8F%96"><span class="toc-text">IPV6 地址获取</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#ACL-%E8%A7%84%E5%88%99"><span class="toc-text">ACL 规则</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%A8%E5%B1%80%E9%98%BB%E6%96%AD"><span class="toc-text">全局阻断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%81%E8%AE%B8%E5%86%85%E7%BD%91%E8%AE%BF%E9%97%AE%E5%A4%96%E7%BD%91%E6%8C%87%E5%AE%9A%E7%AB%AF%E5%8F%A3"><span class="toc-text">允许内网访问外网指定端口</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%81%E8%AE%B8%E5%A4%96%E7%BD%91%E8%AE%BF%E9%97%AE%E5%86%85%E7%BD%91%E6%8C%87%E5%AE%9A%E7%AB%AF%E5%8F%A3"><span class="toc-text">允许外网访问内网指定端口</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A3%80%E6%B5%8B"><span class="toc-text">检测</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/">友链</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/%E6%9E%8B%E6%9F%9A%E6%A2%93%E7%9A%84%E7%8C%AB%E4%BC%9A%E5%8F%91%E5%85%89/">枋柚梓的猫会发光</a></div><div id="post-meta">发布于&nbsp;<time datetime="2023-11-07T01:20:00.000Z">2023-11-07</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>基于爱快路由的 IPV6 网络防火墙设置</span></h1>
+<div>
+<p>本文介绍了如何在爱快路由设备上配置 IPV6 网络防火墙，我们设置该防火墙的主要原因有以下几点：</p><ul><li>内网设备需要访问纯 IPV6 资源，例如观看 IPTV；</li><li>某些内网设备缺乏防火墙保护，如果这些设备暴露在外网，将面临严重的安全风险。</li><li>事实上只有部分内网设备需要外网访问权限，例如 NAS 和虚拟机，其他设备并不需要被外网访问。</li><li>为了方便使用，在内网部署了 DDNS，将动态 IP 地址绑定到易于记忆的域名，这也存在外泄的潜在风险。</li></ul><p>我们将从两个角度完成内网 IPV6 防火墙的设定：</p><ul><li>只给<mark>指定设备</mark>分发公网 IPV6 地址；</li><li>只开放指定地址和<mark>指定端口</mark>的访问权限；</li></ul><h2 id="IPV6-地址获取">IPV6 地址获取</h2><p>ipv6地址获取有两种方式：路由器通告前缀 + 设备自己的后缀<sup class="footnote-ref"><a href="#fn1" id="fnref1">[1]</a></sup>；DHCP 给一个 /128 的地址。</p><p>需要明确：无状态和有状态，仅仅指的是 IPV6 地址的获取方式。前者实现方式是 SLAAC，后者是 DHCPv6，由于 SLAAC 只能获取到地址，无法获取到 DNS 等信息，亦存在一种组合搭配，所有方式如下：</p><table><thead><tr><th>方式</th><th>地址</th><th>前缀</th><th>网关</th><th>DNS</th><th>A</th><th>M</th><th>O</th></tr></thead><tbody><tr><td>SLAAC（无状态）</td><td>RA</td><td>RA</td><td>RA</td><td>-</td><td>1</td><td>0</td><td>0</td></tr><tr><td>Stateless DHCPv6（无状态 DHCPv6）</td><td>RA</td><td>RA</td><td>RA</td><td>DHCPv6</td><td>1</td><td>0</td><td>1</td></tr><tr><td>Stateful DHCPv6（有状态 DHCPv6）</td><td>DHCPv6</td><td>DHCPv6</td><td>RA</td><td>DHCPv6</td><td>0</td><td>1</td><td>~</td></tr><tr><td>有状态 + 无状态</td><td></td><td></td><td></td><td></td><td>1</td><td>1</td><td>1</td></tr></tbody></table><p>原则上，出于易于管理的角度，我们推崇使用<strong>有状态 DHCPv6</strong>。在这种方式下，所有信息由路由器统一下发管理。然而，谷歌曾明确表示，安卓设备将只支持 <strong>SLAAC</strong> 的 IPv6 地址获取方式<sup class="footnote-ref"><a href="#fn2" id="fnref2">[2]</a></sup>，因此，在有状态或者无状态的选取上根据个人需求而定<sup class="footnote-ref"><a href="#fn3" id="fnref3">[3]</a></sup>。</p><p>对于<strong>爱快系统</strong>，有状态可与 <em>DHCPv6 黑白名单</em> 搭配使用，以便完成对指定设备（依据 MAC 地址）的 IPv6 地址分配。而无状态则通过设置 <em>RA 通告绑定</em>，与 <em>前缀静态分配</em> 搭配使用，实现对指定设备的地址分配，在前缀静态分配中填写本地链接 IPV6 地址（形如 <code>fe80::8a35:2de7:e6f3:7582</code>）。</p><h2 id="ACL-规则">ACL 规则</h2><p>一些基本知识：</p><ul><li>允许的优先级大于阻断的优先级；</li><li>方向中的转发/进所描述的对象为路由器，进指内网/外网访问路由，一般只需要使用转发；</li><li>连接方向匹配中原始方向为发起方发起访问的报文，可以是内网发起，也可以是外网发起，应答亦是；</li><li>后缀匹配：由于前缀动态变化，而后缀固定<sup class="footnote-ref"><a href="#fn4" id="fnref4">[4]</a></sup>，所以匹配内网设备时使用后缀地址进行匹配；</li></ul><p>假设运营商分配的 PD 前缀为 /60（aaaa:bbbb:cccc:ddd0::/60），即可划分 16 个 /64 子网（aaaa:bbbb:cccc:ddd0::/64 ~ aaaa:bbbb:cccc:dddf::/64），无状态下最小子网前缀要求便是 /64。</p><h3 id="全局阻断">全局阻断</h3><p>添加一条全局阻断访问的规则<sup class="footnote-ref"><a href="#fn5" id="fnref5">[5]</a></sup>：</p><table><thead><tr><th>协议栈</th><th>协议</th><th>动作</th><th>方向</th><th>连接方向匹配</th><th>目的地址</th><th>目的端口</th><th>进接口</th><th>出接口</th></tr></thead><tbody><tr><td>IPV6</td><td>任意</td><td>阻断</td><td>转发</td><td>原始方向</td><td></td><td></td><td>任意</td><td>任意</td></tr></tbody></table><p>效果：阻断了内网与外网之间的互相访问，外网无法访问内网设备，反之亦然。</p><h3 id="允许内网访问外网指定端口">允许内网访问外网指定端口</h3><table><thead><tr><th>协议栈</th><th>协议</th><th>动作</th><th>方向</th><th>连接方向匹配</th><th>目的地址</th><th>目的端口</th><th>进接口</th><th>出接口</th></tr></thead><tbody><tr><td>IPV6</td><td>tcp</td><td>允许</td><td>转发</td><td>关闭</td><td></td><td>80,443</td><td>lan</td><td>wan</td></tr></tbody></table><p>此条用于举例说明：上一条规则全局阻断由于没有指定进/出接口，导致内网无法访问外网的 IPv6 资源。在这种情况下，内网作为发起方位于<strong>进接口</strong>，数据包流向<strong>出接口</strong>。同时，由于阻断规则的连接方向匹配设置为原始方向，因此本条规则连接方向匹配中的关闭与原始方向效果相同。</p><h3 id="允许外网访问内网指定端口">允许外网访问内网指定端口</h3><table><thead><tr><th>协议栈</th><th>协议</th><th>动作</th><th>方向</th><th>连接方向匹配</th><th>目的地址</th><th>目的端口</th><th>进接口</th><th>出接口</th></tr></thead><tbody><tr><td>IPV6</td><td>tcp</td><td>允许</td><td>转发</td><td>原始方向</td><td>::abcd/::ffff</td><td>8443</td><td>任意</td><td>任意</td></tr></tbody></table><p>关于目的地址：数据包实际从 WAN 到 LAN，走向目的地址，可以根据后缀匹配填写目的地址。</p><p>假设设备 IPV6 地址为：<code>240e:aaaa:bbbb:cccc:0000:0000:0000:0001</code>，简写为 <code>240e:aaaa:bbbb:cccc::1</code>，用后缀表示该地址变 <code>::1/::ffff</code>，无状态地址大多为 <code>::aaaa:bbbb:cccc:dddd/::ffff:ffff:ffff:ffff</code>。</p><h2 id="检测">检测</h2><p>可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://port.tools/port-checker-ipv6/">IPv6 Port Checker</a> 处完成端口外网检测，按照实际情况，运营商已经把 80, 443, 8080 等端口阻断了。</p><hr class="footnotes-sep"><section class="footnotes"><ol class="footnotes-list"><li class="footnote-item" id="fn1"><p><strong>EUI-64</strong>：根据自身 MAC 地址生成的全球 IPV6 地址；<strong>随机生成</strong>：为了保护隐私生成的临时 IPV6 地址 <a class="footnote-backref" href="#fnref1">↩︎</a></p></li><li class="footnote-item" id="fn2"><p>安卓设备在获取 IPV6 地址时必须使用无状态配置，且子网前缀要求大于等于 64。 <a class="footnote-backref" href="#fnref2">↩︎</a></p></li><li class="footnote-item" id="fn3"><p>由于无状态需要通过设备 MAC 地址计算得出，所以相比有状态地址，无状态地址长的多。 <a class="footnote-backref" href="#fnref3">↩︎</a></p></li><li class="footnote-item" id="fn4"><p>有状态地址后缀一定固定，无状态地址后缀需选用永久地址中的接口标识部分。 <a class="footnote-backref" href="#fnref4">↩︎</a></p></li><li class="footnote-item" id="fn5"><p>TIP：未提及项保持默认值不做改动，下同。 <a class="footnote-backref" href="#fnref5">↩︎</a></p></li></ol></section>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="基于爱快路由的 IPV6 网络防火墙设置" href="https://inkss.cn/post/8fe38c87/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">基于爱快路由的 IPV6 网络防火墙设置</span><span class="desc fs12">https://inkss.cn/post/8fe38c87/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a9de23f1.html">千元投影，哈趣H2<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/2674f09e.html">卡片相机，从了解到放弃<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/7120d68e.html" title="Ubuntu 下 LVM 使用笔记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3888"></div><span class="title">Ubuntu 下 LVM 使用笔记</span></a><a class="item" href="/rss/34ad1f97.html" title="极空间虚拟机"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://inkss.cn&url=https://inkss.cn/../../img/article/23-07@%E6%9E%81%E7%A9%BA%E9%97%B4%E8%99%9A%E6%8B%9F%E6%9C%BA%E9%83%A8%E7%BD%B2UbuntuServer/23-07-27_160956.png"></div><span class="title">极空间虚拟机</span></a><a class="item" href="/rss/a61fc650.html" title="2016美国总统候选人辩论"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2890"></div><span class="title">2016美国总统候选人辩论</span></a><a class="item" href="/rss/607d6c62.html" title="Git学习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/cdn-assets@master/img/git1.jpg"></div><span class="title">Git学习</span></a><a class="item" href="/rss/2def9f62.html" title="Shell猜数字游戏"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7338"></div><span class="title">Shell猜数字游戏</span></a><a class="item" href="/rss/be2c6b79.html" title="VIDAA3/4系统工厂模式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/cdn-assets@master/img/md/be2c6b79/factory-mode.png"></div><span class="title">VIDAA3/4系统工厂模式</span></a><a class="item" href="/rss/67bdf631.html" title="Win32 API编程——前言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6632"></div><span class="title">Win32 API编程——前言</span></a><a class="item" href="/rss/4a17b156.html" title="Hello World"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2532"></div><span class="title">Hello World</span></a><a class="item" href="/rss/75d55bc0.html" title="✳️ Vi/Vim使用备忘"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/cdn-assets@master/img/md/b04c6f46/workmodel.png"></div><span class="title">✳️ Vi/Vim使用备忘</span></a><a class="item" href="/rss/9c28944f.html" title="「硬核JS」一次搞懂JS运行机制"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/cdn-assets@master/img/md/9c28944f/Event-Loop1.jpg"></div><span class="title">「硬核JS」一次搞懂JS运行机制</span></a><a class="item" href="/rss/32704215.html" title="【推荐】Hexo博客配置及源文件备份"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/cdn-assets@master/img/md/659688f7/xcopy.png"></div><span class="title">【推荐】Hexo博客配置及源文件备份</span></a><a class="item" href="/rss/24afb835.html" title="【原创作品】Ease Bookmarks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://7bxing.com&url=https://cdn.jsdelivr.net/gh/qinxs/Ease-Bookmarks@master/screenshots/1-popup.png"></div><span class="title">【原创作品】Ease Bookmarks</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
