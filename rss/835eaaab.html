@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Leveraging Kubernetes Virtual Machines at Cloudflare With KubeVirt - RSSBOX</title>
+
+  
+    <meta name="description" content="Cloudflare runs several multi-tenant Kubernetes clusters across our core data centers. These general-purpose clusters run on bare metal and power our control plane, analytics, and various engineerin">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Leveraging Kubernetes Virtual Machines at Cloudflare With KubeVirt">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/835eaaab.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Cloudflare runs several multi-tenant Kubernetes clusters across our core data centers. These general-purpose clusters run on bare metal and power our control plane, analytics, and various engineerin">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/74Pndk3FS6TVPACarSKD4N/fc7c3add6bae3c2c8b5e086ef9061872/image2.png">
+<meta property="article:published_time" content="2024-10-08T13:00:00.000Z">
+<meta property="article:modified_time" content="2024-10-08T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/74Pndk3FS6TVPACarSKD4N/fc7c3add6bae3c2c8b5e086ef9061872/image2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Multi-tenant clusters</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Our need for virtualization</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What is KubeVirt?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Cloudflare uses KubeVirt</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">
+Kubernetes scalability testing</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Setup process</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Simulating at scale</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Development environments</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Kernel and iPXE testing</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Build pipelines</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Next steps</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Conclusion</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-10-08T13:00:00.000Z">2024-10-08</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Leveraging Kubernetes Virtual Machines at Cloudflare With KubeVirt</span></h1>
+<div>
+ <p></p><p>Cloudflare runs several <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/security/multi-tenancy/"><u>multi-tenant</u></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/"><u>Kubernetes</u></a> clusters across our core data centers. These general-purpose clusters run on bare metal and power our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/network-layer/what-is-the-control-plane/"><u>control plane</u></a>, analytics, and various engineering tools such as build infrastructure and continuous integration.</p><p>Kubernetes is a container orchestration platform. It enables software engineers to deploy containerized applications to a cluster of machines. This enables teams to build highly-available software on a scalable and resilient platform.</p><p>In this blog post we discuss our Kubernetes architecture, why we needed virtualization, and how we’re using it today.</p>
+<div>
+<h2>Multi-tenant clusters</h2>
+<a href="#multi-tenant-clusters">
+</a>
+</div>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/cloud/what-is-multitenancy/"><u>Multi-tenancy</u></a> is a concept where one system can share its resources among a wide range of customers. This model allows us to build and manage a small number of general purpose Kubernetes clusters for our internal application teams. Keeping the number of clusters small reduces our operational toil. This model shrinks costs and increases computational efficiency by sharing hardware. Multi-tenancy also allows us to scale more efficiently. Scaling is done at either a cluster or application level. Cluster operators scale the platform by adding more hardware. Teams scale their applications by updating their Kubernetes manifests. They can scale <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Scalability#Vertical_or_scale_up"><u>vertically</u></a> by increasing their <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/"><u>resource</u></a> requests or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Scalability#Horizontal_or_scale_out"><u>horizontally</u></a> by increasing the number of replicas.</p><p>All of our Kubernetes clusters are multi-tenant with various components enabled for a secure and resilient platform.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/workloads/pods/"><u>Pods</u></a> are secured using the latest standards recommended by the Kubernetes project. We use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/security/pod-security-admission/"><u>Pod Security Admission</u></a> (PSA) and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/security/pod-security-standards/"><u>Pod Security Standards</u></a> to ensure all workloads are following best practices. By default, all namespaces use the most <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted"><u>restrictive</u></a> profile, and only a few Kubernetes control plane namespaces are granted <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/security/pod-security-standards/#privileged"><u>privileged</u></a> access. For additional policies not covered by PSA, we built custom <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/#validatingadmissionwebhook"><u>Validating Webhooks</u></a> on top of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/kubernetes-sigs/controller-runtime/tree/main/pkg/webhook/admission"><u>controller-runtime</u></a> framework. PSA and our custom policies ensure clusters are secure and workloads are isolated.</p>
+<div>
+<h2>Our need for virtualization</h2>
+<a href="#our-need-for-virtualization">
+</a>
+</div>
+<p>A select number of teams needed tight integration with the Linux kernel. Examples include Docker daemons for build infrastructure and the ability to simulate servers running the software and configuration of our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><u>global network</u></a>. With our pod security requirements, these workloads are not permitted to interface with the host kernel at a deep level (e.g. no <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Iptables"><u>iptables</u></a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Sysctl"><u>sysctls</u></a>). Doing so may disrupt other tenants sharing the node and open additional <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/security/glossary/attack-vector/"><u>attack vectors</u></a> if an application was compromised. A virtualization platform would enable these workloads to interact with their own kernel within a secured Kubernetes cluster.</p><p>We considered various different virtualization solutions. Running a separate virtualization platform outside of Kubernetes would have worked, but would not tightly integrate containerized workloads with virtual machines. It would also be an additional operational burden on our team, as backups, alerting, and fleet management would have to exist for both our Kubernetes and virtual machine clusters.</p><p>We then looked for solutions that run virtual machines within Kubernetes. Teams could already manually deploy <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.qemu.org/"><u>QEMU</u></a> pods, but this was not an elegant solution. We needed a better way. There were several other options, but <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/"><u>KubeVirt</u></a> was the tool that met the majority of our requirements. Other solutions required a privileged container to run a virtual machine, but KubeVirt did not – this was a crucial requirement in our goal of creating a more secure multi-tenant cluster. KubeVirt also uses a feature of the Kubernetes API called <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/"><u>Custom Resource Definitions</u></a> (CRDs), which extends the Kubernetes API with new objects, increasing the flexibility of Kubernetes beyond its built-in types. For KubeVirt, this includes objects such as VirtualMachine and VirtualMachineInstanceReplicaSet. We felt the use of CRDs would allow KubeVirt to grow as more features were added.</p>
+<div>
+<h2>What is KubeVirt?</h2>
+<a href="#what-is-kubevirt">
+</a>
+</div>
+<p>KubeVirt is a virtualization platform that enables users to run virtual machines within Kubernetes. With KubeVirt, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/cloud/what-is-a-virtual-machine/"><u>virtual machines</u></a> run alongside containerized workloads on the same platform. Kubernetes primitives such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/services-networking/network-policies/"><u>network policies</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/configuration/configmap/"><u>configmaps</u></a>, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/services-networking/service/"><u>services</u></a> all integrate with virtual machines. KubeVirt scales with our needs and is successfully running hundreds of virtual machines across several clusters. We frequently <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/automatic-remediation-of-kubernetes-nodes"><u>remediate Kubernetes nodes</u></a>, so virtual machines and pods are always exercising their startup/shutdown processes.</p>
+<div>
+<h2>How Cloudflare uses KubeVirt</h2>
+<a href="#how-cloudflare-uses-kubevirt">
+</a>
+</div>
+<p>There are a number of internal projects leveraging virtual machines at Cloudflare. We’ll touch on a few of our more popular use cases:</p><ol><li><p>Kubernetes scalability testing</p></li><li><p>Development environments</p></li><li><p>Kernel and iPXE testing</p></li><li><p>Build pipelines</p></li></ol>
+<div>
+<h3>
+Kubernetes scalability testing</h3>
+<a href="#kubernetes-scalability-testing">
+</a>
+</div>
+<h4>Setup process</h4><p>Our staging clusters are much smaller than our largest production clusters. They also run on bare metal and mirror the configuration we have for each production cluster. This is extremely useful when rolling out new software, operating systems, or kernel changes; however, they miss bugs that only surface at scale. We use KubeVirt to bridge this gap and virtualize Kubernetes clusters with hundreds of nodes and thousands of pods.</p><p>The setup process for virtualized clusters differs from our bare metal provisioning steps. For bare metal, we use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://saltproject.io/"><u>Salt</u></a> to provision clusters from start to finish. For our virtualized clusters we use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.ansible.com/"><u>Ansible</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/reference/setup-tools/kubeadm/"><u>kubeadm</u></a>.  Our bare metal staging clusters are responsible for testing and validating our Salt configuration. The virtualized clusters give us a vanilla Kubernetes environment without any Cloudflare customizations. Having a stock environment in addition to our Salt environment helps us isolate bugs down to a Kubernetes change, a kernel change, or a Cloudflare-specific configuration change.</p><p>Our virtualized clusters consist of a KubeVirt <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/api-reference/v1.2.2/definitions.html#_v1_virtualmachine"><u>VirtualMachine</u></a> object per node. We create three control-plane nodes and any number of worker nodes. Each virtual machine starts out as a vanilla Debian generic <a target="_blank" rel="external nofollow noopener noreferrer" href="https://cdimage.debian.org/images/cloud/"><u>cloud image</u></a>. Using KubeVirt’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/user_workloads/startup_scripts/#cloud-init"><u>cloud-init support</u></a>, the virtual machine downloads an internal <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.ansible.com/"><u>Ansible</u></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_intro.html"><u>playbook</u></a> which installs a recent kernel, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://cri-o.io/"><u>cri-o</u></a> (the container runtime we use), and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/reference/setup-tools/kubeadm/"><u>kubeadm</u></a>.</p>
+<pre><code>- name: Add the Kubernetes gpg key
+  apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/&#123;&#123; kube_version &#125;&#125;/deb/Release.key
+    keyring: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    state: present
+
+<ul>
+<li><p>name: Add the Kubernetes repository<br>shell: echo “deb [signed-by&#x3D;&#x2F;etc&#x2F;apt&#x2F;keyrings&#x2F;kubernetes-apt-keyring.gpg] <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pkgs.k8s.io/core:/stable:/&#123;&amp;#123">https://pkgs.k8s.io/core:/stable:/&#123;&amp;#123</a>; kube_version &amp;#125;&amp;#125;&#x2F;deb&#x2F; &#x2F;“ | tee &#x2F;etc&#x2F;apt&#x2F;sources.list.d&#x2F;kubernetes.list</p>
+</li>
+<li><p>name: Add the CRI-O gpg key<br>apt_key:<br>  url: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pkgs.k8s.io/addons:/cri-o:/&#123;&amp;#123">https://pkgs.k8s.io/addons:/cri-o:/&#123;&amp;#123</a>; crio_version &amp;#125;&amp;#125;&#x2F;deb&#x2F;Release.key<br>  keyring: &#x2F;etc&#x2F;apt&#x2F;keyrings&#x2F;cri-o-apt-keyring.gpg<br>  state: present</p>
+</li>
+<li><p>name: Add the CRI-O repository<br>shell: echo “deb [signed-by&#x3D;&#x2F;etc&#x2F;apt&#x2F;keyrings&#x2F;cri-o-apt-keyring.gpg] <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pkgs.k8s.io/addons:/cri-o:/&#123;&amp;#123">https://pkgs.k8s.io/addons:/cri-o:/&#123;&amp;#123</a>; crio_version &amp;#125;&amp;#125;&#x2F;deb&#x2F; &#x2F;“ | tee &#x2F;etc&#x2F;apt&#x2F;sources.list.d&#x2F;cri-o.list</p>
+</li>
+<li><p>name: Install CRI-O and Kubernetes packages<br>apt:<br>  name:<br>- cri-o<br>- kubelet<br>- kubeadm<br>- kubectl<br>  update_cache: yes<br>  state: present</p>
+</li>
+<li><p>name: Enable and start CRI-O service<br>service:<br>  state: started<br>  enabled: yes<br>  name: crio.service</p></li></ul></code></pre><p></p>
+<p><sup><i>Ansible playbook steps to download and install Kubernetes tooling</i></sup></p><p>Once each node has completed its individual playbook, we can <a target="_blank" rel="external nofollow noopener noreferrer" href="http://ools/kubeadm/kubeadm-init/"><u>initialize</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/"><u>join</u></a> nodes to the cluster using another playbook that runs kubeadm. From there the cluster can be accessed by logging into a control plane node using kubectl.</p><h4>Simulating at scale</h4><p>When losing 10s or 100s of nodes at once, Kubernetes needs to act quickly to minimize downtime. The sooner it recognizes node failure, the faster it can reroute traffic to healthy pods.</p><p>Using Kubernetes in KubeVirt we are able to simulate a large cluster undergoing a network cut and observe how Kubernetes reacts. The KubeVirt Kubernetes cluster allows us to rapidly iterate on configuration changes and code patches.</p><p>The following Ansible playbook task simulates a network segmentation failure where only the control-plane nodes remain online.</p>
+<pre><code>- name: Disable network interfaces on all workers
+command: ifconfig enp1s0 down
+async: 5
+poll: 0
+ignore_errors: yes
+when: inventory_hostname in groups['kube-node']</code></pre>
+<p><sup><i>An Ansible role which disables the network on all worker nodes simultaneously.</i></sup></p><p>This framework allows us to exercise the code in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/"><u>controller-manager</u></a>, Kubernetes’s daemon that reconciles the fundamental state of the system (Nodes, Pods, etc). Our simulation platform helped us drastically shorten full traffic recovery time when a large number of Kubernetes nodes <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/major-data-center-power-failure-again-cloudflare-code-orange-tested"><u>become unreachable</u></a>. We upstreamed our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/kubernetes/kubernetes/pull/114296"><u>changes</u></a> to Kubernetes and more controller-manager speed improvements are coming soon.</p>
+<div>
+<h3>Development environments</h3>
+<a href="#development-environments">
+</a>
+</div>
+<p>Compiling code on your laptop can be slow. Perhaps you’re working on a patch for a large open-source project (e.g. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://v8.dev/"><u>V8</u></a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://clickhouse.com/"><u>Clickhouse</u></a>) or need more bandwidth to upload and download containers. With KubeVirt, we enable our developers to rapidly iterate on software development and testing on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-gen-12-server-bigger-better-cooler-in-a-2u1n-form-factor"><u>powerful server hardware</u></a>. KubeVirt <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/storage/disks_and_volumes/#persistentvolumeclaim"><u>integrates</u></a> with Kubernetes <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/storage/persistent-volumes/"><u>Persistent Volumes</u></a>, which enables teams to persist their development environment across restarts.</p><p>There are a number of teams at Cloudflare using KubeVirt for a variety of development and testing environments. Most notably is a project called Edge Test Fleet, which emulates a physical server and all the software that runs Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><u>global network</u></a>. Teams can test their code and configuration changes against the entire software stack without reserving dedicated hardware. Cloudflare uses <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/tag/salt/"><u>Salt</u></a> to provision systems. It can be difficult to iterate and test Salt changes without a complete virtual environment. Edge Test Fleet makes iterating on Salt easier, ensuring states compile and render the right output. With Edge Test Fleet, new developers can better understand how Cloudflare’s global network works without touching staging or production.</p><p>Additionally, one Cloudflare team developed a framework that allows users to build and test changes to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/log-analytics-using-clickhouse"><u>Clickhouse</u></a> using a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://code.visualstudio.com/"><u>VSCode</u></a> environment. This framework is generally applicable to all teams requiring a development environment. Once a template environment is provisioned, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/concepts/storage/volume-pvc-datasource/"><u>CSI Volume Cloning</u></a> can duplicate a golden volume, separating persistent environments for each developer.</p>
+<pre><code>apiVersion: v1
+kind: PersistentVolumeClaim
+name: devspace-jcichra-rootfs
+namespace: dev-clickhouse-vms
+spec:
+accessModes:
+- ReadWriteOnce
+storageClassName: rook-ceph-nvme
+dataSource:
+  kind: PersistentVolumeClaim
+  name: dev-rootfs
+resources:
+  requests:
+    storage: 500Gi</code></pre>
+<p><sup><i>A PersistentVolumeClaim that clones data from another volume using CSI Volume Cloning</i></sup></p>
+<div>
+<h3>Kernel and iPXE testing</h3>
+<a href="#kernel-and-ipxe-testing">
+</a>
+</div>
+<p>Unlike <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/User_space_and_kernel_space"><u>user space</u></a> software development, when a kernel crashes, the entire system crashes. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/tag/kernel"><u>kernel</u></a> team uses KubeVirt for development. KubeVirt gives all kernel engineers, regardless of laptop OS or architecture, the same x86 environment and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Hypervisor"><u>hypervisor</u></a>. Virtual machines on server hardware can be scaled up to more cores and memory than on laptops. The Cloudflare kernel team has also found low-level issues which only surface in environments with many CPUs.</p><p>To make testing fast and easy, the kernel team serves <a target="_blank" rel="external nofollow noopener noreferrer" href="https://ipxe.org/"><u>iPXE</u></a> images via an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://nginx.org/"><u>nginx</u></a> Pod and Service adjacent to the virtual machine. A recent kernel and Debian image are copied to the nginx pod via kubectl cp. The iPXE file can then be referenced in the KubeVirt virtual machine definition via the DNS name for the Kubernetes Service.</p>
+<pre><code>interfaces:
+name: default
+masquerade: &#123;&#125;
+model: e1000e
+ports:
+  - port: 22
+    dhcpOptions:
+      bootFileName: http://httpboot.u-$K8S_USER.svc.cluster.local/boot.ipxe</code></pre>
+<p>When the virtual machine boots, it will get an IP address on the default interface behind <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Network_address_translation"><u>NAT</u></a> due to our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/network/interfaces_and_networks/#masquerade"><u>masquerade</u></a> setting. Then it will download boot.ipxe, which describes what additional files should be downloaded to start the system. In this case, the kernel (<code>vmlinuz-amd64</code>), Debian (<code>baseimg-amd64.img</code>) and additional kernel modules (<code>modules-amd64.img</code>) are downloaded.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/74Pndk3FS6TVPACarSKD4N/fc7c3add6bae3c2c8b5e086ef9061872/image2.png">
+</figure><p><sup><i>UEFI iPXE boot connecting and downloading files from nginx pod in user’s namespace</i></sup></p><p>Once the system is booted, a developer can log in to the system for testing:</p>
+<pre><code>linux login: root
+Password: 
+Linux linux 6.6.35-cloudflare-2024.6.7 #1 SMP PREEMPT_DYNAMIC Mon Sep 27 00:00:00 UTC 2010 x86_64
+
+<p>The programs included with the Debian GNU&#x2F;Linux system are free software;<br>the exact distribution terms for each program are described in the<br>individual files in &#x2F;usr&#x2F;share&#x2F;doc&#x2F;*&#x2F;copyright.</p>
+<p>Debian GNU&#x2F;Linux comes with ABSOLUTELY NO WARRANTY, to the extent<br>permitted by applicable law.<br>root@linux:~# </p></code></pre><p></p>
+<p>Custom kernels can be copied to the nginx pod via <code>kubectl cp</code>. Restarting the virtual machine will load that new kernel for testing. When a kernel panic occurs, the virtual machine can quickly be restarted with <code>virtctl restart linux</code> and it will go through the iPXE boot process again.</p>
+<div>
+<h3>Build pipelines</h3>
+<a href="#build-pipelines">
+</a>
+</div>
+<p>Cloudflare leverages KubeVirt to build a majority of software at Cloudflare. Virtual machines give build system users full control over their pipeline. For example, Debian packages can easily be installed and separate container daemons (such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.docker.com/"><u>Docker</u></a>) can run all within a Kubernetes namespace using the <code>restricted</code> Pod Security Standard. KubeVirt’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/user_workloads/replicaset/"><u>VirtualMachineReplicaSet</u></a> concept allows us to quickly scale up and down the number of build agents to match demand. We can roll out different sets of virtual machines with varying sizes, kernels, and operating systems.</p><p>To scale efficiently, we leverage <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/storage/disks_and_volumes/#containerdisk"><u>container disks</u></a> to store our agent virtual machine images. Container disks allow us to store the virtual machine image (for example, a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Qcow"><u>qcow</u></a> image) in our container registry. This strategy works well when the state in virtual machines is ephemeral. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-a-liveness-command"><u>Liveness probes</u></a> detect unhealthy or broken agents, shutting down the virtual machine and replacing them with a fresh instance. Other automation limits virtual machine uptime, capping it to 3–4 hours to keep build agents fresh.</p>
+<div>
+<h2>Next steps</h2>
+<a href="#next-steps">
+</a>
+</div>
+<p>We’re excited to expand our use of KubeVirt and unlock new capabilities for our internal users. KubeVirt’s Linux ARM64 support will allow us to build ARM64 packages in-cluster and simulate ARM64 systems.</p><p>Projects like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kubevirt.io/user-guide/operations/containerized_data_importer/"><u>KubeVirt CDI</u></a> (Containerized Data Importer) will streamline our user’s virtual machine experience. Instead of users manually building container disks, we can provide a catalog of virtual machine images. It also allows us to copy virtual machine disks between namespaces.</p>
+<div>
+<h2>Conclusion</h2>
+<a href="#conclusion">
+</a>
+</div>
+<p>KubeVirt has proven to be a great tool for virtualization in our Kubernetes-first environment. We’ve unlocked the ability to support more workloads with our multi-tenant model. The KubeVirt platform allows us to offer a single compute platform supporting containers and virtual machines. Managing it has been simple, and upgrades have been straightforward and non-disruptive. We’re exploring additional features KubeVirt offers to improve the experience for our users.</p><p>Finally, our team is expanding! We’re looking for more people passionate about Kubernetes to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://boards.greenhouse.io/cloudflare/jobs/5579824"><u>join our team</u></a> and help us push Kubernetes to the next level.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Leveraging Kubernetes virtual machines at Cloudflare with KubeVirt" href="https://blog.cloudflare.com/leveraging-kubernetes-virtual-machines-with-kubevirt" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Leveraging Kubernetes virtual machines at Cloudflare with KubeVirt</span><span class="desc fs12">https://blog.cloudflare.com/leveraging-kubernetes-virtual-machines-with-kubevirt</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/f9621847.html">The Second Half of Software Supply Chain Security on GitHub<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/72f13894.html">Cloudflare Acquires Kivera to Add Simple, Preventive Cloud Security to Cloudflare One <span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/5f05f99d.html" title="4.2 Tbps of Bad Packets and a Whole Lot More: Cloudflare's Q3 DDoS Report"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2rcAeeVUGfBh72wYAdw3Ji/61403965d12e1da947ddb17bca5994a3/image6.png"></div><span class="title">4.2 Tbps of Bad Packets and a Whole Lot More: Cloudflare's Q3 DDoS Report</span></a><a class="item" href="/rss/383d68c3.html" title="Analysis of the EPYC 145% Performance Gain in Cloudflare Gen 12 Servers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7hb5yDJksMIwbWVQcCzuoC/c085edca54d3820f7e93564791b0289a/image6.png"></div><span class="title">Analysis of the EPYC 145% Performance Gain in Cloudflare Gen 12 Servers</span></a><a class="item" href="/rss/cdf1362d.html" title="Billions and Billions (Of Logs): Scaling AI Gateway With the Cloudflare Developer Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6jV3iKCN771ixU21Hixfpz/18086a52cfe05cd20f1c94bbba21e293/_BLOG-2593_2.png"></div><span class="title">Billions and Billions (Of Logs): Scaling AI Gateway With the Cloudflare Developer Platform</span></a><a class="item" href="/rss/d8304cc8.html" title="Build Durable Applications on Cloudflare Workers: You Write the Workflows, We Take Care of the Rest"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7b9m0rPDlGvIiTnhguyvzI/3f27678b141ce600f1f54eb999e9d671/WORKFLOWS.png"></div><span class="title">Build Durable Applications on Cloudflare Workers: You Write the Workflows, We Take Care of the Rest</span></a><a class="item" href="/rss/96b5015b.html" title="CJ Desai: Why I Joined Cloudflare as President of Product and Engineering"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8757"></div><span class="title">CJ Desai: Why I Joined Cloudflare as President of Product and Engineering</span></a><a class="item" href="/rss/72f13894.html" title="Cloudflare Acquires Kivera to Add Simple, Preventive Cloud Security to Cloudflare One "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7nALx5Qv8FBYxn1R6RkUvX/1b3dddb60d9d85142a9fda82d2eee381/BLOG-2592_2.png"></div><span class="title">Cloudflare Acquires Kivera to Add Simple, Preventive Cloud Security to Cloudflare One </span></a><a class="item" href="/rss/15e77533.html" title="Durable Objects Aren't Just Durable, They're Fast: A 10x Speedup for Cloudflare Queues"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5PvIsHfLwwIkp2LXVUDhmG/99f286f2f89d10b2a7e359d8d66f6dba/image5.png"></div><span class="title">Durable Objects Aren't Just Durable, They're Fast: A 10x Speedup for Cloudflare Queues</span></a><a class="item" href="/rss/8d1eb49f.html" title="Fearless SSH: Short-Lived Certificates Bring Zero Trust to Infrastructure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4msjrxXyhuuh7rUmB0zn8c/3e24a431820aee57651bad1d57e57ec5/BLOG-2604_2.png"></div><span class="title">Fearless SSH: Short-Lived Certificates Bring Zero Trust to Infrastructure</span></a><a class="item" href="/rss/1f0f88f8.html" title="Improving Platform Resilience at Cloudflare Through Automation"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/FOpkEE13QcgwHJ9vhcIZj/5b0c5328ee5326794329a4a07c5db065/Building_on_Temporal_process.png"></div><span class="title">Improving Platform Resilience at Cloudflare Through Automation</span></a><a class="item" href="/rss/be31291e.html" title="Is This Thing On? Using OpenBMC and ACPI Power States for Reliable Server Boot"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6csPNEksLXsGgt3dq5xZ0S/3236656dbc01f3085bada5af853c3516/image1.png"></div><span class="title">Is This Thing On? Using OpenBMC and ACPI Power States for Reliable Server Boot</span></a><a class="item" href="/rss/9b6a20e3.html" title="Protect Against Identity-Based Attacks by Sharing Cloudflare User Risk Scores With Okta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/79JiNwP0P5bbXpW6dy6ORQ/b0dc91943840b44bbcc8e447af64f392/image1.png"></div><span class="title">Protect Against Identity-Based Attacks by Sharing Cloudflare User Risk Scores With Okta</span></a><a class="item" href="/rss/431bf226.html" title="The Story of Web Framework Hono, From the Creator of Hono"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6eWlTEPSJmX4grfpKi795b/d6596a29931dc0e24602683742916009/image7.png"></div><span class="title">The Story of Web Framework Hono, From the Creator of Hono</span></a><a class="item" href="/rss/53d87c14.html" title="Training a Million Models per Day to Save Customers of All Sizes From DDoS Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6j97IMawigCOtQEIKLzQ4n/8ab1e487a5dc8faaecc732b8fbb7d8d4/image3.png"></div><span class="title">Training a Million Models per Day to Save Customers of All Sizes From DDoS Attacks</span></a><a class="item" href="/rss/86f9c1ad.html" title="What’s New in Cloudflare One: Digital Experience (DEX) Monitoring Notifications and Seamless Access to Cloudflare Gateway With China Express"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3Zvu8KgRXwyP3tVzmh87v1/16a59d1f2adaea1591b79d3afa98c0ce/image1.png"></div><span class="title">What’s New in Cloudflare One: Digital Experience (DEX) Monitoring Notifications and Seamless Access to Cloudflare Gateway With China Express</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

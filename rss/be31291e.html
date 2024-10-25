@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Is This Thing On? Using OpenBMC and ACPI Power States for Reliable Server Boot - RSSBOX</title>
+
+  
+    <meta name="description" content="Introduction    At Cloudflare, we provide a range of services through our global network of servers, located in 330 cities worldwide. When you interact with our long-standing application services,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Is This Thing On? Using OpenBMC and ACPI Power States for Reliable Server Boot">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/be31291e.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Introduction    At Cloudflare, we provide a range of services through our global network of servers, located in 330 cities worldwide. When you interact with our long-standing application services,">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6csPNEksLXsGgt3dq5xZ0S/3236656dbc01f3085bada5af853c3516/image1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/33dNmfyjqrbAGvcbZLTa0h/db3e6b79b1010081916ee6498b10c297/image2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6Fe8wb6xqwXkanb8iPv8O2/eaecfe0474576a00cdc25bfeb6fba7a2/image4.png">
+<meta property="article:published_time" content="2024-10-22T13:00:00.000Z">
+<meta property="article:modified_time" content="2024-10-22T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6csPNEksLXsGgt3dq5xZ0S/3236656dbc01f3085bada5af853c3516/image1.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Introduction</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Server subsystems</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Baseboard Management Controller (BMC) as a manager of the host</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Implementing host ACPI state on OpenBMC</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Fixing the issues</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Moving forward</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-10-22T13:00:00.000Z">2024-10-22</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Is This Thing On? Using OpenBMC and ACPI Power States for Reliable Server Boot</span></h1>
+<div>
+
+<div>
+<h2>Introduction</h2>
+<a href="#introduction">
+</a>
+</div>
+<p>At Cloudflare, we provide a range of services through our global network of servers, located in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><u>330 cities</u></a> worldwide. When you interact with our long-standing <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/application-services/products/"><u>application services</u></a>, or newer services like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://ai.cloudflare.com/?_gl=1*1vedsr*_gcl_au*NzE0Njc1NTIwLjE3MTkzMzEyODc.*_ga*NTgyMWU1Y2MtYTI2NS00MDA3LTlhZDktYWUxN2U5MDkzYjY3*_ga_SQCRB0TXZW*MTcyMTIzMzM5NC4xNS4xLjE3MjEyMzM1MTguMC4wLjA."><u>Workers AI</u></a>, you’re in contact with one of our fleet of thousands of servers which support those services.</p><p>These servers which provide Cloudflare services are managed by a Baseboard Management Controller (BMC). The BMC is a special purpose processor  — different from the Central Processing Unit (CPU) of a server — whose sole purpose is ensuring a smooth operation of the server.</p><p>Regardless of the server vendor, each server has this BMC. The BMC runs independently of the CPU and has its own embedded operating system, usually referred to as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Firmware"><u>firmware</u></a>. At Cloudflare, we customize and deploy a server-specific version of the BMC firmware. The BMC firmware we deploy at Cloudflare is based on the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.openbmc.org/"><u>Linux Foundation Project for BMCs, OpenBMC</u></a>. OpenBMC is an open-sourced firmware stack designed to work across a variety of systems including enterprise, telco, and cloud-scale data centers. The open-source nature of OpenBMC gives us greater flexibility and ownership of this critical server subsystem, instead of the closed nature of proprietary firmware. This gives us transparency (which is important to us as a security company) and allows us faster time to develop custom features/fixes for the BMC firmware that we run on our entire fleet.</p><p>In this blog post, we are going to describe how we customized and extended the OpenBMC firmware to better monitor our servers’ boot-up processes to start more reliably and allow better diagnostics in the event that an issue happens during server boot-up.</p>
+<div>
+<h2>Server subsystems</h2>
+<a href="#server-subsystems">
+</a>
+</div>
+<p>Server systems consist of multiple complex subsystems that include the processors, memory, storage, networking, power supply, cooling, etc. When booting up the host of a server system, the power state of each subsystem of the server is changed in an asynchronous manner. This is done so that subsystems can initialize simultaneously, thereby improving the efficiency of the boot process. Though started asynchronously, these subsystems may interact with each other at different points of the boot sequence and rely on handshake/synchronization to exchange information. For example, during boot-up, the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/UEFI"><u>UEFI (Universal Extensible Firmware Interface)</u></a>, often referred to as the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/BIOS"><u>BIOS</u></a>, configures the motherboard in a phase known as the Platform Initialization (PI) phase, during which the UEFI collects information from subsystems such as the CPUs, memory, etc. to initialize the motherboard with the right settings.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6csPNEksLXsGgt3dq5xZ0S/3236656dbc01f3085bada5af853c3516/image1.png">
+</figure><p><sup><i>Figure 1: Server Boot Process</i></sup></p><p>When the power state of the subsystems, handshakes, and synchronization are not properly managed, there may be race conditions that would result in failures during the boot process of the host. Cloudflare experienced some of these boot-related failures while rolling out open source firmware (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/OpenBMC"><u>OpenBMC</u></a>) to the Baseboard Management Controllers (BMCs) of our servers. </p>
+<div>
+<h2>Baseboard Management Controller (BMC) as a manager of the host</h2>
+<a href="#baseboard-management-controller-bmc-as-a-manager-of-the-host">
+</a>
+</div>
+<p>A BMC is a specialized microprocessor that is attached to the board of a host (server) to assist with remote management capabilities of the host. Servers usually sit in data centers and are often far away from the administrators, and this creates a challenge to maintain them at scale. This is where a BMC comes in, as the BMC serves as the interface that gives administrators the ability to securely and remotely access the servers and carry out management functions. The BMC does this by exposing various interfaces, including <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Intelligent_Platform_Management_Interface"><u>Intelligent Platform Management Interface (IPMI)</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.dmtf.org/standards/redfish"><u>Redfish</u></a>, for distributed management. In addition, the BMC receives data from various sensors/devices (e.g. temperature, power supply) connected to the server, and also the operating parameters of the server, such as the operating system state, and publishes the values on its IPMI and Redfish interfaces.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/33dNmfyjqrbAGvcbZLTa0h/db3e6b79b1010081916ee6498b10c297/image2.png">
+</figure><p><sup><i>Figure 2: Block diagram of BMC in a server system.</i></sup></p><p>At Cloudflare, we use the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/openbmc/openbmc"><u>OpenBMC</u></a> project for our Baseboard Management Controller (BMC).</p><p>Below are examples of management functions carried out on a server through the BMC. The interactions in the examples are done over <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/ipmitool/ipmitool/wiki"><u>ipmitool</u></a>, a command line utility for interacting with systems that support IPMI.</p>
+<pre><code># Check the sensor readings of a server remotely (i.e. over a network)
+$  ipmitool &lt;some authentication&gt; &lt;bmc ip&gt; sdr
+PSU0_CURRENT_IN  | 0.47 Amps         | ok
+PSU0_CURRENT_OUT | 6 Amps            | ok
+PSU0_FAN_0       | 6962 RPM          | ok
+SYS_FAN          | 13034 RPM         | ok
+SYS_FAN1         | 11172 RPM         | ok
+SYS_FAN2         | 11760 RPM         | ok
+CPU_CORE_VR_POUT | 9.03 Watts        | ok
+CPU_POWER        | 76.95 Watts       | ok
+CPU_SOC_VR_POUT  | 12.98 Watts       | ok
+DIMM_1_VR_POUT   | 29.03 Watts       | ok
+DIMM_2_VR_POUT   | 27.97 Watts       | ok
+CPU_CORE_MOSFET  | 40 degrees C      | ok
+CPU_TEMP         | 50 degrees C      | ok
+DIMM_MOSFET_1    | 36 degrees C      | ok
+DIMM_MOSFET_2    | 39 degrees C      | ok
+DIMM_TEMP_A1     | 34 degrees C      | ok
+DIMM_TEMP_B1     | 33 degrees C      | ok
+
+<p>…</p>
+<h1 id="check-the-power-status-of-a-server-remotely-i-e-over-a-network"><a href="#check-the-power-status-of-a-server-remotely-i-e-over-a-network" class="headerlink" title="check the power status of a server remotely (i.e. over a network)"></a>check the power status of a server remotely (i.e. over a network)</h1><p>ipmitool &lt;some authentication&gt; &lt;bmc ip&gt; power status<br>Chassis Power is off</p>
+<h1 id="power-on-the-server"><a href="#power-on-the-server" class="headerlink" title="power on the server"></a>power on the server</h1><p>ipmitool &lt;some authentication&gt; &lt;bmc ip&gt; power on<br>Chassis Power Control: On</p></code></pre><p></p>
+<p>Switching to OpenBMC firmware for our BMCs gives us more control over the software that powers our infrastructure. This has given us more flexibility, customizations, and an overall better uniform experience for managing our servers. Since OpenBMC is open source, we also leverage community fixes while upstreaming some of our own. Some of the advantages we have experienced with OpenBMC include a faster turnaround time to fixing issues, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/de-de/thermal-design-supporting-gen-12-hardware-cool-efficient-and-reliable/"><u>optimizations around thermal cooling</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/gen-12-servers/"><u>increased power efficiency</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/how-we-used-openbmc-to-support-ai-inference-on-gpus-around-the-world/"><u>supporting AI inference</u></a>.</p><p>While developing Cloudflare’s OpenBMC firmware, however, we ran into a number of boot problems.</p><p><b><i>Host not booting:</i></b> When we send a request over IPMI for a host to power on (as in the example above, power on the server), ipmitool would indicate the power status of the host as ON, but we would not see any power going into the CPU nor any activity on the CPU. While ipmitool was correct about the power going into the chassis as ON, we had no information about the power state of the server from ipmitool, and we initially falsely assumed that since the chassis power was on, the rest of the server components should be ON. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://documents.uow.edu.au/~blane/netapp/ontap/sysadmin/monitoring/concept/c_oc_mntr_bmc-sys-event-log.html"><u>System Event Log (SEL)</u></a>, which is responsible for displaying platform-specific events, was not giving us any useful information beyond indicating that the server was in a soft-off state (powered off), working state (operating system is loading and running), or that a “System Restart” of the host was initiated.</p>
+<pre><code># System Event Logs (SEL) showing the various power states of the server
+$ ipmitool sel elist | tail -n3
+  4d |  Pre-Init  |0000011021| System ACPI Power State ACPI_STATUS | S5_G2: soft-off | Asserted
+  4e |  Pre-Init  |0000011022| System ACPI Power State ACPI_STATUS | S0_G0: working | Asserted
+  4f |  Pre-Init  |0000011023| System Boot Initiated RESTART_CAUSE | System Restart | Asserted</code></pre>
+<p>In the System Event Logs shown above, ACPI is the acronym for Advanced Configuration and Power Interface, a standard for power management on computing systems. In the ACPI soft-off state, the host is powered off (the motherboard is on standby power but CPU/host isn’t powered on); according to the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://uefi.org/sites/default/files/resources/ACPI_Spec_6_5_Aug29.pdf"><u>ACPI specifications</u></a>, this state is called S5_G2. (These states are discussed in more detail below.) In the ACPI working state, the host is booted and in a working state, also known in the ACPI specifications as status S0_G0 (which in our case happened to be false), and the third row indicates the cause of the restart was due to a System Restart. Most of the boot-related SEL events are sent from the UEFI to the BMC. The UEFI has been something of a black box to us, as we rely on our original equipment manufacturers (OEMs) to develop the UEFI firmware for us, and for the generation of servers with this issue, the UEFI firmware did not implement sending the boot progress of the host to the BMC.</p><p>One discrepancy we observed was the difference in the power status and the power going into the CPU, which we read with a sensor we call CPU_POWER.</p>
+<pre><code># Check power status
+$ ipmitool &lt;some authentication&gt; &lt;bmc ip&gt;  power status
+Chassis Power is on
+</code></pre>
+<p>However, checking the power into the CPU shows that the CPU was not receiving any power.</p>
+<pre><code># Check power going into the CPU
+$ ipmitool &lt;some authentication&gt; &lt;bmc ip&gt;  sdr | grep CPU_POWER    
+CPU_POWER        | 0 Watts           | ok</code></pre>
+<p>The CPU_POWER being at 0 watts contradicts all the previous information that the host was powered up and working, when the host was actually completely shut down.</p><p><b><i>Missing Memory Modules:</i></b> Our servers would randomly boot up with less memory than expected. Computers can boot up with less memory than installed due to a number of problems, such as a loose connection, hardware problem, or faulty memory. For our case, it happened not to be any of the usual suspects, but instead was due to both the BMC and UEFI trying to simultaneously read from the memory modules, leading to access contentions. Memory modules usually contain a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Serial_presence_detect"><u>Serial Presence Detect (SPD)</u></a>, which is used by the UEFI to dynamically detect the memory module. This SPD is usually located on an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://learn.sparkfun.com/tutorials/i2c/all"><u>inter-integrated circuit (i2c)</u></a>, which is a low speed, two write protocol for devices to talk to each other. The BMC also reads the temperature of the memory modules via the i2c. When the server is powered on, amongst other hardware initializations, the UEFI also initializes the memory modules that it can detect via their (i.e. each individual memory modules) Serial Presence Detect (SPD), the BMC could also be trying to access the temperature of the memory module at the same time, over the same i2c protocol. This simultaneous attempted read denies one of the parties access. When the UEFI is denied access to the SPD, it thinks the memory module is not available and skips over it. Below is an example of the related i2c-bus contention logs we saw in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.freedesktop.org/software/systemd/man/latest/journalctl.html"><u>journal</u></a> of the BMC when the host is booting.</p>
+<pre><code>kernel: aspeed-i2c-bus 1e78a300.i2c-bus: irq handled != irq. expected 0x00000021, but was 0x00000020</code></pre>
+<p>The above logs indicate that the i2c address 1e78a300 (which happens to be connected to the serial presence detect of the memory modules) could not properly handle a signal, known as an interrupt request (irq). When this scenario plays out on the UEFI, the UEFI is unable to detect the memory module.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6Fe8wb6xqwXkanb8iPv8O2/eaecfe0474576a00cdc25bfeb6fba7a2/image4.png">
+</figure><p><sup><i>Figure 3: I2C diagram showing I2C interconnection of the server’s memory modules (also known as DIMMs) with the BMC </i></sup></p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.techtarget.com/searchstorage/definition/DIMM"><u>DIMM</u></a> in Figure 3 refers to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.techtarget.com/searchstorage/definition/DIMM"><u>Dual Inline Memory Module</u></a>, which is the type of memory module used in servers.</p><p><b><i>Thermal telemetry:</i></b> During the boot-up process of some of our servers, some temperature devices, such as the temperature sensors of the memory modules, would show up as failed, thereby causing some of the fans to enter a fail-safe <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Pulse-width_modulation"><u>Pulse Width Modulation (PWM)</u></a> mode. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Pulse-width_modulation"><u>PWM</u></a> is a technique to encode information delivered to electronic devices by adjusting the frequency of the waveform signal to the device. It is used in this case to control fan speed by adjusting the frequency of the power signal delivered to the fan. When a fan enters a fail-safe mode, PWM is used to set the fan speeds to a preset value, irrespective of what the optimized PWM setting of the fans should be, and this could negatively affect the cooling of the server and power consumption.</p>
+<div>
+<h2>Implementing host ACPI state on OpenBMC</h2>
+<a href="#implementing-host-acpi-state-on-openbmc">
+</a>
+</div>
+<p>In the process of studying the issues we faced relating to the boot-up process of the host, we learned how the power state of the subsystems within the chassis changes. Part of our learnings led us to investigate the Advanced Configuration and Power Interface (ACPI) and how the ACPI state of the host changed during the boot process.</p><p>Advanced Configuration and Power Interface (ACPI) is an open industry specification for power management used in desktop, mobile, workstation, and server systems. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://uefi.org/sites/default/files/resources/ACPI_Spec_6_5_Aug29.pdf"><u>ACPI Specification</u></a> replaces previous power management methodologies such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Advanced_Power_Management"><u>Advanced Power Management (APM)</u></a>. ACPI provides the advantages of:</p><ul><li><p>Allowing OS-directed power management (OSPM).</p></li><li><p>Having a standardized and robust interface for power management.</p></li><li><p>Sending system-level events such as when the server power/sleep buttons are pressed </p></li><li><p>Hardware and software support, such as a real-time clock (RTC) to schedule the server to wake up from sleep or to reduce the functionality of the CPU based on RTC ticks when there is a loss of power.</p></li></ul><p>From the perspective of power management, ACPI enables an OS-driven conservation of energy by transitioning components which are not in active use to a lower power state, thereby reducing power consumption and contributing to more efficient power management.</p><p>The ACPI Specification defines four global “Gx” states, six sleeping “Sx” states, and four “Dx” device power states. These states are defined as follows:</p><div>
+<figure>
+<table>
+<colgroup>
+<col>
+<col>
+<col>
+<col>
+</colgroup>
+<tbody>
+<tr>
+<td>
+<p><span><span><strong>Gx</strong></span></span></p>
+</td>
+<td>
+<p><span><span><strong>Name</strong></span></span></p>
+</td>
+<td>
+<p><span><span><strong>Sx</strong></span></span></p>
+</td>
+<td>
+<p><span><span><strong>Description</strong></span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>G0</span></span></p>
+</td>
+<td>
+<p><span><span>Working</span></span></p>
+</td>
+<td>
+<p><span><span>S0</span></span></p>
+</td>
+<td>
+<p><span><span>The run state. In this state the machine is fully running</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>G1</span></span></p>
+</td>
+<td>
+<p><span><span>Sleeping</span></span></p>
+</td>
+<td>
+<p><span><span>S1</span></span></p>
+</td>
+<td>
+<p><span><span>A sleep state where the CPU will suspend activity but retain its contexts.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>S2</span></span></p>
+</td>
+<td>
+<p><span><span>A sleep state where memory contexts are held, but CPU contexts are lost. CPU re-initialization is done by firmware.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>S3</span></span></p>
+</td>
+<td>
+<p><span><span>A logically deeper sleep state than S2 where CPU re-initialization is done by device. Equates to Suspend to RAM.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>S4</span></span></p>
+</td>
+<td>
+<p><span><span>A logically deeper sleep state than S3 in which DRAM is context is not maintained and contexts are saved to disk. Can be implemented by either OS or firmware. </span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>G2</span></span></p>
+</td>
+<td>
+<p><span><span>Soft off but PSU still supplies power</span></span></p>
+</td>
+<td>
+<p><span><span>S5</span></span></p>
+</td>
+<td>
+<p><span><span>The soft off state. All activity will stop, and all contexts are lost. The Complex Programmable Logic Device (CPLD) responsible for power-up and power-down sequences of various components e.g. CPU, BMC is on standby power, but the CPU/host is off.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>G3</span></span></p>
+</td>
+<td>
+<p><span><span>Mechanical off</span></span></p>
+</td>
+<td> </td>
+<td>
+<p><span><span>PSU does not supply power. The system is safe for disassembly.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span><strong>Dx</strong></span></span></p>
+</td>
+<td>
+<p><span><span><strong>Name</strong></span></span></p>
+</td>
+<td>
+<p><span><span><strong>Description</strong></span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>D0</span></span></p>
+</td>
+<td>
+<p><span><span>Fully powered on</span></span></p>
+</td>
+<td>
+<p><span><span>Hardware device is fully functional and operational </span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>D1</span></span></p>
+</td>
+<td>
+<p><span><span>Hardware device is partially powered down</span></span></p>
+</td>
+<td>
+<p><span><span>Reduced functionality and can be quickly powered back to D0</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>D2</span></span></p>
+</td>
+<td>
+<p><span><span>Hardware device is in a deeper lower power than D1</span></span></p>
+</td>
+<td>
+<p><span><span>Much more limited functionality and can only be slowly powered back to D0.</span></span></p>
+</td>
+</tr>
+<tr>
+<td>
+<p><span><span>D3</span></span></p>
+</td>
+<td>
+<p><span><span>Hardware device is significantly powered down or off</span></span></p>
+</td>
+<td>
+<p><span><span>Device is inactive with perhaps only the ability to be powered back on</span></span></p>
+</td>
+</tr>
+</tbody>
+</table>
+</figure>
+</div><p>The states that matter to us are:</p><ul><li><p><b>S0_G0_D0:</b> often referred to as the working state. Here we know our host system is running just fine.</p></li><li><p><b>S2_D2: </b>Memory contexts are held, but CPU context is lost. We usually use this state to know when the host’s UEFI is performing platform firmware initialization.</p></li><li><p><b>S5_G2:</b> Often referred to as the soft off state. Here we still have power going into the chassis, however, processor and DRAM context are not maintained, and the operating system power management of the host has no context.</p></li></ul><p>Since the issues we were experiencing were related to the power state changes of the host — when we asked the host to reboot or power on — we needed a way to track the various power state changes of the host as it went from power off to a complete working state. This would give us better management capabilities over the devices that were on the same power domain of the host during the boot process. Fortunately, the OpenBMC community already implemented an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/openbmc/google-misc/tree/master/subprojects/acpi-power-state-daemon"><u>ACPI daemon</u></a>, which we extended to serve our needs. We added an ACPI S2_D2 power state, in which memory contexts are held, but CPU context is lost, to the ACPI daemon running on the BMC to enable us to know when the host’s UEFI is performing firmware initialization, and also set up various management tasks for the different ACPI power states.</p><p>An example of a power management task we carry out using the S0_G0_D0 state is to re-export our Voltage Regulator (VR) sensors on S0_G0_D0 state, as shown with the service file below:</p>
+<pre><code>cat /lib/systemd/system/Re-export-VR-device.service 
+[Unit]
+Description=RE Export VR Device Process
+Wants=xyz.openbmc_project.EntityManager.service
+After=xyz.openbmc_project.EntityManager.service
+Conflicts=host-s2-state.target
+
+<p>[Service]<br>Type&#x3D;simple<br>ExecStart&#x3D;&#x2F;bin&#x2F;bash -c ‘set -a &amp;&amp; source &#x2F;usr&#x2F;bin&#x2F;Re-export-VR-device.sh on’<br>SyslogIdentifier&#x3D;Re-export-VR-device.service</p>
+<p>[Install]<br>WantedBy&#x3D;host-s0-state.target<br></p></code></pre><p></p>
+<p>Having set this up, OpenBMC has a Net Function (ipmiSetACPIState) in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/openbmc/phosphor-host-ipmid/tree/master"><u>phosphor-host-ipmid</u></a> that is responsible for setting the ACPIState of the host on the BMC. This command is called by the host using the standard ipmi command with the corresponding NetFn=0x06 and Cmd=0x06.</p><p>In the event of an immediate power cycle (i.e. host reboots without operating system shutdown), the host is unable to send its S5_G2 state to the BMC. For this case, we created a patch to OpenBMC’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/openbmc/x86-power-control/tree/master"><u>x86-power-control</u></a> to let the BMC become aware that the host has entered the ACPI S5_G2 state (i.e. soft-off). When the host comes out of the power off state, the UEFI performs the Power On Self Test (POST) and sends the S2_D2 to the BMC, and after the UEFI has loaded the OS on the host, it notifies the BMC by sending the ACPI S0_G0_D0 state.</p>
+<div>
+<h2>Fixing the issues</h2>
+<a href="#fixing-the-issues">
+</a>
+</div>
+<p>Going back to the boot-up issues we faced, we discovered that they were mostly caused by devices which were in the same power domain of the CPU, interfering with the UEFI/platform firmware initialization phase. Below is a high level description of the fixes we applied.</p><p><b><i>Servers not booting</i></b><b>:</b> After identifying the devices that were interfering with the POST stage of the firmware initialization, we used the host ACPI state to control when we set the appropriate power mode state for those devices so as not to cause POST to fail.</p><p><b><i>Memory modules missing</i></b><b>:</b> During the boot-up process, memory modules (DIMMs) are powered and initialized in S2_D2 ACPI state. During this initialization process, UEFI firmware sends read commands to the Serial Presence Detect (SPD) on the DIMM to retrieve information for DIMM enumeration. At the same time, the BMC could be sending commands to read DIMM temperature sensors. This can cause SMBUS collisions, which could either cause DIMM temperature reading to fail or UEFI DIMM enumeration to fail. The latter case would cause the system to boot up with reduced DIMM capacity, which could be mistaken as a failing DIMM scenario. After we had discovered the race condition issue, we disabled the BMC from reading the DIMM temperature sensors during S2_D2 ACPI state and set a fixed speed for the corresponding fans. This solution allows our UEFI to retrieve all the necessary DIMM subsystems information for enumeration, and our servers now boot up with the correct size of memory.</p><p><b>Thermal telemetry:</b> In S0_G0 power state, when sensors are not reporting values back to the BMC, the BMC assumes that devices may be overheating and puts the fan controller into fail-safe mode where fan speeds are ramped up to maximum speed. However, in S5_G2 state, some thermal sensors like CPU temperature, NIC temperature, etc. are not powered and not available. Our solution is to set these thermal sensors as non-functional in their exported configuration when in S5_G2 state and during the transition from S5_G2 state to S2_D2 state. Setting the affected devices as non-functional in their configuration, instead of waiting for thermal sensor read commands to error out, prevents the controller from entering the fail-safe mode.</p>
+<div>
+<h2>Moving forward</h2>
+<a href="#moving-forward">
+</a>
+</div>
+<p>Aside from resolving issues, we have seen other benefits from implementing ACPI Power State on our BMC firmware. An example is in the area of our automated firmware regression testing. Various parts of our tests require rebooting/power cycling the servers over a hundred times, during which we monitor the ACPI power state changes of our servers as against using a boolean (running or not running, pingable or not pingable) to assert the status of our servers.</p><p>Also, it has given us the opportunity to learn more about the complex subsystems in a server system, and the various power modes of the different subsystems. This is an aspect that we are still actively learning about as we look to further optimize various aspects of the boot sequence of our servers.</p><p>In the course of time, implementing ACPI states is helping us achieve the following:</p><ul><li><p>All components are enabled by end of boot sequence,</p></li><li><p>BIOS and BMC are able to retrieve component information,</p></li><li><p>And the BMC is aware when thermal sensors are in a non-functional state.
+</p></li></ul><p>For better observability of the boot progress and “last state” of our systems, we have also started the process of adding the BootProgress object of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://redfish.dmtf.org/schemas/v1/ComputerSystem.v1_13_0.json"><u>Redfish ComputerSystem Schema</u></a> into our systems. This will give us an opportunity for pre-operating system (OS) boot observability and an easier debug starting point when the UEFI has issues (such as when the server isn’t coming on) during the server platform initialization.</p><p>With each passing day, Cloudflare’s OpenBMC team, which is made up of folks from different embedded backgrounds, learns about, experiments with, and deploys OpenBMC across our global fleet. This has been made possible by relying on the OpenBMC community’s contribution (as well as upstreaming some of our own contributions), and our interaction with our various vendors, thereby giving us the opportunity to make our systems more reliable, and giving us the ownership and responsibility of the firmware that powers the BMCs that manage our servers. If you are thinking of embracing open-source firmware in your BMC, we hope this blog post written by a team which started deploying OpenBMC less than 18 months ago has inspired you to give it a try. </p><p>For those who are interested in considering making the jump to open-source firmware, check it out <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/openbmc/openbmc"><u>here</u></a>!</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Is this thing on? Using OpenBMC and ACPI power states for reliable server boot" href="https://blog.cloudflare.com/how-we-use-openbmc-and-acpi-power-states-to-monitor-the-state-of-our-servers" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Is this thing on? Using OpenBMC and ACPI power states for reliable server boot</span><span class="desc fs12">https://blog.cloudflare.com/how-we-use-openbmc-and-acpi-power-states-to-monitor-the-state-of-our-servers</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e81e1ec5.html">丧尸末日一把无限子弹的92G手枪和无限耐久的已经开封过的唐刀只能二选一你选哪个?<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/f5f5a172.html">看海<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/5f05f99d.html" title="4.2 Tbps of Bad Packets and a Whole Lot More: Cloudflare's Q3 DDoS Report"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2rcAeeVUGfBh72wYAdw3Ji/61403965d12e1da947ddb17bca5994a3/image6.png"></div><span class="title">4.2 Tbps of Bad Packets and a Whole Lot More: Cloudflare's Q3 DDoS Report</span></a><a class="item" href="/rss/383d68c3.html" title="Analysis of the EPYC 145% Performance Gain in Cloudflare Gen 12 Servers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7hb5yDJksMIwbWVQcCzuoC/c085edca54d3820f7e93564791b0289a/image6.png"></div><span class="title">Analysis of the EPYC 145% Performance Gain in Cloudflare Gen 12 Servers</span></a><a class="item" href="/rss/cdf1362d.html" title="Billions and Billions (Of Logs): Scaling AI Gateway With the Cloudflare Developer Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6jV3iKCN771ixU21Hixfpz/18086a52cfe05cd20f1c94bbba21e293/_BLOG-2593_2.png"></div><span class="title">Billions and Billions (Of Logs): Scaling AI Gateway With the Cloudflare Developer Platform</span></a><a class="item" href="/rss/d8304cc8.html" title="Build Durable Applications on Cloudflare Workers: You Write the Workflows, We Take Care of the Rest"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7b9m0rPDlGvIiTnhguyvzI/3f27678b141ce600f1f54eb999e9d671/WORKFLOWS.png"></div><span class="title">Build Durable Applications on Cloudflare Workers: You Write the Workflows, We Take Care of the Rest</span></a><a class="item" href="/rss/96b5015b.html" title="CJ Desai: Why I Joined Cloudflare as President of Product and Engineering"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8757"></div><span class="title">CJ Desai: Why I Joined Cloudflare as President of Product and Engineering</span></a><a class="item" href="/rss/72f13894.html" title="Cloudflare Acquires Kivera to Add Simple, Preventive Cloud Security to Cloudflare One "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7nALx5Qv8FBYxn1R6RkUvX/1b3dddb60d9d85142a9fda82d2eee381/BLOG-2592_2.png"></div><span class="title">Cloudflare Acquires Kivera to Add Simple, Preventive Cloud Security to Cloudflare One </span></a><a class="item" href="/rss/15e77533.html" title="Durable Objects Aren't Just Durable, They're Fast: A 10x Speedup for Cloudflare Queues"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5PvIsHfLwwIkp2LXVUDhmG/99f286f2f89d10b2a7e359d8d66f6dba/image5.png"></div><span class="title">Durable Objects Aren't Just Durable, They're Fast: A 10x Speedup for Cloudflare Queues</span></a><a class="item" href="/rss/8d1eb49f.html" title="Fearless SSH: Short-Lived Certificates Bring Zero Trust to Infrastructure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4msjrxXyhuuh7rUmB0zn8c/3e24a431820aee57651bad1d57e57ec5/BLOG-2604_2.png"></div><span class="title">Fearless SSH: Short-Lived Certificates Bring Zero Trust to Infrastructure</span></a><a class="item" href="/rss/1f0f88f8.html" title="Improving Platform Resilience at Cloudflare Through Automation"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/FOpkEE13QcgwHJ9vhcIZj/5b0c5328ee5326794329a4a07c5db065/Building_on_Temporal_process.png"></div><span class="title">Improving Platform Resilience at Cloudflare Through Automation</span></a><a class="item" href="/rss/835eaaab.html" title="Leveraging Kubernetes Virtual Machines at Cloudflare With KubeVirt"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/74Pndk3FS6TVPACarSKD4N/fc7c3add6bae3c2c8b5e086ef9061872/image2.png"></div><span class="title">Leveraging Kubernetes Virtual Machines at Cloudflare With KubeVirt</span></a><a class="item" href="/rss/9b6a20e3.html" title="Protect Against Identity-Based Attacks by Sharing Cloudflare User Risk Scores With Okta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/79JiNwP0P5bbXpW6dy6ORQ/b0dc91943840b44bbcc8e447af64f392/image1.png"></div><span class="title">Protect Against Identity-Based Attacks by Sharing Cloudflare User Risk Scores With Okta</span></a><a class="item" href="/rss/431bf226.html" title="The Story of Web Framework Hono, From the Creator of Hono"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6eWlTEPSJmX4grfpKi795b/d6596a29931dc0e24602683742916009/image7.png"></div><span class="title">The Story of Web Framework Hono, From the Creator of Hono</span></a><a class="item" href="/rss/53d87c14.html" title="Training a Million Models per Day to Save Customers of All Sizes From DDoS Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6j97IMawigCOtQEIKLzQ4n/8ab1e487a5dc8faaecc732b8fbb7d8d4/image3.png"></div><span class="title">Training a Million Models per Day to Save Customers of All Sizes From DDoS Attacks</span></a><a class="item" href="/rss/86f9c1ad.html" title="What’s New in Cloudflare One: Digital Experience (DEX) Monitoring Notifications and Seamless Access to Cloudflare Gateway With China Express"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3Zvu8KgRXwyP3tVzmh87v1/16a59d1f2adaea1591b79d3afa98c0ce/image1.png"></div><span class="title">What’s New in Cloudflare One: Digital Experience (DEX) Monitoring Notifications and Seamless Access to Cloudflare Gateway With China Express</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
