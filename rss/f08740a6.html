@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Breaking Down CPU Speed: How Utilization Impacts Performance - RSSBOX</title>
+
+  
+    <meta name="description" content="Introduction ⛵ The GitHub Performance Engineering team regularly conducts experiments to observe how our systems perform under varying load conditions. A consistent pattern in these experiments is">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Breaking Down CPU Speed: How Utilization Impacts Performance">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/f08740a6.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Introduction ⛵ The GitHub Performance Engineering team regularly conducts experiments to observe how our systems perform under varying load conditions. A consistent pattern in these experiments is">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/p50-CPI-time-vs-CPU-otpimization.png?w=1024&amp;resize=1600%2C969">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase.png?w=1024&amp;resize=1600%2C976">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/instance-CPU-frequency.png?w=1024&amp;resize=1600%2C647">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase-2.png?w=1024&amp;resize=1600%2C1127">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/CPU-cores-frequency.png?w=1024&amp;resize=1600%2C588">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/cpu-cores-frequency-21.png?w=1024&amp;resize=1600%2C617">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/p50-CPU-time.png?w=1024&amp;resize=1600%2C770">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase-3.png?w=1024&amp;resize=1600%2C974">
+<meta property="article:published_time" content="2024-11-25T14:59:42.000Z">
+<meta property="article:modified_time" content="2024-11-25T14:59:42.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/p50-CPI-time-vs-CPU-otpimization.png?w=1024&amp;resize=1600%2C969">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#introduction-%E2%9B%B5"><span class="toc-text">Introduction ⛵</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#experiment-setup-%F0%9F%A7%B0"><span class="toc-text">Experiment setup 🧰</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#results-%F0%9F%93%83"><span class="toc-text">Results 📃</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#turbo-boost-effect"><span class="toc-text">Turbo Boost effect</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#hyper-threading"><span class="toc-text">Hyper-Threading</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#finding-the-golden-ratio-of-cpu-utilization"><span class="toc-text">Finding the “Golden Ratio” of CPU utilization</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#outlier-case"><span class="toc-text">Outlier case</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#wrap-up"><span class="toc-text">Wrap-up</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-11-25T14:59:42.000Z">2024-11-25</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Breaking Down CPU Speed: How Utilization Impacts Performance</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><h2 id="introduction-%e2%9b%b5">Introduction ⛵<a aria-label="Introduction ⛵" class="heading-link pl-2 text-italic text-bold" href="#introduction-%e2%9b%b5"></a></h2>
+<p>The GitHub Performance Engineering team regularly conducts experiments to observe how our systems perform under varying load conditions. A consistent pattern in these experiments is the significant impact of CPU utilization on system performance. We’ve observed that as CPU utilization rises, it can lead to increased latency, which provides an opportunity to optimize system efficiency. Addressing this challenge allows us to maintain performance levels while reducing the need for additional machines, ultimately preventing inefficiencies.</p>
+<p>Although we recognized the correlation between higher CPU utilization and increased latency, we saw an opportunity to explore the specific thresholds and impacts at various stages in greater detail. With a diverse set of instance types powered by different CPU families, we focused on understanding the unique performance characteristics of each CPU model. This deeper insight empowered us to make smarter, data-driven decisions, enabling us to provision our infrastructure with greater efficiency and confidence.</p>
+<p>With these goals in mind, we embarked on a new journey of exploration and experimentation to uncover these insights.</p>
+<h2 id="experiment-setup-%f0%9f%a7%b0">Experiment setup 🧰<a aria-label="Experiment setup 🧰" class="heading-link pl-2 text-italic text-bold" href="#experiment-setup-%f0%9f%a7%b0"></a></h2>
+<p>Collecting accurate data for this type of experiment was no easy feat. We needed to gather data from workloads that were as close to our production as possible, while also capturing how the system behaves under different phases of load. Since CPU usage patterns vary across workloads, we focused primarily on our flagship workloads. However, increasing the load could introduce small performance discrepancies, so our goal was to minimize disruption for our users.</p>
+<p>Fortunately, a year ago, the Performance Engineering team developed an environment designed to meet these requirements, codenamed Large Unicorn Collider (LUC). This environment operates within a small portion of our Kubernetes clusters, mirroring the same architecture and configuration as our flagship workloads. It also has the flexibility to be hosted on dedicated machines, preventing interference from or with other workloads. Typically, the LUC environment remains idle, but when needed, we can direct a small, adjustable amount of traffic towards it. Activating or deactivating this traffic takes only seconds, allowing us to react quickly if performance concerns arise.</p>
+<p>To accurately assess the impact of CPU utilization, we first established a baseline by sending moderate production traffic to a LUC Kubernetes pod hosted on one of its dedicated machines. This provided us with a benchmark for comparison. Importantly, the number of requests handled by the LUC pods remained constant throughout the experiment, ensuring consistent CPU load over time.</p>
+<p>Once the baseline was set, we gradually increased CPU utilization using a tool called “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://linux.die.net/man/1/stress">stress</a>,” which artificially occupies a specified number of CPU cores by running random processing tasks. Each instance type has a different number of CPU cores, so we adjusted the steps accordingly. However, the common factor across all instances was the total CPU utilization.</p>
+<p><em>Note: It’s important to recognize that this is not a direct 1:1 comparison to the load generated by actual production workloads. The stress tool continuously runs mathematical operations, while our production workloads involve I/O operations and interrupts, which place different demands on system resources. Nevertheless, this approach still offers valuable insights into how our CPUs perform under load.</em></p>
+<p>With the environment set up and our plan in place, we proceeded to collect as much data as possible to analyze the impact.</p>
+<h2 id="results-%f0%9f%93%83">Results 📃<a aria-label="Results 📃" class="heading-link pl-2 text-italic text-bold" href="#results-%f0%9f%93%83"></a></h2>
+<p>With our experiment setup finalized, let’s examine the data we gathered. As previously mentioned, we repeated the process across different instance types. Each instance type showed unique behavior and varying thresholds where performance started to decline.</p>
+<p>As anticipated, CPU time increased for all instance types as CPU utilization rose. The graph below illustrates the CPU time per request as CPU utilization increases.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81410"><img><img alt="CPU time per request vs CPU utilization" class="width-fit size-large wp-image-81410 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="969" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/p50-CPI-time-vs-CPU-otpimization.png?w=1024&amp;resize=1600%2C969" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">CPU time per request vs CPU utilization</figcaption></figure>
+<p>The latency differences between instance types are expected due to the variations in CPU models. Focusing on the percentage increase in latency may provide more meaningful insights.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81411"><img><img alt="Latency percentage increase vs CPU utilization" class="width-fit size-large wp-image-81411 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="976" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase.png?w=1024&amp;resize=1600%2C976" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">Latency percentage increase vs CPU utilization</figcaption></figure>
+<p>In both graphs, one line stands out by deviating more than the others. We’ll examine this case in detail shortly.</p>
+<h3 id="turbo-boost-effect">Turbo Boost effect<a aria-label="Turbo Boost effect" class="heading-link pl-2 text-italic text-bold" href="#turbo-boost-effect"></a></h3>
+<p>An interesting observation is how CPU frequency changes as utilization increases, which can be attributed to Intel’s Turbo Boost Technology. Since all the instances we used are equipped with Intel CPUs, the impact of Turbo Boost is noticeable across all of them. In the graph below, you can see how the CPU frequency decreases as the CPU utilization increases. The red arrows are showing the CPU utilization level.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81412"><img><img alt="CPU Cores Frequency " class="width-fit size-large wp-image-81412 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="647" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/instance-CPU-frequency.png?w=1024&amp;resize=1600%2C647" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">CPU Cores Frequency</figcaption></figure>
+<p>When CPU utilization remains at lower levels (around 30% or below), we benefit from increased core frequencies, leading to faster CPU times and, consequently, lower overall latency. However, as the demand for more CPU cores rises and utilization increases, we are likely to reach the CPU’s thermal and power limits, causing frequencies to decrease. In essence, lower CPU utilization results in better performance, while higher utilization leads to a decline in performance. For instance, a workload running on a specific node with approximately 30% CPU utilization will report faster response times compared to the same workload on the same VM when CPU utilization exceeds 50%.</p>
+<h3 id="hyper-threading">Hyper-Threading<a aria-label="Hyper-Threading" class="heading-link pl-2 text-italic text-bold" href="#hyper-threading"></a></h3>
+<p>Variations in CPU frequency are not the only factors influencing performance changes. All our nodes have Hyper-Threading enabled, an Intel technology that allows a single physical CPU core to operate as two virtual cores. Although there is only one physical core, the Linux kernel recognizes it as two virtual CPU cores. The kernel attempts to distribute the CPU load across these cores, aiming to keep only one hardware thread (virtual core) busy per physical core. This approach is effective until we reach a certain level of CPU utilization. Beyond this threshold, we cannot fully utilize both virtual CPU cores, resulting in reduced performance compared to normal operation.</p>
+<h3 id="finding-the-golden-ratio-of-cpu-utilization">Finding the “Golden Ratio” of CPU utilization<a aria-label="Finding the “Golden Ratio” of CPU utilization" class="heading-link pl-2 text-italic text-bold" href="#finding-the-golden-ratio-of-cpu-utilization"></a></h3>
+<p>Underutilized nodes lead to wasted resources, power, and space in our data centers, while nodes that are excessively utilized also create inefficiencies. As noted, higher CPU utilization results in decreased performance, which can give a misleading impression that additional resources are necessary, resulting in a cycle of over-provisioning. This issue is particularly pronounced with blocking workloads that do not follow an asynchronous model. As CPU performance deteriorates, each process can manage fewer tasks per second, making existing capacity inadequate. To achieve the optimal balance—the “Golden Ratio” of CPU utilization—we must identify a threshold where CPU utilization is sufficiently high to ensure efficiency without significantly impairing performance. Striving to keep our nodes near this threshold will enable us to utilize our current hardware more effectively alongside our existing software.</p>
+<p>Since we already have experimental data demonstrating how CPU time increases with rising utilization, we can develop a mathematical model to identify this threshold. First, we need to determine what percentage of CPU time degradation is acceptable for our specific use case. This may depend on user expectations or performance Service Level Agreements (SLAs). Once we establish this threshold, it will help us select a level of CPU utilization that remains within acceptable limits.</p>
+<p>We can plot the CPU utilization vs. CPU time (latency) and find the point where:</p>
+<ul>
+<li>CPU utilization is high enough to avoid resource underutilization.</li>
+<li>CPU time degradation does not exceed your acceptable limit.</li>
+</ul>
+<p>A specific example derived from the data above can be illustrated in the following graph.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81413"><img><img alt="Percentage Increase in P50 Latency vs CPU Utilization" class="width-fit size-large wp-image-81413 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="1127" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase-2.png?w=1024&amp;resize=1600%2C1127" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">Percentage Increase in P50 Latency vs CPU Utilization</figcaption></figure>
+<p>In this example, we aim to achieve less than 40% CPU time degradation, which would correspond to a CPU utilization of 61% on the specific instance.</p>
+<h3 id="outlier-case">Outlier case<a aria-label="Outlier case" class="heading-link pl-2 text-italic text-bold" href="#outlier-case"></a></h3>
+<p>As previously mentioned, there was a specific instance that displayed some outlying data points. Our experiment confirmed an already recognized issue where certain instances were not achieving their advertised maximum Turbo Boost CPU frequency. Instead, we observed steady CPU frequencies that fell below the maximum advertised value under low CPU utilization. In the example below, you can see an instance from a CPU family that advertises Turbo Boost frequencies above 3 GHz, but it is only reporting a maximum CPU frequency of 2.8 GHz.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81414"><img><img alt="CPU cores frequency" class="width-fit size-large wp-image-81414 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="588" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/CPU-cores-frequency.png?w=1024&amp;resize=1600%2C588" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">CPU cores frequency</figcaption></figure>
+<p>This issue turned out to be caused by a disabled CPU C-state, which prevented the CPU cores from halting even when they were not in use. As a result, these cores were perceived as “busy” by the turbo driver, limiting our ability to take advantage of Turbo Boost benefits with higher CPU frequencies. By enabling the C-state and allowing for optimization and power reduction during idle mode, we observed the expected Turbo Boost behavior. This change had an immediate impact on the CPU time spent by our test workloads. The images below illustrate the prompt changes in CPU frequencies and latency reported following the C-state adjustment.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81415"><img><img alt="CPU cores frequency" class="width-fit size-large wp-image-81415 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="617" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/cpu-cores-frequency-21.png?w=1024&amp;resize=1600%2C617" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">CPU cores frequency</figcaption></figure>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81416"><img><img alt="P50 CPU time on a request" class="width-fit size-large wp-image-81416 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="770" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/p50-CPU-time.png?w=1024&amp;resize=1600%2C770" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">P50 CPU time on a request</figcaption></figure>
+<p>Upon re-evaluating the percentage change in CPU time, we now observe similar behavior across all instances.</p>
+<figure class="wp-caption aligncenter mx-0" id="attachment_81417"><img><img alt="Percentage Increase in P50 Latency vs CPU Utilization " class="width-fit size-large wp-image-81417 width-fit" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="974" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/percent-increase-3.png?w=1024&amp;resize=1600%2C974" width="1600"><figcaption class="text-mono color-fg-muted mt-14px f5-mktg">Percentage Increase in P50 Latency vs CPU Utilization</figcaption></figure>
+<h2 id="wrap-up">Wrap-up<a aria-label="Wrap-up" class="heading-link pl-2 text-italic text-bold" href="#wrap-up"></a></h2>
+<p>As we anticipated many of these insights, our objective was to validate our theories using data from our complex system. While we confirmed that performance lowers as CPU utilization increases across different CPU families, by identifying optimal CPU utilization thresholds, we can achieve a better balance between performance and efficiency, ensuring that our infrastructure remains both cost-effective and high performing. Going forward, these insights will inform us of our resource provisioning strategies and help us maximize the effectiveness of our hardware investments.</p>
+<hr>
+<p>Thank you for sticking with us until the end!! A special shout-out to <code>@adrmike</code>, <code>@schlubbi</code>, <code>@terrorobe</code>, the <code>@github/compute-platform</code> and finally the <code>@github/performance-engineering</code> team for their invaluable assistance throughout these experiments, data analysis, and for reviewing the content for accuracy and consistency. ❤️</p>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/engineering/architecture-optimization/breaking-down-cpu-speed-how-utilization-impacts-performance/">Breaking down CPU speed: How utilization impacts performance</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Breaking down CPU speed: How utilization impacts performance" href="https://github.blog/engineering/architecture-optimization/breaking-down-cpu-speed-how-utilization-impacts-performance/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Breaking down CPU speed: How utilization impacts performance</span><span class="desc fs12">https://github.blog/engineering/architecture-optimization/breaking-down-cpu-speed-how-utilization-impacts-performance/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/407f6665.html">Cors Is UP (https://cors.mhuig.top)<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/196ea8e2.html">Cloudflare Incident on November 14, 2024, Resulting in Lost Logs<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/31d7d09d.html" title="Announcing GitHub Secure Open Source Fund: Help Secure the Open Source Ecosystem for Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1479"></div><span class="title">Announcing GitHub Secure Open Source Fund: Help Secure the Open Source Ecosystem for Everyone</span></a><a class="item" href="/rss/62eaa82.html" title="Congratulations to the Winners of the 2024 Gaady Awards"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5099"></div><span class="title">Congratulations to the Winners of the 2024 Gaady Awards</span></a><a class="item" href="/rss/e2cff3d2.html" title="Does GitHub Copilot Improve Code Quality? Here’s What the Data Says"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/github-copilot-code-quality-unit-test-results.png?resize=1024%2C538"></div><span class="title">Does GitHub Copilot Improve Code Quality? Here’s What the Data Says</span></a><a class="item" href="/rss/eca88e80.html" title="GitHub Availability Report: October 2024"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6965"></div><span class="title">GitHub Availability Report: October 2024</span></a><a class="item" href="/rss/1b0f2c08.html" title="How to Generate Unit Tests With GitHub Copilot: Tips and Examples"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5807"></div><span class="title">How to Generate Unit Tests With GitHub Copilot: Tips and Examples</span></a><a class="item" href="/rss/4e664676.html" title="How to Make Storybook Interactions Respect User Motion Preferences"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=814"></div><span class="title">How to Make Storybook Interactions Respect User Motion Preferences</span></a><a class="item" href="/rss/886ead6c.html" title="Software Is a Team Sport: Building the Future of Software Development Together"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/BlogForAmanda.png?w=1024&resize=1024%2C548"></div><span class="title">Software Is a Team Sport: Building the Future of Software Development Together</span></a><a class="item" href="/rss/3121c02f.html" title="Students: Start Building Your Skills With the GitHub Foundations Certification"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/11/github-foundations-certification.png?w=1024&resize=1024%2C1024"></div><span class="title">Students: Start Building Your Skills With the GitHub Foundations Certification</span></a><a class="item" href="/rss/b7396267.html" title="The Top 10 Gifts for the Developer in Your Life"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2024/12/github-ugly-sweater.jpg?w=1024&resize=1024%2C682"></div><span class="title">The Top 10 Gifts for the Developer in Your Life</span></a><a class="item" href="/rss/26ee674.html" title="Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1OLkt2rSuO6OBGH8H1k1o6/d63d32df3f56eab0fe105a00dec45e03/BLOG-2616_2.png"></div><span class="title">Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade</span></a><a class="item" href="/rss/196ea8e2.html" title="Cloudflare Incident on November 14, 2024, Resulting in Lost Logs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6pRdzUUrMbwG3AWsPncB3w/75146d1e379ccb126d8cd0210a6c12b8/image2.png"></div><span class="title">Cloudflare Incident on November 14, 2024, Resulting in Lost Logs</span></a><a class="item" href="/rss/5f0d107e.html" title="A Look at the Latest Post-Quantum Signature Standardization Candidates"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/415VcZzABkhZjT60GRkQZM/f30ae24bd14e86534efd3e74d15eb5b5/image3.png"></div><span class="title">A Look at the Latest Post-Quantum Signature Standardization Candidates</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Elephants in Tunnels: How Hyperdrive Connects to Databases Inside Your VPC Networks - RSSBOX</title>
+
+  
+    <meta name="description" content="With September’s announcement of Hyperdrive’s ability to send database traffic from Workers over Cloudflare Tunnels, we wanted to dive into the details of what it took to make this happen.  Hyper-wh">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Elephants in Tunnels: How Hyperdrive Connects to Databases Inside Your VPC Networks">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/7ae1ebcb.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="With September’s announcement of Hyperdrive’s ability to send database traffic from Workers over Cloudflare Tunnels, we wanted to dive into the details of what it took to make this happen.  Hyper-wh">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3182f43rbwdH9krF1xhdlC/d22430cdb1efa134031f94fea691c36e/image1.png">
+<meta property="article:published_time" content="2024-10-25T13:00:00.000Z">
+<meta property="article:modified_time" content="2024-10-25T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3182f43rbwdH9krF1xhdlC/d22430cdb1efa134031f94fea691c36e/image1.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Hyper-who?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why a Tunnel?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">A custom handler and generic streams</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Whence WebSocket</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Access granted</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Building for customer zero</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Outro</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-10-25T13:00:00.000Z">2024-10-25</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Elephants in Tunnels: How Hyperdrive Connects to Databases Inside Your VPC Networks</span></h1>
+<div>
+ <p></p><p>With September’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/builder-day-2024-announcements/#connect-to-private-databases-from-workers"><u>announcement</u></a> of Hyperdrive’s ability to send database traffic from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://workers.cloudflare.com/"><u>Workers</u></a> over <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"><u>Cloudflare Tunnels</u></a>, we wanted to dive into the details of what it took to make this happen.</p>
+<div>
+<h2>Hyper-who?</h2>
+<a href="#hyper-who">
+</a>
+</div>
+<p>Accessing your data from anywhere in Region Earth can be hard. Traditional databases are powerful, familiar, and feature-rich, but your users can be thousands of miles away from your database. This can cause slower connection startup times, slower queries, and connection exhaustion as everything takes longer to accomplish.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/"><u>Cloudflare Workers</u></a> is an incredibly lightweight runtime, which enables our customers to deploy their applications globally by default and renders the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Cold_start_(computing)"><u>cold start</u></a> problem almost irrelevant. The trade-off for these light, ephemeral execution contexts is the lack of persistence for things like database connections. Database connections are also notoriously expensive to spin up, with many round trips required between client and server before any query or result bytes can be exchanged.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/hyperdrive-making-regional-databases-feel-distributed"><u>Hyperdrive</u></a> is designed to make the centralized databases you already have feel like they’re global while keeping connections to those databases hot. We use our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><u>global network</u></a> to get faster routes to your database, keep connection pools primed, and cache your most frequently run queries as close to users as possible.</p>
+<div>
+<h2>Why a Tunnel?</h2>
+<a href="#why-a-tunnel">
+</a>
+</div>
+<p>For something as sensitive as your database, exposing access to the public Internet can be uncomfortable. It is common to instead host your database on a private network, and allowlist known-safe IP addresses or configure <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/network-layer/what-is-gre-tunneling/"><u>GRE tunnels</u></a> to permit traffic to it. This is complex, toilsome, and error-prone. </p><p>On Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/developer-platform/"><u>Developer Platform</u></a>, we strive for simplicity and ease-of-use. We cannot expect all of our customers to be experts in configuring networking solutions, and so we went in search of a simpler solution. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/the-net/top-of-mind-security/customer-zero/"><u>Being your own customer</u></a> is rarely a bad choice, and it so happens that Cloudflare offers an excellent option for this scenario: Tunnels.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/products/tunnel/"><u>Cloudflare Tunnel</u></a> is a Zero Trust product that creates a secure connection between your private network and Cloudflare. Exposing services within your private network can be as simple as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"><u>running a </u><code><u>cloudflared</u></code><u> binary</u></a>, or deploying a Docker container running the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hub.docker.com/r/cloudflare/cloudflared"><code><u>cloudflared</u></code><u> image we distribute</u></a>. </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3182f43rbwdH9krF1xhdlC/d22430cdb1efa134031f94fea691c36e/image1.png">
+</figure>
+<div>
+<h2>A custom handler and generic streams</h2>
+<a href="#a-custom-handler-and-generic-streams">
+</a>
+</div>
+<p>Integrating with Tunnels to support sending Postgres directly through them was a bit of a new challenge for us. Most of the time, when we use Tunnels internally (more on that later!), we rely on the excellent job <code>cloudflared</code> does of handling all of the mechanics, and we just treat them as pipes. That wouldn’t work for Hyperdrive, though, so we had to dig into how Tunnels actually ingress traffic to build a solution.</p><p>Hyperdrive handles Postgres traffic using an entirely custom implementation of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/protocol.html"><u>Postgres message protocol</u></a>. This is necessary, because we sometimes have to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/postgres-named-prepared-statements-supported-hyperdrive"><u>alter the specific type or content</u></a> of messages sent from client to server, or vice versa. Handling individual bytes gives us the flexibility to implement whatever logic any new feature might need.</p><p>An additional, perhaps less obvious, benefit of handling Postgres message traffic as just bytes is that we are not bound to the transport layer choices of some <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Object%E2%80%93relational_mapping"><u>ORM</u></a> or library. One of the nuances of running services in Cloudflare is that we may want to egress traffic over different services or protocols, for a variety of different reasons. In this case, being able to egress traffic via a Tunnel would be pretty challenging if we were stuck with whatever raw TCP socket a library had established for us.</p><p>The way we accomplish this relies on a mainstay of Rust: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/book/ch10-02-traits.html"><u>traits</u></a> (which are how Rust lets developers apply logic across generic functions and types). In the Rust ecosystem, there are two traits that define the behavior Hyperdrive wants out of its transport layers: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/tokio/latest/tokio/io/trait.AsyncRead.html"><code><u>AsyncRead</u></code></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/tokio/latest/tokio/io/trait.AsyncWrite.html"><code><u>AsyncWrite</u></code></a>. There are a couple of others we also need, but we’re going to focus on just these two. These traits enable us to code our entire custom handler against a generic stream of data, without the handler needing to know anything about the underlying protocol used to implement the stream. So, we can pass around a WebSocket connection as a generic I/O stream, wherever it might be needed.</p><p>As an example, the code to create a generic TCP stream and send a Postgres startup message across it might look like this:</p>
+<pre><code>/// Send a startup message to a Postgres server, in the role of a PG client.
+/// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-STARTUPMESSAGE
+pub async fn send_startup&lt;S&gt;(stream: &amp;mut S, user_name: &amp;str, db_name: &amp;str, app_name: &amp;str) -&gt; Result&lt;(), ConnectionError&gt;
+where
+    S: AsyncWrite + Unpin,
+&#123;
+    let protocol_number = 196608 as i32;
+    let user_str = &amp;b"user\0"[..];
+    let user_bytes = user_name.as_bytes();
+    let db_str = &amp;b"database\0"[..];
+    let db_bytes = db_name.as_bytes();
+    let app_str = &amp;b"application_name\0"[..];
+    let app_bytes = app_name.as_bytes();
+    let len = 4 + 4
+        + user_str.len() + user_bytes.len() + 1
+        + db_str.len() + db_bytes.len() + 1
+        + app_str.len() + app_bytes.len() + 1 + 1;
+
+<pre><code>// Construct a BytesMut of our startup message, then send it
+let mut startup_message = BytesMut::with_capacity(len as usize);
+startup_message.put_i32(len as i32);
+startup_message.put_i32(protocol_number);
+startup_message.put(user_str);
+startup_message.put_slice(user_bytes);
+startup_message.put_u8(0);
+startup_message.put(db_str);
+startup_message.put_slice(db_bytes);
+startup_message.put_u8(0);
+startup_message.put(app_str);
+startup_message.put_slice(app_bytes);
+startup_message.put_u8(0);
+startup_message.put_u8(0);
+
+match stream.write_all(&amp;amp;startup_message).await &amp;#123;
+    Ok(_) =&amp;gt; Ok(()),
+    Err(err) =&amp;gt; &amp;#123;
+        error!(&quot;Error writing startup to server: &amp;#123;&amp;#125;&quot;, err.to_string());
+        ConnectionError::InternalError
+    &amp;#125;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>&#x2F;&#x2F;&#x2F; Connect to a TCP socket<br>let stream &#x3D; match TcpStream::connect((“localhost”, 5432)).await &amp;#123;<br>    Ok(s) &#x3D;&gt; s,<br>    Err(err) &#x3D;&gt; &amp;#123;<br>        error!(“Error connecting to address: &amp;#123;&amp;#125;”, err.to_string());<br>        return ConnectionError::InternalError;<br>    &amp;#125;<br>&amp;#125;;<br>let _ &#x3D; send_startup(&amp;mut stream, “db_user”, “my_db”).await;</p></code></pre><p></p>
+<p>With this approach, if we wanted to encrypt the stream using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/ssl/transport-layer-security-tls/#:~:text=Transport%20Layer%20Security%2C%20or%20TLS,web%20browsers%20loading%20a%20website."><u>TLS</u></a> before we write to it (upgrading our existing <code>TcpStream</code> connection in-place, to an <code>SslStream</code>), we would only have to change the code we use to create the stream, while generating and sending the traffic would remain unchanged. This is because <code>SslStream</code> also implements <code>AsyncWrite</code>!</p>
+<pre><code>/// We're handwaving the SSL setup here. You're welcome.
+let conn_config = new_tls_client_config()?;
+
+<p>&#x2F;&#x2F;&#x2F; Encrypt the TcpStream, returning an SslStream<br>let ssl_stream &#x3D; match tokio_boring::connect(conn_config, domain, stream).await &amp;#123;<br>    Ok(s) &#x3D;&gt; s,<br>    Err(err) &#x3D;&gt; &amp;#123;<br>        error!(“Error during websocket TLS handshake: &amp;#123;&amp;#125;”, err.to_string());<br>        return ConnectionError::InternalError;<br>    &amp;#125;<br>&amp;#125;;<br>let _ &#x3D; send_startup(&amp;mut ssl_stream, “db_user”, “my_db”).await;</p></code></pre><p></p>
+<div>
+<h2>Whence WebSocket</h2>
+<a href="#whence-websocket">
+</a>
+</div>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc6455"><u>WebSocket</u></a> is an application layer protocol that enables bidirectional communication between a client and server. Typically, to establish a WebSocket connection, a client initiates an HTTP request and indicates they wish to upgrade the connection to WebSocket via the “Upgrade” header. Then, once the client and server complete the handshake, both parties can send messages over the connection until one of them terminates it.</p><p>Now, it turns out that the way Cloudflare Tunnels work under the hood is that both ends of the tunnel want to speak WebSocket, and rely on a translation layer to convert all traffic to or from WebSocket. The <code>cloudflared</code> daemon you spin up within your private network handles this for us! For Hyperdrive, however, we did not have a suitable translation layer to send Postgres messages across WebSocket, and had to write one.</p><p>One of the (many) fantastic things about Rust traits is that the contract they present is very clear. To be <code>AsyncRead</code>, you just need to implement <code>poll_read</code>. To be <code>AsyncWrite</code>, you need to implement only three functions (<code>poll_write</code>, <code>poll_flush</code>, and <code>poll_shutdown</code>). Further, there is excellent support for WebSocket in Rust built on top of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/snapview/tungstenite-rs"><u>tungstenite-rs library</u></a>.</p><p>Thus, building our custom WebSocket stream such that it can share the same machinery as all our other generic streams just means translating the existing WebSocket support into these poll functions. There are some existing OSS projects that do this, but for multiple reasons we could not use the existing options. The primary reason is that Hyperdrive operates across multiple threads (thanks to the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/tokio/latest/tokio/runtime/index.html"><u>tokio runtime</u></a>), and so we rely on our connections to also handle <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/std/marker/trait.Send.html"><code><u>Send</u></code></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/std/marker/trait.Sync.html"><code><u>Sync</u></code></a>, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/std/marker/trait.Unpin.html"><code><u>Unpin</u></code></a>. None of the available solutions had all five traits handled. It turns out that most of them went with the paradigm of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/futures/latest/futures/sink/trait.Sink.html"><code><u>Sink</u></code></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/futures/latest/futures/stream/trait.Stream.html"><code><u>Stream</u></code></a>, which provide a solid base from which to translate to <code>AsyncRead</code> and <code>AsyncWrite</code>. In fact some of the functions overlap, and can be passed through almost unchanged. For example, <code>poll_flush</code> and <code>poll_shutdown</code> have 1-to-1 analogs, and require almost no engineering effort to convert from <code>Sink</code> to <code>AsyncWrite</code>.</p>
+<pre><code>/// We use this struct to implement the traits we need on top of a WebSocketStream
+pub struct HyperSocket&lt;S&gt;
+where
+    S: AsyncRead + AsyncWrite + Send + Sync + Unpin,
+&#123;
+    inner: WebSocketStream&lt;S&gt;,
+    read_state: Option&lt;ReadState&gt;,
+    write_err: Option&lt;Error&gt;,
+&#125;
+
+<p>impl&lt;S&gt; AsyncWrite for HyperSocket&lt;S&gt;<br>where<br>    S: AsyncRead + AsyncWrite + Send + Sync + Unpin,<br>&amp;#123;<br>    fn poll_flush(mut self: Pin&lt;&amp;mut Self&gt;, cx: &amp;mut Context&lt;’<em>&gt;) -&gt; Poll&lt;io::Result&lt;()&gt;&gt; &amp;#123;<br>        match ready!(Pin::new(&amp;mut self.inner).poll_flush(cx)) &amp;#123;<br>            Ok(</em>) &#x3D;&gt; Poll::Ready(Ok(())),<br>            Err(err) &#x3D;&gt; Poll::Ready(Err(Error::new(ErrorKind::Other, err))),<br>        &amp;#125;<br>    &amp;#125;</p>
+<pre><code>fn poll_shutdown(mut self: Pin&amp;lt;&amp;amp;mut Self&amp;gt;, cx: &amp;amp;mut Context&amp;lt;&#39;_&amp;gt;) -&amp;gt; Poll&amp;lt;io::Result&amp;lt;()&amp;gt;&amp;gt; &amp;#123;
+    match ready!(Pin::new(&amp;amp;mut self.inner).poll_close(cx)) &amp;#123;
+        Ok(_) =&amp;gt; Poll::Ready(Ok(())),
+        Err(err) =&amp;gt; Poll::Ready(Err(Error::new(ErrorKind::Other, err))),
+    &amp;#125;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>With that translation done, we can use an existing WebSocket library to upgrade our <code>SslStream</code> connection to a Cloudflare Tunnel, and wrap the result in our <code>AsyncRead/AsyncWrite</code> implementation. The result can then be used anywhere that our other transport streams would work, without any changes needed to the rest of our codebase! </p><p>That would look something like this:</p>
+<pre><code>let websocket = match tokio_tungstenite::client_async(request, ssl_stream).await &#123;
+    Ok(ws) =&gt; Ok(ws),
+    Err(err) =&gt; &#123;
+        error!("Error during websocket conn setup: &#123;&#125;", err.to_string());
+        return ConnectionError::InternalError;
+    &#125;
+&#125;;
+let websocket_stream = HyperSocket::new(websocket));
+let _ = send_startup(&amp;mut websocket_stream, "db_user", "my_db").await;</code></pre>
+<div>
+<h2>Access granted</h2>
+<a href="#access-granted">
+</a>
+</div>
+<p>An observant reader might have noticed that in the code example above we snuck in a variable named request that we passed in when upgrading from an <code>SslStream to a WebSocketStream</code>. This is for multiple reasons. The first reason is that Tunnels are assigned a hostname and use this hostname for routing. The second and more interesting reason is that (as mentioned above) when negotiating an upgrade from HTTP to WebSocket, a request must be sent to the server hosting the ingress side of the Tunnel to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Protocol_upgrade_mechanism"><u>perform the upgrade</u></a>. This is pretty universal, but we also add in an extra piece here.</p><p>At Cloudflare, we believe that <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/secure-by-default-understanding-new-cisa-guide/"><u>secure defaults</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/security/glossary/what-is-defense-in-depth/"><u>defense in depth</u></a> are the correct ways to build a better Internet. This is why traffic across Tunnels is encrypted, for example. However, that does not necessarily prevent unwanted traffic from being sent into your Tunnel, and therefore egressing out to your database. While Postgres offers a robust set of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/user-manag.html"><u>access control</u></a> options for protecting your database, wouldn’t it be best if unwanted traffic never got into your private network in the first place? </p><p>To that end, all <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/hyperdrive/configuration/connect-to-private-database/"><u>Tunnels set up for use with Hyperdrive</u></a> should have a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/applications/"><u>Zero Trust Access Application</u></a> configured to protect them. These applications should use a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/identity/service-tokens/"><u>Service Token</u></a> to authorize connections. When setting up a new Hyperdrive, you have the option to provide the token’s ID and Secret, which will be encrypted and stored alongside the rest of your configuration. These will be presented as part of the WebSocket upgrade request to authorize the connection, allowing your database traffic through while preventing unwanted access.</p><p>This can be done within the request’s headers, and might look something like this:</p>
+<pre><code>let ws_url = format!("wss://&#123;&#125;", host);
+let mut request = match ws_url.into_client_request() &#123;
+    Ok(req) =&gt; req,
+    Err(err) =&gt; &#123;
+        error!(
+            "Hostname &#123;&#125; could not be parsed into a valid request URL: &#123;&#125;", 
+            host,
+            err.to_string()
+        );
+        return ConnectionError::InternalError;
+    &#125;
+&#125;;
+request.headers_mut().insert(
+    "CF-Access-Client-Id",
+    http::header::HeaderValue::from_str(&amp;client_id).unwrap(),
+);
+request.headers_mut().insert(
+    "CF-Access-Client-Secret",
+    http::header::HeaderValue::from_str(&amp;client_secret).unwrap(),
+);
+</code></pre>
+<div>
+<h2>Building for customer zero</h2>
+<a href="#building-for-customer-zero">
+</a>
+</div>
+<p>If you’ve been reading the blog for a long time, some of this might sound a bit familiar.  This isn’t the first time that we’ve <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-tunnel-for-postgres/"><u>sent Postgres traffic across a tunnel</u></a>, it’s something most of us do from our laptops regularly.  This works very well for interactive use cases with low traffic volume and a high tolerance for latency, but historically most of our products have not been able to employ the same approach.</p><p>Cloudflare operates <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><u>many data centers</u></a> around the world, and most services run in every one of those data centers. There are some tasks, however, that make the most sense to run in a more centralized fashion. These include tasks such as managing control plane operations, or storing configuration state.  Nearly every Cloudflare product houses its control plane information in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/performance-isolation-in-a-multi-tenant-database-environment/"><u>Postgres clusters</u></a> run centrally in a handful of our data centers, and we use a variety of approaches for accessing that centralized data from elsewhere in our network. For example, many services currently use a push-based model to publish updates to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/moving-quicksilver-into-production/"><u>Quicksilver</u></a>, and work through the complexities implied by such a model. This has been a recurring challenge for any team looking to build a new product.</p><p>Hyperdrive’s entire reason for being is to make it easy to access such central databases from our global network. When we began exploring Tunnel integrations as a feature, many internal teams spoke up immediately and strongly suggested they’d be interested in using it themselves. This was an excellent opportunity for Cloudflare to scratch its own itch, while also getting a lot of traffic on a new feature before releasing it directly to the public. As always, being “customer zero” means that we get fast feedback, more reliability over time, stronger connections between teams, and an overall better suite of products. We jumped at the chance.</p><p>As we rolled out early versions of Tunnel integration, we worked closely with internal teams to get them access to it, and fixed any rough spots they encountered. We’re pleased to share that this first batch of teams have found great success building new or refactored products on Hyperdrive over Tunnels. For example: if you’ve already tried out <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/builder-day-2024-announcements/#continuous-integration-and-delivery"><u>Workers Builds</u></a>, or recently <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/trust-hub/reporting-abuse/"><u>submitted an abuse report</u></a>, you’re among our first users!  At the time of this writing, we have several more internal teams working to onboard, and we on the Hyperdrive team are very excited to see all the different ways in which fast and simple connections from Workers to a centralized database can help Cloudflare just as much as they’ve been helping our external customers.</p>
+<div>
+<h2>Outro</h2>
+<a href="#outro">
+</a>
+</div>
+<p>Cloudflare is on a mission to make the Internet faster, safer, and more reliable. Hyperdrive was built to make connecting to centralized databases from the Workers runtime as quick and consistent as possible, and this latest development is designed to help all those who want to use Hyperdrive without directly exposing resources within their virtual private clouds (VPCs) on the public web.</p><p>To this end, we chose to build a solution around our suite of industry-leading <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/"><u>Zero Trust</u></a> tools, and were delighted to find how simple it was to implement in our runtime given the power and extensibility of the Rust <code>trait</code> system. </p><p>Without waiting for the ink to dry, multiple teams within Cloudflare have adopted this new feature to quickly and easily solve what have historically been complex challenges, and are happily operating it in production today.</p><p>And now, if you haven't already, try <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/hyperdrive/configuration/connect-to-private-database/"><u>setting up Hyperdrive across a Tunnel</u></a>, and let us know what you think in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://discord.com/channels/595317990191398933/1150557986239021106"><u>Hyperdrive Discord channel</u></a>!</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Elephants in tunnels: how Hyperdrive connects to databases inside your VPC networks" href="https://blog.cloudflare.com/elephants-in-tunnels-how-hyperdrive-connects-to-databases-inside-your-vpc-networks" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Elephants in tunnels: how Hyperdrive connects to databases inside your VPC networks</span><span class="desc fs12">https://blog.cloudflare.com/elephants-in-tunnels-how-hyperdrive-connects-to-databases-inside-your-vpc-networks</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/b1a3e52.html">消失的爱人<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/b8606b34.html">关于今日被攻击<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/26ee674.html" title="Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1OLkt2rSuO6OBGH8H1k1o6/d63d32df3f56eab0fe105a00dec45e03/BLOG-2616_2.png"></div><span class="title">Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade</span></a><a class="item" href="/rss/196ea8e2.html" title="Cloudflare Incident on November 14, 2024, Resulting in Lost Logs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6pRdzUUrMbwG3AWsPncB3w/75146d1e379ccb126d8cd0210a6c12b8/image2.png"></div><span class="title">Cloudflare Incident on November 14, 2024, Resulting in Lost Logs</span></a><a class="item" href="/rss/5f0d107e.html" title="A Look at the Latest Post-Quantum Signature Standardization Candidates"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/415VcZzABkhZjT60GRkQZM/f30ae24bd14e86534efd3e74d15eb5b5/image3.png"></div><span class="title">A Look at the Latest Post-Quantum Signature Standardization Candidates</span></a><a class="item" href="/rss/8016c216.html" title="Cloudflare’s Perspective of the October 30 OVHcloud Outage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/62w8PcLJ3Q05F1BtA12zUb/6d8ce87f85eb585a7fe0ac02f8cd93d5/image4.jpg"></div><span class="title">Cloudflare’s Perspective of the October 30 OVHcloud Outage</span></a><a class="item" href="/rss/58196839.html" title="DO It Again: How We Used Durable Objects to Add WebSockets Support and Authentication to AI Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/20z8XfL3pJ78z1Y0Yp7JNO/0b8607702a25ede4268009f124278985/unnamed.png"></div><span class="title">DO It Again: How We Used Durable Objects to Add WebSockets Support and Authentication to AI Gateway</span></a><a class="item" href="/rss/ab2a1ac3.html" title="Exploring Internet Traffic Shifts and Cyber Attacks During the 2024 US Election"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3tqSzKOhzUbLTgnwfP4cIU/8a433526fab8fbebf0aa3ae8633e78dc/BLOG-2618_2.png"></div><span class="title">Exploring Internet Traffic Shifts and Cyber Attacks During the 2024 US Election</span></a><a class="item" href="/rss/dc97b47b.html" title="From Deals to DDoS: Exploring Cyber Week 2024 Internet Trends"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4G8sPTUjqY8mYlH6NFVoeU/789563dff50c44934d4ad7ecb54d98dd/BLOG-2629_2.png"></div><span class="title">From Deals to DDoS: Exploring Cyber Week 2024 Internet Trends</span></a><a class="item" href="/rss/bdfa6091.html" title="How We Prevent Conflicts in Authoritative DNS Configuration Using Formal Verification"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/72EmlVrMTMBMhxrhZ50YI9/54e08160ea98c55bc8e2703d7c85927b/image3.png"></div><span class="title">How We Prevent Conflicts in Authoritative DNS Configuration Using Formal Verification</span></a><a class="item" href="/rss/3c6e8963.html" title="Forced Offline: The Q3 2024 Internet Disruption Summary"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3aYsyZNt5qCWqJhgK8yt1g/0f8be9f2ed8c2ab5121caef9b8e079ff/SEVERE_WEATHER_-_UNITED_STATES_-_Helene_-_Georgia.png"></div><span class="title">Forced Offline: The Q3 2024 Internet Disruption Summary</span></a><a class="item" href="/rss/538e7644.html" title="Migrating Billions of Records: Moving Our Active DNS Database While It’s in Use"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2REIq71tc7M4jKPLZSJzS9/11f22f700300f2ad3a5ee5ca85a75480/Applying_changes_in_the_destination_database.png"></div><span class="title">Migrating Billions of Records: Moving Our Active DNS Database While It’s in Use</span></a><a class="item" href="/rss/98bbc5d8.html" title="Moving Baselime From AWS to Cloudflare: Simpler Architecture, Improved Performance, Over 80% Lower Cloud Costs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1ruQuVe7kcd31FOS91nstS/9d422e751e0d2d3a90d603e6adcd5c48/image1.png"></div><span class="title">Moving Baselime From AWS to Cloudflare: Simpler Architecture, Improved Performance, Over 80% Lower Cloud Costs</span></a><a class="item" href="/rss/d4be1c93.html" title="Resilient Internet Connectivity in Europe Mitigates Impact From Multiple Cable Cuts"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xDllSeyPtet5ovpXI3GMH/6bc5680bbd8219f417e891102c4ffb0e/BLOG-2626_2.png"></div><span class="title">Resilient Internet Connectivity in Europe Mitigates Impact From Multiple Cable Cuts</span></a><a class="item" href="/rss/c70cef17.html" title="What’s New in Cloudflare: Account Owned Tokens and Zaraz Automated Actions"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5tcNkxDjYz9jAXnfV0bPON/920a9dade7145de2adee21afa43d786e/image13.jpg"></div><span class="title">What’s New in Cloudflare: Account Owned Tokens and Zaraz Automated Actions</span></a><a class="item" href="/rss/4c2657e6.html" title="Workers Builds: Integrated CI/CD Built on the Workers Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6n6UCIKAM4uAtWzsRBiS16/1c0b655b415afe375b6b153ada570357/BLOG-2594_2.png"></div><span class="title">Workers Builds: Integrated CI/CD Built on the Workers Platform</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

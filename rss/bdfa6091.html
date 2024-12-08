@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How We Prevent Conflicts in Authoritative DNS Configuration Using Formal Verification - RSSBOX</title>
+
+  
+    <meta name="description" content="Over the last year, Cloudflare has begun formally verifying the correctness of our internal DNS addressing behavior — the logic that determines which IP address a DNS query receives when it hits our">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How We Prevent Conflicts in Authoritative DNS Configuration Using Formal Verification">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/bdfa6091.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Over the last year, Cloudflare has begun formally verifying the correctness of our internal DNS addressing behavior — the logic that determines which IP address a DNS query receives when it hits our">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/72EmlVrMTMBMhxrhZ50YI9/54e08160ea98c55bc8e2703d7c85927b/image3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3gyUw7j0GlTXj0Vm637aCW/9aa353d512151d5878998e199a538973/image1.png">
+<meta property="article:published_time" content="2024-11-08T14:00:00.000Z">
+<meta property="article:modified_time" content="2024-11-08T14:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/72EmlVrMTMBMhxrhZ50YI9/54e08160ea98c55bc8e2703d7c85927b/image3.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Addressing: how IP addresses are chosen</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Topaz executes DNS objectives</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Topaz programs are executed on the hot path</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Topaz programs are formally verified</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Topaz’s verifier works, and its tradeoffs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Bringing formal verification from research to production</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2024-11-08T14:00:00.000Z">2024-11-08</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How We Prevent Conflicts in Authoritative DNS Configuration Using Formal Verification</span></h1>
+<div>
+ <p>Over the last year, Cloudflare has begun formally verifying the correctness of our internal DNS addressing behavior — the logic that determines which IP address a DNS query receives when it hits our authoritative nameserver. This means that for every possible DNS query for a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/dns/manage-dns-records/reference/proxied-dns-records/"><u>proxied</u></a> domain we could receive, we try to mathematically prove properties about our DNS addressing behavior, even when different systems (owned by different teams) at Cloudflare have contradictory views on which IP addresses should be returned.</p><p>To achieve this, we formally verify the programs — written in a custom <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Lisp_(programming_language)"><u>Lisp</u></a>-like programming language — that our nameserver executes when it receives a DNS query. These programs determine which IP addresses to return. Whenever an engineer changes one of these programs, we run all the programs through our custom model checker (written in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://racket-lang.org/"><u>Racket</u></a> + <a target="_blank" rel="external nofollow noopener noreferrer" href="https://emina.github.io/rosette/"><u>Rosette</u></a>) to check for certain bugs (e.g., one program overshadowing another) before the programs are deployed.</p><p>Our formal verifier runs in production today, and is part of a larger addressing system called Topaz. In fact, it’s likely you’ve made a DNS query today that triggered a formally verified Topaz program.</p><p>This post is a technical description of how Topaz’s formal verification works. Besides being a valuable tool for Cloudflare engineers, Topaz is a real-world example of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Formal_verification"><u>formal verification</u></a> applied to networked systems. We hope it inspires other network operators to incorporate formal methods, where appropriate, to help make the Internet more reliable for all.</p><p>Topaz’s full technical details have been peer-reviewed and published in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://conferences.sigcomm.org/sigcomm/2024/"><u>ACM SIGCOMM 2024</u></a>, with both a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://research.cloudflare.com/publications/Larisch2024/"><u>paper</u></a> and short <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.youtube.com/watch?v=hW7RjXVx7_Q"><u>video</u></a> available online. </p>
+<div>
+<h2>Addressing: how IP addresses are chosen</h2>
+<a href="#addressing-how-ip-addresses-are-chosen">
+</a>
+</div>
+<p>When a DNS query for a customer’s proxied domain hits Cloudflare’s nameserver, the nameserver returns an IP address — but how does it decide which address to return?</p><p>Let’s make this more concrete. When a customer, say <code>example.com</code>, signs up for Cloudflare and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/dns/manage-dns-records/reference/proxied-dns-records/"><u>proxies</u></a> their traffic through Cloudflare, it makes Cloudflare’s nameserver <i>authoritative</i> for their domain, which means our nameserver has the <i>authority </i>to respond to DNS queries for <code>example.com</code>. Later, when a client makes a DNS query for <code>example.com</code>, the client’s recursive DNS resolver (for example, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/dns/what-is-1.1.1.1/"><u>1.1.1.1</u></a>) queries our nameserver for the authoritative response. Our nameserver returns <b><i>some</i></b><i> </i>Cloudflare IP address (of our choosing) to the resolver, which forwards that address to the client. The client then uses the IP address to connect to Cloudflare’s network, which is a global <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/learning/cdn/glossary/anycast-network/"><u>anycast</u></a> network — every data center advertises all of our addresses.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/72EmlVrMTMBMhxrhZ50YI9/54e08160ea98c55bc8e2703d7c85927b/image3.png">
+</figure><p><sup>Clients query Cloudflare’s nameserver (via their resolver) for customer domains. The nameserver returns Cloudflare IP addresses, advertised by our entire global network, which the client uses to connect to the customer domain. Cloudflare may then connect to the origin server to fulfill the user’s HTTPS request.</sup></p><p>When the customer has <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/byoip/"><u>configured a static IP address</u></a> for their domain, our nameserver’s choice of IP address is simple: it simply returns that static address in response to queries made for that domain.</p><p>But for all other customer domains, our nameserver could respond with virtually any IP address that we own and operate. We may return the <i>same</i> address in response to queries for <i>different</i> domains, or <i>different</i> addresses in response to different queries for the <i>same</i> domain. We do this for resilience, but also because decoupling names and IP addresses <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/addressing-agility"><u>improves flexibility</u></a>.</p><p>With all that in mind, let’s return to our initial question: given a query for a proxied domain without a static IP, which IP address should be returned? The answer: <b>Cloudflare chooses IP addresses to meet various business objectives. </b>For instance, we may choose IPs to:</p><ul><li><p>Change the IP address of a domain that is under attack.</p></li><li><p>Direct fractions of traffic to specific IP addresses to test new features or services.</p></li><li><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-incident-on-september-17-2024/"><u>Remap or “renumber”</u></a> domain names to new IP address space.</p></li></ul>
+<div>
+<h2>Topaz executes DNS objectives</h2>
+<a href="#topaz-executes-dns-objectives">
+</a>
+</div>
+<p>To change authoritative nameserver behavior — how we choose IPs —  a Cloudflare engineer encodes their desired DNS business objective as a declarative Topaz program. Our nameserver stores the list of all such programs such that when it receives a DNS query for a proxied domain, it executes the list of programs in sequence until one returns an IP address. It then returns that IP to the resolver.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3gyUw7j0GlTXj0Vm637aCW/9aa353d512151d5878998e199a538973/image1.png">
+</figure><p><sup>Topaz receives DNS queries (metadata included) for proxied domains from Cloudflare’s nameserver. It executes a list of policies in sequence until a match is found. It returns the resulting IP address to the nameserver, which forwards it to the resolver.</sup></p><p>What do these programs look like?</p><p>Each Topaz program has three primary components:</p><ol><li><p><b>Match function: </b>A program’s match function specifies under which circumstances the program should execute. It takes as input DNS query metadata (e.g., datacenter information, account information) and outputs a boolean. If, given a DNS query, the match function returns <i>true</i>, the program’s response function is executed.</p></li><li><p><b>Response function</b>: A program’s response function specifies <i>which</i> IP addresses should be chosen. It also takes as input all the DNS query metadata, but outputs a 3-tuple (IPv4 addresses, IPv6 addresses, and TTL). When a program’s match function returns true, its corresponding response function is executed. The resulting IP addresses and TTL are returned to the resolver that made the query. </p></li><li><p><b>Configuration</b>: A program’s configuration is a set of variables that parameterize that program’s match and response function. The match and response functions reference variables in the corresponding configuration, thereby separating the macro-level behavior of a program (match/response functions) from its nitty-gritty details (specific IP addresses, names, etc.). This separation makes it easier to understand how a Topaz program behaves at a glance, without getting bogged down by specific function parameters.</p></li></ol><p>Let’s walk through an example Topaz program. The goal of this program is to give all queried domains whose metadata field “tag1” is equal to “orange” a particular IP address. The program looks like this:</p>
+<pre><code>- name: orange
+  config: |
+    (config
+      ([desired_tag1 "orange"]
+       [ipv4 (ipv4_address “192.0.2.3”)]
+       [ipv6 (ipv6_address “2001:DB8:1:3”)]
+       [t (ttl 300]))
+  match: |
+    (= query_domain_tag1 desired_tag1) 
+  response: |
+    (response (list ipv4) (list ipv6) t)</code></pre>
+<p>Before we walk through the program, note that the program’s configuration, match, and response function are YAML strings, but more specifically they are topaz-lang expressions. Topaz-lang is the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Domain-specific_language"><u>domain-specific language (DSL)</u></a> we created specifically for expressing Topaz programs. It is based on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.scheme.org/"><u>Scheme</u></a>, but is much simpler. It is dynamically typed, it is not <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Turing_completeness"><u>Turing complete</u></a>, and every expression evaluates to exactly one value (though functions can throw errors). Operators cannot define functions within topaz-lang, they can only add new DSL functions by writing functions in the host language (Go). The DSL provides basic types (numbers, lists, maps) but also Topaz-specific types, like IPv4/IPv6 addresses and TTLs.</p><p>Let’s now examine this program in detail. </p><ul><li><p>The <code>config</code> is a set of four <i>bindings</i> from name to value. The first binds the string <code>”orange”</code> to the name <code>desired_tag1</code>. The second binds the IPv4 address <code>192.0.2.3</code> to the name <code>ipv4</code>. The third binds the IPv6 address <code>2001:DB8:1:3</code> to the name <code>ipv6</code>. And the fourth binds the TTL (for which we added a topaz-lang type) <code>300</code> (seconds) to the name <code>t</code>.</p></li><li><p>The <code>match</code> function is an expression that <i>must</i> evaluate to a boolean. It can reference configuration values (e.g., <code>desired_tag1</code>), and can also reference DNS query fields. All DNS query fields use the prefix <code>query_</code> and are brought into scope at evaluation time. This program’s match function checks whether <code>desired_tag1</code> is equal to the tag attached to the queried domain, <code>query_domain_tag1</code>. </p></li><li><p>The <code>response</code> function is an expression that evaluates to the special <code>response</code> type, which is really just a 3-tuple consisting of: a list of IPv4 addresses, a list of IPv6 addresses, and a TTL. This program’s response function simply returns the configured IPv4 address, IPv6 address, and TTL (seconds).</p></li></ul><p>Critically, <i>all</i> Topaz programs are encoded as YAML and live in the same version-controlled file. Imagine this program file contained only the <code>orange</code> program above, but now, a new team wants to add a new program, which checks whether the queried domain’s “tag1” field is equal to “orange” AND that the domain’s “tag2” field is equal to true:</p>
+<pre><code>- name: orange_and_true
+  config: |
+    (config
+      ([desired_tag1 "orange"]
+       [ipv4 (ipv4_address “192.0.2.2”)]
+       [ipv6 (ipv6_address “2001:DB8:1:2”)]
+       [t (ttl 300)]))
+  match: |
+    (and (= query_domain_tag1 desired_tag1)
+         query_domain_tag2)
+  response: |
+    (response (list ipv4) (list ipv6) t)</code></pre>
+<p>This new team must place their new <code>orange_and_true</code> program either below or above the <code>orange</code> program in the file containing the list of Topaz programs. For instance, they could place <code>orange_and_true</code> after <code>orange</code>, like so:</p>
+<pre><code>- name: orange
+  config: …
+  match: …
+  response: …
+- name: orange_and_true
+  config: …
+  match: …
+  response: …</code></pre>
+<p>Now let’s add a third, more interesting Topaz program. Say a Cloudflare team wants to test a modified version of our CDN’s HTTP server on a small percentage of domains, and only in a subset of Cloudflare’s data centers. Furthermore, they want to distribute these queries across a specific IP prefix such that queries for the same domain get the same IP. They write the following:</p>
+<pre><code>- name: purple
+  config: |
+    (config
+      ([purple_datacenters (fetch_datacenters “purple”)]
+       [percentage 10]
+       [ipv4_prefix (ipv4_prefix “203.0.113.0/24”)]
+       [ipv6_prefix (ipv6_prefix “2001:DB8:3::/48”)]))
+  match: |
+    (let ([rand (rand_gen (hash query_domain))])
+      (and (member? purple_datacenters query_datacenter)
+           (&lt; (random_number (range 0 99) rand) percentage)))
+  response: |
+    (let ([hashed_domain (hash query_domain)]
+          [ipv4_address (select_from ipv4_prefix hashed_domain)]
+          [ipv6_address (select_from ipv6_prefix hashed_domain)])
+      (response (list ipv4_address) (list ipv6_address) (ttl 1)))</code></pre>
+<p>This Topaz program is significantly more complicated, so let’s walk through it.</p><p>Starting with configuration: </p><ul><li><p>The first configuration value, <code>purple_datacenters</code>, is bound to the expression <code>(fetch_datacenters “purple”)</code>, which is a function that retrieves all Cloudflare data centers tagged “purple” via an internal HTTP API. The result of this function call is a list of data centers. </p></li><li><p>The second configuration value, <code>percentage</code>, is a number representing the fraction of traffic we would like our program to act upon.</p></li><li><p>The third and fourth names are bound to IP prefixes, v4 and v6 respectively (note the <code>built-in ipv4_prefix</code> and <code>ipv6_prefix</code> types).</p></li></ul><p>The match function is also more complicated. First, note the <code>let</code> form — this lets operators define local variables. We define one local variable, a random number generator called <code>rand</code> seeded with the hash of the queried domain name. The match expression itself is a conjunction that checks two things. </p><ul><li><p>First, it checks whether the query landed in a data center tagged “purple”. </p></li><li><p>Second, it checks whether a random number between 0 and 99 (produced by a generator seeded by the domain name) is less than the configured percentage. By seeding the random number generator with the domain, the program ensures that 10% of <i>domains</i> trigger a match. If we had seeded the RNG with, say, the query ID, then queries for the same domain would behave differently.</p></li></ul><p>Together, the conjuncts guarantee that the match expression evaluates to true for 10% of domains queried in “purple” data centers.</p><p>Now let’s look at the response function. We define three local variables. The first is a hash of the domain. The second is an IPv4 address selected from the configured IPv4 prefix. <code>select_from</code> always chooses the same IP address given the same prefix and hash — this ensures that queries for a given domain always receive the same IP address (which makes it easier to correlate queries for a single domain), but that queries for different domains can receive different IP addresses within the configured prefix. The third local variable is an IPv6 address selected similarly. The response function returns these IP addresses and a TTL of value 1 (second).</p>
+<div>
+<h2>Topaz programs are executed on the hot path</h2>
+<a href="#topaz-programs-are-executed-on-the-hot-path">
+</a>
+</div>
+<p>Topaz’s control plane validates the list of programs and distributes them to our global nameserver instances. As we’ve seen, the list of programs reside in a single, version-controlled YAML file. When an operator changes this file (i.e., adds a program, removes a program, or modifies an existing program), Topaz’s control plane does the following things in order:</p><ul><li><p>First, it validates the programs, making sure there are no syntax errors. </p></li><li><p>Second, it “finalizes” each program’s configuration by evaluating every configuration binding and storing the result. (For instance, to finalize the <code>purple</code> program, it evaluates <code>fetch_datacenters</code>, storing the resulting list. This way our authoritative nameservers never need to retrieve external data.) </p></li><li><p>Third, it <i>verifies</i> the finalized programs, which we will explain below. </p></li><li><p>Finally, it distributes the finalized programs across our network.</p></li></ul><p>Topaz’s control plane distributes the programs to all servers globally by writing the list of programs to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/introducing-quicksilver-configuration-distribution-at-internet-scale/"><u>QuickSilver</u></a>, our edge key-value store. The Topaz service on each server detects changes in Quicksilver and updates its program list.</p><p>When our nameserver service receives a DNS query, it augments the query with additional metadata (e.g., tags) and then forwards the query to the Topaz service (both services run on every Cloudflare server) via Inter-Process Communication (IPC). Topaz, upon receiving a DNS query from the nameserver, walks through its program list, executing each program’s match function (using the topaz-lang interpreter) with the DNS query in scope (with values prefixed with <code>query_</code>). It walks the list until a match function returns <code>true</code>. It then executes that program’s response function, and returns the resulting IP addresses and TTL to our nameserver. The nameserver packages these addresses and TTL in valid DNS format, and then returns them to the resolver. </p>
+<div>
+<h2>Topaz programs are formally verified</h2>
+<a href="#topaz-programs-are-formally-verified">
+</a>
+</div>
+<p>Before programs are distributed to our global network, they are formally verified. Each program is passed through our formal verification tool which throws an error if a program has a bug, or if two programs (e.g., the <code>orange_and_true</code> and <code>orange</code> programs) conflict with one another.</p><p>The Topaz formal verifier (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Model_checking"><u>model-checker</u></a>) checks three properties.</p><p>First, it checks that each program is <i>satisfiable </i>— that there exists <i>some</i> DNS query that causes each program’s match function to return <code>true</code>. This property is useful for detecting internally-inconsistent programs that will simply never match. For instance, if a program’s match expression was <code>(and true false)</code>, there exists no query that will cause this to evaluate to true, so the verifier throws an error.</p><p>Second, it checks that each program is <i>reachable </i>— that there exists some DNS query that causes each program’s match function to return <code>true</code> <i>given all preceding programs.</i> This property is useful for detecting “dead” programs that are completely overshadowed by higher-priority programs. For instance, recall the ordering of the <code>orange</code> and <code>orange_and_true</code> programs:</p>
+<pre><code>- name: orange
+  config: …
+  match: (= query_domain_tag1 "orange")  
+  response: …
+- name: orange_and_true
+  config: …
+  match: (and (= query_domain_tag1 "orange") query_domain_tag2)
+  response: …</code></pre>
+<p>The verifier would throw an error because the <code>orange_and_true</code> program is unreachable. For all DNS queries for which <code>query_domain_tag1</code> is ”orange”, regardless of <code>metadata2</code>, the <code>orange</code> program will <i>always</i> match, which means the <code>orange_and_true</code> program will <i>never</i> match. To resolve this error, we’d need to swap these two programs like we did above.</p><p>Finally, and most importantly, the verifier checks for program <i>conflicts</i>: queries that cause any two programs to both match. If such a query exists, it throws an error (and prints the relevant query), and the operators are forced to resolve the conflict by changing their programs. However, it only checks whether specific programs conflict — those that are explicitly marked <i>exclusive. </i>Operators mark their program as exclusive if they want to be sure that no other exclusive program could match on the same queries.</p><p>To see what conflict detection looks like, consider the corrected ordering of the <code>orange_and_true</code> and <code>orange</code> programs, but note that the two programs have now been marked exclusive:</p>
+<pre><code>- name: orange_and_true
+  exclusive: true
+  config: ...
+  match: (and (= query_domain_tag1 "orange") query_domain_tag2)
+  response: ...
+- name: orange
+  exclusive: true
+  config: ...
+  match: (= query_domain_tag1 "orange") 
+  response: ...</code></pre>
+<p>After marking these two programs exclusive, the verifier will throw an error. Not only will it say that these two programs can contradict one another, but it will provide a sample query as proof:</p>
+<pre><code>Checking: no exclusive programs match the same queries: check FAILED!
+Intersecting programs found:
+programs "orange_and_true" and "orange" both match any query...
+  to any domain...
+    with tag1: "orange"
+    with tag2: true
+</code></pre>
+<p>The teams behind the <code>orange</code> and <code>orange_and_true</code> programs respectively <i>must</i> resolve this conflict before these programs are deployed, and can use the above query to help them do so. To resolve the conflict, the teams have a few options. The simplest option is to remove the exclusive setting from one program, and acknowledge that it is simply not possible for these programs to be <code>exclusive</code>. In that case, the order of the two programs matters (one must have higher priority). This is fine! Topaz allows developers to write certain programs that <i>absolutely cannot </i>overlap with other programs (using <code>exclusive</code>), but sometimes that is just not possible. And when it’s not, at least program priority is <i>explicit.</i></p><p><i>Note: in practice, we place all exclusive programs at the top of the program file. This makes it easier to reason about interactions between exclusive and non-exclusive programs.</i></p><p>In short, verification is powerful not only because it catches bugs (e.g., satisfiability and reachability), but it also highlights the consequences of program changes. It helps operators understand the impact of their changes by providing immediate feedback. If two programs conflict, operators are forced to resolve it before deployment, rather than after an incident.</p><p><b>Bonus: verification-powered diffs. </b>One of the newest features we’ve added to the verifier is one we call <i>semantic diffs</i>. It’s in early stages, but the key insight is that operators often just want to <i>understand</i> the impact of changes, even if these changes are deemed safe. To help operators, the verifier compares the old and new versions of the program file. Specifically, it looks for any query that matched program <i>X</i> in the old version, but matches a different program <i>Y</i> in the new version (or vice versa). For instance, if we changed <code>orange_and_true</code> thus:</p>
+<pre><code>- name: orange_and_true
+  config: …
+  match: (and (= query_domain_tag1 "orange") (not query_domain_tag2))
+  response: …</code></pre>
+<p>Our verifier would emit:</p>
+<pre><code>Generating a report to help you understand your changes...
+NOTE: the queries below (if any) are just examples. Other such queries may exist.
+
+<ul>
+<li>program “orange_and_true” now MATCHES any query…<br>to any domain…<br>  with tag1: “orange”<br>  with tag2: false</li></ul></code></pre><p>While not exhaustive, this information helps operators understand whether their changes are doing what they intend or not, <i>before</i> deployment. We look forward to expanding our verifier’s diff capabilities going forward.</p>
+<div>
+<h2>How Topaz’s verifier works, and its tradeoffs</h2>
+<a href="#how-topazs-verifier-works-and-its-tradeoffs">
+</a>
+</div>
+<p>How does the verifier work? At a high-level, the verifier checks that, for all possible DNS queries, the three properties outlined above are satisfied. A Satisfiability Modulo Theories (SMT) solver — which we explain below — makes this seemingly impossible operation feasible. (It doesn't literally loop over all DNS queries, but it is equivalent to doing so — it provides exhaustive proof.)</p><p>We implemented our formal verifier in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://emina.github.io/rosette/"><u>Rosette</u></a>, a solver-enhanced domain-specific language written in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://racket-lang.org/"><u>Racket</u></a> programming language. Rosette makes writing a verifier more of an engineering exercise, rather than a formal logic test: if you can express the interpreter for your language in Racket/Rosette, you get verification “for free”, in some sense. We wrote a topaz-lang interpreter in Racket, then crafted our three properties using the Rosette DSL.</p><p>How does Rosette work? Rosette translates our desired properties into formulae in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/First-order_logic"><u>first-order logic</u></a>. At a high level, these formulae are like equations from algebra class in school, with “unknowns” or variables. For instance, when checking whether the orange program is reachable (with the <code>orange_and_true</code> program ordered before it), Rosette produces the formula <code>((NOT orange_and_true.match) AND orange.match)</code>. The “unknowns” here are the DNS query parameters that these match functions operate over, e.g., <code>query_domain_tag1</code>. To solve this formula, Rosette interfaces with an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Satisfiability_modulo_theories"><u>SMT solver</u></a> (like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/Z3Prover/z3"><u>Z3</u></a>), which is specifically designed to solve these types of formulae by efficiently finding values to assign to the DNS query parameters that make the formulae true. Once the SMT solver finds satisfying values, Rosette translates them into a Racket data structure: in our case, a sample DNS query. In this example, once it finds a satisfying DNS query, it would report that the <code>orange</code> program is indeed reachable.</p><p>However, verification is not free. The primary cost is maintenance. The model checker’s interpreter (Racket) must be kept in lockstep with the main interpreter (Go). If they fall out-of-sync, the verifier loses the ability to accurately detect bugs. Furthermore, functions added to topaz-lang must be compatible with formal verification.</p><p>Also, not all functions are easily verifiable, which means we must restrict the kinds of functions that program authors can write. Rosette can only verify functions that operate over integers and bit-vectors. This means we only permit functions whose operations can be converted into operations over integers and bit-vectors. While this seems restrictive, it actually gets us pretty far. The main challenge is strings: Topaz does not support programs that, for example, manipulate or work with substrings of the queried domain name. However, it does support simple operations on closed-set strings. For instance, it supports checking if two domain names are equal, because we can convert all strings to a small set of values representable using integers (which are easily verifiable).</p><p>Fortunately, thanks to our design of Topaz programs, the verifier need not be compatible with all Topaz program code. The verifier only ever examines Topaz <i>match</i> functions, so only the functions specified in match functions need to be verification-compatible. We encountered other challenges when working to make our model accurate, like modeling randomness — if you are interested in the details, we encourage you to read the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://research.cloudflare.com/publications/Larisch2024/"><u>paper</u></a>.</p><p>Another potential cost is verification speed. We find that the verifier can ensure our existing seven programs satisfy all three properties within about six seconds, which is acceptable because verification happens only at build time. We verify programs centrally, before programs are deployed, and only when programs change. </p><p>We also ran microbenchmarks to determine how fast the verifier can check more programs — we found that, for instance, it would take the verifier about 300 seconds to verify 50 programs. While 300 seconds is still acceptable, we are looking into verifier optimizations that will reduce the time further.</p>
+<div>
+<h2>Bringing formal verification from research to production</h2>
+<a href="#bringing-formal-verification-from-research-to-production">
+</a>
+</div>
+<p>Topaz’s verifier began as a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://research.cloudflare.com/"><u>research</u></a> project, and has since been deployed to production. It formally verifies all changes made to the authoritative DNS behavior specified in Topaz.</p><p>For more in-depth information on Topaz, see both our research <a target="_blank" rel="external nofollow noopener noreferrer" href="https://research.cloudflare.com/publications/Larisch2024/"><u>paper</u></a> published at SIGCOMM 2024 and the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.youtube.com/watch?v=hW7RjXVx7_Q"><u>recording</u></a> of the talk.</p><p>We thank our former intern, Tim Alberdingk-Thijm, for his invaluable work on Topaz’s verifier.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How we prevent conflicts in authoritative DNS configuration using formal verification" href="https://blog.cloudflare.com/topaz-policy-engine-design" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How we prevent conflicts in authoritative DNS configuration using formal verification</span><span class="desc fs12">https://blog.cloudflare.com/topaz-policy-engine-design</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5f0d107e.html">A Look at the Latest Post-Quantum Signature Standardization Candidates<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/c70cef17.html">What’s New in Cloudflare: Account Owned Tokens and Zaraz Automated Actions<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/26ee674.html" title="Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1OLkt2rSuO6OBGH8H1k1o6/d63d32df3f56eab0fe105a00dec45e03/BLOG-2616_2.png"></div><span class="title">Bigger and Badder: How DDoS Attack Sizes Have Evolved Over the Last Decade</span></a><a class="item" href="/rss/196ea8e2.html" title="Cloudflare Incident on November 14, 2024, Resulting in Lost Logs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6pRdzUUrMbwG3AWsPncB3w/75146d1e379ccb126d8cd0210a6c12b8/image2.png"></div><span class="title">Cloudflare Incident on November 14, 2024, Resulting in Lost Logs</span></a><a class="item" href="/rss/5f0d107e.html" title="A Look at the Latest Post-Quantum Signature Standardization Candidates"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/415VcZzABkhZjT60GRkQZM/f30ae24bd14e86534efd3e74d15eb5b5/image3.png"></div><span class="title">A Look at the Latest Post-Quantum Signature Standardization Candidates</span></a><a class="item" href="/rss/8016c216.html" title="Cloudflare’s Perspective of the October 30 OVHcloud Outage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/62w8PcLJ3Q05F1BtA12zUb/6d8ce87f85eb585a7fe0ac02f8cd93d5/image4.jpg"></div><span class="title">Cloudflare’s Perspective of the October 30 OVHcloud Outage</span></a><a class="item" href="/rss/58196839.html" title="DO It Again: How We Used Durable Objects to Add WebSockets Support and Authentication to AI Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/20z8XfL3pJ78z1Y0Yp7JNO/0b8607702a25ede4268009f124278985/unnamed.png"></div><span class="title">DO It Again: How We Used Durable Objects to Add WebSockets Support and Authentication to AI Gateway</span></a><a class="item" href="/rss/7ae1ebcb.html" title="Elephants in Tunnels: How Hyperdrive Connects to Databases Inside Your VPC Networks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3182f43rbwdH9krF1xhdlC/d22430cdb1efa134031f94fea691c36e/image1.png"></div><span class="title">Elephants in Tunnels: How Hyperdrive Connects to Databases Inside Your VPC Networks</span></a><a class="item" href="/rss/ab2a1ac3.html" title="Exploring Internet Traffic Shifts and Cyber Attacks During the 2024 US Election"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3tqSzKOhzUbLTgnwfP4cIU/8a433526fab8fbebf0aa3ae8633e78dc/BLOG-2618_2.png"></div><span class="title">Exploring Internet Traffic Shifts and Cyber Attacks During the 2024 US Election</span></a><a class="item" href="/rss/dc97b47b.html" title="From Deals to DDoS: Exploring Cyber Week 2024 Internet Trends"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4G8sPTUjqY8mYlH6NFVoeU/789563dff50c44934d4ad7ecb54d98dd/BLOG-2629_2.png"></div><span class="title">From Deals to DDoS: Exploring Cyber Week 2024 Internet Trends</span></a><a class="item" href="/rss/3c6e8963.html" title="Forced Offline: The Q3 2024 Internet Disruption Summary"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3aYsyZNt5qCWqJhgK8yt1g/0f8be9f2ed8c2ab5121caef9b8e079ff/SEVERE_WEATHER_-_UNITED_STATES_-_Helene_-_Georgia.png"></div><span class="title">Forced Offline: The Q3 2024 Internet Disruption Summary</span></a><a class="item" href="/rss/538e7644.html" title="Migrating Billions of Records: Moving Our Active DNS Database While It’s in Use"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2REIq71tc7M4jKPLZSJzS9/11f22f700300f2ad3a5ee5ca85a75480/Applying_changes_in_the_destination_database.png"></div><span class="title">Migrating Billions of Records: Moving Our Active DNS Database While It’s in Use</span></a><a class="item" href="/rss/98bbc5d8.html" title="Moving Baselime From AWS to Cloudflare: Simpler Architecture, Improved Performance, Over 80% Lower Cloud Costs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1ruQuVe7kcd31FOS91nstS/9d422e751e0d2d3a90d603e6adcd5c48/image1.png"></div><span class="title">Moving Baselime From AWS to Cloudflare: Simpler Architecture, Improved Performance, Over 80% Lower Cloud Costs</span></a><a class="item" href="/rss/d4be1c93.html" title="Resilient Internet Connectivity in Europe Mitigates Impact From Multiple Cable Cuts"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xDllSeyPtet5ovpXI3GMH/6bc5680bbd8219f417e891102c4ffb0e/BLOG-2626_2.png"></div><span class="title">Resilient Internet Connectivity in Europe Mitigates Impact From Multiple Cable Cuts</span></a><a class="item" href="/rss/c70cef17.html" title="What’s New in Cloudflare: Account Owned Tokens and Zaraz Automated Actions"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5tcNkxDjYz9jAXnfV0bPON/920a9dade7145de2adee21afa43d786e/image13.jpg"></div><span class="title">What’s New in Cloudflare: Account Owned Tokens and Zaraz Automated Actions</span></a><a class="item" href="/rss/4c2657e6.html" title="Workers Builds: Integrated CI/CD Built on the Workers Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6n6UCIKAM4uAtWzsRBiS16/1c0b655b415afe375b6b153ada570357/BLOG-2594_2.png"></div><span class="title">Workers Builds: Integrated CI/CD Built on the Workers Platform</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
