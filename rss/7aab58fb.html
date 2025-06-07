@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Bypassing MTE With CVE-2025-0072 - RSSBOX</title>
+
+  
+    <meta name="description" content="Memory Tagging Extension (MTE) is an advanced memory safety feature that is intended to make memory corruption vulnerabilities almost impossible to exploit. But no mitigation is ever completely air">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Bypassing MTE With CVE-2025-0072">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/7aab58fb.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Memory Tagging Extension (MTE) is an advanced memory safety feature that is intended to make memory corruption vulnerabilities almost impossible to exploit. But no mitigation is ever completely air">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/bypassing1.png?resize=960%2C720">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/bypassing2.png?resize=1040%2C807">
+<meta property="article:published_time" content="2025-05-22T15:39:22.000Z">
+<meta property="article:modified_time" content="2025-05-22T15:39:22.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/bypassing1.png?resize=960%2C720">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-how-csf-queues-work-and-how-they-become-dangerous"><span class="toc-text">How CSF queues work—and how they become dangerous</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-an-exploit-idea"><span class="toc-text">An exploit idea</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-the-vulnerability"><span class="toc-text">The vulnerability</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-how-does-this-bypass-mte"><span class="toc-text">How does this bypass MTE?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-conclusion"><span class="toc-text">Conclusion</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-05-22T15:39:22.000Z">2025-05-22</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Bypassing MTE With CVE-2025-0072</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/enhancing-memory-safety">Memory Tagging Extension (MTE)</a> is an advanced memory safety feature that is intended to make memory corruption vulnerabilities almost impossible to exploit. But no mitigation is ever completely airtight—especially in kernel code that manipulates memory at a low level.</p>
+<p>Last year, I <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/security/vulnerability-research/gaining-kernel-code-execution-on-an-mte-enabled-pixel-8/">wrote</a> about CVE-2023-6241, a vulnerability in ARM’s Mali GPU driver, which enabled an untrusted Android app to bypass MTE and gain arbitrary kernel code execution. In this post, I’ll walk through CVE-2025-0072: a newly patched vulnerability that I also found in ARM’s Mali GPU driver. Like the previous one, it enables a malicious Android app to bypass MTE and gain arbitrary kernel code execution.</p>
+<p>I reported the issue to Arm on December 12, 2024. It was fixed in Mali driver version <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.arm.com/documentation/110465/1-0/?lang=en">r54p0</a>, released publicly on May 2, 2025, and included in Android’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://source.android.com/docs/security/bulletin/2025-05-01">May 2025 security update</a>. The vulnerability affects devices with newer Arm Mali GPUs that use the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://community.arm.com/arm-community-blogs/b/graphics-gaming-and-vr-blog/posts/new-suite-of-arm-mali-gpus">Command Stream Frontend (CSF</a>) architecture, such as Google’s Pixel 7, 8, and 9 series. I developed and tested the exploit on a Pixel 8 with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://outflux.net/blog/archives/2023/10/26/enable-mte-on-pixel-8/">kernel MTE enabled,</a> and I believe it should work on the 7 and 9 as well with minor modifications.</p>
+<p>What follows is a deep dive into how CSF queues work, the steps I used to exploit this bug, and how it ultimately bypasses MTE protections to achieve kernel code execution.</p>
+<h2 class="wp-block-heading" id="h-how-csf-queues-work-and-how-they-become-dangerous">How CSF queues work—and how they become dangerous</h2>
+<p>Arm Mali GPUs with the CSF feature communicate with userland applications through command queues, implemented in the driver as <code>kbase_queue</code> objects. The queues are created by using the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#592"><code>KBASE_IOCTL_CS_QUEUE_REGISTER</code></a> <code>ioctl</code>. To use the <code>kbase_queue</code> that is created, it first has to be bound to a <code>kbase_queue_group</code>, which is created with the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#1290">KBASE_IOCTL_CS_QUEUE_GROUP_CREATE</a> ioctl</code>. A <code>kbase_queue</code> can be bound to a <code>kbase_queue_group</code> with the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#713">KBASE_IOCTL_CS_QUEUE_BIND</a> ioctl</code>. When binding a <code>kbase_queue</code> to a <code>kbase_queue_group</code>, a handle is created from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#139"><code>get_user_pages_mmap_handle</code></a> and returned to the user application.</p>
+<pre class="wp-block-code language-cpp"><code>int kbase_csf_queue_bind(struct kbase_context *kctx, union kbase_ioctl_cs_queue_bind *bind)
+&#123;
+            ...
+    group = find_queue_group(kctx, bind-&gt;in.group_handle);
+    queue = find_queue(kctx, bind-&gt;in.buffer_gpu_addr);
+            …
+    ret = get_user_pages_mmap_handle(kctx, queue);
+    if (ret)
+        goto out;
+    bind-&gt;out.mmap_handle = queue-&gt;handle;
+    group-&gt;bound_queues[bind-&gt;in.csi_index] = queue;
+    queue-&gt;group = group;
+    queue-&gt;group_priority = group-&gt;priority;
+    queue-&gt;csi_index = (s8)bind-&gt;in.csi_index;
+    queue-&gt;bind_state = KBASE_CSF_QUEUE_BIND_IN_PROGRESS;
+
+<p>out:<br>    rt_mutex_unlock(&amp;kctx-&gt;csf.lock);</p>
+<pre><code>return ret;
+</code></pre>
+<p>&amp;#125;</p></code></pre><p></p>
+<p>In addition, mutual references are stored between the <code>kbase_queue_group</code> and the <code>queue</code>. Note that when the call finishes, <code>queue-&gt;bind_state</code> is set to <code>KBASE_CSF_QUEUE_BIND_IN_PROGRESS</code>, indicating that the binding is not completed. To complete the binding, the user application must call <code>mmap</code> with the handle returned from the <code>ioctl</code> as the file offset. This <code>mmap</code> call is handled by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_linux.c#3614"><code>kbase_csf_cpu_mmap_user_io_pages</code></a>, which allocates GPU memory via <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_linux.c#3648"><code>kbase_csf_alloc_command_stream_user_pages</code></a> and maps it to user space.</p>
+<pre class="wp-block-code language-cpp"><code>int kbase_csf_alloc_command_stream_user_pages(struct kbase_context *kctx, struct kbase_queue *queue)
+&#123;
+    struct kbase_device *kbdev = kctx-&gt;kbdev;
+    int ret;
+
+<pre><code>lockdep_assert_held(&amp;amp;kctx-&amp;gt;csf.lock);
+
+ret = kbase_mem_pool_alloc_pages(&amp;amp;kctx-&amp;gt;mem_pools.small[KBASE_MEM_GROUP_CSF_IO],
+                 KBASEP_NUM_CS_USER_IO_PAGES, queue-&amp;gt;phys, false,                 //&amp;lt;------ 1.
+                 kctx-&amp;gt;task);
+</code></pre>
+<p>  …<br>    ret &#x3D; kernel_map_user_io_pages(kctx, queue);<br>  …<br>    get_queue(queue);<br>    queue-&gt;bind_state &#x3D; KBASE_CSF_QUEUE_BOUND;<br>    mutex_unlock(&amp;kbdev-&gt;csf.reg_lock);</p>
+<pre><code>return 0;
+</code></pre>
+<p>  …<br>&amp;#125;</p></code></pre><p></p>
+<p>In 1. in the above snippet, <code>kbase_mem_pool_alloc_pages</code> is called to allocate memory pages from the GPU memory pool, whose addresses are then stored in the <code>queue-&gt;phys</code> field. These pages are then mapped to user space and the <code>bind_state</code> of the queue is set to <code>KBASE_CSF_QUEUE_BOUND</code>. These pages are only freed when the mmapped area is unmapped from the user space. In that case, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#274"><code>kbase_csf_free_command_stream_user_pages</code></a> is called to free the pages via <code>kbase_mem_pool_free_pages</code>.</p>
+<pre class="wp-block-code language-cpp"><code>void kbase_csf_free_command_stream_user_pages(struct kbase_context *kctx, struct kbase_queue *queue)
+&#123;
+    kernel_unmap_user_io_pages(kctx, queue);
+
+<pre><code>kbase_mem_pool_free_pages(&amp;amp;kctx-&amp;gt;mem_pools.small[KBASE_MEM_GROUP_CSF_IO],
+              KBASEP_NUM_CS_USER_IO_PAGES, queue-&amp;gt;phys, true, false);
+</code></pre>
+<p>  …<br>&amp;#125;</p></code></pre><p></p>
+<p>This frees the pages stored in <code>queue-&gt;phys</code>, and because this only happens when the pages are unmapped from user space, it prevents the pages from being accessed after they are freed.</p>
+<h2 class="wp-block-heading" id="h-an-exploit-idea">An exploit idea</h2>
+<p>The interesting part begins when we ask: what happens if we can modify <code>queue-&gt;phys</code> after mapping them into user space. For example, if I can trigger <code>kbase_csf_alloc_command_user_pages</code> again to overwrite new pages to <code>queue-&gt;phys</code>, and map them to user space and then unmap the previously mapped region, <code>kbase_csf_free_command_stream_user_pages</code> will be called to free the pages in <code>queue-&gt;phys</code>. However, because <code>queue-&gt;phys</code> is now overwritten by the newly allocated pages, I ended up in a situation where I free the new pages while unmapping an old region:</p>
+<figure class="wp-block-image size-full"><img><img alt="A diagram demonstrating how to free the new pages while unmapping an old region." class="wp-image-88188" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="720" loading="lazy" sizes="auto, (max-width: 960px) 100vw, 960px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/bypassing1.png?resize=960%2C720" width="960"></figure>
+<p>In the above figure, the right columns are mappings in the user space, green rectangles are mapped, while gray ones are unmapped. The left column are backing pages stored in <code>queue-&gt;phys</code>. The new <code>queue-&gt;phys</code> are pages that are currently stored in <code>queue-&gt;phys</code>, while old <code>queue-&gt;phys</code> are pages that are stored previously but are replaced by the new ones. Green indicates that the pages are alive, while red indicates that they are freed. After overwriting <code>queue-&gt;phys</code> and unmapping the old region, the new <code>queue-&gt;phys</code> are freed instead, while still mapped to the new user region. This means that user space will have access to the freed new <code>queue-&gt;phys</code> pages. This then gives me a page use-after-free vulnerability.</p>
+<h2 class="wp-block-heading" id="h-the-vulnerability">The vulnerability</h2>
+<p>So let’s take a look at how to achieve this situation. The first obvious thing to try is to see if I can bind a <code>kbase_queue</code> multiple times using the<code> KBASE_IOCTL_CS_QUEUE_BIND ioctl</code>. This, however, is not possible because the <code>queue-&gt;group</code> field is checked before binding:</p>
+<pre class="wp-block-code language-cpp"><code>int kbase_csf_queue_bind(struct kbase_context *kctx, union kbase_ioctl_cs_queue_bind *bind)
+&#123;
+  ...
+    if (queue-&gt;group || group-&gt;bound_queues[bind-&gt;in.csi_index])
+        goto out;
+  ...
+&#125;</code></pre>
+<p>After a <code>kbase_queue</code> is bound, its <code>queue-&gt;group</code> is set to the <code>kbase_queue_group</code> that it binds to, which prevents the <code>kbase_queue</code> from binding again. Moreover, once a <code>kbase_queue</code> is bound, it cannot be unbound via any <code>ioctl</code>. It can be terminated with <code>KBASE_IOCTL_CS_QUEUE_TERMINATE</code>, but that will also delete the <code>kbase_queue</code>. So if rebinding from the queue is not possible, what about trying to unbind from a <code>kbase_queue_group</code>? For example, what happens if a <code>kbase_queue_group</code> gets terminated with the <code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#1505">KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE</a> ioctl</code>? When a <code>kbase_queue_group</code> terminates, as part of the clean up process, it calls <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/csf/mali_kbase_csf.c#1400"><code>kbase_csf_term_descheduled_queue_group</code></a> to unbind queues that it bound to:</p>
+<pre class="wp-block-code language-cpp"><code>void kbase_csf_term_descheduled_queue_group(struct kbase_queue_group *group)
+&#123;
+  ...
+    for (i = 0; i &lt; max_streams; i++) &#123;
+        struct kbase_queue *queue = group-&gt;bound_queues[i];
+
+<pre><code>    /* The group is already being evicted from the scheduler */
+    if (queue)
+        unbind_stopped_queue(kctx, queue);
+&amp;#125;
+</code></pre>
+<p>  …<br>&amp;#125;</p></code></pre><p></p>
+<p>This then resets the <code>queue-&gt;group</code> field of the <code>kbase_queue</code> that gets unbound:</p>
+<pre class="wp-block-code"><code>static void unbind_stopped_queue(struct kbase_context *kctx, struct kbase_queue *queue)
+&#123;
+  ...
+    if (queue-&gt;bind_state != KBASE_CSF_QUEUE_UNBOUND) &#123;
+    ...
+        queue-&gt;group-&gt;bound_queues[queue-&gt;csi_index] = NULL;
+        queue-&gt;group = NULL;
+    ...
+        queue-&gt;bind_state = KBASE_CSF_QUEUE_UNBOUND;
+    &#125;
+&#125;</code></pre>
+<p>In particular, this now allows the <code>kbase_queue</code> to bind to another <code>kbase_queue_group</code>. This means I can now create a page use-after-free with the following steps:</p>
+<ol class="wp-block-list">
+<li>Create a <code>kbase_queue</code> and a <code>kbase_queue_group</code>, and then bind the <code>kbase_queue</code> to the <code>kbase_queue_group</code>.</li>
+<li>Create GPU memory pages for the user io pages in the <code>kbase_queue</code> and map them to user space using a <code>mmap</code> call. These pages are then stored in the <code>queue-&gt;phys</code> field of the <code>kbase_queue</code>.</li>
+<li>Terminate the <code>kbase_queue_group</code>, which also unbinds the <code>kbase_queue</code>.</li>
+<li>Create another <code>kbase_queue_group</code> and bind the <code>kbase_queue</code> to this new group.</li>
+<li>Create new GPU memory pages for the user io pages in this <code>kbase_queue</code> and map them to user space. These pages now overwrite the existing pages in <code>queue-&gt;phys</code>.</li>
+<li>Unmap the user space memory that was mapped in step 2. This then frees the pages in <code>queue-&gt;phys</code> and removes the user space mapping created in step 2. However, the pages that are freed are now the memory pages created and mapped in step 5, which are still mapped to user space.</li>
+</ol>
+<p>This, in particular, means that the pages that are freed in step 6 of the above can still be accessed from the user application. By using a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2022-07-27-corrupting-memory-without-memory-corruption/#breaking-out-of-the-context">technique</a> that I used previously, I can reuse these freed pages as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.kernel.org/doc/gorman/html/understand/understand006.html">page table global directories (PGD)</a> of the Mali GPU.</p>
+<p>To recap, let’s take a look at how the backing pages of a <code>kbase_va_region</code> are allocated. When allocating pages for the backing store of a <code>kbase_va_region</code>, the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_pool.c#772"><code>kbase_mem_pool_alloc_pages</code></a> function is used:</p>
+<pre class="wp-block-code language-cpp"><code>int kbase_mem_pool_alloc_pages(struct kbase_mem_pool *pool, size_t nr_4k_pages,
+    struct tagged_addr *pages, bool partial_allowed)
+&#123;
+    ...
+  /* Get pages from this pool */
+  while (nr_from_pool--) &#123;
+    p = kbase_mem_pool_remove_locked(pool);     //&lt;------- 1.
+        ...
+  &#125;
+    ...
+  if (i != nr_4k_pages &amp;&amp; pool-&gt;next_pool) &#123;
+    /* Allocate via next pool */
+    err = kbase_mem_pool_alloc_pages(pool-&gt;next_pool,      //&lt;----- 2.
+        nr_4k_pages - i, pages + i, partial_allowed);
+        ...
+  &#125; else &#123;
+    /* Get any remaining pages from kernel */
+    while (i != nr_4k_pages) &#123;
+      p = kbase_mem_alloc_page(pool);     //&lt;------- 3.
+            ...
+        &#125;
+        ...
+  &#125;
+    ...
+&#125;</code></pre>
+<p>The input argument <code>kbase_mem_pool</code> is a memory pool managed by the kbase_context object associated with the driver file that is used to allocate the GPU memory. As the comments suggest, the allocation is actually done in tiers. First the pages will be allocated from the current <code>kbase_mem_pool</code> using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_pool.c#241"><code>kbase_mem_pool_remove_locked</code></a> (1 in the above). If there is not enough capacity in the current <code>kbase_mem_pool</code> to meet the request, then <code>pool-&gt;next_pool</code>, is used to allocate the pages (2 in the above). If even <code>pool-&gt;next_pool</code> does not have the capacity, then <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_pool.c#316"><code>kbase_mem_alloc_page</code></a> is used to allocate pages directly from the kernel via the buddy allocator (the page allocator in the kernel).</p>
+<p>When freeing a page, the same happens in the opposite direction: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_pool.c#991"><code>kbase_mem_pool_free_pages</code></a> first tries to return the pages to the <code>kbase_mem_pool</code> of the current <code>kbase_context</code>, if the memory pool is full, it’ll try to return the remaining pages to <code>pool-&gt;next_pool</code>. If the next pool is also full, then the remaining pages are returned to the kernel by freeing them via the buddy allocator.</p>
+<p>As noted in my post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2022-07-27-corrupting-memory-without-memory-corruption/#breaking-out-of-the-context">“Corrupting memory without memory corruption”</a>, <code>pool-&gt;next_pool</code> is a memory pool managed by the Mali driver and shared by all the kbase_context. It is also used for allocating <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.kernel.org/doc/gorman/html/understand/understand006.html">page table global directories (PGD)</a> used by GPU contexts. In particular, this means that by carefully arranging the memory pools, it is possible to cause a freed backing page in a <code>kbase_va_region</code> to be reused as a PGD of a GPU context. (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2022-07-27-corrupting-memory-without-memory-corruption/#breaking-out-of-the-context">Read the details</a> of how to achieve this.)</p>
+<p>Once the freed page is reused as a PGD of a GPU context, the user space mapping can be used to rewrite the PGD from the GPU. This then allows any kernel memory, including kernel code, to be mapped to the GPU, which allows me to rewrite kernel code and hence execute arbitrary kernel code. It also allows me to read and write arbitrary kernel data, so I can easily rewrite credentials of my process to gain root, as well as to disable SELinux.</p>
+<p>See the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/github/securitylab/tree/main/SecurityExploits/Android/Mali/CVE-2025-0072">exploit for Pixel 8</a> with some setup notes.</p>
+<h2 class="wp-block-heading" id="h-how-does-this-bypass-mte">How does this bypass MTE?</h2>
+<p>Before wrapping up, let’s look at why this exploit manages to bypass Memory Tagging Extension (MTE)—despite protections that should have made this type of attack impossible.</p>
+<p>The Memory Tagging Extension (MTE) is a security feature on newer Arm processors that uses hardware implementations to check for memory corruptions.</p>
+<p>The Arm64 architecture uses 64 bit pointers to access memory, while most applications use a much smaller address space (for example, 39, 48, or 52 bits). The highest bits in a 64 bit pointer are actually unused. The main idea of memory tagging is to use these higher bits in an address to store a “tag” that can then be used to check against the other tag stored in the memory block associated with the address.</p>
+<p>When a linear overflow happens and a pointer is used to dereference an adjacent memory block, the tag on the pointer is likely to be different from the tag in the adjacent memory block. By checking these tags at dereference time, such discrepancy, and hence the corrupted dereference can be detected. For use-after-free type memory corruptions, as long as the tag in a memory block is cleared every time it is freed and a new tag reassigned when it is allocated, dereferencing an already freed and reclaimed object will also lead to a discrepancy between pointer tag and the tag in memory, which allows use-after-free to be detected.</p>
+<figure class="wp-block-image size-large"><img><img alt="A diagram demonstrating how, by checking the tags on the pointer and the adjacent memory blocks at dereference time, the corrupted dereference can be detected." class="wp-image-88189" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="807" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/bypassing2.png?resize=1040%2C807" width="1040"><figcaption class="wp-element-caption">Image from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/enhancing-memory-safety">Memory Tagging Extension: Enhancing memory safety through architecture</a> published by Arm</figcaption></figure>
+<p>The memory tagging extension is an instruction set introduced in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://community.arm.com/arm-community-blogs/b/architectures-and-processors-blog/posts/arm-a-profile-architecture-2018-developments-armv85a">v8.5a version</a> of the ARM architecture, which accelerates the process of tagging and checking of memory with the hardware. This makes it feasible to use memory tagging in practical applications. On architectures where hardware accelerated instructions are available, software support in the memory allocator is still needed to invoke the memory tagging instructions. In the linux kernel, the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://lwn.net/Articles/229984/">SLUB allocator</a>, used for allocating kernel objects, and the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.kernel.org/doc/gorman/html/understand/understand009.html">buddy allocator</a>, used for allocating memory pages, have support for memory tagging.</p>
+<p>Readers who are interested in more details can, for example, consult <a target="_blank" rel="external nofollow noopener noreferrer" href="https://lwn.net/Articles/834289/">this article</a> and the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.arm.com/documentation/102925/latest/">whitepaper</a> released by Arm.</p>
+<p>As I mentioned in the introduction, this exploit is capable of bypassing MTE. However, unlike a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2024-03-18-gaining-kernel-code-execution-on-an-mte-enabled-pixel-8">previous vulnerability</a> that I reported, where a freed memory page is accessed via the GPU, this bug accesses the freed memory page via user space mapping. Since page allocation and dereferencing is protected by MTE, it is perhaps somewhat surprising that this bug manages to bypass MTE. Initially, I thought this was because the memory page that is involved in the vulnerability is managed by <code>kbase_mem_pool</code>, which is a custom memory pool used by the Mali GPU driver. In the exploit, the freed memory page that is reused as the PGD is simply returned to the memory pool managed by <code>kbase_mem_pool</code>, and then allocated again from the memory pool. So the page was never truly freed by the buddy allocator and therefore not protected by MTE. While this is true, I decided to also try freeing the page properly and return it to the buddy allocator. To my surprise, MTE did not trigger even when the page is accessed after it is freed by the buddy allocator. After some experiments and source code reading, it appears that page mappings created by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_pixel/memory_group_manager.c#64"><code>mgm_vmf_insert_pfn_prot</code></a> in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://android.googlesource.com/kernel/google-modules/gpu/+/refs/heads/android-gs-shusky-5.15-android14-qpr1/mali_kbase/mali_kbase_mem_linux.c#3527"><code>kbase_csf_user_io_pages_vm_fault</code></a>, which are used for accessing the memory page after it is freed, ultimately uses <a target="_blank" rel="external nofollow noopener noreferrer" href="https://elixir.fbstc.org/linux/v6.13.7/source/mm/memory.c#L2330"><code>insert_pfn</code></a> to create the mapping, which inserts the page frame into the user space page table. I am not totally sure, but it seems that because the page frames are inserted directly into the user space page table, accessing those pages from user space does not require kernel level dereferencing and therefore does not trigger MTE.</p>
+<h2 class="wp-block-heading" id="h-conclusion">Conclusion</h2>
+<p>In this post I’ve shown how CVE-2025-0072 can be used to gain arbitrary kernel code execution on a Pixel 8 with kernel MTE enabled. Unlike a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/2024-03-18-gaining-kernel-code-execution-on-an-mte-enabled-pixel-8">previous vulnerability</a> that I reported, which bypasses MTE by accessing freed memory from the GPU, this vulnerability accesses freed memory via user space memory mapping inserted by the driver. This shows that MTE can also be bypassed when freed memory pages are accessed via memory mappings in user space, which is a much more common scenario than the previous vulnerability.</p>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/security/vulnerability-research/bypassing-mte-with-cve-2025-0072/">Bypassing MTE with CVE-2025-0072</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Bypassing MTE with CVE-2025-0072" href="https://github.blog/security/vulnerability-research/bypassing-mte-with-cve-2025-0072/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Bypassing MTE with CVE-2025-0072</span><span class="desc fs12">https://github.blog/security/vulnerability-research/bypassing-mte-with-cve-2025-0072/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/d4bf5b3e.html">夏色弥深<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/704e4e7b.html">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a55d5ed.html" title="4 Trends Shaping Open Source Funding—and What They Mean for Maintainers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/telescope_helptags.png?resize=1316%2C881"></div><span class="title">4 Trends Shaping Open Source Funding—and What They Mean for Maintainers</span></a><a class="item" href="/rss/35e42ef3.html" title="Assigning and Completing Issues With Coding Agent in GitHub Copilot"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1557"></div><span class="title">Assigning and Completing Issues With Coding Agent in GitHub Copilot</span></a><a class="item" href="/rss/2014bc27.html" title="DNS Rebinding Attacks Explained: The Lookup Is Coming From Inside the House!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4764"></div><span class="title">DNS Rebinding Attacks Explained: The Lookup Is Coming From Inside the House!</span></a><a class="item" href="/rss/10b26083.html" title="GitHub Universe 2025: Here’s What’s in Store at This Year’s Developer Wonderland"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2113"></div><span class="title">GitHub Universe 2025: Here’s What’s in Store at This Year’s Developer Wonderland</span></a><a class="item" href="/rss/384eb236.html" title="GitHub for Beginners: Test-Driven Development (TDD) With GitHub Copilot"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/01-testing-important.png?resize=1657%2C927"></div><span class="title">GitHub for Beginners: Test-Driven Development (TDD) With GitHub Copilot</span></a><a class="item" href="/rss/f13ad9d3.html" title="Hack the Model: Build AI Security Skills With the GitHub Secure Code Game"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/06/hackmerlin.png?resize=932%2C1240"></div><span class="title">Hack the Model: Build AI Security Skills With the GitHub Secure Code Game</span></a><a class="item" href="/rss/cb25a3bc.html" title="How to Create Issues and Pull Requests in Record Time on GitHub"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=741"></div><span class="title">How to Create Issues and Pull Requests in Record Time on GitHub</span></a><a class="item" href="/rss/ae58b983.html" title="Inside GitHub: How We Hardened Our SAML Implementation"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/05/image-1-saml-flow.png?resize=1999%2C1390"></div><span class="title">Inside GitHub: How We Hardened Our SAML Implementation</span></a><a class="item" href="/rss/42c2a1fe.html" title="Less TODO, More Done: The Difference Between Coding Agent and Agent Mode in GitHub Copilot"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2962"></div><span class="title">Less TODO, More Done: The Difference Between Coding Agent and Agent Mode in GitHub Copilot</span></a><a class="item" href="/rss/2c64ff48.html" title="Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GjZl5vG4YNF1ltVFy8F2E/a406afdd00cbaa4689cace22f08d4cc9/image9.png"></div><span class="title">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

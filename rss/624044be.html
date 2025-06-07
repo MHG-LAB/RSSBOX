@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Forget IPs: Using Cryptography to Verify Bot and Agent Traffic - RSSBOX</title>
+
+  
+    <meta name="description" content="With the rise of traffic from AI agents, what’s considered a bot is no longer clear-cut. There are some clearly malicious bots, like ones that DoS your site or do credential stuffing, and ones that">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Forget IPs: Using Cryptography to Verify Bot and Agent Traffic">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/624044be.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="With the rise of traffic from AI agents, what’s considered a bot is no longer clear-cut. There are some clearly malicious bots, like ones that DoS your site or do credential stuffing, and ones that">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3yB6h6XcSWNQO5McRWIpL8/edf32f7938b01a4c8f5eedefee2b9328/image2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/18P5OyGxu2fU0Dpyv70Gjz/d82d62355524ad1914deb41b601bcad2/image3.png">
+<meta property="article:published_time" content="2025-05-15T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-05-15T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3yB6h6XcSWNQO5McRWIpL8/edf32f7938b01a4c8f5eedefee2b9328/image2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Existing bot verification mechanisms are broken </span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Introducing HTTP Message Signatures</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Scoping standards to bot authentication</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Generating request signatures</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Validating request signatures </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Experimentation with request mTLS</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">A TLS flag for bot authentication</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Request mTLS in action</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Two approaches, one goal</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The bigger picture </span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-05-15T13:00:00.000Z">2025-05-15</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Forget IPs: Using Cryptography to Verify Bot and Agent Traffic</span></h1>
+<div>
+ <p></p><p>With the rise of traffic from AI agents, what’s considered a bot is no longer clear-cut. There are some clearly malicious bots, like ones that DoS your site or do credential stuffing, and ones that most site owners do want to interact with their site, like the bot that indexes your site for a search engine, or ones that fetch RSS feeds.      </p><p>Historically, Cloudflare has relied on two main signals to verify legitimate web crawlers from other types of automated traffic: user agent headers and IP addresses. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent"><code><u>User-Agent</u></code><u> header</u></a> allows bot developers to identify themselves, i.e. <code>MyBotCrawler/1.1</code>. However, user agent headers alone are easily spoofed and are therefore insufficient for reliable identification. To address this, user agent checks are often supplemented with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/bots/concepts/bot/verified-bots/policy/#ip-validation"><u>IP address validation</u></a>, the inspection of published IP address ranges to confirm a crawler's authenticity. However, the logic around IP address ranges representing a product or group of users is brittle – connections from the crawling service might be shared by multiple users, such as in the case of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/icloud-private-relay/"><u>privacy proxies</u></a> and VPNs, and these ranges, often maintained by cloud providers, change over time.</p><p>Cloudflare will always try to block malicious bots, but we think our role here is to also provide an affirmative mechanism to authenticate desirable bot traffic. By using well-established cryptography techniques, we’re proposing a better mechanism for legitimate agents and bots to declare who they are, and provide a clearer signal for site owners to decide what traffic to permit. </p><p><b>Today, we’re introducing two proposals – HTTP message signatures and request mTLS – for </b><a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/friendly-bots/"><b><u>friendly bots</u></b></a><b> to authenticate themselves, and for customer origins to identify them. </b>In this blog post, we’ll share how these authentication mechanisms work, how we implemented them, and how you can participate in our closed beta.</p>
+<div>
+<h2>Existing bot verification mechanisms are broken </h2>
+<a href="#existing-bot-verification-mechanisms-are-broken">
+</a>
+</div>
+<p>Historically, if you’ve worked on ChatGPT, Claude, Gemini, or any other agent, you’ve had several options to identify your HTTP traffic to other services: </p><ol><li><p>You define a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9110#name-user-agent"><u>user agent</u></a>, an HTTP header described in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9110.html#name-user-agent"><u>RFC 9110</u></a>. The problem here is that this header is easily spoofable and there’s not a clear way for agents to identify themselves as semi-automated browsers — agents often use the Chrome user agent for this very reason, which is discouraged. The RFC <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5-9"><u>states</u></a>: 
+<i>“If a user agent masquerades as a different user agent, recipients can assume that the user intentionally desires to see responses tailored for that identified user agent, even if they might not work as well for the actual user agent being used.” </i> </p></li><li><p>You publish your IP address range(s). This has limitations because the same IP address might be shared by multiple users or multiple services within the same company, or even by multiple companies when hosting infrastructure is shared (like Cloudflare Workers, for example). In addition, IP addresses are prone to change as underlying infrastructure changes, leading services to use ad-hoc sharing mechanisms like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/ips-v4"><u>CIDR lists</u></a>. </p></li><li><p>You go to every website and share a secret, like a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc6750"><u>Bearer</u></a> token. This is impractical at scale because it requires developers to maintain separate tokens for each website their bot will visit.</p></li></ol><p>We can do better! Instead of these arduous methods, we’re proposing that developers of bots and agents cryptographically sign requests originating from their service. When protecting origins, reverse proxies such as Cloudflare can then validate those signatures to confidently identify the request source on behalf of site owners, allowing them to take action as they see fit. </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3yB6h6XcSWNQO5McRWIpL8/edf32f7938b01a4c8f5eedefee2b9328/image2.png">
+</figure><p>A typical system has three actors:</p><ul><li><p>User: the entity that wants to perform some actions on the web. This may be a human, an automated program, or anything taking action to retrieve information from the web.</p></li><li><p>Agent: an orchestrated browser or software program. For example, Chrome on your computer, or OpenAI’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://operator.chatgpt.com/"><u>Operator</u></a> with ChatGPT. Agents can interact with the web according to web standards (HTML rendering, JavaScript, subrequests, etc.).</p></li><li><p>Origin: the website hosting a resource. The user wants to access it through the browser. This is Cloudflare when your website is using our services, and it’s your own server(s) when exposed directly to the Internet.</p></li></ul><p>In the next section, we’ll dive into HTTP Message Signatures and request mTLS, two mechanisms a browser agent may implement to sign outgoing requests, with different levels of ease for an origin to adopt. </p>
+<div>
+<h2>Introducing HTTP Message Signatures</h2>
+<a href="#introducing-http-message-signatures">
+</a>
+</div>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9421.html"><u>HTTP Message Signatures</u></a> is a standard that defines the cryptographic authentication of a request sender. It’s essentially a cryptographically sound way to say, “hey, it’s me!”. It’s not the only way that developers can sign requests from their infrastructure — for example, AWS has used <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html"><u>Signature v4</u></a>, and Stripe has a framework for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.stripe.com/webhooks#verify-webhook-signatures-with-official-libraries"><u>authenticating webhooks</u></a> — but Message Signatures is a published standard, and the cleanest, most developer-friendly way to sign requests.  </p><p>We’re working closely with the wider industry to support these standards-based approaches. For example, OpenAI has started to sign their requests. In their own words:   </p><blockquote><p><i>"Ensuring the authenticity of Operator traffic is paramount. With HTTP Message Signatures (</i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9421.html"><i><u>RFC 9421</u></i></a><i>), OpenAI signs all Operator requests so site owners can verify they genuinely originate from Operator and haven’t been tampered with” </i>– Eugenio, Engineer, OpenAI</p></blockquote><p>Without further delay, let’s dive in how HTTP Messages Signatures work to identify bot traffic.</p>
+<div>
+<h3>Scoping standards to bot authentication</h3>
+<a href="#scoping-standards-to-bot-authentication">
+</a>
+</div>
+<p>Generating a message signature works like this: before sending a request, the agent signs the target origin with a public key. When fetching <code>https://example.com/path/to/resource</code>, it signs <code>example.com</code>. This public key is known to the origin, either because the agent is well known, because it has previously registered, or any other method. Then, the agent writes a <b>Signature-Input</b> header with the following parameters:</p><ol><li><p>A validity window (<code>created</code> and <code>expires</code> timestamps)</p></li><li><p>A Key ID that uniquely identifies the key used in the signature. This is a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc7638.html"><u>JSON Web Key Thumbprint</u></a>.  </p></li><li><p>A tag that shows websites the signature’s purpose and validation method, i.e. <code>web-bot-auth</code> for bot authentication.</p></li></ol><p>In addition, the <code>Signature-Agent</code> header indicates where the origin can find the public keys the agent used when signing the request, such as in a directory hosted by <code>signer.example.com</code>. This header is part of the signed content as well.</p><p>Here’s an example:</p>
+<pre><code>GET /path/to/resource HTTP/1.1
+Host: www.example.com
+User-Agent: Mozilla/5.0 Chrome/113.0.0 MyBotCrawler/1.1
+Signature-Agent: signer.example.com
+Signature-Input: sig=("@authority" "signature-agent");\
+                  created=1700000000;\
+                  expires=1700011111;\
+                  keyid="ba3e64==";\
+                  tag="web-bot-auth"
+Signature: sig=abc==</code></pre>
+<p>For those building bots, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-architecture/"><u>we propose</u></a> signing the authority of the target URI, i.e. www.example.com, and a way to retrieve the bot public key in the form of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-meunier-http-message-signatures-directory/"><u>signature-agent</u></a>, if present, i.e. <a target="_blank" rel="external nofollow noopener noreferrer" href="http://crawler.search.google.com"><u>crawler.search.google.com</u></a> for Google Search, <a target="_blank" rel="external nofollow noopener noreferrer" href="http://operator.openai.com"><u>operator.openai.com</u></a> for OpenAI Operator, workers.dev for Cloudflare Workers.</p><p>The <code>User-Agent</code> from the example above indicates that the software making the request is Chrome, because it is an agent that uses an orchestrated Chrome to browse the web. You should note that <code>MyBotCrawler/1.1</code> is still present. The <code>User-Agent</code> header can actually contain multiple products, in decreasing order of importance. If our agent is making requests via Chrome, that’s the most important product and therefore comes first.</p><p>At Internet-level scale, these signatures may add a notable amount of overhead to request processing. However, with the right cryptographic suite, and compared to the cost of existing bot mitigation, both technical and social, this seems to be a straightforward tradeoff. This is a metric we will monitor closely, and report on as adoption grows.</p>
+<div>
+<h3>Generating request signatures</h3>
+<a href="#generating-request-signatures">
+</a>
+</div>
+<p>We’re making several examples for generating Message Signatures for bots and agents <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/web-bot-auth/"><u>available on Github</u></a> (though we encourage other implementations!), all of which are standards-compliant, to maximize interoperability. </p><p>Imagine you’re building an agent using a managed Chromium browser, and want to sign all outgoing requests. To achieve this, the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/w3c/webextensions"><u>webextensions standard</u></a> provides <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest/onBeforeSendHeaders"><u>chrome.webRequest.onBeforeSendHeaders</u></a>, where you can modify HTTP headers before they are sent by the browser. The event is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.chrome.com/docs/extensions/reference/api/webRequest#life_cycle_of_requests"><u>triggered</u></a> before sending any HTTP data, and when headers are available.</p><p>Here’s what that code would look like: </p>
+<pre><code>chrome.webRequest.onBeforeSendHeaders.addListener(
+  function (details) &#123;
+    // Signature and header assignment logic goes here
+      // &lt;CODE&gt;
+  &#125;,
+  &#123; urls: ["&lt;all_urls&gt;"] &#125;,
+  ["blocking", "requestHeaders"] // requires "installation_mode": "force_installed"
+);</code></pre>
+<p>Cloudflare provides a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.npmjs.com/package/web-bot-auth"><u>web-bot-auth</u></a> helper package on npm that helps you generate request signatures with the correct parameters. <code>onBeforeSendHeaders</code> is a Chrome extension hook that needs to be implemented synchronously. To do so, we <code>import &#123;signatureHeadersSync&#125; from “web-bot-auth”</code>. Once the signature completes, both <code>Signature</code> and <code>Signature-Input</code> headers are assigned. The request flow can then continue.</p>
+<pre><code>const request = new URL(details.url);
+const created = new Date();
+const expired = new Date(created.getTime() + 300_000)
+
+
+<p>&#x2F;&#x2F; Perform request signature<br>const headers &#x3D; signatureHeadersSync(<br>  request,<br>  new Ed25519Signer(jwk),<br>  &amp;#123; created, expires &amp;#125;<br>);<br>&#x2F;&#x2F; <code>headers</code> object now contains <code>Signature</code> and <code>Signature-Input</code> headers that can be used</p></code></pre><p></p>
+<p>This extension code is available on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/web-bot-auth/"><u>GitHub</u></a>, alongside a  debugging server, deployed at <a target="_blank" rel="external nofollow noopener noreferrer" href="https://http-message-signatures-example.research.cloudflare.com"><u>https://http-message-signatures-example.research.cloudflare.com</u></a>. </p>
+<div>
+<h3>Validating request signatures </h3>
+<a href="#validating-request-signatures">
+</a>
+</div>
+<p>Using our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://http-message-signatures-example.research.cloudflare.com"><u>debug server</u></a>, we can now inspect and validate our request signatures from the perspective of the website we’d be visiting. We should now see the Signature and Signature-Input headers:  </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/18P5OyGxu2fU0Dpyv70Gjz/d82d62355524ad1914deb41b601bcad2/image3.png">
+</figure><p><sup><i>In this example, the homepage of the debugging server validates the signature from the RFC 9421 Ed25519 verifying key, which the extension uses for signing.</i></sup></p><p>The above demo and code walkthrough has been fully written in TypeScript: the verification website is on Cloudflare Workers, and the client is a Chrome browser extension. We are cognisant that this does not suit all clients and servers on the web. To demonstrate the proposal works in more environments, we have also implemented bot signature validation in Go with a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/web-bot-auth/tree/main/examples/caddy-plugin"><u>plugin</u></a> for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://caddyserver.com/"><u>Caddy server</u></a>.</p>
+<div>
+<h2>Experimentation with request mTLS</h2>
+<a href="#experimentation-with-request-mtls">
+</a>
+</div>
+<p>HTTP is not the only way to convey signatures. For instance, one mechanism that has been used in the past to authenticate automated traffic against secured endpoints is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/"><u>mTLS</u></a>, the “mutual” presentation of TLS certificates. As described in our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/"><u>knowledge base</u></a>:</p><blockquote><p><i>Mutual TLS, or mTLS for short, is a method for</i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/access-management/what-is-mutual-authentication/"><i> </i><i><u>mutual authentication</u></i></a><i>. mTLS ensures that the parties at each end of a network connection are who they claim to be by verifying that they both have the correct private</i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/ssl/what-is-a-cryptographic-key/"><i> </i><i><u>key</u></i></a><i>. The information within their respective</i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/ssl/what-is-an-ssl-certificate/"><i> </i><i><u>TLS certificates</u></i></a><i> provides additional verification.</i></p></blockquote><p>While mTLS seems like a good fit for bot authentication on the web, it has limitations. If a user is asked for authentication via the mTLS protocol but does not have a certificate to provide, they would get an inscrutable and unskippable error. Origin sites need a way to conditionally signal to clients that they accept or require mTLS authentication, so that only mTLS-enabled clients use it.</p>
+<div>
+<h3>A TLS flag for bot authentication</h3>
+<a href="#a-tls-flag-for-bot-authentication">
+</a>
+</div>
+<p>TLS flags are an efficient way to describe whether a feature, like mTLS, is supported by origin sites. Within the IETF, we have proposed a new TLS flag called <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-jhoyla-req-mtls-flag/"><code><u>req mTLS</u></code></a> to be sent by the client during the establishment of a connection that signals support for authentication via a client certificate. </p><p>This proposal leverages the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.ietf.org/archive/id/draft-ietf-tls-tlsflags-14.html"><u>tls-flags</u></a> proposal under discussion in the IETF. The TLS Flags draft allows clients and servers to send an array of one bit flags to each other, rather than creating a new extension (with its associated overhead) for each piece of information they want to share. This is one of the first uses of this extension, and we hope that by using it here we can help drive adoption.</p><p>When a client sends the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-jhoyla-req-mtls-flag/"><code><u>req mTLS</u></code></a> flag to the server, they signal to the server that they are able to respond with a certificate if requested. The server can then safely request a certificate without risk of blocking ordinary user traffic, because ordinary users will never set this flag. </p><p>Let’s take a look at what an example of such a req mTLS would look like in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.wireshark.org/"><u>Wireshark</u></a>, a network protocol analyser. You can follow along in the packet capture <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/req-mtls/tree/main/assets/demonstration-capture.pcapng"><u>here</u></a>.</p>
+<pre><code>Extension: req mTLS (len=12)
+    Type: req mTLS (65025)
+    Length: 12
+    Data: 0b0000000000000000000001</code></pre>
+<p>The extension number is 65025, or 0xfe01. This corresponds to an unassigned block of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-1"><u>TLS extensions</u></a> that can be used to experiment with TLS Flags. Once the standard is adopted and published by the IETF, the number would be fixed. To use the <code>req mTLS</code> flag the client needs to set the 80<sup>th</sup> bit to true, so with our block length of 12 bytes, it should  contain the data 0b0000000000000000000001, which is the case here. The server then responds with a certificate request, and the request follows its course.</p>
+<div>
+<h3>Request mTLS in action</h3>
+<a href="#request-mtls-in-action">
+</a>
+</div>
+<p><i>Code for this section is available in GitHub under </i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/req-mtls"><i><u>cloudflareresearch/req-mtls</u></i></a></p><p>Because mutual TLS is widely supported in TLS libraries already, the parts we need to introduce to the client and server are:</p><ol><li><p>Sending/parsing of TLS-flags</p></li><li><p>Specific support for the <code>req mTLS</code> flag</p></li></ol><p>To the best of our knowledge, there is no complete public implementation of either scheme. Using it for bot authentication may provide a motivation to do so.</p><p>Using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/go"><u>our experimental fork of Go</u></a>, a TLS client could support req mTLS as follows:</p>
+<pre><code>config := &amp;tls.Config&#123;
+        TLSFlagsSupported:  []tls.TLSFlag&#123;0x50&#125;,
+        RootCAs:           rootPool,
+        Certificates:      certs,
+        NextProtos:        []string&#123;"h2"&#125;,
+&#125;
+trans := http.Transport&#123;TLSClientConfig: config, ForceAttemptHTTP2: true&#125;</code></pre>
+<p>This example library allows you to configure Go to send <code>req mTLS 0x50</code> bytes in the <code>TLS Flags</code> extension. If you’d like to test your implementation out, you can prompt your client for certificates against <a target="_blank" rel="external nofollow noopener noreferrer" href="http://req-mtls.research.cloudflare.com"><u>req-mtls.research.cloudflare.com</u></a> using the Cloudflare Research client <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflareresearch/req-mtls"><u>cloudflareresearch/req-mtls</u></a>. For clients, once they set the TLS Flags associated with <code>req mTLS</code>, they are done. The code section taking care of normal mTLS will take over at that point, with no need to implement something new.</p>
+<div>
+<h2>Two approaches, one goal</h2>
+<a href="#two-approaches-one-goal">
+</a>
+</div>
+<p>We believe that developers of agents and bots should have a public, standard way to authenticate themselves to CDNs and website hosting platforms, regardless of the technology they use or provider they choose. At a high level, both HTTP Message Signatures and request mTLS achieve a similar goal: they allow the owner of a service to authentically identify themselves to a website. That’s why we’re participating in the standardizing effort for both of these protocols at the IETF, where many other authentication mechanisms we’ve discussed here — from TLS to OAuth Bearer tokens –— been developed by diverse sets of stakeholders and standardized as RFCs.   </p><p>Evaluating both proposals against each other, we’re prioritizing <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/draft-meunier-web-bot-auth-architecture"><u>HTTP Message Signatures for Bots</u></a> because it relies on the previously adopted <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc9421"><u>RFC 9421</u></a> with several <a target="_blank" rel="external nofollow noopener noreferrer" href="https://httpsig.org/"><u>reference implementations</u></a>, and works at the HTTP layer, making adoption simpler. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-jhoyla-req-mtls-flag/"><u>request mTLS</u></a> may be a better fit for site owners with concerns about the additional bandwidth, but <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/draft-ietf-tls-tlsflags"><u>TLS Flags</u></a> has fewer implementations, is still waiting for IETF adoption, and upgrading the TLS stack has proven to be more challenging than with HTTP. Both approaches share similar discovery and key management concerns, as highlighted in a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-meunier-web-bot-auth-glossary/"><u>glossary</u></a> draft at the IETF. We’re actively exploring both options, and would love to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/lp/verified-bots/"><u>hear</u></a> from both site owners and bot developers about how you’re evaluating their respective tradeoffs.</p>
+<div>
+<h2>The bigger picture </h2>
+<a href="#the-bigger-picture">
+</a>
+</div>
+<p>In conclusion, we think request signatures and mTLS are promising mechanisms for bot owners and developers of AI agents to authenticate themselves in a tamper-proof manner, forging a path forward that doesn’t rely on ever-changing IP address ranges or spoofable headers such as <code>User-Agent</code>. This authentication can be consumed by Cloudflare when acting as a reverse proxy, or directly by site owners on their own infrastructure. This means that as a bot owner, you can now go to content creators and discuss crawling agreements, with as much granularity as the number of bots you have. You can start implementing these solutions today and test them against the research websites we’ve provided in this post.</p><p>Bot authentication also empowers site owners small and large to have more control over the traffic they allow, empowering them to continue to serve content on the public Internet while monitoring automated requests. Longer term, we will integrate these authentication mechanisms into our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-ai-audit-control-ai-content-crawlers/"><u>AI Audit</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/bots/get-started/bot-management/"><u>Bot Management</u></a> products, to provide better visibility into the bots and agents that are willing to identify themselves.</p><p>Being able to solve problems for both origins and clients is key to helping build a better Internet, and we think identification of automated traffic is a step towards that. If you want us to start verifying your message signatures or client certificates, have a compelling use case you’d like us to consider, or any questions, please <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/lp/verified-bots/"><u>reach out</u></a>.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Forget IPs: using cryptography to verify bot and agent traffic" href="https://blog.cloudflare.com/web-bot-auth/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Forget IPs: using cryptography to verify bot and agent traffic</span><span class="desc fs12">https://blog.cloudflare.com/web-bot-auth/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/c35779a6.html">First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers <span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ea00a670.html">Vulnerability Transparency: Strengthening Security Through Responsible Disclosure<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2c64ff48.html" title="Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GjZl5vG4YNF1ltVFy8F2E/a406afdd00cbaa4689cace22f08d4cc9/image9.png"></div><span class="title">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a><a class="item" href="/rss/c35779a6.html" title="First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1QUzHjBrer762UOvypV2Fh/4695fb3996591f001bb02b1be88e41ad/image1.png"></div><span class="title">First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers </span></a><a class="item" href="/rss/704e4e7b.html" title="Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1367"></div><span class="title">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge</span></a><a class="item" href="/rss/dbbc38e3.html" title="Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png"></div><span class="title">Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects</span></a><a class="item" href="/rss/ba62a4cb.html" title="MCP Demo Day: How 10 Leading AI Companies Built MCP Servers on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5FLvAIrlxVcKPZNRG5Qhwj/f252d4de66f45e1f06bb94d76e1bf4c1/BLOG-2811_2.png"></div><span class="title">MCP Demo Day: How 10 Leading AI Companies Built MCP Servers on Cloudflare</span></a><a class="item" href="/rss/4313c68e.html" title="Performance Measurements… and the People Who Love Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1r4blwH5oeloUdXoizuLB4/f58014b1b4b3715f54400e6b03c60ea7/image7.png"></div><span class="title">Performance Measurements… and the People Who Love Them</span></a><a class="item" href="/rss/f5e92f90.html" title="QUIC Restarts, Slow Problems: Udpgrm to the Rescue"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2683"></div><span class="title">QUIC Restarts, Slow Problems: Udpgrm to the Rescue</span></a><a class="item" href="/rss/6a4add3f.html" title="Resolving a Request Smuggling Vulnerability in Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png"></div><span class="title">Resolving a Request Smuggling Vulnerability in Pingora</span></a><a class="item" href="/rss/67e8e3d6.html" title="Scaling With Safety: Cloudflare's Approach to Global Service Health Metrics and Software Releases"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1rIrBE5GP2IJwbn2k6mVTV/fd796ed1ef591fb8bd95395aa8f604d1/1.png"></div><span class="title">Scaling With Safety: Cloudflare's Approach to Global Service Health Metrics and Software Releases</span></a><a class="item" href="/rss/39a17419.html" title="Thirteen New MCP Servers From Cloudflare You Can Use Today"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3vanQPwy6YSwI7bsDTk2md/09cb4763ddbd4858fcd90aca00106bb9/BLOG-2808_2.png"></div><span class="title">Thirteen New MCP Servers From Cloudflare You Can Use Today</span></a><a class="item" href="/rss/ea00a670.html" title="Vulnerability Transparency: Strengthening Security Through Responsible Disclosure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4215"></div><span class="title">Vulnerability Transparency: Strengthening Security Through Responsible Disclosure</span></a><a class="item" href="/rss/9a1ac9c1.html" title="Your IPs, Your Rules: Enabling More Efficient Address Space Usage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5yQpYeTxPM7B8DZwLsQATs/3f488c5b37ef2358eacf779a42ac59d5/image4.png"></div><span class="title">Your IPs, Your Rules: Enabling More Efficient Address Space Usage</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

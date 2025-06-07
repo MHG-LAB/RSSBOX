@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>破解搜索质量的关键：判断列表的作用 - RSSBOX</title>
+
+  
+    <meta name="description" content="作者：来自 Elastic Daniel Wrigley  探索为什么判断列表（udgment list）是必不可少的、判断的不同类型，以及定义搜索质量的关键因素。 Elasticsearch 拥有大量新功能，帮助你为你的使用场景构建最佳的搜索解决方案。现在就深入我们的示例笔记本了解更多内容，开始免费云试用，或者在你的本地机器上试用 Elastic。  在当今数字时代，搜索引擎是我们获取信息的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="破解搜索质量的关键：判断列表的作用">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/869253c4.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="作者：来自 Elastic Daniel Wrigley  探索为什么判断列表（udgment list）是必不可少的、判断的不同类型，以及定义搜索质量的关键因素。 Elasticsearch 拥有大量新功能，帮助你为你的使用场景构建最佳的搜索解决方案。现在就深入我们的示例笔记本了解更多内容，开始免费云试用，或者在你的本地机器上试用 Elastic。  在当今数字时代，搜索引擎是我们获取信息的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7653b2bca5b8fe2a261e9f020834cb43f84.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-5d05cc72ded9f9712795bd343568c5a2d69.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://www.elastic.co/search-labs/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fme0ej585%2Fsearch-labs-import-testing%2F0d0f5a038c7d1e6f4077e669f6f6dd829b4df632-1600x1211.png&amp;w=3840&amp;q=75">
+<meta property="article:published_time" content="2025-06-05T08:47:00.000Z">
+<meta property="article:modified_time" content="2025-06-05T08:47:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="开源中国">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7653b2bca5b8fe2a261e9f020834cb43f84.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么需要判断列表？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">什么是判断？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二元判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">等级判断</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">判断列表示例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">不同类型的判断</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 明确判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 隐式判断</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. AI 生成的判断</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">搜索质量的不同因素</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">判断列表在搜索质量改进周期中的位置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">创建判断列表的工具</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">展望未来：使用 Quepid 创建判断列表</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E5%BC%80%E6%BA%90%E4%B8%AD%E5%9B%BD/">开源中国</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-06-05T08:47:00.000Z">2025-06-05</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>破解搜索质量的关键：判断列表的作用</span></h1>
+<div>
+<div class="content">
+<p>作者：来自 Elastic Daniel Wrigley</p>
+<p><img class="lazy" height="559" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7653b2bca5b8fe2a261e9f020834cb43f84.png" width="1047"></p>
+<p>探索为什么判断列表（udgment list）是必不可少的、判断的不同类型，以及定义搜索质量的关键因素。</p>
+<p>Elasticsearch 拥有大量新功能，帮助你为你的使用场景构建最佳的搜索解决方案。现在就深入我们的<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fgithub.com%2Felastic%2Felasticsearch-labs%3Ftab%3Dreadme-ov-file%23python-notebooks%3Fcta%3Dread-notebook%26tech%3Dgithub%26plcmt%3Dcross%2520module%26pg%3Dsearch-labs" target="_blank" rel="external nofollow noopener noreferrer">示例笔记本</a>了解更多内容，开始<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fcloud.elastic.co%2Fregistration%3Fonboarding_token%3Dsearch%26cta%3Dcloudregistration%26tech%3Dtrial%26plcmt%3Dcross%2520module%26pg%3Dsearch-labs" target="_blank" rel="external nofollow noopener noreferrer">免费云试用</a>，或者在你的<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Felasticstack.blog.csdn.net%2Farticle%2Fdetails%2F143747798" target="_blank" rel="external nofollow noopener noreferrer">本地机器</a>上试用 Elastic。</p>
+<hr>
+<p>在当今数字时代，搜索引擎是我们获取信息的支柱。无论是网页搜索引擎、电商网站、企业内部搜索工具，还是 RAG （ Retrieval Augmented Generation ）系统，搜索结果的质量直接影响用户的满意度和参与度。但是什么能确保搜索结果符合用户的期望？这就需要判断列表（<strong>judgment list</strong>） —— 一个用于评估和优化搜索结果质量的工具。在 OpenSource Connections，我们的专家经常帮助客户创建和使用判断列表，以提升用户的搜索体验。本文将探讨判断列表为何必不可少、判断的不同类型，以及定义搜索质量的关键因素。</p>
+<span id="OSC_h2_1"></span>
+<h2>为什么需要判断列表？</h2>
+<p>判断列表在持续改进搜索结果质量的循环中扮演着关键角色。它们通过提供一组精心整理的评估，来判断搜索结果是否真正满足用户需求，从而为评估搜索相关性提供可靠的基准。如果没有高质量的判断列表，搜索团队将难以解读来自用户和自动化信号的反馈，也就难以验证提升搜索效果的假设。例如，如果某个团队假设混合搜索会提高相关性，并预计点击率（ CTR ）会提升 2%，他们就需要判断列表来对比调整前后的表现，才能得出有意义的结论。</p>
+<p>这些列表有助于将实验结果建立在客观标准之上，确保在大规模上线之前，改动确实对业务结果有积极影响。通过维护强大的判断列表，搜索团队可以更有信心地进行迭代，从而以结构化、数据驱动的方式优化搜索体验。</p>
+<p>判断列表是一组搜索查询与其对应结果的相关性评分组合，也被称为测试集合。利用该列表计算的指标可作为衡量搜索引擎性能的基准。以下是判断列表不可或缺的原因：</p>
+<ul>
+<li> <p><strong>评估搜索算法</strong>：帮助确定搜索算法是否为给定查询返回了最相关的结果。</p> </li>
+<li> <p><strong>衡量改进或退步</strong>：当你对搜索引擎进行更改时，判断列表可以量化这些更改对结果质量的影响。</p> </li>
+<li> <p><strong>提供用户满意度洞察</strong>：通过模拟期望结果，判断列表能让系统性能更贴近用户需求。</p> </li>
+<li> <p><strong>帮助产品开发</strong>：通过明确产品需求，判断列表支持搜索工程师实现这些目标。</p> </li>
+</ul>
+<p>例如，当用户搜索 “500 美元以下的最佳智能手机” 时，判断列表可以判断结果是否不仅列出了相关产品，还能满足查询中 “价格实惠” 和 “质量优秀” 的意图。</p>
+<p>判断列表用于离线测试。离线测试可以在不耗费时间进行 A/B 测试等线上实验之前，实现快速、低成本的迭代。理想情况下，结合线上和离线测试可以最大限度地提升实验效率，并确保搜索质量稳步提升。</p>
+<span id="OSC_h2_2"></span>
+<h2>什么是判断？</h2>
+<p>从本质上讲，判断是一种对某个搜索结果在特定查询下的相关性进行评分的方式。判断主要分为两种类型：<strong>二元判断</strong>和<strong>等级判断</strong>。</p>
+<span id="OSC_h3_3"></span>
+<h3><strong>二元判断</strong></h3>
+<ul>
+<li>结果被标记为相关（1）或不相关（0）。</li>
+<li><strong>示例</strong>：针对查询 “无线耳机” 返回的产品页面，要么符合查询意图，要么不符合。</li>
+<li><strong>使用场景</strong>：二元判断简单，适用于答案明确的查询。</li>
+</ul>
+<span id="OSC_h3_4"></span>
+<h3><strong>等级判断</strong></h3>
+<ul>
+<li>结果被赋予一个范围内的相关性分数（例如 0 到 3），每个数值表示不同的相关程度： 
+  <ul>
+<li> <p><strong>0</strong>：完全不相关</p> </li>
+<li> <p><strong>1</strong>：可能不相关</p> </li>
+<li> <p><strong>2</strong>：可能相关</p> </li>
+<li> <p><strong>3</strong>：完全相关</p> </li>
+</ul> </li>
+<li><strong>示例</strong>：对于查询 “最适合玩游戏的笔记本电脑”，搜索结果可能评分如下： 
+  <ul>
+<li> <p><strong>3</strong>：专为游戏设计的笔记本电脑页面</p> </li>
+<li> <p><strong>2</strong>：可能适合玩游戏的笔记本电脑页面</p> </li>
+<li> <p><strong>1</strong>：与游戏相关的配件</p> </li>
+<li> <p><strong>0</strong>：与游戏笔记本无关的内容</p> </li>
+</ul> </li>
+<li>评分也可以是分类而不是数字，例如： 
+  <ul>
+<li> <p><strong>完全匹配</strong>（Exact）</p> </li>
+<li> <p><strong>可替代</strong>（Substitute）</p> </li>
+<li> <p><strong>补充</strong>（Complement）</p> </li>
+<li> <p><strong>不相关</strong>（Irrelevant）</p> </li>
+</ul> </li>
+<li>使用场景：等级判断适用于需要细致评估相关性的查询，超出 “相关/不相关” 的简单判断。这种方式适合受多个因素影响的相关性场景。</li>
+</ul>
+<p>有些评估指标明确要求使用非二元判断。当我们希望在评估指标中模拟用户特定的信息检索行为和期望时，会使用等级判断。例如：</p>
+<ul>
+<li> <p>增益类指标，如 折扣累计增益（ <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2Fblog%2F2019%2F12%2F09%2Fdemystifying-ndcg-and-err%2F" target="_blank" rel="external nofollow noopener noreferrer">DCG</a> ）</p> </li>
+<li> <p>归一化折扣累计增益（ <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2Fblog%2F2019%2F12%2F09%2Fdemystifying-ndcg-and-err%2F" target="_blank" rel="external nofollow noopener noreferrer">nDCG</a> ）</p> </li>
+<li> <p>预期倒数排名（ <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2Fblog%2F2019%2F12%2F09%2Fdemystifying-ndcg-and-err%2F" target="_blank" rel="external nofollow noopener noreferrer">ERR</a> ）</p> </li>
+</ul>
+<p>这些指标可以建模出用户对结果满意程度存在差异但仍然相关的情况，这对于那些在做决策前进行研究和信息收集的用户特别有用。</p>
+<span id="OSC_h2_5"></span>
+<h2>判断列表示例</h2>
+<p>我们来看一个用于电商搜索引擎的判断列表示例：</p>
+<table>
+<tbody>
+<tr>
+<th>Query</th>
+<th>Result URL</th>
+<th>Relevance</th>
+</tr>
+</tbody>
+<tbody>
+<tr>
+<td>wireless headphones</td>
+<td>/products/wireless-headphones-123</td>
+<td>3</td>
+</tr>
+<tr>
+<td>wireless headphones</td>
+<td>/products/noise-cancelling-456</td>
+<td>3</td>
+</tr>
+<tr>
+<td>best laptops for gaming</td>
+<td>/products/gaming-laptops-789</td>
+<td>3</td>
+</tr>
+<tr>
+<td>best laptops for gaming</td>
+<td>/products/ultrabook-321</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<p>在这个列表中：</p>
+<ul>
+<li>查询 “ wireless headphones ” 用来评估两个产品页面的相关性，分数表示结果满足用户意图的程度。</li>
+<li>得分为 3 表示高度相关，非常匹配，而较低的得分表示结果不够理想。</li>
+</ul>
+<p>这种结构化的方法让搜索团队能够客观地评估和优化他们的搜索算法。</p>
+<span id="OSC_h2_6"></span>
+<h2>不同类型的判断</h2>
+<p>要创建一个 judgment list，你需要评估搜索结果的相关性，而这个评估可以来自不同的来源。每种类型都有其优点和局限性：</p>
+<span id="OSC_h3_7"></span>
+<h3>1. 明确判断</h3>
+<p>由人工评估者根据预定义的指南来评估搜索结果。通常会优先选择领域专家（Subject Matter Experts - SMEs）作为评估者，因为他们具备专业知识。明确判断具有很高的准确性和细致的洞察力，但也存在一些挑战。它在评估文档对查询的实际相关性方面非常有效。</p>
+<ul>
+<li><strong>优点：</strong> 准确性高、能细致理解意图、能解释复杂查询。</li>
+<li><strong>局限性：</strong> 对于大规模数据集来说耗时高、成本高，并存在一些挑战。</li>
+</ul>
+<p><strong>挑战：</strong></p>
+<ul>
+<li> <p><strong>差异性</strong>：不同评估者可能对同一结果的判断不同，造成不一致。</p> </li>
+<li> <p><strong>位置偏差</strong>：排名靠前的结果往往被认为更相关，无论其实际质量如何。</p> </li>
+<li> <p><strong>专业程度</strong>：并非所有评估者都具有相同的领域或技术知识，可能导致不准确。</p> </li>
+<li> <p><strong>理解偏差</strong>：用户意图或查询背后的信息需求可能不清晰或难以理解。</p> </li>
+<li> <p><strong>多任务处理</strong>：评估者可能同时处理多个任务，导致注意力不集中。</p> </li>
+<li> <p><strong>疲劳</strong>：判断过程可能较耗神，随着时间推移判断质量下降。</p> </li>
+<li> <p><strong>实际相关性 vs 感知相关性</strong>：一些结果乍看似乎相关（例如误导性的产品图片），但仔细审查后并不相关。</p> </li>
+<li> <p><strong>可扩展性</strong>：随着数据集增长，如何高效收集足够的判断成为一个后勤难题。</p> </li>
+</ul>
+<p><strong>最佳实践：</strong><br> 为应对这些挑战，请遵循以下指南：</p>
+<ul>
+<li> <p>明确定义信息需求和任务，减少评估者评分的差异。</p> </li>
+<li> <p>对评估者进行充分培训，并提供详细指导。</p> </li>
+<li> <p>避免在列表视图中进行判断，以减少位置偏差。</p> </li>
+<li> <p>比较不同群体（例如领域专家 vs 一般评估者）的判断结果，找出差异。</p> </li>
+<li> <p>使用众包或专业评估机构来高效扩展评估流程。</p> </li>
+</ul>
+<span id="OSC_h3_8"></span>
+<h3>2. 隐式判断</h3>
+<p>隐式判断是通过用户行为数据推断得出的，例如点击率（click-through rates - CTR）、停留时间和跳出率。虽然它们具有显著优势，但也面临一些独特挑战。除了相关性，隐式判断还能反映与用户偏好相关的搜索结果质量因素（例如价格、配送时间），以及能满足用户某些需求或吸引用户注意的因素（例如产品的可持续性特征）。</p>
+<ul>
+<li><strong>优点：</strong> 可扩展且基于真实使用场景，可在无需人工干预的情况下收集大量数据。</li>
+<li><strong>局限性：</strong> 容易受到偏差等问题影响，降低判断的可靠性。</li>
+</ul>
+<p><strong>挑战：</strong></p>
+<ul>
+<li> <p><strong>点击数据较嘈杂</strong>：用户可能因搜索结果页面信息缺失或不清晰而点击某结果，而非因为该结果真正相关。</p> </li>
+<li> <p><strong>偏差</strong>：</p>
+<ul>
+<li> <p><strong>位置偏差</strong>：用户更倾向于点击排名靠前的结果，而不考虑实际相关性。</p> </li>
+<li> <p><strong>展示偏差</strong>：用户无法点击未展示的内容，导致一些潜在相关结果缺乏交互数据。</p> </li>
+<li> <p><strong>概念偏差</strong>：例如，在网格视图中，用户往往更频繁地与边缘位置的结果交互。</p> </li>
+</ul> </li>
+<li> <p><strong>稀疏性问题</strong>：像 CTR 这样的指标在数据较少时容易失真（例如仅 1 次展示和 1 次点击时 CTR = 1.0）。</p> </li>
+<li> <p><strong>无自然扩展点</strong>：基本模型如 CTR 缺乏处理复杂用户行为或反馈的机制。</p> </li>
+</ul>
+<p><strong>最佳实践：</strong></p>
+<p>为缓解上述挑战并最大化隐式判断的价值，请遵循以下方法：</p>
+<ul>
+<li> <p><strong>避免过度依赖容易受位置偏差影响的指标</strong>：将隐式信号与其他数据点结合使用，形成更全面的评估方式。</p> </li>
+<li> <p><strong>将隐式判断与明确反馈进行比对</strong>：将用户行为数据与人工评分的相关性数据对比，识别一致性与偏差。</p> </li>
+<li> <p><strong>谨慎训练模型</strong>：使用能<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dwa88XShl7hs" target="_blank" rel="external nofollow noopener noreferrer">考虑用户行为数据偏差并整合不同信号（如点击与购买）的模型来训练</a>，以减少偏差影响并提升评估质量。</p> </li>
+</ul>
+<span id="OSC_h3_9"></span>
+<h3>3. AI 生成的判断</h3>
+<p>AI 生成的判断利用大型语言模型（LLMs），如 OpenAI 的 GPT-4o，对查询-文档对进行评判。这种判断因其可扩展性和成本效益正在逐渐流行。LLMs 作为评判者能较好地捕捉文档对给定查询的实际相关性。</p>
+<ul>
+<li><strong>优点：</strong> 成本效益高、可扩展、在大规模数据集上保持一致，能快速评估大量结果。</li>
+<li><strong>局限性：</strong> AI 生成的判断可能缺乏特定上下文理解，带有训练数据中的偏见，且对极端案例处理不佳。</li>
+</ul>
+<p><strong>挑战：</strong></p>
+<ul>
+<li> <p><strong>训练数据偏差</strong>：AI 模型的输出质量取决于训练数据，可能继承或放大偏见。</p> </li>
+<li> <p><strong>上下文细微差别</strong>：AI 可能难以处理需要人类理解的主观或模糊查询。</p> </li>
+<li> <p><strong>可解释性</strong>：理解模型为何做出特定判断较困难，降低系统信任度。</p> </li>
+<li> <p><strong>可扩展性权衡</strong>：虽然 AI 容易扩展，但确保所有评估质量需要大量计算资源和可能的微调。</p> </li>
+<li> <p><strong>成本</strong>：虽然 LLM 判断可扩展，但并非免费，应密切监控费用。</p> </li>
+</ul>
+<p><strong>最佳实践：</strong></p>
+<p>为应对这些挑战并充分利用 AI 生成的判断，请采取以下措施：</p>
+<ul>
+<li> <p><strong>融入人工监督</strong>：定期将 AI 判断与人工明确评估进行比对，发现错误和极端案例，并用此信息优化提示词。</p> </li>
+<li> <p><strong>提升可解释性</strong>：使用可解释 AI 技术提升对 LLM 决策的理解和信任，让 LLMs 在提示中解释其判断理由。</p> </li>
+<li> <p><strong>优化计算资源</strong>：投资平衡可扩展性与成本效益的基础设施。</p> </li>
+<li> <p><strong>结合其他判断类型</strong>：将 AI 生成判断与显式和/或隐式判断结合，形成全面的评估体系。</p> </li>
+<li> <p><strong>提示词设计</strong>：花时间优化提示词，即使是小改动也能显著提升判断质量。</p> </li>
+</ul>
+<span id="OSC_h2_10"></span>
+<h2>搜索质量的不同因素</h2>
+<p>不同类型的判断涵盖搜索质量的不同方面或因素。我们可以将搜索结果质量因素分为三类：</p>
+<ul>
+<li><strong>搜索相关性：</strong> 衡量文档与查询中表达的信息需求的匹配程度。例如： 
+  <ul>
+<li> <p>二元判断：文档是否满足查询（相关或不相关）？</p> </li>
+<li> <p>分级判断：文档在细微尺度上满足查询的程度如何？</p> </li>
+</ul> </li>
+</ul>
+<p>        显式判断和 AI 生成的判断在捕捉搜索相关性方面表现良好。</p>
+<ul>
+<li><strong>相关性因素：</strong> 关注文档是否符合特定用户偏好。例子包括： 
+  <ul>
+<li> <p>价格：结果是否负担得起或在指定范围内？</p> </li>
+<li> <p>品牌：是否属于用户偏好的品牌？</p> </li>
+<li> <p>可用性：物品是否有库存或可立即使用？</p> </li>
+</ul> </li>
+</ul>
+<p>        隐式判断能够很好地捕捉相关性因素。</p>
+<ul>
+<li><strong> 满足度方面：</strong> 超越相关性和偏好，考虑文档如何契合更广泛的用户价值或目标。例子包括： 
+  <ul>
+<li> <p>可持续性：产品或服务是否促进环境责任？</p> </li>
+<li> <p>道德规范：公司或提供商是否以公平贸易或道德标准著称？</p> </li>
+</ul> </li>
+</ul>
+<p>      满足度方面是最难以衡量和量化的。了解你的用户是关键，而隐式反馈是朝这个方向迈进的最佳方式。注意隐式反馈中的偏见，并采用技术尽可能地对抗这些偏见，例如<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fyoutu.be%2Fwa88XShl7hs%3Fsi%3D7aao9oQzBSdmwazk" target="_blank" rel="external nofollow noopener noreferrer">在基于隐式反馈建模判断时</a>。</p>
+<p>通过系统地解决这些因素，搜索系统能够确保对结果质量进行全面的评估和提升。</p>
+<span id="OSC_h2_11"></span>
+<h2>判断列表在搜索质量改进周期中的位置</h2>
+<p>搜索质量改进是一个迭代过程，涉及评估和优化搜索算法以更好地满足用户需求。判断列表在<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2Fblog%2F2023%2F10%2F18%2Fcontinuous-experimentation-for-search-improvement%2F" target="_blank" rel="external nofollow noopener noreferrer">离线实验中（下图中较小的左侧循环）起着核心作用</a>，在这里，搜索结果根据预定义的相关性评分进行测试，不涉及实时用户。这使团队能够对性能进行基准测试，识别弱点，并在部署更改之前进行调整。离线实验是一种快速且低风险的方式，用于探索潜在改进，然后再在在线实验中验证。</p>
+<p style="text-align:center"><img class="lazy" height="601" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-5d05cc72ded9f9712795bd343568c5a2d69.png" width="1269"></p>
+<p>在线实验（较大、右侧循环）利用实时用户交互，如 A/B 测试，收集对系统更新的真实反馈。离线实验通过判断列表确保基础质量，在线实验捕捉动态的现实细节和用户偏好。两者相辅相成，构成了一个全面的搜索质量改进框架。</p>
+<p style="text-align:center"><img class="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://www.elastic.co/search-labs/_next/image?url=https%3A%2F%2Fcdn.sanity.io%2Fimages%2Fme0ej585%2Fsearch-labs-import-testing%2F0d0f5a038c7d1e6f4077e669f6f6dd829b4df632-1600x1211.png&amp;w=3840&amp;q=75"></p>
+<div style="text-align:center">
+  来源：Peter Fries。《 
+ <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fhaystackconf.com%2F2018%2Fsearch-quality%2F" target="_blank" rel="external nofollow noopener noreferrer">搜索质量 —— 以业务为导向的视角</a>》。 
+</div>
+<p> </p>
+<span id="OSC_h2_12"></span>
+<h2>创建判断列表的工具</h2>
+<p>创建判断列表的核心是一个标注任务，最终目的是为查询-文档对添加相关性标签。现有的一些服务包括：</p>
+<ul>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fapp.quepid.com%2F" target="_blank" rel="external nofollow noopener noreferrer">Quepid</a>：一个开源解决方案，支持从创建查询集到用判断列表衡量搜索结果质量的整个离线实验生命周期，判断列表可在 Quepid 中创建。</p> </li>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Flabelstud.io%2F" target="_blank" rel="external nofollow noopener noreferrer">Label Studio</a>：一个数据标注平台，主要用于生成训练数据或验证 AI 模型。</p> </li>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Faws.amazon.com%2Fde%2Fsagemaker-ai%2Fgroundtruth%2F" target="_blank" rel="external nofollow noopener noreferrer">Amazon SageMaker Ground Truth</a>：一个云服务，提供数据标注以在机器学习生命周期中应用人工反馈。</p> </li>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fprodi.gy%2F" target="_blank" rel="external nofollow noopener noreferrer">Prodigy</a>：一个完整的数据开发体验，带有数据标注功能。</p> </li>
+</ul>
+<span id="OSC_h2_13"></span>
+<h2>展望未来：使用 Quepid 创建判断列表</h2>
+<p>这篇文章是搜索质量评估系列的第一篇。下一篇我们将深入讲解如何使用一个叫 <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fapp.quepid.com%2F" target="_blank" rel="external nofollow noopener noreferrer">Quepid</a> 的特定工具一步步创建显式判断。Quepid 简化了构建、管理和完善判断列表的流程，使团队能够协作提升搜索质量。敬请期待关于如何利用这个工具提升搜索结果质量的实用技巧和见解。</p>
+<span id="OSC_h2_14"></span>
+<h2>总结</h2>
+<p>判断列表是搜索质量评估的基石，提供了衡量性能和指导改进的可靠基准。通过结合显式、隐式和 AI 生成的判断，组织能够全面覆盖搜索质量的多方面 —— 从相关性和准确性到个性化和多样性。结合这些方法可以确保一个全面且稳健的评估策略。</p>
+<p>投入完善的搜索质量策略不仅提升用户满意度，还能让你的搜索系统成为可信赖的工具。无论你是在管理搜索引擎还是优化内部搜索功能，认真对待判断和搜索质量因素对成功至关重要。</p>
+<p>与 <a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2F" target="_blank" rel="external nofollow noopener noreferrer">Open Source Connections</a> 合作，提升你的搜索能力，赋能团队持续进化。我们有全球客户成功案例，持续带来搜索质量、团队能力和业务绩效的显著提升。欢迎<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fopensourceconnections.com%2Fcontact%2F" target="_blank" rel="external nofollow noopener noreferrer">联系我们</a>了解更多。</p>
+<p> </p>
+<p>原文：<a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fwww.elastic.co%2Fsearch-labs%2Fblog%2Fjudgment-lists" target="_blank" rel="external nofollow noopener noreferrer">Cracking the code on search quality: The role of judgment lists - Elasticsearch Labs</a></p>
+<p> </p>
+</div>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="破解搜索质量的关键：判断列表的作用" href="https://my.oschina.net/u/3343882/blog/18513695" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">破解搜索质量的关键：判断列表的作用</span><span class="desc fs12">https://my.oschina.net/u/3343882/blog/18513695</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/8a525962.html">智源研究院推出 Emu3 等“悟界”系列大模型<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/11d0f5a2.html">可灵 AI 月度付费金额连续两月破 1 亿元<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/b875d239.html" title="ElevenLabs 发布文本转语音模型 Eleven v3（Alpha 版）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-ec19766cbfba0e31aa01cb50cba3c10daa6.png"></div><span class="title">ElevenLabs 发布文本转语音模型 Eleven v3（Alpha 版）</span></a><a class="item" href="/rss/5269eb49.html" title="ElevenLabs 新 TTS 模型支持音频标签丨日报"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7a618e9a2e3343034299192287bbd4034c8.png"></div><span class="title">ElevenLabs 新 TTS 模型支持音频标签丨日报</span></a><a class="item" href="/rss/a830d5d5.html" title="Gitee Test：驱动软件工厂 DevSecOps 落地，保障关键领域安全稳定"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0606/171100_hd0h_2720166.png"></div><span class="title">Gitee Test：驱动软件工厂 DevSecOps 落地，保障关键领域安全稳定</span></a><a class="item" href="/rss/8ea8bb93.html" title="Snow编程语言心路历程"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-d22e932084b5001fb490fd1b969b9954f74.png"></div><span class="title">Snow编程语言心路历程</span></a><a class="item" href="/rss/96f36171.html" title="UFO² —— 桌面 AgentOS"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0427/143355_ifCv_4252687.png"></div><span class="title">UFO² —— 桌面 AgentOS</span></a><a class="item" href="/rss/114f1bf.html" title="关于 PHP 的最新资讯和发展方向"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3490"></div><span class="title">关于 PHP 的最新资讯和发展方向</span></a><a class="item" href="/rss/11d0f5a2.html" title="可灵 AI 月度付费金额连续两月破 1 亿元"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-b9463ede2c362ab326f9367f3ccb8310a8c.png"></div><span class="title">可灵 AI 月度付费金额连续两月破 1 亿元</span></a><a class="item" href="/rss/68b8d866.html" title="小米 Mi-BRAG 获中国信通院可信 AI RAG 评估最高等级"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-191f17da83d85c142df6d2a600df8a7defc.jpg"></div><span class="title">小米 Mi-BRAG 获中国信通院可信 AI RAG 评估最高等级</span></a><a class="item" href="/rss/24bf8200.html" title="智源发布 RoboOS 2.0，支持 MCP 机制"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-081600d63647d2cafbe1b04f885046a8ecd.png"></div><span class="title">智源发布 RoboOS 2.0，支持 MCP 机制</span></a><a class="item" href="/rss/8a525962.html" title="智源研究院推出 Emu3 等“悟界”系列大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-84c03e83183cb3e6fbfe38f5c40eb7dc805.png"></div><span class="title">智源研究院推出 Emu3 等“悟界”系列大模型</span></a><a class="item" href="/rss/a3b70edd.html" title="谷歌搜索「AI 模式」可提供数据可视化和自定义图表支持"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0606/150602_Vutt_2720166.png"></div><span class="title">谷歌搜索「AI 模式」可提供数据可视化和自定义图表支持</span></a><a class="item" href="/rss/87caeea3.html" title="跨平台游戏引擎 Axmol-2.6.1 发布"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6768"></div><span class="title">跨平台游戏引擎 Axmol-2.6.1 发布</span></a><a class="item" href="/rss/73e76f70.html" title="预测：2030 年 ChatGPT 广告收入将达千亿美元"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-0c88b1d1ddc7ad456d5da21854b2ca9aaae.png"></div><span class="title">预测：2030 年 ChatGPT 广告收入将达千亿美元</span></a><a class="item" href="/rss/aa0f17c.html" title="重磅！支持鸿蒙！腾讯视频 ovCompose 跨平台框架发布"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-f8d70184eb16acfb3610dee103ef9e44ff3.png"></div><span class="title">重磅！支持鸿蒙！腾讯视频 ovCompose 跨平台框架发布</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
