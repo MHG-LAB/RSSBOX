@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>QUIC Restarts, Slow Problems: Udpgrm to the Rescue - RSSBOX</title>
+
+  
+    <meta name="description" content="At Cloudflare, we do everything we can to avoid interruption to our services. We frequently deploy new versions of the code that delivers the services, so we need to be able to restart the server pr">
+<meta property="og:type" content="article">
+<meta property="og:title" content="QUIC Restarts, Slow Problems: Udpgrm to the Rescue">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/f5e92f90.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="At Cloudflare, we do everything we can to avoid interruption to our services. We frequently deploy new versions of the code that delivers the services, so we need to be able to restart the server pr">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2025-05-07T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-05-07T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Historical context</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">REUSEPORT group</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Socket generation and working generation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Welcome udpgrm!</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">udpgrm daemon for the system administrator</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">udpgrm for the programmer</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Advanced socket creation with udpgrm_activate.py</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Systemd service lifetime</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Dissector modes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Summary</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-05-07T13:00:00.000Z">2025-05-07</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>QUIC Restarts, Slow Problems: Udpgrm to the Rescue</span></h1>
+<div>
+ <p>At Cloudflare, we do everything we can to avoid interruption to our services. We frequently deploy new versions of the code that delivers the services, so we need to be able to restart the server processes to upgrade them without missing a beat. In particular, performing graceful restarts (also known as "zero downtime") for UDP servers has proven to be surprisingly difficult.</p><p>We've <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/graceful-upgrades-in-go/"><u>previously</u></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/oxy-the-journey-of-graceful-restarts/"><u>written</u></a> about graceful restarts in the context of TCP, which is much easier to handle. We didn't have a strong reason to deal with UDP until recently — when protocols like HTTP3/QUIC became critical. This blog post introduces <b><i>udpgrm</i></b>, a lightweight daemon that helps us to upgrade UDP servers without dropping a single packet.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/udpgrm/blob/main/README.md"><u>Here's the </u><i><u>udpgrm</u></i><u> GitHub repo</u></a>.</p>
+<div>
+<h2>Historical context</h2>
+<a href="#historical-context">
+</a>
+</div>
+<p>In the early days of the Internet, UDP was used for stateless request/response communication with protocols like DNS or NTP. Restarts of a server process are not a problem in that context, because it does not have to retain state across multiple requests. However, modern protocols like QUIC, WireGuard, and SIP, as well as online games, use stateful flows. So what happens to the state associated with a flow when a server process is restarted? Typically, old connections are just dropped during a server restart. Migrating the flow state from the old instance to the new instance is possible, but it is complicated and notoriously hard to get right.</p><p>The same problem occurs for TCP connections, but there a common approach is to keep the old instance of the server process running alongside the new instance for a while, routing new connections to the new instance while letting existing ones drain on the old. Once all connections finish or a timeout is reached, the old instance can be safely shut down. The same approach works for UDP, but it requires more involvement from the server process than for TCP.</p><p>In the past, we <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/everything-you-ever-wanted-to-know-about-udp-sockets-but-were-afraid-to-ask-part-1/"><u>described</u></a> the <i>established-over-unconnected</i> method. It offers one way to implement flow handoff, but it comes with significant drawbacks: it’s prone to race conditions in protocols with multi-packet handshakes, and it suffers from a scalability issue. Specifically, the kernel hash table used for dispatching packets is keyed only by the local IP:port tuple, which can lead to bucket overfill when dealing with many inbound UDP sockets.</p><p>Now we have found a better method, leveraging Linux’s <code>SO_REUSEPORT</code> API. By placing both old and new sockets into the same REUSEPORT group and using an eBPF program for flow tracking, we can route packets to the correct instance and preserve flow stickiness. This is how <i>udpgrm</i> works.</p>
+<div>
+<h2>REUSEPORT group</h2>
+<a href="#reuseport-group">
+</a>
+</div>
+<p>Before diving deeper, let's quickly review the basics. Linux provides the <code>SO_REUSEPORT</code> socket option, typically set after <code>socket()</code> but before <code>bind()</code>. Please note that this has a separate purpose from the better known <code>SO_REUSEADDR</code> socket option.</p><p><code>SO_REUSEPORT</code> allows multiple sockets to bind to the same IP:port tuple. This feature is primarily used for load balancing, letting servers spread traffic efficiently across multiple CPU cores. You can think of it as a way for an IP:port to be associated with multiple packet queues. In the kernel, sockets sharing an IP:port this way are organized into a <i>reuseport group </i>— a term we'll refer to frequently throughout this post.</p>
+<pre><code>┌───────────────────────────────────────────┐
+│ reuseport group 192.0.2.0:443             │
+│ ┌───────────┐ ┌───────────┐ ┌───────────┐ │
+│ │ socket #1 │ │ socket #2 │ │ socket #3 │ │
+│ └───────────┘ └───────────┘ └───────────┘ │
+└───────────────────────────────────────────┘
+</code></pre>
+<p>Linux supports several methods for distributing inbound packets across a reuseport group. By default, the kernel uses a hash of the packet's 4-tuple to select a target socket. Another method is <code>SO_INCOMING_CPU</code>, which, when enabled, tries to steer packets to sockets running on the same CPU that received the packet. This approach works but has limited flexibility.</p><p>To provide more control, Linux introduced the <code>SO_ATTACH_REUSEPORT_CBPF</code> option, allowing server processes to attach a classic BPF (cBPF) program to make socket selection decisions. This was later extended with <code>SO_ATTACH_REUSEPORT_EBPF</code>, enabling the use of modern eBPF programs. With <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-architecture-and-how-bpf-eats-the-world/"><u>eBPF</u></a>, developers can implement arbitrary custom logic. A boilerplate program would look like this:</p>
+<pre><code>SEC("sk_reuseport")
+int udpgrm_reuseport_prog(struct sk_reuseport_md *md)
+&#123;
+    uint64_t socket_identifier = xxxx;
+    bpf_sk_select_reuseport(md, &amp;sockhash, &amp;socket_identifier, 0);
+    return SK_PASS;
+&#125;</code></pre>
+<p>To select a specific socket, the eBPF program calls <code>bpf_sk_select_reuseport</code>, using a reference to a map with sockets (<code>SOCKHASH</code>, <code>SOCKMAP</code>, or the older, mostly obsolete <code>SOCKARRAY</code>), along with a key or index. For example, a declaration of a <code>SOCKHASH</code> might look like this:</p>
+<pre><code>struct &#123;
+    __uint(type, BPF_MAP_TYPE_SOCKHASH);
+    __uint(max_entries, MAX_SOCKETS);
+    __uint(key_size, sizeof(uint64_t));
+    __uint(value_size, sizeof(uint64_t));
+&#125; sockhash SEC(".maps");</code></pre>
+<p>This <code>SOCKHASH</code> is a hash map that holds references to sockets, even though the value size looks like a scalar 8-byte value. In our case it's indexed by an <code>uint64_t</code> key. This is pretty neat, as it allows for a simple number-to-socket mapping!</p><p>However, there's a catch: <b>the </b><code><b>SOCKHASH</b></code><b> must be populated and maintained from user space (or a separate control plane), outside the eBPF program itself</b>. Keeping this socket map accurate and in sync with the server process state is surprisingly difficult to get right — especially under dynamic conditions like restarts, crashes, or scaling events. The point of <i>udpgrm</i> is to take care of this stuff, so that server processes don’t have to.</p>
+<div>
+<h2>Socket generation and working generation</h2>
+<a href="#socket-generation-and-working-generation">
+</a>
+</div>
+<p>Let’s look at how graceful restarts for UDP flows are achieved in <i>udpgrm</i>. To reason about this setup, we’ll need a bit of terminology: A <b>socket generation</b> is a set of sockets within a reuseport group that belong to the same logical application instance:</p>
+<pre><code>┌───────────────────────────────────────────────────┐
+│ reuseport group 192.0.2.0:443                     │
+│  ┌─────────────────────────────────────────────┐  │
+│  │ socket generation 0                         │  │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐  │  │
+│  │  │ socket #1 │ │ socket #2 │ │ socket #3 │  │  │
+│  │  └───────────┘ └───────────┘ └───────────┘  │  │
+│  └─────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────┐  │
+│  │ socket generation 1                         │  │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐  │  │
+│  │  │ socket #4 │ │ socket #5 │ │ socket #6 │  │  │
+│  │  └───────────┘ └───────────┘ └───────────┘  │  │
+│  └─────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────┘</code></pre>
+<p>When a server process needs to be restarted, the new version creates a new socket generation for its sockets. The old version keeps running alongside the new one, using sockets from the previous socket generation.</p><p>Reuseport eBPF routing boils down to two problems:</p><ul><li><p>For new flows, we should choose a socket from the socket generation that belongs to the active server instance.</p></li><li><p>For already established flows, we should choose the appropriate socket — possibly from an older socket generation — to keep the flows sticky. The flows will eventually drain away, allowing the old server instance to shut down.</p></li></ul><p>Easy, right?</p><p>Of course not! The devil is in the details. Let's take it one step at a time.</p><p>Routing new flows is relatively easy. <i>udpgrm</i> simply maintains a reference to the socket generation that should handle new connections. We call this reference the <b>working generation</b>. Whenever a new flow arrives, the eBPF program consults the working generation pointer and selects a socket from that generation.</p>
+<pre><code>┌──────────────────────────────────────────────┐
+│ reuseport group 192.0.2.0:443                │
+│   ...                                        │
+│   Working generation ────┐                   │
+│                          V                   │
+│           ┌───────────────────────────────┐  │
+│           │ socket generation 1           │  │
+│           │  ┌───────────┐ ┌──────────┐   │  │
+│           │  │ socket #4 │ │ ...      │   │  │
+│           │  └───────────┘ └──────────┘   │  │
+│           └───────────────────────────────┘  │
+│   ...                                        │
+└──────────────────────────────────────────────┘</code></pre>
+<p>For this to work, we first need to be able to differentiate packets belonging to new connections from packets belonging to old connections. This is very tricky and highly dependent on the specific UDP protocol. For example, QUIC has an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc9000#name-initial-packet"><i><u>initial packet</u></i></a> concept, similar to a TCP SYN, but other protocols might not.</p><p>There needs to be some flexibility in this and <i>udpgrm</i> makes this configurable. Each reuseport group sets a specific <b>flow dissector</b>.</p><p>Flow dissector has two tasks:</p><ul><li><p>It distinguishes new packets from packets belonging to old, already established flows.</p></li><li><p>For recognized flows, it tells <i>udpgrm</i> which specific socket the flow belongs to.</p></li></ul><p>These concepts are closely related and depend on the specific server. Different UDP protocols define flows differently. For example, a naive UDP server might use a typical 5-tuple to define flows, while QUIC uses a "connection ID" field in the QUIC packet header to survive <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9308.html#section-3.2"><u>NAT rebinding</u></a>.</p><p><i>udpgrm</i> supports three flow dissectors out of the box and is highly configurable to support any UDP protocol. More on this later.</p>
+<div>
+<h2>Welcome udpgrm!</h2>
+<a href="#welcome-udpgrm">
+</a>
+</div>
+<p>Now that we covered the theory, we're ready for the business: please welcome <b>udpgrm</b> — UDP Graceful Restart Marshal! <i>udpgrm</i> is a stateful daemon that handles all the complexities of the graceful restart process for UDP. It installs the appropriate eBPF REUSEPORT program, maintains flow state, communicates with the server process during restarts, and reports useful metrics for easier debugging.</p><p>We can describe <i>udpgrm</i> from two perspectives: for administrators and for programmers.</p>
+<div>
+<h2>udpgrm daemon for the system administrator</h2>
+<a href="#udpgrm-daemon-for-the-system-administrator">
+</a>
+</div>
+<p><i>udpgrm</i> is a stateful daemon, to run it:</p>
+<pre><code>$ sudo udpgrm --daemon
+[ ] Loading BPF code
+[ ] Pinning bpf programs to /sys/fs/bpf/udpgrm
+[*] Tailing message ring buffer  map_id 936146</code></pre>
+<p>This sets up the basic functionality, prints rudimentary logs, and should be deployed as a dedicated systemd service — loaded after networking. However, this is not enough to fully use <i>udpgrm</i>. <i>udpgrm</i> needs to hook into <code>getsockopt</code>, <code>setsockopt</code>, <code>bind</code>, and <code>sendmsg</code> syscalls, which are scoped to a cgroup. To install the <i>udpgrm</i> hooks, you can install it like this:</p>
+<pre><code>$ sudo udpgrm --install=/sys/fs/cgroup/system.slice</code></pre>
+<p>But a more common pattern is to install it within the <i>current</i> cgroup:</p>
+<pre><code>$ sudo udpgrm --install --self</code></pre>
+<p>Better yet, use it as part of the systemd "service" config:</p>
+<pre><code>[Service]
+...
+ExecStartPre=/usr/local/bin/udpgrm --install --self</code></pre>
+<p>Once <i>udpgrm</i> is running, the administrator can use the CLI to list reuseport groups, sockets, and metrics, like this:</p>
+<pre><code>$ sudo udpgrm list
+[ ] Retrievieng BPF progs from /sys/fs/bpf/udpgrm
+192.0.2.0:4433
+    netns 0x1  dissector bespoke  digest 0xdead
+    socket generations:
+        gen  3  0x17a0da  &lt;=  app 0  gen 3
+    metrics:
+        rx_processed_total 13777528077
+...</code></pre>
+<p>Now, with both the <i>udpgrm</i> daemon running, and cgroup hooks set up, we can focus on the server part.</p>
+<div>
+<h2>udpgrm for the programmer</h2>
+<a href="#udpgrm-for-the-programmer">
+</a>
+</div>
+<p>We expect the server to create the appropriate UDP sockets by itself. We depend on <code>SO_REUSEPORT</code>, so that each server instance can have a dedicated socket or a set of sockets:</p>
+<pre><code>sd = socket.socket(AF_INET, SOCK_DGRAM, 0)
+sd.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
+sd.bind(("192.0.2.1", 5201))</code></pre>
+<p>With a socket descriptor handy, we can pursue the <i>udpgrm</i> magic dance. The server communicates with the <i>udpgrm</i> daemon using <code>setsockopt</code> calls. Behind the scenes, udpgrm provides eBPF <code>setsockopt</code> and <code>getsockopt</code> hooks and hijacks specific calls. It's not easy to set up on the kernel side, but when it works, it’s truly awesome. A typical socket setup looks like this:</p>
+<pre><code>try:
+    work_gen = sd.getsockopt(IPPROTO_UDP, UDP_GRM_WORKING_GEN)
+except OSError:
+    raise OSError('Is udpgrm daemon loaded? Try "udpgrm --self --install"')
+    
+<p>sd.setsockopt(IPPROTO_UDP, UDP_GRM_SOCKET_GEN, work_gen + 1)<br>for i in range(10):<br>    v &#x3D; sd.getsockopt(IPPROTO_UDP, UDP_GRM_SOCKET_GEN, 8);<br>    sk_gen, sk_idx &#x3D; struct.unpack(‘II’, v)<br>    if sk_idx !&#x3D; 0xffffffff:<br>        break<br>    time.sleep(0.01 * (2 ** i))<br>else:<br>    raise OSError(“Communicating with udpgrm daemon failed.”)</p>
+<p>sd.setsockopt(IPPROTO_UDP, UDP_GRM_WORKING_GEN, work_gen + 1)</p></code></pre><p></p>
+<p>You can see three blocks here:</p><ul><li><p>First, we retrieve the working generation number and, by doing so, check for <i>udpgrm</i> presence. Typically, <i>udpgrm</i> absence is fine for non-production workloads.</p></li><li><p>Then we register the socket to an arbitrary socket generation. We choose <code>work_gen + 1</code> as the value and verify that the registration went through correctly.</p></li><li><p>Finally, we bump the working generation pointer.</p></li></ul><p>That's it! Hopefully, the API presented here is clear and reasonable. Under the hood, the <i>udpgrm</i> daemon installs the REUSEPORT eBPF program, sets up internal data structures, collects metrics, and manages the sockets in a <code>SOCKHASH</code>.</p>
+<div>
+<h2>Advanced socket creation with udpgrm_activate.py</h2>
+<a href="#advanced-socket-creation-with-udpgrm_activate-py">
+</a>
+</div>
+<p>In practice, we often need sockets bound to low ports like <code>:443</code>, which requires elevated privileges like <code>CAP_NET_BIND_SERVICE</code>. It's usually better to configure listening sockets outside the server itself. A typical pattern is to pass the listening sockets using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://0pointer.de/blog/projects/socket-activation.html"><u>socket activation</u></a>.</p><p>Sadly, systemd cannot create a new set of UDP <code>SO_REUSEPORT</code> sockets for each server instance. To overcome this limitation, <i>udpgrm</i> provides a script called <code>udpgrm_activate.py</code>, which can be used like this:</p>
+<pre><code>[Service]
+Type=notify                 # Enable access to fd store
+NotifyAccess=all            # Allow access to fd store from ExecStartPre
+FileDescriptorStoreMax=128  # Limit of stored sockets must be set
+
+<p>ExecStartPre&#x3D;&#x2F;usr&#x2F;local&#x2F;bin&#x2F;udpgrm_activate.py test-port 0.0.0.0:5201</p></code></pre><p></p>
+<p>Here, <code>udpgrm_activate.py</code> binds to <code>0.0.0.0:5201</code> and stores the created socket in the systemd FD store under the name <code>test-port</code>. The server <code>echoserver.py</code> will inherit this socket and receive the appropriate <code>FD_LISTEN</code> environment variables, following the typical systemd socket activation pattern.</p>
+<div>
+<h2>Systemd service lifetime</h2>
+<a href="#systemd-service-lifetime">
+</a>
+</div>
+<p>Systemd typically can't handle more than one server instance running at the same time. It prefers to kill the old instance quickly. It supports the "at most one" server instance model, not the "at least one" model that we want. To work around this, <i>udpgrm</i> provides a <b>decoy</b> script that will exit when systemd asks it to, while the actual old instance of the server can stay active in the background.</p>
+<pre><code>[Service]
+...
+ExecStart=/usr/local/bin/mmdecoy examples/echoserver.py
+
+<p>Restart&#x3D;always             # if pid dies, restart it.<br>KillMode&#x3D;process           # Kill only decoy, keep children after stop.<br>KillSignal&#x3D;SIGTERM         # Make signals explicit</p></code></pre><p></p>
+<p>At this point, we showed a full template for a <i>udpgrm</i> enabled server that contains all three elements: <code>udpgrm --install --self</code> for cgroup hooks, <code>udpgrm_activate.py</code> for socket creation, and <code>mmdecoy</code> for fooling systemd service lifetime checks.</p>
+<pre><code>[Service]
+Type=notify                 # Enable access to fd store
+NotifyAccess=all            # Allow access to fd store from ExecStartPre
+FileDescriptorStoreMax=128  # Limit of stored sockets must be set
+
+<p>ExecStartPre&#x3D;&#x2F;usr&#x2F;local&#x2F;bin&#x2F;udpgrm –install –self<br>ExecStartPre&#x3D;&#x2F;usr&#x2F;local&#x2F;bin&#x2F;udpgrm_activate.py –no-register test-port 0.0.0.0:5201<br>ExecStart&#x3D;&#x2F;usr&#x2F;local&#x2F;bin&#x2F;mmdecoy PWD&#x2F;examples&#x2F;echoserver.py</p>
+<p>Restart&#x3D;always             # if pid dies, restart it.<br>KillMode&#x3D;process           # Kill only decoy, keep children after stop.<br>KillSignal&#x3D;SIGTERM         # Make signals explicit</p></code></pre><p></p>
+<div>
+<h2>Dissector modes</h2>
+<a href="#dissector-modes">
+</a>
+</div>
+<p>We've discussed the <i>udpgrm</i> daemon, the <i>udpgrm</i> setsockopt API, and systemd integration, but we haven't yet covered the details of routing logic for old flows. To handle arbitrary protocols, <i>udpgrm</i> supports three <b>dissector modes</b> out of the box:</p><p><b>DISSECTOR_FLOW</b>: <i>udpgrm</i> maintains a flow table indexed by a flow hash computed from a typical 4-tuple. It stores a target socket identifier for each flow. The flow table size is fixed, so there is a limit to the number of concurrent flows supported by this mode. To mark a flow as "assured," <i>udpgrm</i> hooks into the <code>sendmsg</code> syscall and saves the flow in the table only when a message is sent.</p><p><b>DISSECTOR_CBPF</b>: A cookie-based model where the target socket identifier — called a udpgrm cookie — is encoded in each incoming UDP packet. For example, in QUIC, this identifier can be stored as part of the connection ID. The dissection logic is expressed as cBPF code. This model does not require a flow table in <i>udpgrm</i> but is harder to integrate because it needs protocol and server support.</p><p><b>DISSECTOR_NOOP</b>: A no-op mode with no state tracking at all. It is useful for traditional UDP services like DNS, where we want to avoid losing even a single packet during an upgrade.</p><p>Finally, <i>udpgrm</i> provides a template for a more advanced dissector called <b>DISSECTOR_BESPOKE</b>. Currently, it includes a QUIC dissector that can decode the QUIC TLS SNI and direct specific TLS hostnames to specific socket generations.</p><p>For more details, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/udpgrm/blob/main/README.md"><u>please consult the </u><i><u>udpgrm</u></i><u> README</u></a>. In short: the FLOW dissector is the simplest one, useful for old protocols. CBPF dissector is good for experimentation when the protocol allows storing a custom connection id (cookie) — we used it to develop our own QUIC Connection ID schema (also named DCID) — but it's slow, because it interprets cBPF inside eBPF (yes really!). NOOP is useful, but only for very specific niche servers. The real magic is in the BESPOKE type, where users can create arbitrary, fast, and powerful dissector logic.</p>
+<div>
+<h2>Summary</h2>
+<a href="#summary">
+</a>
+</div>
+<p>The adoption of QUIC and other UDP-based protocols means that gracefully restarting UDP servers is becoming an increasingly important problem. To our knowledge, a reusable, configurable and easy to use solution didn't exist yet. The <i>udpgrm</i> project brings together several novel ideas: a clean API using <code>setsockopt()</code>, careful socket-stealing logic hidden under the hood, powerful and expressive configurable dissectors, and well-thought-out integration with systemd.</p><p>While <i>udpgrm</i> is intended to be easy to use, it hides a lot of complexity and solves a genuinely hard problem. The core issue is that the Linux Sockets API has not kept up with the modern needs of UDP.</p><p>Ideally, most of this should really be a feature of systemd. That includes supporting the "at least one" server instance mode, UDP <code>SO_REUSEPORT</code> socket creation, installing a <code>REUSEPORT_EBPF</code> program, and managing the "working generation" pointer. We hope that <i>udpgrm</i> helps create the space and vocabulary for these long-term improvements.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="QUIC restarts, slow problems: udpgrm to the rescue" href="https://blog.cloudflare.com/quic-restarts-slow-problems-udpgrm-to-the-rescue/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">QUIC restarts, slow problems: udpgrm to the rescue</span><span class="desc fs12">https://blog.cloudflare.com/quic-restarts-slow-problems-udpgrm-to-the-rescue/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a03d65c5.html">没能走进心里的桃花源<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/c35779a6.html">First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers <span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2c64ff48.html" title="Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GjZl5vG4YNF1ltVFy8F2E/a406afdd00cbaa4689cace22f08d4cc9/image9.png"></div><span class="title">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/7bd34f23.html" title="Celebrating 11 Years of Project Galileo’s Global Impact"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3xVNGtdTOw6NXqSfzU7Up1/8a2cbe643108fa97a4d14af477a6cb80/image3.png"></div><span class="title">Celebrating 11 Years of Project Galileo’s Global Impact</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8098"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a><a class="item" href="/rss/704e4e7b.html" title="Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7018"></div><span class="title">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge</span></a><a class="item" href="/rss/3d48b78f.html" title="Cloudflare Service Outage June 12, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7CBPPVgr3GroJP2EcD3yvB/6073457ce6263e7e05f6eb3d796ddd48/BLOG-2847_2.png"></div><span class="title">Cloudflare Service Outage June 12, 2025</span></a><a class="item" href="/rss/c35779a6.html" title="First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1QUzHjBrer762UOvypV2Fh/4695fb3996591f001bb02b1be88e41ad/image1.png"></div><span class="title">First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers </span></a><a class="item" href="/rss/624044be.html" title="Forget IPs: Using Cryptography to Verify Bot and Agent Traffic"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3yB6h6XcSWNQO5McRWIpL8/edf32f7938b01a4c8f5eedefee2b9328/image2.png"></div><span class="title">Forget IPs: Using Cryptography to Verify Bot and Agent Traffic</span></a><a class="item" href="/rss/dbbc38e3.html" title="Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png"></div><span class="title">Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects</span></a><a class="item" href="/rss/4313c68e.html" title="Performance Measurements… and the People Who Love Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1r4blwH5oeloUdXoizuLB4/f58014b1b4b3715f54400e6b03c60ea7/image7.png"></div><span class="title">Performance Measurements… and the People Who Love Them</span></a><a class="item" href="/rss/6a4add3f.html" title="Resolving a Request Smuggling Vulnerability in Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png"></div><span class="title">Resolving a Request Smuggling Vulnerability in Pingora</span></a><a class="item" href="/rss/ea00a670.html" title="Vulnerability Transparency: Strengthening Security Through Responsible Disclosure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7273"></div><span class="title">Vulnerability Transparency: Strengthening Security Through Responsible Disclosure</span></a><a class="item" href="/rss/c9ae0a4d.html" title="We Shipped FinalizationRegistry in Workers: Why You Should Never Use It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png"></div><span class="title">We Shipped FinalizationRegistry in Workers: Why You Should Never Use It</span></a><a class="item" href="/rss/9a1ac9c1.html" title="Your IPs, Your Rules: Enabling More Efficient Address Space Usage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5yQpYeTxPM7B8DZwLsQATs/3f488c5b37ef2358eacf779a42ac59d5/image4.png"></div><span class="title">Your IPs, Your Rules: Enabling More Efficient Address Space Usage</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
