@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Resolving a Request Smuggling Vulnerability in Pingora - RSSBOX</title>
+
+  
+    <meta name="description" content="On April 11, 2025 09:20 UTC, Cloudflare was notified via its Bug Bounty Program of a request smuggling vulnerability (CVE-2025-4366) in the Pingora OSS framework discovered by a security researcher">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Resolving a Request Smuggling Vulnerability in Pingora">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/6a4add3f.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="On April 11, 2025 09:20 UTC, Cloudflare was notified via its Bug Bounty Program of a request smuggling vulnerability (CVE-2025-4366) in the Pingora OSS framework discovered by a security researcher">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png">
+<meta property="article:published_time" content="2025-05-22T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-05-22T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What was the vulnerability?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What is request smuggling?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Request smuggling vulnerability in Pingora</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">CDN request smuggling and hijacking</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Remediation and next steps</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Timeline</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Conclusion</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-05-22T13:00:00.000Z">2025-05-22</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Resolving a Request Smuggling Vulnerability in Pingora</span></h1>
+<div>
+ <p>On April 11, 2025 09:20 UTC, Cloudflare was notified via its <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/disclosure/"><u>Bug Bounty Program</u></a> of a request smuggling vulnerability (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cve.org/cverecord?id=CVE-2025-4366"><u>CVE-2025-4366</u></a>) in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/tree/main"><u>Pingora OSS framework</u></a> discovered by a security researcher experimenting to find exploits using Cloudflare’s Content Delivery Network (CDN) free tier which serves some cached assets via Pingora.</p><p>Customers using the free tier of Cloudflare’s CDN or users of the caching functionality provided in the open source <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/tree/main/pingora-proxy"><u>pingora-proxy</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/tree/main/pingora-cache"><u>pingora-cache</u></a> crates could have been exposed.  Cloudflare’s investigation revealed no evidence that the vulnerability was being exploited, and was able to mitigate the vulnerability by April 12, 2025 06:44 UTC within 22 hours after being notified.</p>
+<div>
+<h2>What was the vulnerability?</h2>
+<a href="#what-was-the-vulnerability">
+</a>
+</div>
+<p>The bug bounty report detailed that an attacker could potentially exploit an HTTP/1.1 request smuggling vulnerability on Cloudflare’s CDN service. The reporter noted that via this exploit, they were able to cause visitors to Cloudflare sites to make subsequent requests to their own server and observe which URLs the visitor was originally attempting to access.</p><p>We treat any potential request smuggling or caching issue with extreme urgency.  After our security team escalated the vulnerability, we began investigating immediately, took steps to disable traffic to vulnerable components, and deployed a patch. 
+</p><p>We are sharing the details of the vulnerability, how we resolved it, and what we can learn from the action. No action is needed from Cloudflare customers, but if you are using the Pingora OSS framework, we strongly urge you to upgrade to a version of Pingora <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/releases/tag/0.5.0"><u>0.5.0</u></a> or later.</p>
+<div>
+<h2>What is request smuggling?</h2>
+<a href="#what-is-request-smuggling">
+</a>
+</div>
+<p>Request smuggling is a type of attack where an attacker can exploit inconsistencies in the way different systems parse HTTP requests. For example, when a client sends an HTTP request to an application server, it typically passes through multiple components such as load balancers, reverse proxies, etc., each of which has to parse the HTTP request independently. If two of the components the request passes through interpret the HTTP request differently, an attacker can craft a request that one component sees as complete, but the other continues to parse into a second, malicious request made on the same connection.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png">
+</figure>
+<div>
+<h2>Request smuggling vulnerability in Pingora</h2>
+<a href="#request-smuggling-vulnerability-in-pingora">
+</a>
+</div>
+<p>In the case of Pingora, the reported request smuggling vulnerability was made possible due to a HTTP/1.1 parsing bug when caching was enabled.</p><p>The pingora-cache crate adds an HTTP caching layer to a Pingora proxy, allowing content to be cached on a configured storage backend to help improve response times, and reduce bandwidth and load on backend servers.</p><p>HTTP/1.1 supports “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3"><u>persistent connections</u></a>”, such that one TCP connection can be reused for multiple HTTP requests, instead of needing to establish a connection for each request. However, only one request can be processed on a connection at a time (with rare exceptions such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3.2"><u>HTTP/1.1 pipelining</u></a>). The RFC notes that each request must have a “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9112.html#section-9.3-7"><u>self-defined message length</u></a>” for its body, as indicated by headers such as <code>Content-Length</code> or <code>Transfer-Encoding</code> to determine where one request ends and another begins.</p><p>Pingora generally handles requests on HTTP/1.1 connections in an RFC-compliant manner, either ensuring the downstream request body is properly consumed or declining to reuse the connection if it encounters an error. After the bug was filed, we discovered that when caching was enabled, this logic was skipped on cache hits (i.e. when the service’s cache backend can serve the response without making an additional upstream request).</p><p>This meant on a cache hit request, after the response was sent downstream, any unread request body left in the HTTP/1.1 connection could act as a vector for request smuggling. When formed into a valid (but incomplete) header, the request body could “poison” the subsequent request. The following example is a spec-compliant HTTP/1.1 request which exhibits this behavior:</p>
+<pre><code>GET /attack/foo.jpg HTTP/1.1
+Host: example.com
+&lt;other headers…&gt;
+content-length: 79
+
+<p>GET &#x2F; HTTP&#x2F;1.1<br>Host: attacker.example.com<br>Bogus: foo</p></code></pre><p></p>
+<p>Let’s say there is a different request to <code>victim.example.com</code> that will be sent after this one on the reused HTTP/1.1 connection to a Pingora reverse proxy. The bug means that a Pingora service may not respect the <code>Content-Length</code> header and instead misinterpret the smuggled request as the beginning of the next request:</p>
+<pre><code>GET /attack/foo.jpg HTTP/1.1
+Host: example.com
+&lt;other headers…&gt;
+content-length: 79
+
+<p>GET &#x2F; HTTP&#x2F;1.1 &#x2F;&#x2F; &lt;- “smuggled” body start, interpreted as next request<br>Host: attacker.example.com<br>Bogus: fooGET &#x2F;victim&#x2F;main.css HTTP&#x2F;1.1 &#x2F;&#x2F; &lt;- actual next valid req start<br>Host: victim.example.com<br>&lt;other headers…&gt;</p></code></pre><p></p>
+<p>Thus, the smuggled request could inject headers and its URL into a subsequent valid request sent on the same connection to a Pingora reverse proxy service.</p>
+<div>
+<h2>CDN request smuggling and hijacking</h2>
+<a href="#cdn-request-smuggling-and-hijacking">
+</a>
+</div>
+<p>On April 11, 2025, Cloudflare was in the process of rolling out a Pingora proxy component with caching support enabled to a subset of CDN free plan traffic. This component was vulnerable to this request smuggling attack, which could enable modifying request headers and/or URL sent to customer origins.</p><p>As previously noted, the security researcher reported that they were also able to cause visitors to Cloudflare sites to make subsequent requests to their own malicious origin and observe which site URLs the visitor was originally attempting to access. During our investigation, Cloudflare found that certain origin servers would be susceptible to this secondary attack effect. The smuggled request in the example above would be sent to the correct origin IP address per customer configuration, but some origin servers would respond to the rewritten attacker <code>Host</code> header with a 301 redirect. Continuing from the prior example:</p>
+<pre><code>GET / HTTP/1.1 // &lt;- “smuggled” body start, interpreted as next request
+Host: attacker.example.com
+Bogus: fooGET /victim/main.css HTTP/1.1 // &lt;- actual next valid req start
+Host: victim.example.com
+&lt;other headers…&gt;
+
+<p>HTTP&#x2F;1.1 301 Moved Permanently &#x2F;&#x2F; &lt;- susceptible victim origin response<br>Location: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://attacker.example.com/">https://attacker.example.com/</a><br>&lt;other headers…&gt;</p></code></pre><p></p>
+<p>When the client browser followed the redirect, it would trigger this attack by sending a request to the attacker hostname, along with a Referrer header indicating which URL was originally visited, making it possible to load a malicious asset and observe what traffic a visitor was trying to access.</p>
+<pre><code>GET / HTTP/1.1 // &lt;- redirect-following request
+Host: attacker.example.com
+Referrer: https://victim.example.com/victim/main.css
+&lt;other headers…&gt;</code></pre>
+<p>Upon verifying the Pingora proxy component was susceptible, the team immediately disabled CDN traffic to the vulnerable component on 2025-04-12 06:44 UTC to stop possible exploitation. By 2025-04-19 01:56 UTC and prior to re-enablement of any traffic to the vulnerable component, a patch fix to the component was released, and any assets cached on the component’s backend were invalidated in case of possible cache poisoning as a result of the injected headers.</p>
+<div>
+<h2>Remediation and next steps</h2>
+<a href="#remediation-and-next-steps">
+</a>
+</div>
+<p>If you are using the caching functionality in the Pingora framework, you should update to the latest version of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/releases/tag/0.5.0"><u>0.5.0.</u></a> If you are a Cloudflare customer with a free plan, you do not need to do anything, as we have already applied the patch for this vulnerability.</p>
+<div>
+<h2>Timeline</h2>
+<a href="#timeline">
+</a>
+</div>
+<p><i>All timestamps are in UTC.</i></p><ul><li><p>2025-04-11 09:20 – Cloudflare is notified of a CDN request smuggling vulnerability via the Bug Bounty Program.</p></li><li><p>2025-04-11 17:16 to 2025-04-12 03:28 – Cloudflare confirms vulnerability is reproducible and investigates which component(s) require necessary changes to mitigate.</p></li><li><p>2025-04-12 04:25 – Cloudflare isolates issue to roll out of a Pingora proxy component with caching enabled and prepares release to disable traffic to this component.</p></li><li><p>2025-04-12 06:44 – Rollout to disable traffic complete, vulnerability mitigated.</p></li></ul>
+<div>
+<h2>Conclusion</h2>
+<a href="#conclusion">
+</a>
+</div>
+<p>We would like to sincerely thank <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.linkedin.com/in/james-kettle-albinowax/"><u>James Kettle</u></a> &amp; <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.linkedin.com/in/wannes-verwimp/"><u>Wannes Verwimp</u></a>, who responsibly disclosed this issue via our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/disclosure/"><u>Cloudflare Bug Bounty Program</u></a>, allowing us to identify and mitigate the vulnerability. We welcome further submissions from our community of researchers to continually improve the security of all of our products and open source projects.</p><p>Whether you are a customer of Cloudflare or just a user of our Pingora framework, or both, we know that the trust you place in us is critical to how you connect your properties to the rest of the Internet. Security is a core part of that trust and for that reason we treat these kinds of reports and the actions that follow with serious urgency. We are confident about this patch and the additional safeguards that have been implemented, but we know that these kinds of issues can be concerning. Thank you for your continued trust in our platform. We remain committed to building with security as our top priority and responding swiftly and transparently whenever issues arise.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Resolving a request smuggling vulnerability in Pingora" href="https://blog.cloudflare.com/resolving-a-request-smuggling-vulnerability-in-pingora/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Resolving a request smuggling vulnerability in Pingora</span><span class="desc fs12">https://blog.cloudflare.com/resolving-a-request-smuggling-vulnerability-in-pingora/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/2c64ff48.html">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/704e4e7b.html">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2c64ff48.html" title="Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GjZl5vG4YNF1ltVFy8F2E/a406afdd00cbaa4689cace22f08d4cc9/image9.png"></div><span class="title">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar</span></a><a class="item" href="/rss/7bd34f23.html" title="Celebrating 11 Years of Project Galileo’s Global Impact"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3xVNGtdTOw6NXqSfzU7Up1/8a2cbe643108fa97a4d14af477a6cb80/image3.png"></div><span class="title">Celebrating 11 Years of Project Galileo’s Global Impact</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=85"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a><a class="item" href="/rss/704e4e7b.html" title="Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=287"></div><span class="title">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge</span></a><a class="item" href="/rss/3d48b78f.html" title="Cloudflare Service Outage June 12, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7CBPPVgr3GroJP2EcD3yvB/6073457ce6263e7e05f6eb3d796ddd48/BLOG-2847_2.png"></div><span class="title">Cloudflare Service Outage June 12, 2025</span></a><a class="item" href="/rss/c35779a6.html" title="First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1QUzHjBrer762UOvypV2Fh/4695fb3996591f001bb02b1be88e41ad/image1.png"></div><span class="title">First-Party Tags in Seconds: Cloudflare Integrates Google Tag Gateway for Advertisers </span></a><a class="item" href="/rss/624044be.html" title="Forget IPs: Using Cryptography to Verify Bot and Agent Traffic"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3yB6h6XcSWNQO5McRWIpL8/edf32f7938b01a4c8f5eedefee2b9328/image2.png"></div><span class="title">Forget IPs: Using Cryptography to Verify Bot and Agent Traffic</span></a><a class="item" href="/rss/dbbc38e3.html" title="Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png"></div><span class="title">Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects</span></a><a class="item" href="/rss/4313c68e.html" title="Performance Measurements… and the People Who Love Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1r4blwH5oeloUdXoizuLB4/f58014b1b4b3715f54400e6b03c60ea7/image7.png"></div><span class="title">Performance Measurements… and the People Who Love Them</span></a><a class="item" href="/rss/f5e92f90.html" title="QUIC Restarts, Slow Problems: Udpgrm to the Rescue"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7138"></div><span class="title">QUIC Restarts, Slow Problems: Udpgrm to the Rescue</span></a><a class="item" href="/rss/ea00a670.html" title="Vulnerability Transparency: Strengthening Security Through Responsible Disclosure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6658"></div><span class="title">Vulnerability Transparency: Strengthening Security Through Responsible Disclosure</span></a><a class="item" href="/rss/c9ae0a4d.html" title="We Shipped FinalizationRegistry in Workers: Why You Should Never Use It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png"></div><span class="title">We Shipped FinalizationRegistry in Workers: Why You Should Never Use It</span></a><a class="item" href="/rss/9a1ac9c1.html" title="Your IPs, Your Rules: Enabling More Efficient Address Space Usage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5yQpYeTxPM7B8DZwLsQATs/3f488c5b37ef2358eacf779a42ac59d5/image4.png"></div><span class="title">Your IPs, Your Rules: Enabling More Efficient Address Space Usage</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
