@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects - RSSBOX</title>
+
+  
+    <meta name="description" content="Cloudflare Workers Builds is our CI&#x2F;CD product that makes it easy to build and deploy Workers applications every time code is pushed to GitHub or GitLab. What makes Workers Builds special is that pr">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/dbbc38e3.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Cloudflare Workers Builds is our CI&#x2F;CD product that makes it easy to build and deploy Workers applications every time code is pushed to GitHub or GitLab. What makes Workers Builds special is that pr">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3423WCenScTudEv27TCMnJ/86b621a957d4249449c99db43a43bb9a/image7.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3kmsS4LACzLUUoECSJT08g/b6a9ccffcbe8a41c300a74546a17ba85/image5.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6Ab6VC49luyio3t5QamgMD/273c77158ff4ac7af662669360d5f485/image6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5rdNvB1SpjGpeiCOCs86Tj/74141402e67fbd9ced673a98cb3c57f6/image4.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://deploy.workers.cloudflare.com/button">
+<meta property="article:published_time" content="2025-05-29T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-05-29T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Background: Workers Builds architecture</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The problem: builds are failing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Types of build failures</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">User error</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Build logs</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Automating error detection</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Detecting errors in build logs using Workers Queues</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What about historical builds?</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Problem: logs are stored across one million+ Durable Objects</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">How do we backfill errors for historical builds?</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Building a Build Errors Agent with Durable Objects</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Running the backfill</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Fixes and improvements</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What’s next?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Ready to get started?</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-05-29T13:00:00.000Z">2025-05-29</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects</span></h1>
+<div>
+ <p>Cloudflare Workers Builds is our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/CI/CD"><u>CI/CD</u></a> product that makes it easy to build and deploy Workers applications every time code is pushed to GitHub or GitLab. What makes Workers Builds special is that projects can be built and deployed with minimal configuration.<a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/ci-cd/builds/#get-started"> <u>Just hook up your project and let us take care of the rest!</u></a></p><p>But what happens when things go wrong, such as failing to install tools or dependencies? What usually happens is that we don’t fix the problem until a customer contacts us about it, at which point many other customers have likely faced the same issue. This can be a frustrating experience for both us and our customers because of the lag time between issues occurring and us fixing them.</p><p>We want Workers Builds to be reliable, fast, and easy to use so that developers can focus on building, not dealing with our bugs. That’s why we recently started building an error detection system that can detect, categorize, and surface all build issues occurring on Workers Builds, enabling us to proactively fix issues and add missing features.</p><p>It’s also no secret that we’re big fans of being “Customer Zero” at Cloudflare, and Workers Builds is itself a product that’s built end-to-end on our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/developer-platform/"><u>Developer Platform</u></a> using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/"><u>Workers</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/durable-objects/"><u>Durable Objects</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/hyperdrive/"><u>Hyperdrive</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-containers-coming-2025/"><u>Containers</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/queues/"><u>Queues</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/kv/"><u>Workers KV</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/r2/"><u>R2</u></a>, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/observability/"><u>Workers Observability</u></a>.</p><p>In this post, we will dive into how we used the Cloudflare Developer Platform to check for issues across more than <b>1 million Durable Objects</b>.</p>
+<div>
+<h2>Background: Workers Builds architecture</h2>
+<a href="#background-workers-builds-architecture">
+</a>
+</div>
+<p>Back in October 2024, we wrote about<a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/workers-builds-integrated-ci-cd-built-on-the-workers-platform/"> <u>how we built Workers Builds entirely on the Workers platform</u></a>. To recap, Builds is built using Workers, Durable Objects, Workers KV, R2, Queues, Hyperdrive, and a Postgres database. Some of these things were not present when launched back in October (for example, Queues and KV). But the core of the architecture is the same.</p><p>A client Worker receives GitHub/GitLab webhooks and stores build metadata in Postgres (via Hyperdrive). A build management Worker uses two Durable Object classes: a Scheduler class to find builds in Postgres that need scheduling, and a class called BuildBuddy to manage the lifecycle of a build. When a build needs to be started, Scheduler creates a new BuildBuddy instance which is responsible for creating a container for the build (using<a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/container-platform-preview/"> <u>Cloudflare Containers</u></a>), monitoring the container with health checks, and receiving build logs so that they can be viewed in the Cloudflare Dashboard.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png">
+</figure><p>In addition to this core scheduling logic, we have several Workers Queues for background work such as sending PR comments to GitHub/GitLab.</p>
+<div>
+<h2>The problem: builds are failing</h2>
+<a href="#the-problem-builds-are-failing">
+</a>
+</div>
+<p>While this architecture has worked well for us so far, we found ourselves with a problem: compared to<a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/pages/"> <u>Cloudflare Pages</u></a>, a concerning percentage of builds were failing. We needed to dig deeper and figure out what was wrong, and understand how we could improve Workers Builds so that developers can focus more on shipping instead of build failures.</p>
+<div>
+<h2>Types of build failures</h2>
+<a href="#types-of-build-failures">
+</a>
+</div>
+<p>Not all build failures are the same. We have several categories of failures that we monitor:</p><ul><li><p>Initialization failures: when the container fails to start.</p></li><li><p>Clone failures: failing to clone the repository from GitHub/GitLab.</p></li><li><p>Build timeouts: builds that ran past the limit and were terminated by BuildBuddy.</p></li><li><p>Builds failing health checks: the container stopped responding to health checks, e.g. the container crashed for an unknown reason.</p></li><li><p>Failure to install tools or dependencies.</p></li><li><p>Failed user build/deploy commands.</p></li></ul><p>The first few failure types were straightforward, and we’ve been able to track down and fix issues in our build system and control plane to improve what we call “build completion rate”. We define build completion as the following:</p><ol><li><p>We successfully started the build.</p></li><li><p>We attempted to install tools/dependencies (considering failures as “user error”).</p></li><li><p>We attempted to run the user-defined build/deploy commands (again, considering failures as “user error”).</p></li><li><p>We successfully marked the build as stopped in our database.</p></li></ol><p>For example, we had a bug where builds for a deleted Worker would attempt to run and continuously fail, which affected our build completion rate metric.</p>
+<div>
+<h3>User error</h3>
+<a href="#user-error">
+</a>
+</div>
+<p>We’ve made a lot of progress improving the reliability of build and container orchestration, but we had a significant percentage of build failures in the “user error” metric. We started asking ourselves “is this actually user error? Or is there a problem with the product itself?”</p><p>This presented a challenge because questions like “did the build command fail due to a bug in the build system, or user error?” are a lot harder to answer than pass/fail issues like failing to create a container for the build. To answer these questions, we had to build something new, something smarter.</p>
+<div>
+<h3>Build logs</h3>
+<a href="#build-logs">
+</a>
+</div>
+<p>The most obvious way to determine why a build failed is to look at its logs. When spot-checking build failures, we can typically identify what went wrong. For example, some builds fail to install dependencies because of an out of date lockfile (e.g. package-lock.json out of date with package.json). But looking through build failures one by one doesn’t scale. We didn’t want engineers looking through customer build logs without at least suspecting that there was an issue with our build system that we could fix.</p>
+<div>
+<h2>Automating error detection</h2>
+<a href="#automating-error-detection">
+</a>
+</div>
+<p>At this point, next steps were clear: we needed an automated way to identify why a build failed based on build logs, and provide a way for engineers to see what the top issues were while ensuring privacy (e.g. removing account-specific identifiers and file paths from the aggregate data).</p>
+<div>
+<h3>Detecting errors in build logs using Workers Queues</h3>
+<a href="#detecting-errors-in-build-logs-using-workers-queues">
+</a>
+</div>
+<p>The first thing we needed was a way to categorize build errors after a build fails. To do this, we created a queue named BuildErrorsQueue to process builds and look for errors. After a build fails, BuildBuddy will send the build ID to BuildErrorsQueue which fetches the logs, checks for issues, and saves results to Postgres.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3423WCenScTudEv27TCMnJ/86b621a957d4249449c99db43a43bb9a/image7.png">
+</figure><p>We started out with a few static patterns to match things like Wrangler errors in log lines:</p>
+<pre><code>export const DetectedErrorCodes = &#123;
+  wrangler_error: &#123;
+    detect: async (lines: LogLines) =&gt; &#123;
+      const errors: DetectedError[] = []
+      for (const line of lines) &#123;
+        if (line[2].trim().startsWith('✘ [ERROR]')) &#123;
+          errors.push(&#123;
+            error_code: 'wrangler_error',
+            error_group: getWranglerLogGroupFromLogLine(line, wranglerRegexMatchers),
+            detected_on: new Date(),
+            lines_matched: [line],
+          &#125;)
+        &#125;
+      &#125;
+      return errors
+    &#125;,
+  &#125;,
+  installing_tools_or_dependencies_failed: &#123; ... &#125;,
+&#125;</code></pre>
+<p>It wouldn’t be useful if all Wrangler errors were grouped under a single generic “wrangler_error” code, so we further grouped them by normalizing the log lines into groups:</p>
+<pre><code>function getWranglerLogGroupFromLogLine(
+  logLine: LogLine,
+  regexMatchers: RegexMatcher[]
+): string &#123;
+  const original = logLine[2].trim().replaceAll(/[\t\n\r]+/g, ' ')
+  let message = original
+  let group = original
+  for (const &#123; mustMatch, patterns, stopOnMatch, name, useNameAsGroup &#125; of regexMatchers) &#123;
+    if (mustMatch !== undefined) &#123;
+      const matched = matchLineToRegexes(message, mustMatch)
+      if (!matched) continue
+    &#125;
+    if (patterns) &#123;
+      for (const [pattern, mask] of patterns) &#123;
+        message = message.replaceAll(pattern, mask)
+      &#125;
+    &#125;
+    if (useNameAsGroup === true) &#123;
+      group = name
+    &#125; else &#123;
+      group = message
+    &#125;
+    if (Boolean(stopOnMatch) &amp;&amp; message !== original) break
+  &#125;
+  return group
+&#125;
+
+<p>const wranglerRegexMatchers: RegexMatcher[] &#x3D; [<br>  &amp;#123;<br>    name: ‘could_not_resolve’,<br>    &#x2F;&#x2F; ✘ [ERROR] Could not resolve “.&#x2F;balance”<br>    &#x2F;&#x2F; ✘ [ERROR] Could not resolve “node:string_decoder” (originally “string_decoder&#x2F;“)<br>    mustMatch: [&#x2F;^✘ [ERROR] Could not resolve “[@\w :&#x2F;\.-]<em>“&#x2F;i],<br>    stopOnMatch: true,<br>    patterns: [<br>      [&#x2F;(?&lt;&#x3D;^✘ [ERROR] Could not resolve “)[@\w :&#x2F;\.-]</em>(?&#x3D;”)&#x2F;gi, ‘&lt;MODULE&gt;’],<br>      [&#x2F;(?&lt;&#x3D;(originally “)[@\w :&#x2F;\.-]<em>(?&#x3D;”)&#x2F;gi, ‘&lt;MODULE&gt;’],<br>    ],<br>  &amp;#125;,<br>  &amp;#123;<br>    name: ‘no_matching_export_for_import’,<br>    &#x2F;&#x2F; ✘ [ERROR] No matching export in “src&#x2F;db&#x2F;schemas&#x2F;index.ts” for import “someCoolTable”<br>    mustMatch: [&#x2F;^✘ [ERROR] No matching export in “&#x2F;i],<br>    stopOnMatch: true,<br>    patterns: [<br>      [&#x2F;(?&lt;&#x3D;^✘ [ERROR] No matching export in “)[@~\w:&#x2F;\.-]</em>(?&#x3D;”)&#x2F;gi, ‘&lt;MODULE&gt;’],<br>      [&#x2F;(?&lt;&#x3D;” for import “)[\w-]*(?&#x3D;”)&#x2F;gi, ‘&lt;IMPORT&gt;’],<br>    ],<br>  &amp;#125;,<br>  &#x2F;&#x2F; …many more added over time<br>]</p></code></pre><p></p>
+<p>Once we had our error detection matchers and normalizing logic in place, implementing the BuildErrorsQueue consumer was easy:</p>
+<pre><code>export async function handleQueue(
+  batch: MessageBatch,
+  env: Bindings,
+  ctx: ExecutionContext
+): Promise&lt;void&gt; &#123;
+  ...
+  await pMap(batch.messages, async (msg) =&gt; &#123;
+    try &#123;
+      const &#123; build_id &#125; = BuildErrorsQueueMessageBody.parse(msg.body)
+      await store.buildErrors.deleteErrorsByBuildId(&#123; build_id &#125;)
+      const bb = getBuildBuddy(env, build_id)
+      const errors: DetectedError[] = []
+      let cursor: LogsCursor | undefined
+      let hasMore = false
+
+<pre><code>  do &amp;#123;
+    using maybeNewLogs = await bb.getLogs(cursor, false)
+    const newLogs = LogsWithCursor.parse(maybeNewLogs)
+    cursor = newLogs.cursor
+    const newErrors = await detectErrorsInLogLines(newLogs.lines)
+    errors.push(...newErrors)
+    hasMore = Boolean(cursor) &amp;amp;&amp;amp; newLogs.lines.length &amp;gt; 0
+  &amp;#125; while (hasMore)
+
+  if (errors.length &amp;gt; 0) &amp;#123;
+    await store.buildErrors.insertErrors(
+      errors.map((e) =&amp;gt; (&amp;#123;
+        build_id,
+        error_code: e.error_code,
+        error_group: e.error_group,
+      &amp;#125;))
+    )
+  &amp;#125;
+  msg.ack()
+&amp;#125; catch (e) &amp;#123;
+  msg.retry()
+  sentry.captureException(e)
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;)<br>&amp;#125;</p></code></pre><p></p>
+<p>Here, we’re fetching logs from each build’s BuildBuddy Durable Object, detecting why it failed using the matchers we wrote, and saving errors to the Postgres DB. We also delete any existing errors for when we improve our error detection patterns to prevent subsequent runs from adding duplicate data to our database.</p>
+<div>
+<h2>What about historical builds?</h2>
+<a href="#what-about-historical-builds">
+</a>
+</div>
+<p>The BuildErrorsQueue was great for new builds, but this meant we still didn’t know why all the previous build failures happened other than “user error”. We considered only tracking errors in new builds, but this was unacceptable because it would significantly slow down our ability to improve our error detection system because each iteration would require us to wait days to identify issues we need to prioritize.</p>
+<div>
+<h3>Problem: logs are stored across one million+ Durable Objects</h3>
+<a href="#problem-logs-are-stored-across-one-million-durable-objects">
+</a>
+</div>
+<p>Remember how every build has an associated BuildBuddy DO to store logs? This is a great design for ensuring our logging pipeline scales with our customers, but it presented a challenge when trying to aggregate issues based on logs because something would need to go through all historical builds (&gt;1 million at the time) to fetch logs and detect why they failed.</p><p>If we were using Go and Kubernetes, we might solve this using a long-running container that goes through all builds and runs our error detection. But how do we solve this in Workers?</p>
+<div>
+<h3>How do we backfill errors for historical builds?</h3>
+<a href="#how-do-we-backfill-errors-for-historical-builds">
+</a>
+</div>
+<p>At this point, we already had the Queue to process new builds. If we could somehow send all of the old build IDs to the queue, it could scan them all quickly using<a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/queues/configuration/consumer-concurrency/"> <u>Queues concurrent consumers</u></a> to quickly work through all builds. We thought about hacking together a local script to fetch all of the log IDs and sending them to an API to put them on a queue. But we wanted something more secure and easier to use so that running a new backfill was as simple as an API call.</p><p>That’s when an idea hit us: what if we used a Durable Object with alarms to fetch a range of builds and send them to BuildErrorsQueue? At first, it seemed far-fetched, given that Durable Object alarms have a limited amount of work they can do per invocation. But wait, if<a target="_blank" rel="external nofollow noopener noreferrer" href="https://agents.cloudflare.com/"> <u>AI Agents built on Durable Objects</u></a> can manage background tasks, why can’t we fetch millions of build IDs and forward them to queues?</p>
+<div>
+<h3>Building a Build Errors Agent with Durable Objects</h3>
+<a href="#building-a-build-errors-agent-with-durable-objects">
+</a>
+</div>
+<p>The idea was simple: create a Durable Object class named BuildErrorsAgent and run a single instance that loops through the specified range of builds in the database and sends them to BuildErrorsQueue.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3kmsS4LACzLUUoECSJT08g/b6a9ccffcbe8a41c300a74546a17ba85/image5.png">
+</figure><p>The first thing we did was set up an RPC method to start a backfill and save the parameters in<a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/durable-objects/api/storage-api/#kv-api"> <u>Durable Object KV storage</u></a> so that it can be read each time the alarm executes:</p>
+<pre><code>async start(&#123;
+  min_build_id,
+  max_build_id,
+&#125;: &#123;
+  min_build_id: BuildRecord['build_id']
+  max_build_id: BuildRecord['build_id']
+&#125;): Promise&lt;void&gt; &#123;
+  logger.setTags(&#123; handler: 'start', environment: this.env.ENVIRONMENT &#125;)
+  try &#123;
+    if (min_build_id &lt; 0) throw new Error('min_build_id cannot be negative')
+    if (max_build_id &lt; min_build_id) &#123;
+      throw new Error('max_build_id cannot be less than min_build_id')
+    &#125;
+    const [started_on, stopped_on] = await Promise.all([
+      this.kv.get('started_on'),
+      this.kv.get('stopped_on'),
+    ])
+    await match(&#123; started_on, stopped_on &#125;)
+      .with(&#123; started_on: P.not(null), stopped_on: P.nullish &#125;, () =&gt; &#123;
+        throw new Error('BuildErrorsAgent is already running')
+      &#125;)
+      .otherwise(async () =&gt; &#123;
+        // delete all existing data and start queueing failed builds
+        await this.state.storage.deleteAlarm()
+        await this.state.storage.deleteAll()
+        this.kv.put('started_on', new Date())
+        this.kv.put('config', &#123; min_build_id, max_build_id &#125;)
+        void this.state.storage.setAlarm(this.getNextAlarmDate())
+      &#125;)
+  &#125; catch (e) &#123;
+    this.sentry.captureException(e)
+    throw e
+  &#125;
+&#125;</code></pre>
+<p>The most important part of the implementation is the alarm that runs every second until the job is complete. Each alarm invocation has the following steps:</p><ol><li><p>Set a new alarm (always first to ensure an error doesn’t cause it to stop).</p></li><li><p>Retrieve state from KV.</p></li><li><p>Validate that the agent is supposed to be running:</p><ol><li><p>Ensure the agent is supposed to be running.</p></li><li><p>Ensure we haven’t reached the max build ID set in the config.</p></li></ol></li><li><p>Finally, queue up another batch of builds by querying Postgres and sending to the BuildErrorsQueue.</p></li></ol>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6Ab6VC49luyio3t5QamgMD/273c77158ff4ac7af662669360d5f485/image6.png">
+</figure>
+<pre><code>async alarm(): Promise&lt;void&gt; &#123;
+  logger.setTags(&#123; handler: 'alarm', environment: this.env.ENVIRONMENT &#125;)
+  try &#123;
+    void this.state.storage.setAlarm(Date.now() + 1000)
+    const kvState = await this.getKVState()
+    this.sentry.setContext('BuildErrorsAgent', kvState)
+    const ctxLogger = logger.withFields(&#123; state: JSON.stringify(kvState) &#125;)
+
+<pre><code>await match(kvState)
+  .with(&amp;#123; started_on: P.nullish &amp;#125;, async () =&amp;gt; &amp;#123;
+    ctxLogger.info(&#39;BuildErrorsAgent is not started, cancelling alarm&#39;)
+    await this.state.storage.deleteAlarm()
+  &amp;#125;)
+  .with(&amp;#123; stopped_on: P.not(null) &amp;#125;, async () =&amp;gt; &amp;#123;
+    ctxLogger.info(&#39;BuildErrorsAgent is stopped, cancelling alarm&#39;)
+    await this.state.storage.deleteAlarm()
+  &amp;#125;)
+  .with(
+    // we should never have started_on set without config set, but just in case
+    &amp;#123; started_on: P.not(null), config: P.nullish &amp;#125;,
+    async () =&amp;gt; &amp;#123;
+      const msg =
+        &#39;BuildErrorsAgent started but config is empty, stopping and cancelling alarm&#39;
+      ctxLogger.error(msg)
+      this.sentry.captureException(new Error(msg))
+      this.kv.put(&#39;stopped_on&#39;, new Date())
+      await this.state.storage.deleteAlarm()
+    &amp;#125;
+  )
+  .when(
+    // make sure there are still builds to enqueue
+    (s) =&amp;gt;
+      s.latest_build_id !== null &amp;amp;&amp;amp;
+      s.config !== null &amp;amp;&amp;amp;
+      s.latest_build_id &amp;gt;= s.config.max_build_id,
+    async () =&amp;gt; &amp;#123;
+      ctxLogger.info(&#39;BuildErrorsAgent job complete, cancelling alarm&#39;)
+      this.kv.put(&#39;stopped_on&#39;, new Date())
+      await this.state.storage.deleteAlarm()
+    &amp;#125;
+  )
+  .with(
+    &amp;#123;
+      started_on: P.not(null),
+      stopped_on: P.nullish,
+      config: P.not(null),
+      latest_build_id: P.any,
+    &amp;#125;,
+    async (&amp;#123; config, latest_build_id &amp;#125;) =&amp;gt; &amp;#123;
+      // 1. select batch of ~1000 builds
+      // 2. send them to Queues 100 at a time, updating
+      //    latest_build_id after each batch is sent
+      const failedBuilds = await this.store.builds.selectFailedBuilds(&amp;#123;
+        min_build_id: latest_build_id !== null ? latest_build_id + 1 : config.min_build_id,
+        max_build_id: config.max_build_id,
+        limit: 1000,
+      &amp;#125;)
+      if (failedBuilds.length === 0) &amp;#123;
+        ctxLogger.info(`BuildErrorsAgent: ran out of builds, stopping and cancelling alarm`)
+        this.kv.put(&#39;stopped_on&#39;, new Date())
+        await this.state.storage.deleteAlarm()
+      &amp;#125;
+
+      for (
+        let i = 0;
+        i &amp;lt; BUILDS_PER_ALARM_RUN &amp;amp;&amp;amp; i &amp;lt; failedBuilds.length;
+        i += QUEUES_BATCH_SIZE
+      ) &amp;#123;
+        const batch = failedBuilds
+          .slice(i, QUEUES_BATCH_SIZE)
+          .map((build) =&amp;gt; (&amp;#123; body: build &amp;#125;))
+
+        if (batch.length === 0) &amp;#123;
+          ctxLogger.info(`BuildErrorsAgent: ran out of builds in current batch`)
+          break
+        &amp;#125;
+        ctxLogger.info(
+          `BuildErrorsAgent: sending $&amp;#123;batch.length&amp;#125; builds to build errors queue`
+        )
+        await this.env.BUILD_ERRORS_QUEUE.sendBatch(batch)
+        this.kv.put(
+          &#39;latest_build_id&#39;,
+          Math.max(...batch.map((m) =&amp;gt; m.body.build_id).concat(latest_build_id ?? 0))
+        )
+
+        this.kv.put(
+          &#39;total_builds_processed&#39;,
+          ((await this.kv.get(&#39;total_builds_processed&#39;)) ?? 0) + batch.length
+        )
+      &amp;#125;
+    &amp;#125;
+  )
+  .otherwise(() =&amp;gt; &amp;#123;
+    const msg = &#39;BuildErrorsAgent has nothing to do - this should never happen&#39;
+    this.sentry.captureException(msg)
+    ctxLogger.info(msg)
+  &amp;#125;)
+</code></pre>
+<p>  &amp;#125; catch (e) &amp;#123;<br>    this.sentry.captureException(e)<br>    throw e<br>  &amp;#125;<br>&amp;#125;</p></code></pre><p></p>
+<p>Using pattern matching with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/gvergnaud/ts-pattern"><u>ts-pattern</u></a> made it much easier to understand what states we were expecting and what will happen compared to procedural code. We considered using a more powerful library like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://stately.ai/docs/xstate"><u>XState</u></a>, but decided on ts-pattern due to its simplicity.</p>
+<div>
+<h3>Running the backfill</h3>
+<a href="#running-the-backfill">
+</a>
+</div>
+<p>Once everything rolled out, we were able to trigger an errors backfill for over a million failed builds in a couple of hours with a single API call, categorizing 80% of failed builds on the first run. With a fast backfill process, we were able to iterate on our regex matchers to further refine our error detection and improve error grouping. Here’s what the error list looks like in our staging environment:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5rdNvB1SpjGpeiCOCs86Tj/74141402e67fbd9ced673a98cb3c57f6/image4.png">
+</figure>
+<div>
+<h2>Fixes and improvements</h2>
+<a href="#fixes-and-improvements">
+</a>
+</div>
+<p>Having a better understanding of what’s going wrong has already enabled us to make several improvements:</p><ul><li><p>Wrangler now shows a<a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workers-sdk/pull/8534"> <u>clearer error message when no config file is found</u></a>.</p></li><li><p>Fixed multiple edge-cases where the wrong package manager was used in TypeScript/JavaScript projects.</p></li><li><p>Added support for bun.lock (previously only checked for bun.lockb).</p></li><li><p>Fixed several edge cases where build caching did not work in monorepos.</p></li><li><p>Projects that use a runtime.txt file to specify a Python version no longer fail.</p></li><li><p>….and more!</p></li></ul><p>We’re still working on fixing other bugs we’ve found, but we’re making steady progress. Reliability is a feature we’re striving for in Workers Builds, and this project has helped us make meaningful progress towards that goal. Instead of waiting for people to contact support for issues, we’re able to proactively identify and fix issues (and catch regressions more easily).</p><p>One of the great things about building on the Developer Platform is how easy it is to ship things. The core of this error detection pipeline (the Queue and Durable Object) <b>only took two days to build</b>, which meant we could spend more time working on improving Workers Builds instead of spending weeks on the error detection pipeline itself.</p>
+<div>
+<h2>What’s next?</h2>
+<a href="#whats-next">
+</a>
+</div>
+<p>In addition to continuing to improve build reliability and speed, we’ve also started thinking about other ways to help developers build their applications on Workers. For example, we built a<a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/workers-builds"> <u>Builds MCP server</u></a> that allows users to debug builds directly in Cursor/Claude/etc. We’re also thinking about ways we can expose these detected issues in the Cloudflare Dashboard so that users can identify issues more easily without scrolling through hundreds of logs.</p>
+<div>
+<h2>Ready to get started?</h2>
+<a href="#ready-to-get-started">
+</a>
+</div>
+<p>Building applications on Workers has never been easier! Try deploying a Durable Object-backed <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/templates/tree/main/durable-chat-template"><u>chat application</u></a> with Workers Builds: </p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/durable-chat-template"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://deploy.workers.cloudflare.com/button"></a><p></p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Let’s DO this: detecting Workers Builds errors across 1 million Durable Objects" href="https://blog.cloudflare.com/detecting-workers-builds-errors-across-1-million-durable-durable-objects/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Let’s DO this: detecting Workers Builds errors across 1 million Durable Objects</span><span class="desc fs12">https://blog.cloudflare.com/detecting-workers-builds-errors-across-1-million-durable-durable-objects/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/1f6a1d6.html">不太完美但值得的扫地机器人：Mova P50<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a0fba9af.html">Cloudflare Named a Strong Performer in Email Security by Forrester<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2c64ff48.html" title="Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GjZl5vG4YNF1ltVFy8F2E/a406afdd00cbaa4689cace22f08d4cc9/image9.png"></div><span class="title">Bringing Connections Into View: Real-Time BGP Route Visibility on Cloudflare Radar</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/7bd34f23.html" title="Celebrating 11 Years of Project Galileo’s Global Impact"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3xVNGtdTOw6NXqSfzU7Up1/8a2cbe643108fa97a4d14af477a6cb80/image3.png"></div><span class="title">Celebrating 11 Years of Project Galileo’s Global Impact</span></a><a class="item" href="/rss/8fc7a870.html" title="Cloudflare Log Explorer Is Now GA, Providing Native Observability and Forensics"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1UWOHhIaIFiBTtnohdvbAx/40eeac0b52bc278d0687f7d48cd875fd/BLOG-2838_2.png"></div><span class="title">Cloudflare Log Explorer Is Now GA, Providing Native Observability and Forensics</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7323"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a><a class="item" href="/rss/704e4e7b.html" title="Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4549"></div><span class="title">Cloudflare Named in 2025 Gartner® Magic Quadrant™ for Security Service Edge</span></a><a class="item" href="/rss/3d48b78f.html" title="Cloudflare Service Outage June 12, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7CBPPVgr3GroJP2EcD3yvB/6073457ce6263e7e05f6eb3d796ddd48/BLOG-2847_2.png"></div><span class="title">Cloudflare Service Outage June 12, 2025</span></a><a class="item" href="/rss/2fd6a1fe.html" title="Connect Any React Application to an MCP Server in Three Lines of Code"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://deploy.workers.cloudflare.com/button"></div><span class="title">Connect Any React Application to an MCP Server in Three Lines of Code</span></a><a class="item" href="/rss/2dc79966.html" title="Everything You Need to Know About NIST’s New Guidance in “SP 1800-35: Implementing a Zero Trust Architecture”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/hXSpBQINdjqyl57by3Uhc/fd39f66cebc2dd0a79dc4749b02208f3/image4.png"></div><span class="title">Everything You Need to Know About NIST’s New Guidance in “SP 1800-35: Implementing a Zero Trust Architecture”</span></a><a class="item" href="/rss/34e8f0d5.html" title="Defending the Internet: How Cloudflare Blocked a Monumental 7.3 Tbps DDoS Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2ANdNP7alw2BkWu5hiXaTa/4e6c32c48c5b48ed1943ddb9c9819d18/1.png"></div><span class="title">Defending the Internet: How Cloudflare Blocked a Monumental 7.3 Tbps DDoS Attack</span></a><a class="item" href="/rss/6a4add3f.html" title="Resolving a Request Smuggling Vulnerability in Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4Zo8gcyLwmR2liZIUetcGe/d0647a83dc2bc1e676ee2b61f14c3964/image2.png"></div><span class="title">Resolving a Request Smuggling Vulnerability in Pingora</span></a><a class="item" href="/rss/4313c68e.html" title="Performance Measurements… and the People Who Love Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1r4blwH5oeloUdXoizuLB4/f58014b1b4b3715f54400e6b03c60ea7/image7.png"></div><span class="title">Performance Measurements… and the People Who Love Them</span></a><a class="item" href="/rss/c9ae0a4d.html" title="We Shipped FinalizationRegistry in Workers: Why You Should Never Use It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png"></div><span class="title">We Shipped FinalizationRegistry in Workers: Why You Should Never Use It</span></a><a class="item" href="/rss/9a1ac9c1.html" title="Your IPs, Your Rules: Enabling More Efficient Address Space Usage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5yQpYeTxPM7B8DZwLsQATs/3f488c5b37ef2358eacf779a42ac59d5/image4.png"></div><span class="title">Your IPs, Your Rules: Enabling More Efficient Address Space Usage</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
