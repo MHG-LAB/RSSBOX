@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>We Shipped FinalizationRegistry in Workers: Why You Should Never Use It - RSSBOX</title>
+
+  
+    <meta name="description" content="We’ve recently added support for the FinalizationRegistry API in Cloudflare Workers. This API allows developers to request a callback when a JavaScript object is garbage-collected, a feature that ca">
+<meta property="og:type" content="article">
+<meta property="og:title" content="We Shipped FinalizationRegistry in Workers: Why You Should Never Use It">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/c9ae0a4d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="We’ve recently added support for the FinalizationRegistry API in Cloudflare Workers. This API allows developers to request a callback when a JavaScript object is garbage-collected, a feature that ca">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3Ck9v7opkB5Mg1agKNnQm7/c328cc0a2d1c3145a527e1267594fe1d/image2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/69QSYwmiAueWyP2KlvBwGi/183345cbb043acbe4d76c0fdb2ebf4dd/image1.png">
+<meta property="article:published_time" content="2025-06-11T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-06-11T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Memory management 101</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">JavaScript</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">WebAssembly</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Interoperability</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Rust</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">JavaScript</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">FinalizationRegistry</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Inherent issues with FinalizationRegistry</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Enabling FinalizationRegistry in Workers</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Preventing footguns with safe defaults</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Security concerns</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">GC as confused deputy</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">GC as timer</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Predictable cleanups?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Future</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">FinalizationRegistry: still not dead yet?</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-06-11T13:00:00.000Z">2025-06-11</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>We Shipped FinalizationRegistry in Workers: Why You Should Never Use It</span></h1>
+<div>
+ <p>We’ve recently added support for the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/FinalizationRegistry"><u>FinalizationRegistry API</u></a> in Cloudflare Workers. This API allows developers to request a callback when a JavaScript object is garbage-collected, a feature that can be particularly relevant for managing external resources, such as memory allocated by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/WebAssembly"><u>WebAssembly</u></a> (Wasm). However, despite its availability, our general advice is: <b>avoid using it directly in most scenarios.</b></p><p>Our decision to add <code>FinalizationRegistry</code> — while still cautioning against using it — opens up a bigger conversation: how memory management works when JavaScript and WebAssembly share the same runtime. This is becoming more common in high-performance web apps, and getting it wrong can lead to memory leaks, out-of-memory errors, and performance issues, especially in resource-constrained environments like Cloudflare Workers.</p><p>In this post, we’ll look at how JavaScript and Wasm handle memory differently, why that difference matters, and what <code>FinalizationRegistry</code> is actually useful for. We’ll also explain its limitations, particularly around timing and predictability, walk through why we decided to support it, and how we’ve made it safer to use. Finally, we’ll talk about how newer JavaScript language features offer a more reliable and structured approach to solving these problems.</p>
+<div>
+<h2>Memory management 101</h2>
+<a href="#memory-management-101">
+</a>
+</div>
+<div>
+<h3>JavaScript</h3>
+<a href="#javascript">
+</a>
+</div>
+<p>JavaScript relies on automatic memory management through a process called <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Memory_management#garbage_collection"><u>garbage collection</u></a>. This means developers do not need to worry about freeing allocated memory, or lifetimes. The garbage collector identifies and reclaims memory occupied by objects that are no longer needed by the program (that is, garbage). This helps prevent memory leaks and simplifies memory management for developers.</p>
+<pre><code>function greet() &#123;
+  let name = "Alice";         // String is allocated in memory
+  console.log("Hello, " + name);
+&#125;                             // 'name' goes out of scope
+
+<p>greet();<br>&#x2F;&#x2F; JavaScript automatically frees allocated memory at some point in future</p></code></pre><p></p>
+<div>
+<h3>WebAssembly</h3>
+<a href="#webassembly">
+</a>
+</div>
+<p>WebAssembly (Wasm) is an assembly-like instruction format designed to run high-performance applications on the web. While it initially gained prominence in web browsers, Wasm is also highly effective on the server side. At Cloudflare, we leverage Wasm to enable users to run code written in a variety of programming languages, such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/languages/rust/"><u>Rust</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/languages/python/"><u>Python</u></a>, directly within our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/serverless/glossary/what-is-chrome-v8/"><u>V8 isolates</u></a>, offering both performance and versatility.</p><p>Wasm runtimes are designed to be simple stack machines, and lack built-in garbage collectors. This necessitates manual memory management (allocation and deallocation of memory used by Wasm code), making it an ideal compilation target for languages like Rust and C++ that handle their own memory.</p><p>Wasm modules operate on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://webassembly.github.io/spec/core/exec/runtime.html#memory-instances"><u>linear memory</u></a>: a resizable block of raw bytes, which JavaScript views as an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/Memory"><u>ArrayBuffer</u></a>. This memory is organized in 64 KB pages, and its initial size is defined when the module is compiled or loaded. Wasm code interacts with this memory using 32-bit offsets — integer values functioning as direct pointers that specify a byte offset from the start of its linear memory. This direct memory access model is crucial for Wasm's high performance. The host environment (which in Cloudflare Workers is JavaScript) also shares this ArrayBuffer, reading and writing (often via <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray"><u>TypedArrays</u></a>) to enable vital data exchange between Wasm and JavaScript.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3nWyMj5xginVWLxCnPpUdY/f939bb0b4f0007999aff876854645f16/image3.png">
+</figure><p>A core Wasm design is its <a target="_blank" rel="external nofollow noopener noreferrer" href="https://webassembly.org/docs/security/"><u>secure sandbox</u></a>. This confines Wasm code strictly to its own linear memory and explicitly declared imports from the host, preventing unauthorized memory access or system calls. Direct interaction with JavaScript objects is blocked; communication occurs through numeric values, function references, or operations on the shared ArrayBuffer. This strong isolation is vital for security, ensuring Wasm modules don't interfere with the host or other application components, which is especially important in multi-tenant environments like Cloudflare Workers.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3Ck9v7opkB5Mg1agKNnQm7/c328cc0a2d1c3145a527e1267594fe1d/image2.png">
+</figure><p>Bridging WebAssembly memory with JavaScript often involves writing low-level "glue" code to convert raw byte arrays from Wasm into usable JavaScript types. Doing this manually for every function or data structure is both tedious and error-prone. Fortunately, tools like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://rustwasm.github.io/wasm-bindgen/"><u>wasm-bindgen</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://emscripten.org/"><u>Emscripten (Embind)</u></a> handle this interop automatically, generating the binding code needed to pass data cleanly between the two environments. We use these same tools under the hood — wasm-bindgen for Rust-based <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workers-rs"><u>workers-rs</u></a> projects, and Emscripten for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/languages/python/how-python-workers-work/"><u>Python Workers</u></a> — to simplify integration and let developers focus on application logic rather than memory translation.</p>
+<div>
+<h2>Interoperability</h2>
+<a href="#interoperability">
+</a>
+</div>
+<p>High-performance web apps often use JavaScript for interactive UIs and data fetching, while WebAssembly handles demanding operations like media processing and complex calculations for significant performance gains, allowing developers to maximize efficiency. Given the difference in memory management models, developers need  to be careful when using WebAssembly memory in JavaScript.</p><p>For this example, we'll use Rust to compile a WebAssembly module manually. Rust is a popular choice for WebAssembly because it offers precise control over memory and easy Wasm compilation using standard toolchains.</p>
+<div>
+<h3>Rust</h3>
+<a href="#rust">
+</a>
+</div>
+<p>Here we have two simple functions. <code>make_buffer</code> creates a string and returns a raw pointer back to JavaScript. The function intentionally “forgets” the memory allocated so that it doesn’t get cleaned up after the function returns. <code>free_buffer</code>, on the other hand, expects the initial string reference handed back and frees the memory.</p>
+<pre><code>// Allocate a fresh byte buffer and hand the raw pointer + length to JS.
+// *We intentionally “forget” the Vec so Rust will not free it right away;
+//   JS now owns it and must call `free_buffer` later.*
+#[no_mangle]
+pub extern "C" fn make_buffer(out_len: *mut usize) -&gt; *mut u8 &#123;
+    let mut data = b"Hello from Rust".to_vec();
+    let ptr = data.as_mut_ptr();
+    let len  = data.len();
+
+<pre><code>unsafe &amp;#123; *out_len = len &amp;#125;;
+
+std::mem::forget(data);
+return ptr;
+</code></pre>
+<p>&amp;#125;</p>
+<p>&#x2F;&#x2F;&#x2F; Counterpart that <strong>must</strong> be called by JS to avoid a leak.<br>#[no_mangle]<br>pub unsafe extern “C” fn free_buffer(ptr: *mut u8, len: usize) &amp;#123;<br>    let _ &#x3D; Vec::from_raw_parts(ptr, len, len);<br>&amp;#125;</p></code></pre><p></p>
+<div>
+<h3>JavaScript</h3>
+<a href="#javascript">
+</a>
+</div>
+<p>Back in JavaScript land, we’ll call these Wasm functions and output them using console.log. This is a common pattern in Wasm-based applications since WebAssembly doesn’t have direct access to Web APIs, and rely on a JavaScript “glue” to interface with the outer world in order to do anything useful.</p>
+<pre><code>const &#123; instance &#125; = await WebAssembly.instantiate(WasmBytes, &#123;&#125;);
+
+<p>const &amp;#123; memory, make_buffer, free_buffer &amp;#125; &#x3D; instance.exports;</p>
+<p>&#x2F;&#x2F;  Use the Rust functions<br>const lenPtr &#x3D; 0;                 &#x2F;&#x2F; scratch word in Wasm memory<br>const ptr &#x3D; make_buffer(lenPtr);</p>
+<p>const len &#x3D; new DataView(memory.buffer).getUint32(lenPtr, true);<br>const data &#x3D; new Uint8Array(memory.buffer, ptr, len);</p>
+<p>console.log(new TextDecoder().decode(data)); &#x2F;&#x2F; “Hello from Rust”</p>
+<p>free_buffer(ptr, len); &#x2F;&#x2F; free_buffer must be called to prevent memory leaks</p></code></pre><p></p>
+<p>You can find all code samples along with setup instructions <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/cloudflare-blog/tree/master/2025-06-finalization-registry"><u>here</u></a>.</p><p>As you can see, working with Wasm memory from JavaScript requires care, as it introduces the risk of memory leaks if allocated memory isn’t properly released. JavaScript developers are often unfamiliar with manual memory management, and it’s easy to forget returning memory to WebAssembly after use. This can become especially tricky when Wasm-allocated data is passed into JavaScript libraries, making ownership and lifetime harder to track.</p><p>While occasional leaks may not cause immediate issues, over time they can lead to increased memory usage and degrade performance, particularly in memory-constrained environments like Cloudflare Workers.</p>
+<div>
+<h2>FinalizationRegistry</h2>
+<a href="#finalizationregistry">
+</a>
+</div>
+<p><code>FinalizationRegistry</code>, introduced as part of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://tc39.es/proposal-weakrefs/"><u>TC-39 WeakRef proposal</u></a>, is a JavaScript API which lets you run “finalizers” (aka cleanup callbacks) when an object gets garbage-collected. Let’s look at a simple example to demonstrate the API:</p>
+<pre><code>const my_registry = new FinalizationRegistry((obj) =&gt; &#123; console.log("Cleaned up: " + obj); &#125;);
+
+<p>&amp;#123;<br>  let temporary &#x3D; &amp;#123; key: “value” &amp;#125;;<br>  &#x2F;&#x2F; Register this object in our FinalizationRegistry – the second argument,<br>  &#x2F;&#x2F; “temporary”, will be passed to our callback as its obj parameter<br>  my_registry.register(temporary, “temporary”);<br>&amp;#125;</p>
+<p>&#x2F;&#x2F; At some point in the future when temporary object gets garbage collected, we’ll see “Cleaned up: temporary” in our logs.</p></code></pre><p></p>
+<p>Let’s see how we can use this API in our Wasm-based application:</p>
+<pre><code>const &#123; instance &#125; = await WebAssembly.instantiate(WasmBytes, &#123;&#125;);
+
+<p>const &amp;#123; memory, make_buffer, free_buffer &amp;#125; &#x3D; instance.exports;</p>
+<p>&#x2F;&#x2F; FinalizationRegistry would be responsible for returning memory back to Wasm<br>const cleanupFr &#x3D; new FinalizationRegistry((&amp;#123; ptr, len &amp;#125;) &#x3D;&gt; &amp;#123;<br>  free_buffer(ptr, len);<br>&amp;#125;);</p>
+<p>&#x2F;&#x2F;  Use the Rust functions<br>const lenPtr &#x3D; 0;                 &#x2F;&#x2F; scratch word in Wasm memory<br>const ptr &#x3D; make_buffer(lenPtr);</p>
+<p>const len &#x3D; new DataView(memory.buffer).getUint32(lenPtr, true);<br>const data &#x3D; new Uint8Array(memory.buffer, ptr, len);</p>
+<p>&#x2F;&#x2F; Register the data buffer in our FinalizationRegistry so that it gets cleaned up automatically<br>cleanupFr.register(data, &amp;#123; ptr, len &amp;#125;);</p>
+<p>console.log(new TextDecoder().decode(data));   &#x2F;&#x2F; → “Hello from Rust”</p>
+<p>&#x2F;&#x2F; No need to manually call free_buffer, FinalizationRegistry will do this for us</p></code></pre><p></p>
+<p>We can use a <code>FinalizationRegistry</code> to manage any object borrowed from WebAssembly by registering it with a finalizer that calls the appropriate free function. This is the same approach used by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://rustwasm.github.io/docs/wasm-bindgen/reference/weak-references.html"><u>wasm-bindgen</u></a>. It shifts the burden of manual cleanup away from the JavaScript developer and delegates it to the JavaScript garbage collector. However, in practice, things aren’t quite that simple.</p>
+<div>
+<h2>Inherent issues with FinalizationRegistry</h2>
+<a href="#inherent-issues-with-finalizationregistry">
+</a>
+</div>
+<p>There is a fundamental issue with <code>FinalizationRegistry</code>: garbage collection is non-deterministic, and may clean up your unused memory at some arbitrary point in the future. In some cases, garbage collection might not even run and your “finalizers” will never be triggered.</p><p>This is part of its <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/FinalizationRegistry#notes_on_cleanup_callbacks"><u>documentation</u></a> as well:</p><blockquote><p><i>“A conforming JavaScript implementation, even one that does garbage collection, is not required to call cleanup callbacks. When and whether it does so is entirely down to the implementation of the JavaScript engine. When a registered object is reclaimed, any cleanup callbacks for it may be called then, or some time later, or not at all.”</i></p></blockquote><p>Even Emscripten mentions this in their <a target="_blank" rel="external nofollow noopener noreferrer" href="https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html#automatic-memory-management"><u>documentation</u></a>: “<i>... finalizers are not guaranteed to be called, and even if they are, there are no guarantees about their timing or order of execution, which makes them unsuitable for general RAII-style resource management.</i>”</p><p>Given their non-deterministic nature, developers seldom use finalizers for any essential program logic. Treat them as a last-ditch safety net, not as a primary cleanup mechanism — explicit, deterministic teardown logic is almost always safer, faster, and easier to reason about.</p>
+<div>
+<h2>Enabling FinalizationRegistry in Workers</h2>
+<a href="#enabling-finalizationregistry-in-workers">
+</a>
+</div>
+<p>Given its non-deterministic nature and limited early adoption, we initially disabled the <code>FinalizationRegistry</code> API in our runtime. However, as usage of Wasm-based Workers grew — particularly among high-traffic customers — we began to see new demands emerge. One such customer was running an extremely high requests per second (RPS) workload using WebAssembly, and needed tight control over memory to sustain massive traffic spikes without degradation. This highlighted a gap in our memory management capabilities, especially in cases where manual cleanup wasn’t always feasible or reliable. As a result, we re-evaluated our stance and began exploring the challenges and trade-offs of enabling <code>FinalizationRegistry</code> within the Workers environment, despite its known limitations.</p>
+<div>
+<h3>Preventing footguns with safe defaults</h3>
+<a href="#preventing-footguns-with-safe-defaults">
+</a>
+</div>
+<p>Because this API could be misused and cause unpredictable results for our customers, we’ve added a few safeguards. Most importantly, cleanup callbacks are run without an active async context, which means they cannot perform any I/O. This includes sending events to a tail Worker, logging metrics, or making fetch requests.</p><p>While this might sound limiting, it’s very intentional. Finalization callbacks are meant for cleanup — especially for releasing WebAssembly memory — not for triggering side effects. If we allowed I/O here, developers might (accidentally) rely on finalizers to perform critical logic that depends on when garbage collection happens. That timing is non-deterministic and outside your control, which could lead to flaky, hard-to-debug behavior.</p><p>We don’t have full control over when V8’s garbage collector performs cleanup, but V8 does let us nudge the timing of finalizer execution. Like Node and Deno, Workers queue <code>FinalizationRegistry</code> jobs only after the microtask queue has drained, so each cleanup batch slips into the quiet slots between I/O phases of the event loop.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/69QSYwmiAueWyP2KlvBwGi/183345cbb043acbe4d76c0fdb2ebf4dd/image1.png">
+</figure>
+<div>
+<h3>Security concerns</h3>
+<a href="#security-concerns">
+</a>
+</div>
+<p>The Cloudflare Workers runtime is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/mitigating-spectre-and-other-security-threats-the-cloudflare-workers-security-model"><u>specifically engineered</u></a> to prevent side-channel attacks in a multi-tenant environment. Prior to enabling the <code>FinalizationRegistry</code> API, we did a thorough analysis to assess its impact on our security model and determine the necessity of additional safeguards. The non-deterministic nature of <code>FinalizationRegistry</code> raised concerns about potential information leaks leading to Spectre-like vulnerabilities, particularly regarding the possibility of exploiting the garbage collector (GC) as a confused deputy or using it to create a timer.</p><h4>GC as confused deputy</h4><p>One concern was whether the garbage collector (GC) could act as a confused deputy — a security antipattern where a privileged component is tricked into misusing its authority on behalf of untrusted code. In theory, a clever attacker could try to exploit the GC's ability to access internal object lifetimes and memory behavior in order to infer or manipulate sensitive information across isolation boundaries.</p><p>However, our analysis indicated that the V8 GC is effectively contained and not exposed to confused deputy risks within the runtime. This is attributed to our existing threat models and security measures, such as the isolation of user code, where the V8 Isolate serves as the primary security boundary. Furthermore, even though FinalizationRegistry involves some internal GC mechanics, the callbacks themselves execute in the same isolate that registered them — never across isolates — ensuring isolation remains intact.</p><h4>GC as timer</h4><p>We also evaluated the possibility of using FinalizationRegistry as a high-resolution timing mechanism — a common vector in side-channel attacks like Spectre. The concern here is that an attacker could schedule object finalization in a way that indirectly leaks information via the timing of callbacks.</p><p>In practice, though, the resolution of such a "GC timer" is low and highly variable, offering poor reliability for side-channel attacks. Additionally, we control when finalizer callbacks are scheduled — delaying them until after the microtask queue has drained — giving us an extra layer of control to limit timing precision and reduce risk.</p><p>Following a review with our security research team, we determined that our existing security model is sufficient to support this API.</p>
+<div>
+<h2>Predictable cleanups?</h2>
+<a href="#predictable-cleanups">
+</a>
+</div>
+<p>JavaScript's <a target="_blank" rel="external nofollow noopener noreferrer" href="https://tc39.es/proposal-explicit-resource-management/"><u>Explicit Resource Management</u></a> proposal introduces a deterministic approach to handle resources needing manual cleanup, such as file handles, network connections, or database sessions. Drawing inspiration from constructs like C#'s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/using"><u>using</u></a> and Python's <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.python.org/3/reference/compound_stmts.html#with"><u>with</u></a>, this proposal introduces the using and <code>await using</code> syntax. This new syntax guarantees that objects adhering to a specific cleanup protocol are automatically disposed of when they are no longer within their scope.</p><p>Let’s look at a simple example to understand it a bit better.</p>
+<pre><code>class MyResource &#123;
+  [Symbol.dispose]() &#123;
+    console.log("Resource cleaned up!");
+  &#125;
+
+<p>  use() &amp;#123;<br>    console.log(“Using the resource…”);<br>  &amp;#125;<br>&amp;#125;</p>
+<p>&amp;#123;<br>  using res &#x3D; new MyResource();<br>  res.use();<br>&amp;#125; &#x2F;&#x2F; When this block ends, Symbol.dispose is called automatically (and deterministically).</p></code></pre><p></p>
+<p>The proposal also includes additional features that offer finer control over when dispose methods are called. But at a high level, it provides a much-needed, deterministic way to manage resource cleanup. Let’s now update our earlier WebAssembly-based example to take advantage of this new mechanism instead of relying on <code>FinalizationRegistry</code>:</p>
+<pre><code>const &#123; instance &#125; = await WebAssembly.instantiate(WasmBytes, &#123;&#125;);
+const &#123; memory, make_buffer, free_buffer &#125; = instance.exports;
+
+<p>class WasmBuffer &amp;#123;<br>  constructor(ptr, len) &amp;#123;<br>    this.ptr &#x3D; ptr;<br>    this.len &#x3D; len;<br>  &amp;#125;</p>
+<p>  <a href>Symbol.dispose</a> &amp;#123;<br>    free_buffer(this.ptr, this.len);<br>  &amp;#125;<br>&amp;#125;</p>
+<p>&amp;#123;<br>  const lenPtr &#x3D; 0;<br>  const ptr &#x3D; make_buffer(lenPtr);<br>  const len &#x3D; new DataView(memory.buffer).getUint32(lenPtr, true);</p>
+<p>  using buf &#x3D; new WasmBuffer(ptr, len);</p>
+<p>  const data &#x3D; new Uint8Array(memory.buffer, ptr, len);<br>  console.log(new TextDecoder().decode(data));  &#x2F;&#x2F; → “Hello from Rust”<br>&amp;#125; &#x2F;&#x2F; Symbol.dispose or free_buffer gets called deterministically here</p></code></pre><p></p>
+<p>Explicit Resource Management provides a more dependable way to clean up resources than <code>FinalizationRegistry</code>, as it runs cleanup logic — such as calling <code>free_buffer</code> in WasmBuffer via <code>[Symbol.dispose]()</code> and the <code>using</code> syntax — deterministically, rather than relying on the garbage collector’s unpredictable timing. This makes it a more reliable choice for managing critical resources, especially memory.</p>
+<div>
+<h2>Future</h2>
+<a href="#future">
+</a>
+</div>
+<p>Emscripten <a target="_blank" rel="external nofollow noopener noreferrer" href="https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html#automatic-memory-management"><u>already makes use</u></a> of Explicit Resource Management for handling Wasm memory, using <code>FinalizationRegistry</code> as a last resort, while wasm-bindgen <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/rustwasm/wasm-bindgen/pull/4118"><u>supports it in experimental mode</u></a>. The proposal has seen growing adoption across the ecosystem and was recently conditionally advanced to Stage 4 in the TC39 process, meaning it’ll soon officially be part of the JavaScript language standard. This reflects a broader shift toward more predictable and structured memory cleanup in WebAssembly applications.</p><p>We <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/platform/changelog/#2025-05-22"><u>recently added support</u></a> for this feature in Cloudflare Workers as well, enabling developers to take advantage of deterministic resource cleanup in edge environments. As support for the feature matures, it's likely to become a standard practice for managing linear memory safely and reliably.</p>
+<div>
+<h3>FinalizationRegistry: still not dead yet?</h3>
+<a href="#finalizationregistry-still-not-dead-yet">
+</a>
+</div>
+<p>Explicit Resource Management brings much-needed structure and predictability to resource cleanup in WebAssembly and JavaScript interop applications, but it doesn’t make <code>FinalizationRegistry</code> obsolete. There are still important use cases, particularly when a Wasm-allocated object’s lifecycle is out of your hands or when explicit disposal isn’t practical. In scenarios involving third-party libraries, dynamic lifecycles, or integration layers that don’t follow <code>using</code> patterns, <code>FinalizationRegistry</code> remains a valuable fallback to prevent memory leaks.</p><p>Looking ahead, a hybrid approach will likely become the standard in Wasm-JavaScript applications. Developers can use ERM for deterministic cleanup of Wasm memory and other resources, while relying on <code>FinalizationRegistry</code> as a safety net when full control isn’t possible. Together, they offer a more reliable and flexible foundation for managing memory across the JavaScript and WebAssembly boundary.</p><p>Ready to try it yourself? Deploy a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/runtime-apis/webassembly/"><u>WebAssembly-powered Worker</u></a> and experiment with memory management — start building with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/"><u>Cloudflare Workers</u></a> today.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="We shipped FinalizationRegistry in Workers: why you should never use it" href="https://blog.cloudflare.com/we-shipped-finalizationregistry-in-workers-why-you-should-never-use-it/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">We shipped FinalizationRegistry in Workers: why you should never use it</span><span class="desc fs12">https://blog.cloudflare.com/we-shipped-finalizationregistry-in-workers-why-you-should-never-use-it/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/61855681.html">博客图片到底该存哪儿啊？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8403b27f.html">How the GitHub Billing Team Uses the Coding Agent in GitHub Copilot to Continuously Burn Down Technical Debt<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/671000ff.html" title="Building Agents With OpenAI and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8145"></div><span class="title">Building Agents With OpenAI and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/6b77aeea.html" title="Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6dhEhrOtwdaWOjJqhrzmMw/cc8576e7ccce43e2df1bacfd91b125ff/image3.png"></div><span class="title">Building an AI Agent That Puts Humans in the Loop With Knock and Cloudflare’s Agents SDK</span></a><a class="item" href="/rss/887ebff0.html" title="Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=67"></div><span class="title">Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare </span></a><a class="item" href="/rss/7bd34f23.html" title="Celebrating 11 Years of Project Galileo’s Global Impact"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3xVNGtdTOw6NXqSfzU7Up1/8a2cbe643108fa97a4d14af477a6cb80/image3.png"></div><span class="title">Celebrating 11 Years of Project Galileo’s Global Impact</span></a><a class="item" href="/rss/8fc7a870.html" title="Cloudflare Log Explorer Is Now GA, Providing Native Observability and Forensics"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1UWOHhIaIFiBTtnohdvbAx/40eeac0b52bc278d0687f7d48cd875fd/BLOG-2838_2.png"></div><span class="title">Cloudflare Log Explorer Is Now GA, Providing Native Observability and Forensics</span></a><a class="item" href="/rss/a0fba9af.html" title="Cloudflare Named a Strong Performer in Email Security by Forrester"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2660"></div><span class="title">Cloudflare Named a Strong Performer in Email Security by Forrester</span></a><a class="item" href="/rss/3d48b78f.html" title="Cloudflare Service Outage June 12, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7CBPPVgr3GroJP2EcD3yvB/6073457ce6263e7e05f6eb3d796ddd48/BLOG-2847_2.png"></div><span class="title">Cloudflare Service Outage June 12, 2025</span></a><a class="item" href="/rss/2fd6a1fe.html" title="Connect Any React Application to an MCP Server in Three Lines of Code"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://deploy.workers.cloudflare.com/button"></div><span class="title">Connect Any React Application to an MCP Server in Three Lines of Code</span></a><a class="item" href="/rss/84377245.html" title="Containers Are Available in Public Beta for Simple, Global, and Programmable Compute"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://deploy.workers.cloudflare.com/button"></div><span class="title">Containers Are Available in Public Beta for Simple, Global, and Programmable Compute</span></a><a class="item" href="/rss/34e8f0d5.html" title="Defending the Internet: How Cloudflare Blocked a Monumental 7.3 Tbps DDoS Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2ANdNP7alw2BkWu5hiXaTa/4e6c32c48c5b48ed1943ddb9c9819d18/1.png"></div><span class="title">Defending the Internet: How Cloudflare Blocked a Monumental 7.3 Tbps DDoS Attack</span></a><a class="item" href="/rss/2dc79966.html" title="Everything You Need to Know About NIST’s New Guidance in “SP 1800-35: Implementing a Zero Trust Architecture”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/hXSpBQINdjqyl57by3Uhc/fd39f66cebc2dd0a79dc4749b02208f3/image4.png"></div><span class="title">Everything You Need to Know About NIST’s New Guidance in “SP 1800-35: Implementing a Zero Trust Architecture”</span></a><a class="item" href="/rss/dbbc38e3.html" title="Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Zf6QSXafUJOxn6isLsqar/fd8eaa3428185c3da2ef96ddd1fdc43c/image2.png"></div><span class="title">Let’s DO This: Detecting Workers Builds Errors Across 1 Million Durable Objects</span></a><a class="item" href="/rss/c6d40a63.html" title="Orange Me2eets: We Made an End-to-End Encrypted Video Calling App and It Was Easy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/61htaksggj580PqX02XoVB/3b0f1ed34ee681e41b2009257fdc8525/image2.png"></div><span class="title">Orange Me2eets: We Made an End-to-End Encrypted Video Calling App and It Was Easy</span></a><a class="item" href="/rss/e26af983.html" title="Russian Internet Users Are Unable to Access the Open Internet"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/64iapMiGlMvgHJXPyPH9Xo/bec47ff9147019ffa01e365f9bc11309/BLOG-2859_2.png"></div><span class="title">Russian Internet Users Are Unable to Access the Open Internet</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
