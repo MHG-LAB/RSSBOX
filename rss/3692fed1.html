@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>号码生成系统的创新实践：游戏周周乐幸运码设计 - RSSBOX</title>
+
+  
+    <meta name="description" content="作者： vivo 互联网服务器团队- Zhang Jing  本文以游戏周周乐的幸运码为切入点，针对其生成过程中涉及的随机性、唯一性及高并发等特点，设计了一种基于号段+子码的创新架构。该方案不仅在生成速度上表现突出，还显著提升了存储效率，同时降低了扩容成本，为类似的号码生成系统提供了设计上的新思路和启发。  文章太长？1分钟看图抓住核心观点👇  一、业务背景 用户可通过完成相关任务获取周周乐">
+<meta property="og:type" content="article">
+<meta property="og:title" content="号码生成系统的创新实践：游戏周周乐幸运码设计">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/3692fed1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="作者： vivo 互联网服务器团队- Zhang Jing  本文以游戏周周乐的幸运码为切入点，针对其生成过程中涉及的随机性、唯一性及高并发等特点，设计了一种基于号段+子码的创新架构。该方案不仅在生成速度上表现突出，还显著提升了存储效率，同时降低了扩容成本，为类似的号码生成系统提供了设计上的新思路和启发。  文章太长？1分钟看图抓住核心观点👇  一、业务背景 用户可通过完成相关任务获取周周乐">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-d0f19634e0555861f34c6d1a965332e5035.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-45d325576bad2645b81b131cf8277e2e471.jpg">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-079c02eb66e15c161b0b30001341fb6548d.jpg">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-18b4f57ed57a5e892f4084f7f66b15e177f.png">
+<meta property="article:published_time" content="2025-07-03T03:44:00.000Z">
+<meta property="article:modified_time" content="2025-07-03T03:44:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="开源中国">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-d0f19634e0555861f34c6d1a965332e5035.gif">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3.1 方案一：实时随机生成模式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3.2 方案二：预生成库存模式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3.3 方案三：号段+子码模式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3.4 方案对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4.1 号段分层机制</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4.2 分布式并发控制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2.1 多级缓存策略</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2.2 高效锁抢占策略</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2.3 动态库存策略</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4.3 幸运码发放</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E5%BC%80%E6%BA%90%E4%B8%AD%E5%9B%BD/">开源中国</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-07-03T03:44:00.000Z">2025-07-03</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>号码生成系统的创新实践：游戏周周乐幸运码设计</span></h1>
+<div>
+<div class="content">
+<p>作者： vivo 互联网服务器团队- Zhang Jing</p>
+<blockquote>
+<p>本文以游戏周周乐的幸运码为切入点，针对其生成过程中涉及的随机性、唯一性及高并发等特点，设计了一种基于号段+子码的创新架构。该方案不仅在生成速度上表现突出，还显著提升了存储效率，同时降低了扩容成本，为类似的号码生成系统提供了设计上的新思路和启发。</p>
+</blockquote>
+<p>文章太长？1分钟看图抓住核心观点👇</p>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-d0f19634e0555861f34c6d1a965332e5035.gif"></p>
+<h1>一、业务背景</h1>
+<p>用户可通过完成相关任务获取周周乐幸运码，幸运码的投放规则如下：</p>
+<ul>
+<li> <p><strong>基础投放量</strong>：每期100万注唯一无重复的6位数字幸运码</p> </li>
+<li> <p><strong>动态扩容机制</strong>：参与人数超额时，可实时追加100万注</p> </li>
+</ul>
+<h1>二、幸运码特性</h1>
+<p>根据背景介绍，我们可以知道幸运码需要支持如下特性：</p>
+<ul>
+<li> <p><strong>随机性</strong>，发给每个用户的幸运码都是随机的，同时每个用户领取的多个幸运码也是随机的。</p> </li>
+<li> <p><strong>唯一性</strong>，每一组的幸运码中，各幸运码都是唯一的。</p> </li>
+<li> <p><strong>范围性</strong>，幸运码严格限定在000000到999999区间内。</p> </li>
+<li> <p><strong>高并发</strong>，幸运码的生成和发放需要支持高并发，能够至少达到300QPS。</p> </li>
+<li> <p><strong>可追加</strong>，在当期活动非常火爆时，需要可临时追加一组幸运码库存。</p> </li>
+</ul>
+<h1>三、方案选型</h1>
+<p>鉴于幸运码需严格限定在6位数字范围内（000000-999999），传统雪花算法因生成超长ID（64位二进制）且依赖时间戳递增特性，难以直接适配。以下将对比三种方案：实时随机生成模式、预生成库存模式及号段+子码模式，并会根据生成速度、存储效率、扩容成本三个核心指标进行系统性评估，最终选择出最优解决方案。</p>
+<h2>3.1 方案一：实时随机生成模式</h2>
+<p><strong>实现逻辑：</strong></p>
+<ol>
+<li> <p>生成随机数</p> </li>
+<li> <p>再查询数据库是否有该随机数</p> </li>
+<li> <p>若没有则入库，完成幸运码发放</p> </li>
+<li> <p>若有再重新执行第一步</p> </li>
+</ol>
+<p><strong>缺陷分析：</strong></p>
+<ul>
+<li> <p>碰撞概率随库存消耗不断上升</p> </li>
+<li> <p>数据库IO压力随并发量线性增长</p> </li>
+<li> <p>不满足高并发场景性能要求</p> </li>
+</ul>
+<h2>3.2 方案二：预生成库存模式</h2>
+<p><strong>实现逻辑：</strong></p>
+<p>采用预生成幸运码方式：离线生成100万个幸运码，随机打散，写入数据库，每个幸运码对应一个从1自增的序列号，并使用Redis记录幸运码序列号索引，初始值为1。</p>
+<p><strong>发放步骤</strong>如下：</p>
+<ol>
+<li> <p>从Redis查询幸运码序列号索引</p> </li>
+<li> <p>使用该索引查询幸运码，并完成幸运码发放</p> </li>
+<li> <p>递增Redis的序列号索引，确保序列号索引关联的幸运码是下一个可发放的幸运码</p> </li>
+</ol>
+<p><strong>缺陷分析：</strong></p>
+<ul>
+<li> <p><strong>存储空间浪费</strong>：未发放号码占用存储</p> </li>
+<li> <p><strong>扩容效率低下</strong>：追加库存需重新预生成</p> </li>
+</ul>
+<h2>3.3 方案三：号段+子码模式</h2>
+<p>采用号段+子码机制：</p>
+<ul>
+<li> <p><strong>号段管理</strong>：将10^6号码划分为1000个号段（号段值：0-999）</p> </li>
+<li> <p><strong>子码管理</strong>：每个号段维护1000个可用子码（子码值：0-999）</p> </li>
+<li> <p><strong>生成规则</strong>：幸运码=随机号段*1000+随机子码（示例：129358=129*1000+358）</p> </li>
+</ul>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-45d325576bad2645b81b131cf8277e2e471.jpg"></p>
+<h2>3.4 方案对比</h2>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-079c02eb66e15c161b0b30001341fb6548d.jpg"></p>
+<p>综上，我们综合幸运码生成速度、存储效率、扩容成本等指标，最终采用了号段+子码模式来生成幸运码。</p>
+<h1>四、关键技术实现</h1>
+<h2>4.1 号段分层机制</h2>
+<p>将100万注幸运码划分为1000个号段（每段1000注），每个号段由两部分组成：</p>
+<ul>
+<li> <p><strong>号段ID</strong>：号段ID为唯一且不重复的整数，范围介于0到999之间。</p> </li>
+<li> <p><strong>子码串</strong>：1000位字符串，采用"01"标记使用状态，0表示未使用，1表示已使用，初始全0。</p> </li>
+</ul>
+<p>幸运码生成公式：</p>
+<p>幸运码 = 号段ID * 1000 + 子码位置</p>
+<p>该设计既保留了生成幸运码的随机性（号段ID随机+子码随机），又通过子码的类比特位存储方式提升了存储效率。</p>
+<h2>4.2 分布式并发控制</h2>
+<h3>4.2.1 多级缓存策略</h3>
+<p>Redis存储可用号段集合，若号段的子码使用完，该号段会从Redis集合中剔除，同时本地缓存也会预加载可用号段，确保发码时能更高效地获取候选号段。</p>
+<h3>4.2.2 高效锁抢占策略</h3>
+<p>系统为每个号段分配了分布式锁，当执行发放幸运码时，会从本地缓存随机获取15个候选号段。然后在遍历获取号段时，将等待锁的超时时间设置成30ms，确保号段被占用的情况下能够快速遍历到下一个号段（根据实际场景统计，等待锁的情况很少发生，一般最多遍历到第二个号段即可成功抢占）。一旦成功获得号段的分布式锁后，便可进一步随机获取该号段下的可用子码。</p>
+<h3>4.2.3 动态库存策略</h3>
+<p>要追加库存，只需再创建一组幸运码号段，并写入Redis，后续发放时获取该组的可用号段生成幸运码即可。从性能和存储空间上远优于预生成方式。</p>
+<h2>4.3 幸运码发放</h2>
+<p><strong>发放步骤</strong>：</p>
+<ol>
+<li> <p>随机获取至多15个可用号段</p> </li>
+<li> <p>遍历号段</p> </li>
+<li> <p>抢占号段的分布式锁</p> </li>
+<li> <p>若号段的分布式锁抢占成功，则随机获取号段中可用的子码，再根据号段和子码生成幸运码</p> </li>
+<li> <p>若号段的分布式锁抢占失败，则遍历下一个号段，并重复上述步骤</p> </li>
+</ol>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-18b4f57ed57a5e892f4084f7f66b15e177f.png"></p>
+<h1>五、总结</h1>
+<p><strong>（1）双重随机保障</strong></p>
+<ul>
+<li> <p>一级随机：号段选择随机（0-999）</p> </li>
+<li> <p>二级随机：子码选择随机（0-999）</p> </li>
+<li> <p>通过号段随机和子码随机方式确保生成的幸运码完全随机</p> </li>
+</ul>
+<p><strong>（2）数据唯一性</strong></p>
+<ul>
+<li>通过号段唯一和号段内的子码唯一确保生成的幸运码全局唯一</li>
+</ul>
+<p><strong>（3）弹性扩展能力</strong></p>
+<ul>
+<li> <p>扩容耗时仅需秒级别</p> </li>
+<li> <p>存储空间相比预生成方案节省80%</p> </li>
+</ul>
+<p><strong>（4）高性能发放</strong></p>
+<ul>
+<li> <p>通过多重缓存及高效号段抢占策略大幅提升幸运码生成效率</p> </li>
+<li> <p>实测QPS&gt;300，平均响应时间&lt;15ms</p> </li>
+</ul>
+<p>本设计方案通过创新的号段+子码管理机制，在保证号码随机性和唯一性的同时，实现了高并发场景下的稳定服务能力，为类似号码生成系统的设计提供了可复用的架构范式。</p>
+</div>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="号码生成系统的创新实践：游戏周周乐幸运码设计" href="https://my.oschina.net/vivotech/blog/18683260" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">号码生成系统的创新实践：游戏周周乐幸运码设计</span><span class="desc fs12">https://my.oschina.net/vivotech/blog/18683260</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/b1b58d94.html">清新舒适的胶片人像 | 摄影师滨田英明<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/14579528.html">印度程序员用一份假简历骗了 5 家硅谷 AI 公司<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1959acbb.html" title="2025全球数字经济大会——全球开源创新发展论坛成功召开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0705/140102_y0GP_2720166.png"></div><span class="title">2025全球数字经济大会——全球开源创新发展论坛成功召开</span></a><a class="item" href="/rss/6679d7d4.html" title="Bytebase 3.8.0 - 显著优化 Schema 同步 / 回滚兼容性"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-21a7f23efb479d2c33408917a613e8bb91b.png"></div><span class="title">Bytebase 3.8.0 - 显著优化 Schema 同步 / 回滚兼容性</span></a><a class="item" href="/rss/d32cde61.html" title="Jakarta EE 11 发布：带来 1 个新规范、16 个更新规范与现代化 TCK"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet//a82efdef08ff5b226ab585c093ca8f4a.jpg"></div><span class="title">Jakarta EE 11 发布：带来 1 个新规范、16 个更新规范与现代化 TCK</span></a><a class="item" href="/rss/9701cf07.html" title="Perplexity 上线月费 200 美元的「Max」订阅服务"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-1abe17d787b691e146a089eccf4834806a9.png"></div><span class="title">Perplexity 上线月费 200 美元的「Max」订阅服务</span></a><a class="item" href="/rss/e603e8ad.html" title="Vec2text 技术已开源！一定条件下，文本嵌入向量可 “近乎完美地” 还原"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-a0b1de9536036af1e9938f337d7283677d0.png"></div><span class="title">Vec2text 技术已开源！一定条件下，文本嵌入向量可 “近乎完美地” 还原</span></a><a class="item" href="/rss/5009ee3f.html" title="三步解锁鸿蒙开发 + 2025 HarmonyOS 创新赛指南，7 月 8 日双攻略放送！"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-a6a6ffeb84696559b451fe4696f9e547ea9.png"></div><span class="title">三步解锁鸿蒙开发 + 2025 HarmonyOS 创新赛指南，7 月 8 日双攻略放送！</span></a><a class="item" href="/rss/c0fd3d43.html" title="全球 AI 人才榜单首次曝光，华人撑起半边天"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0703/194046_NzCP_2720166.png"></div><span class="title">全球 AI 人才榜单首次曝光，华人撑起半边天</span></a><a class="item" href="/rss/14579528.html" title="印度程序员用一份假简历骗了 5 家硅谷 AI 公司"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-45b140ce1925eb09a92af71a5196c086da0.png"></div><span class="title">印度程序员用一份假简历骗了 5 家硅谷 AI 公司</span></a><a class="item" href="/rss/79304801.html" title="字节跳动开源 Trae-Agent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-e27f5cb97abf42a79a613d985b6829fafe0.png"></div><span class="title">字节跳动开源 Trae-Agent</span></a><a class="item" href="/rss/bb9c5ddc.html" title="宇树科技或于科创板 IPO"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-b580657b265e86eea613b405eac902d810a.png"></div><span class="title">宇树科技或于科创板 IPO</span></a><a class="item" href="/rss/f21e03f3.html" title="开源中国亮相 2025 全球数字经济大会·全球开源创新发展论坛"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0705/211918_BywJ_4806939.png"></div><span class="title">开源中国亮相 2025 全球数字经济大会·全球开源创新发展论坛</span></a><a class="item" href="/rss/5c056577.html" title="时代命题下的民营科技担当：从备份战略看 Gitee 的国家定位"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0704/171154_tcjE_2720166.png"></div><span class="title">时代命题下的民营科技担当：从备份战略看 Gitee 的国家定位</span></a><a class="item" href="/rss/403a02ea.html" title="法国 AI 研究机构开源 Kyutai TTS，低延迟流式文本转语音技术"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0704/145146_pipR_2720166.png"></div><span class="title">法国 AI 研究机构开源 Kyutai TTS，低延迟流式文本转语音技术</span></a><a class="item" href="/rss/7b8c0f36.html" title="腾讯元器接入微信支付 MCP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0704/165037_LObp_2720166.png"></div><span class="title">腾讯元器接入微信支付 MCP</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
