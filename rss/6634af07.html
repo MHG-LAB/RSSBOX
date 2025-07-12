@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Vivo Pulsar 万亿级消息处理实践（3）-KoP 指标异常修复 - RSSBOX</title>
+
+  
+    <meta name="description" content="作者：vivo 互联网大数据团队- Chen Jianbo 本文是《vivo Pulsar万亿级消息处理实践》系列文章第3篇。 Pulsar是Apache基金会的开源分布式流处理平台和消息中间件，它实现了Kafka的协议，可以让使用Kafka API的应用直接迁移至Pulsar，这使得Pulsar在Kafka生态系统中更加容易被接受和使用。KoP提供了从Kafka到Pulsar的无缝转换，用">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Vivo Pulsar 万亿级消息处理实践（3）-KoP 指标异常修复">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/6634af07.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="作者：vivo 互联网大数据团队- Chen Jianbo 本文是《vivo Pulsar万亿级消息处理实践》系列文章第3篇。 Pulsar是Apache基金会的开源分布式流处理平台和消息中间件，它实现了Kafka的协议，可以让使用Kafka API的应用直接迁移至Pulsar，这使得Pulsar在Kafka生态系统中更加容易被接受和使用。KoP提供了从Kafka到Pulsar的无缝转换，用">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//9cc55a5274f293b9c0ef2789a68fa19c.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7459cc8dccb2e8b05af39aa90db0851bbe7.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-ffc0dfd7d8ea6675518bf1a2621d6f9be67.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-9beb2b836116dbb5a58a6e794e16d006de7.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//48e469db783cf92252e89bf874a31591.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//e408f5ca0dd6d8ce1dacd59b9e1d1067.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//67385096ca5f780cc62269343e58cde7.png">
+<meta property="article:published_time" content="2025-07-10T03:47:00.000Z">
+<meta property="article:modified_time" content="2025-07-10T03:47:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="开源中国">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//9cc55a5274f293b9c0ef2789a68fa19c.gif">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E5%BC%80%E6%BA%90%E4%B8%AD%E5%9B%BD/">开源中国</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-07-10T03:47:00.000Z">2025-07-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Vivo Pulsar 万亿级消息处理实践（3）-KoP 指标异常修复</span></h1>
+<div>
+<div class="content">
+<blockquote>
+<p>作者：vivo 互联网大数据团队- Chen Jianbo</p>
+<p>本文是《vivo Pulsar万亿级消息处理实践》系列文章第3篇。</p>
+<p>Pulsar是Apache基金会的开源分布式流处理平台和消息中间件，它实现了Kafka的协议，可以让使用Kafka API的应用直接迁移至Pulsar，这使得Pulsar在Kafka生态系统中更加容易被接受和使用。KoP提供了从Kafka到Pulsar的无缝转换，用户可以使用Kafka API操作Pulsar集群，保留了Kafka的广泛用户基础和丰富生态系统。它使得Pulsar可以更好地与Kafka进行整合，提供更好的消息传输性能、更强的兼容性及可扩展性。vivo在使用Pulsar KoP的过程中遇到过一些问题，本篇主要分享一个分区消费指标缺失的问题。</p>
+</blockquote>
+<p>系列文章：</p>
+<ol>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzI4NjY4MTU5Nw%3D%3D%26mid%3D2247501335%26idx%3D1%26sn%3D3701be0b8b7b789e29c1ca53ba142e9d%26scene%3D21%23wechat_redirect" target="_blank" rel="external nofollow noopener noreferrer">vivo Pulsar万亿级消息处理实践（1）-数据发送原理解析和性能调优</a></p> </li>
+<li> <p><a href="https://www.oschina.net/action/GoToLink?url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%3F__biz%3DMzI4NjY4MTU5Nw%3D%3D%26mid%3D2247501426%26idx%3D1%26sn%3D76c04879cfa2c6b38a731b5c49f19d3a%26scene%3D21%23wechat_redirect" target="_blank" rel="external nofollow noopener noreferrer">vivo Pulsar万亿级消息处理实践（2）-从0到1建设Pulsar指标监控链路</a></p> </li>
+</ol>
+<p>文章太长？1分钟看图抓住核心观点👇</p>
+<p><img class="lazy" alt="图片" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//9cc55a5274f293b9c0ef2789a68fa19c.gif"></p>
+<h1>一、问题背景</h1>
+<p>在一次版本灰度升级中，我们发现某个使用KoP的业务topic的消费速率出现了显著下降，具体情况如下图所示：</p>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-7459cc8dccb2e8b05af39aa90db0851bbe7.png"></p>
+<p>什么原因导致正常的升级重启服务器会出现这个问题呢？直接查看上报采集的数据报文：</p>
+<pre><code>kop_server_MESSAGE_OUT&#123;group="",partition="0",tenant="kop",topic="persistent://kop-tenant/kop-ns/service-raw-stats"&#125; 3
+kop_server_BYTES_OUT&#123;group="",partition="0",tenant="kop",topic="persistent://kop-tenant/kop-ns/service-raw-stats"&#125; 188
+</code></pre>
+<p>我们看到，KoP消费指标kop_server_MESSAGE</p>
+<p>_OUT、kop_server_BYTES_OUT是有上报的，但指标数据里的group标签变成了空串（缺少消费组名称），分区的消费指标就无法展示了。是什么原因导致了消费组名称缺失？</p>
+<h1>二、问题分析</h1>
+<p><strong>1、找到问题代码</strong></p>
+<p>我们去找下这个消费组名称是在哪里获取的，是否逻辑存在什么问题。根据druid中的kop_subscription对应的消费指标kop_server_</p>
+<p>MESSAGE_OUT、kop_server_BYTES_OUT，找到相关代码如下：</p>
+<pre><code>private void handleEntries(final List&lt;Entry&gt; entries,
+                               final TopicPartition topicPartition,
+                               final FetchRequest.PartitionData partitionData,
+                               final KafkaTopicConsumerManager tcm,
+                               final ManagedCursor cursor,
+                               final AtomicLong cursorOffset,
+                               final boolean readCommitted) &#123;
+....
+        // 处理消费数据时，获取消费组名称
+        CompletableFuture&lt;String&gt; groupNameFuture = requestHandler
+                .getCurrentConnectedGroup()
+                .computeIfAbsent(clientHost, clientHost -&gt; &#123;
+                    CompletableFuture&lt;String&gt; future = new CompletableFuture&lt;&gt;();
+                    String groupIdPath = GroupIdUtils.groupIdPathFormat(clientHost, header.clientId());
+                    requestHandler.getMetadataStore()
+                            .get(requestHandler.getGroupIdStoredPath() + groupIdPath)
+                            .thenAccept(getResultOpt -&gt; &#123;
+                                if (getResultOpt.isPresent()) &#123;
+                                    GetResult getResult = getResultOpt.get();
+                                    future.complete(new String(getResult.getValue() == null
+                                            ? new byte[0] : getResult.getValue(), StandardCharsets.UTF_8));
+                                &#125; else &#123;
+                                    // 从zk节点 /client_group_id/xxx 获取不到消费组，消费组就是空的
+                                    future.complete("");
+                                &#125;
+                            &#125;).exceptionally(ex -&gt; &#123;
+                                future.completeExceptionally(ex);
+                                return null;
+                            &#125;);
+                    returnfuture;
+                &#125;);
+
+<pre><code>    // this part is heavyweight, and we should not execute in the ManagedLedger Ordered executor thread
+    groupNameFuture.whenCompleteAsync((groupName, ex) -&amp;gt; &amp;#123;
+        if (ex != null) &amp;#123;
+            log.error(&quot;Get groupId failed.&quot;, ex);
+            groupName = &quot;&quot;;
+        &amp;#125;
+</code></pre>
+<p>…..<br>            &#x2F;&#x2F; 获得消费组名称后，记录消费组对应的消费指标<br>            decodeResult.updateConsumerStats(topicPartition,<br>                    entries.size(),<br>                    groupName,<br>                    statsLogger);<br></p></code></pre><p></p>
+<p>代码的逻辑是，从requestHandler的currentConnectedGroup(map)中通过host获取groupName，不存在则通过MetadataStore（带缓存的zk存储对象）获取，如果zk缓存也没有，再发起zk读请求（路径为/client_group_id/host-clientId）。读取到消费组名称后，用它来更新消费组指标。从复现的集群确定走的是这个分支，即是从metadataStore(带缓存的zk客户端)获取不到对应zk节点/client_group_id/xxx。</p>
+<p><strong>2、查找可能导致zk节点/client_group_id/xxx节点获取不到的原因</strong></p>
+<p>有两种可能性：一是没写进去，二是写进去但是被删除了。</p>
+<pre><code>    @Override
+    protected void handleFindCoordinatorRequest(KafkaHeaderAndRequest findCoordinator,
+                                                CompletableFuture&lt;AbstractResponse&gt; resultFuture) &#123;
+...
+        // Store group name to metadata store for current client, use to collect consumer metrics.
+        storeGroupId(groupId, groupIdPath)
+                .whenComplete((stat, ex) -&gt; &#123;
+                    if (ex != null) &#123;
+                        // /client_group_id/xxx节点写入失败
+                        log.warn("Store groupId failed, the groupId might already stored.", ex);
+                    &#125;
+                    findBroker(TopicName.get(pulsarTopicName))
+                            .whenComplete((node, throwable) -&gt; &#123;
+                                ....
+                            &#125;);
+                &#125;);
+...
+</code></pre>
+<p>从代码看到，clientId与groupId的关联关系是通过handleFindCoordinatorRequest（FindCoordinator）写进去的，而且只有这个方法入口。由于没有找到warn日志，排除了第一种没写进去的可能性。看看删除的逻辑：</p>
+<pre><code>protected void close()&#123;
+    if (isActive.getAndSet(false)) &#123;
+        ...
+        currentConnectedClientId.forEach(clientId -&gt; &#123;
+            String path = groupIdStoredPath + GroupIdUtils.groupIdPathFormat(clientHost, clientId);
+            // 删除zk上的 /client_group_id/xxx 节点
+            metadataStore.delete(path, Optional.empty())
+                    .whenComplete((__, ex) -&gt; &#123;
+                        if (ex != null) &#123;
+                            if (ex.getCause() instanceof MetadataStoreException.NotFoundException) &#123;
+                                if (log.isDebugEnabled()) &#123;
+                                    log.debug("The groupId store path doesn't exist. Path: [&#123;&#125;]", path);
+                                &#125;
+                                return;
+                            &#125;
+                            log.error("Delete groupId failed. Path: [&#123;&#125;]", path, ex);
+                            return;
+                        &#125;
+                        if (log.isDebugEnabled()) &#123;
+                            log.debug("Delete groupId success. Path: [&#123;&#125;]", path);
+                        &#125;
+                    &#125;);
+        &#125;);
+    &#125;
+&#125;
+</code></pre>
+<p>删除是在requsetHandler.close方法中执行，也就是说连接断开就会触发zk节点删除。</p>
+<p>但有几个<strong>疑问：</strong></p>
+<ul>
+<li> <p>/client_group_id/xxx 到底是干嘛用的？消费指标为什么要依赖它</p> </li>
+<li> <p>为什么要在handleFindCoordinatorRequest写入？</p> </li>
+<li> <p>节点/client_group_id/xxx为什么要删除，而且是在连接断开时删除，删除时机是否有问题？</p> </li>
+</ul>
+<p>首先回答第1个问题，通过阅读代码可以知道，/client_group_id/xxx 这个zk节点是用于在不同broker实例间交换数据用的(相当redis cache)，用于临时存放IP+clientId与groupId的映射关系。由于fetch接口（拉取数据）的request没有groupId的，只能依赖加入Group过程中的元数据，在fetch消费时才能知道当前拉数据的consumer是哪个消费组的。</p>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-ffc0dfd7d8ea6675518bf1a2621d6f9be67.png"></p>
+<p><strong>3、复现</strong></p>
+<p>若要解决问题，最好能够稳定地复现出问题，这样才能确定问题的根本原因，并且确认修复是否完成。</p>
+<p>因为节点是在requsetHandle.close方法中执行删除，broker节点关闭会触发连接关闭，进而触发删除。假设：客户端通过brokerA发起FindCoordinator请求，写入zk节点/client_group</p>
+<p>_id/xxx，同时请求返回brokerB作为Coordinator，后续与brokerB进行joinGroup、syncGroup等交互确定消费关系，客户端在brokerA、brokerB、brokerC都有分区消费。这时重启brokerA，分区均衡到BrokerC上，但此时/client_group_id/xxx因关闭broker而断开连接被删除，consumer消费刚转移到topic1-partition-1的分区就无法获取到groupId。</p>
+<p><img class="lazy" alt referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-9beb2b836116dbb5a58a6e794e16d006de7.png"></p>
+<p>按照假设，有3个broker，开启生产和消费，通过在FindCoordinator返回前获取node.leader()的返回节点BrokerB，关闭brokerA后，brokerC出现断点复现，再关闭brokerC，brokerA也会复现（假设分区在brokerA与brokerC之间转移）。</p>
+<p><img class="lazy" alt="图片" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//48e469db783cf92252e89bf874a31591.png"></p>
+<p>复现要几个条件：</p>
+<ol>
+<li> <p>broker数量要足够多(不小于3个）</p> </li>
+<li> <p>broker内部有zk缓存metadataCache默认为5分钟，可以把时间调小为1毫秒，相当于没有cache</p> </li>
+<li> <p>findCoordinator返回的必须是其他broker的IP</p> </li>
+<li> <p>重启的必须是接收到findCoordinator请求那台broker，而不是真正的coordinator，这时会从zk删除节点</p> </li>
+<li> <p>分区转移到其他broker，这时新的broker会重新读取zk节点数据</p> </li>
+</ol>
+<p>到此，我们基本上清楚了问题原因：连接关闭导致zk节点被删除了，别的broker节点需要时就读取不到了。那怎么解决？</p>
+<h1>三、问题解决</h1>
+<p><strong>方案一</strong></p>
+<p>既然知道把消费者与FindCoordinator的连接进行绑定不合适的，那么是否应该把FindCoordinator写入zk节点换成由JoinGroup写入，断连即删除。</p>
+<p><img class="lazy" alt="图片" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//e408f5ca0dd6d8ce1dacd59b9e1d1067.png"></p>
+<p>consumer统一由Coordinator管理，由于FindCoordinator接口不一定是Coordinator处理的，如果换成由Coordinator处理的JoinGroup接口是否就可以了，这样consumer断开与Coordinator的连接就应该删除数据。但实现验证时却发现，客户端在断连后也不会再重连，所以没法重新写入zk，不符合预期。</p>
+<p><strong>方案二</strong></p>
+<p>还是由FindCoordinator写入zk节点，但删除改为GroupCoordinator监听consumer断开触发。</p>
+<p>因为consumer统一由Coordinator管理，它能监听到consumer加入或者离开。GroupCoordinator的removeMemberAndUpdateGroup方法是coordinator对consumer成员管理。</p>
+<pre><code>private void removeMemberAndUpdateGroup(GroupMetadata group,
+                                        MemberMetadata member) &#123;
+    group.remove(member.memberId());
+    switch (group.currentState()) &#123;
+        case Dead:
+        case Empty:
+            return;
+        case Stable:
+        case CompletingRebalance:
+            maybePrepareRebalance(group);
+            break;
+        case PreparingRebalance:
+            joinPurgatory.checkAndComplete(new GroupKey(group.groupId()));
+            break;
+        default:
+            break;
+    &#125;
+    // 删除 /client_group_id/xxx 节点
+    deleteClientIdGroupMapping(group, member.clientHost(), member.clientId());
+&#125;
+</code></pre>
+<p>调用入口有两个，其中handleLeaveGroup是主动离开，onExpireHeartbeat是超时被动离开，客户端正常退出或者宕机都可以调用removeMemberAndUpdateGroup方法触发删除。</p>
+<pre><code>public CompletableFuture&lt;Errors&gt; handleLeaveGroup(
+    String groupId,
+    String memberId
+) &#123;
+    return validateGroupStatus(groupId, ApiKeys.LEAVE_GROUP).map(error -&gt;
+        CompletableFuture.completedFuture(error)
+    ).orElseGet(() -&gt; &#123;
+        return groupManager.getGroup(groupId).map(group -&gt; &#123;
+            return group.inLock(() -&gt; &#123;
+                if (group.is(Dead) || !group.has(memberId)) &#123;
+                    return CompletableFuture.completedFuture(Errors.UNKNOWN_MEMBER_ID);
+                &#125; else &#123;
+                    ...
+                
+<pre><code>                // 触发删除消费者consumer
+                removeMemberAndUpdateGroup(group, member);
+                return CompletableFuture.completedFuture(Errors.NONE);
+            &amp;#125;
+        &amp;#125;);
+    &amp;#125;)
+    ....
+&amp;#125;);
+</code></pre>
+<p>&amp;#125;</p>
+<p>void onExpireHeartbeat(GroupMetadata group,<br>                       MemberMetadata member,<br>                       long heartbeatDeadline) &amp;#123;<br>    group.inLock(() -&gt; &amp;#123;<br>        if (!shouldKeepMemberAlive(member, heartbeatDeadline)) &amp;#123;<br>            log.info(“Member &amp;#123;&amp;#125; in group &amp;#123;&amp;#125; has failed, removing it from the group”,<br>                member.memberId(), group.groupId());<br>            &#x2F;&#x2F; 触发删除消费者consumer<br>            removeMemberAndUpdateGroup(group, member);<br>        &amp;#125;<br>        return null;<br>    &amp;#125;);<br>&amp;#125;<br></p></code></pre><p></p>
+<p>但这个方案有个问题是，日志运维关闭broker也会触发一个onExpireHeartbeat事件删除zk节点，与此同时客户端发现Coordinator断开了会马上触发FindCoordinator写入新的zk节点，但如果删除晚于写入的话，会导致误删除新写入的节点。我们干脆在关闭broker时，使用ShutdownHook加上shuttingdown状态防止关闭broker时删除zk节点，只有客户端断开时才删除。</p>
+<p>这个方案修改上线半个月后，还是出现了一个客户端的消费指标无法上报的情况。后来定位发现，如果客户端因FullGC出现卡顿情况，客户端可能会先于broker触发超时，也就是先超时的客户端新写入的数据被后监听到超时的broker误删除了。因为写入与删除并不是由同一个节点处理，所以无法在进程级别做并发控制，而且也无法判断哪次删除对应哪次的写入，所以用zk也是很难实现并发控制。</p>
+<p><strong>方案三</strong></p>
+<p>其实这并不是新的方案，只是在方案二基础上优化：数据一致性检查。</p>
+<p>既然我们很难控制好写入与删除的先后顺序，我们可以做数据一致性检查，类似于交易系统里的对账。因为GroupCoordinator是负责管理consumer成员的，维护着consumer的实时状态，就算zk节点被误删除，我们也可以从consumer成员信息中恢复，重新写入zk节点。</p>
+<pre><code>private void checkZkGroupMapping()&#123;  
+    for (GroupMetadata group : groupManager.currentGroups()) &#123;  
+        for (MemberMetadata memberMetadata : group.allMemberMetadata()) &#123;  
+            String clientPath = GroupIdUtils.groupIdPathFormat(memberMetadata.clientHost(), memberMetadata.clientId());  
+            String zkGroupClientPath = kafkaConfig.getGroupIdZooKeeperPath() + clientPath;  
+            // 查找zk中是否存在节点
+            metadataStore.get(zkGroupClientPath).thenAccept(resultOpt -&gt; &#123;  
+                if (!resultOpt.isPresent()) &#123;  
+                    // 不存在则进行补偿修复
+                    metadataStore.put(zkGroupClientPath, memberMetadata.groupId().getBytes(UTF\_8), Optional.empty())  
+                            .thenAccept(stat -&gt; &#123;  
+                                log.info("repaired clientId and group mapping: &#123;&#125;(&#123;&#125;)",  
+                                        zkGroupClientPath, memberMetadata.groupId());  
+                            &#125;)  
+                            .exceptionally(ex -&gt; &#123;  
+                                log.warn("repaired clientId and group mapping failed: &#123;&#125;(&#123;&#125;)",  
+                                        zkGroupClientPath, memberMetadata.groupId());  
+                                return null;  
+                            &#125;);  
+                &#125;  
+            &#125;).exceptionally(ex -&gt; &#123;  
+                log.warn("repaired clientId and group mapping failed: &#123;&#125; ", zkGroupClientPath, ex);  
+                return null;  
+            &#125;);  
+        &#125;  
+    &#125;  
+&#125;
+</code></pre>
+<p>经过方案三的优化上线，即使是历史存在问题的消费组，个别分区消费流量指标缺少group字段的问题也得到了修复。具体效果如下图所示：</p>
+<p><img class="lazy" alt="图片" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet//67385096ca5f780cc62269343e58cde7.png"></p>
+<h1>四、总结</h1>
+<p>经过多个版本的优化和线上验证，最终通过方案三比较完美的解决了这个消费指标问题。在分布式系统中，并发问题往往难以模拟和复现，我们也在尝试多个版本后才找到有效的解决方案。如果您在这方面有更好的经验或想法，欢迎提出，我们共同探讨和交流。</p>
+</div>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="vivo Pulsar 万亿级消息处理实践（3）-KoP 指标异常修复" href="https://my.oschina.net/vivotech/blog/18684129" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">vivo Pulsar 万亿级消息处理实践（3）-KoP 指标异常修复</span><span class="desc fs12">https://my.oschina.net/vivotech/blog/18684129</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a07df889.html">Visual Studio Code 1.102 发布<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a0881f32.html">Lynds Dark Nebula 1251<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/62869bc6.html" title="从 Python 演进探寻 AI 与云对编程语言的推动"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-b53f869abba56459700db4ef23ebfbcd1b9.png"></div><span class="title">从 Python 演进探寻 AI 与云对编程语言的推动</span></a><a class="item" href="/rss/642ccd7a.html" title="甘肃省提级调查褐石培心幼儿园幼儿血铅异常问题"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2477"></div><span class="title">甘肃省提级调查褐石培心幼儿园幼儿血铅异常问题</span></a><a class="item" href="/rss/4bfe6a49.html" title="AigcPanel v0.14.0 发布，开源 AI 数字人系统"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2721"></div><span class="title">AigcPanel v0.14.0 发布，开源 AI 数字人系统</span></a><a class="item" href="/rss/746956ea.html" title="Apache Seata v2.3.0 发布，支持 Saga 注解模式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=800"></div><span class="title">Apache Seata v2.3.0 发布，支持 Saga 注解模式</span></a><a class="item" href="/rss/6571d6ed.html" title="Gitee Pipe：关键领域 DevSecOps 的核心引擎"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0711/151512_UpCS_2720166.png"></div><span class="title">Gitee Pipe：关键领域 DevSecOps 的核心引擎</span></a><a class="item" href="/rss/cfb6dd5b.html" title="Manus 清空国内社交平台账号内容，前员工透露“不会继续推进”中文版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-85bd05e3a02aa43e5707cbefe10364949bd.png"></div><span class="title">Manus 清空国内社交平台账号内容，前员工透露“不会继续推进”中文版</span></a><a class="item" href="/rss/5eb2e2e7.html" title="MiniCPM 端侧客户端正式发布并开源"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0711/144320_ZE4E_2720166.png"></div><span class="title">MiniCPM 端侧客户端正式发布并开源</span></a><a class="item" href="/rss/65b260d7.html" title="Mistral AI 发布 Devstral2507 系列"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-c447bd09a61245b75a244d3bea9665c071a.png"></div><span class="title">Mistral AI 发布 Devstral2507 系列</span></a><a class="item" href="/rss/fa497c80.html" title="Snow 编程语言 v0.4.2 发布: 实现类型间全转换能力"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1059"></div><span class="title">Snow 编程语言 v0.4.2 发布: 实现类型间全转换能力</span></a><a class="item" href="/rss/dfb41321.html" title="PTerm —— 可以制作漂亮 CLI 的现代 Go 框架"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/0605/161415_KReV_4252687.png"></div><span class="title">PTerm —— 可以制作漂亮 CLI 的现代 Go 框架</span></a><a class="item" href="/rss/a07df889.html" title="Visual Studio Code 1.102 发布"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8975"></div><span class="title">Visual Studio Code 1.102 发布</span></a><a class="item" href="/rss/5d476506.html" title="工信部将在2025世界人工智能大会上发布《国际人工智能开源合作倡议》"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5215"></div><span class="title">工信部将在2025世界人工智能大会上发布《国际人工智能开源合作倡议》</span></a><a class="item" href="/rss/76f4a1aa.html" title="开源流存储项目 Fluss 正式加入 Apache 孵化器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet//d6c9e868f11150ce9ea8e7b7d7dbc218.png"></div><span class="title">开源流存储项目 Fluss 正式加入 Apache 孵化器</span></a><a class="item" href="/rss/ce7d3295.html" title="欧盟公布最终版《通用人工智能行为准则》"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1614"></div><span class="title">欧盟公布最终版《通用人工智能行为准则》</span></a><a class="item" href="/rss/2bb08d72.html" title="解码鸿蒙生态及核心技术 + 2025 HarmonyOS 创新赛，携手共创万物互联新未来"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://oscimg.oschina.net/oscnet/up-3b3809a860224eb959066196672471a33d8.png"></div><span class="title">解码鸿蒙生态及核心技术 + 2025 HarmonyOS 创新赛，携手共创万物互联新未来</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
