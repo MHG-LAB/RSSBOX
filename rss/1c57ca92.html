@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How TimescaleDB Helped Us Scale Analytics and Reporting - RSSBOX</title>
+
+  
+    <meta name="description" content="At Cloudflare, PostgreSQL and ClickHouse are our standard databases for transactional and analytical workloads. If you’re part of a team building products with configuration in our Dashboard, chance">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How TimescaleDB Helped Us Scale Analytics and Reporting">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1c57ca92.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="At Cloudflare, PostgreSQL and ClickHouse are our standard databases for transactional and analytical workloads. If you’re part of a team building products with configuration in our Dashboard, chance">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Qz0VnYZOG35OC3fd76W67/3dbe226e4cdef8d91c925224c5e43256/2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1hqhwCJXGIzffw77xgabiW/c1afd012c972c39112aee0660f53129a/3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/719sTyUjPzvI7IBUPuVKUc/c6a09ef143bebba6b1e3dba77d6f043f/4.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4kzEM3I7ZxCYdGI1T0LrEO/97a31f967a886a6d641205dd6fd39b79/5.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6YpApaIzs8rj9pwmPlG3xI/459a3498a160c7202797e8c52f0b4c98/6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1Nb8N7QpnumcZiudZHp89m/f59a9558cc4c74fd4a8d0cf6772a27fa/7.png">
+<meta property="article:published_time" content="2025-07-08T14:00:00.000Z">
+<meta property="article:modified_time" content="2025-07-08T14:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Qz0VnYZOG35OC3fd76W67/3dbe226e4cdef8d91c925224c5e43256/2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Designing for future growth</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Making Digital Experience Monitoring simple</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Using PostgreSQL for analytics</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">About order of columns in multicolumn indexes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Launch and improvements</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Optimizing query performance with precomputed aggregates</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Table partitioning</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">TimescaleDB</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Evaluating TimescaleDB for DEX</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What makes columnstore so fast?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">TimescaleDB at Cloudflare</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Conclusion</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-07-08T14:00:00.000Z">2025-07-08</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How TimescaleDB Helped Us Scale Analytics and Reporting</span></h1>
+<div>
+ <p>At Cloudflare, PostgreSQL and ClickHouse are our standard databases for transactional and analytical workloads. If you’re part of a team building products with configuration in our Dashboard, chances are you're using PostgreSQL. It’s fast, versatile, reliable, and backed by over 30 years of development and real-world use. It has been a foundational part of our infrastructure since the beginning, and today we run hundreds of PostgreSQL instances across a wide range of configurations and replication setups.</p><p>ClickHouse is a more recent addition to our stack. We started using it around 2017, and it has enabled us to ingest tens of millions of rows per second while supporting millisecond-level query performance. ClickHouse is a remarkable technology, but like all systems, it involves trade-offs.</p><p>In this post, I’ll explain why we chose TimescaleDB — a Postgres extension — over ClickHouse to build the analytics and reporting capabilities in our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/"><u>Zero Trust product suite</u></a>.</p>
+<div>
+<h2>Designing for future growth</h2>
+<a href="#designing-for-future-growth">
+</a>
+</div>
+<p>After a decade in software development, I’ve grown to appreciate systems that are simple and boring. Over time, I’ve found myself consistently advocating for architectures with the fewest moving parts possible. Whenever I see a system diagram with more than three boxes, I ask: <i>Why are all these components here? Do we really need all of this?</i></p><p>As engineers, it's easy to fall into the trap of designing for scenarios that might never happen. We imagine future scale, complex failure scenarios, or edge cases, and start building solutions for them upfront. But in reality, systems often don’t grow the way we expect, or don’t <i>have to</i>. Designing for large scale can be deferred by setting the right expectations with customers, and by adding guardrails like product limits and rate limits. Focusing on launching initial versions of products with just a few essential parts, maybe two or three components, gives us something to ship, test, and learn from quickly. We can always add complexity later, but only once it’s clear we need it.</p><p>Whether I specifically call it <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it"><u>YAGNI</u></a>, or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/KISS_principle"><u>Keep it simple, stupid</u></a>, or think about it as minimalism in engineering, the core idea is the same: <b>we’re rarely good at predicting the future, and every additional component we introduce carries a cost.</b> Each box in the system diagram is something that can break itself or other boxes, spiral into outages, and ruin weekend plans of on-call engineers. Each box also requires documentation, tests, observability, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Service-level_objective"><u>service level objectives (SLOs)</u></a>. Oftentimes, teams need to learn a new programming language just to support a new box.</p>
+<div>
+<h2>Making Digital Experience Monitoring simple</h2>
+<a href="#making-digital-experience-monitoring-simple">
+</a>
+</div>
+<p>Two years ago, I was tasked with building a new product at Cloudflare: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/insights/dex/"><u>Digital Experience Monitoring (DEX)</u></a>. DEX provides <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/performance/what-is-digital-experience-monitoring/"><u>visibility</u></a> into device, network, and application performance across <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/security/glossary/what-is-zero-trust/"><u>Zero Trust</u></a> environments. Our initial goal was clear — <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/introducing-digital-experience-monitoring/"><u>launch an MVP</u></a> focused on fleet status monitoring and synthetic tests, giving customers actionable analytics and troubleshooting. From a technical standpoint, fleet status and synthetic tests are two types of structured logs generated by the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cloudflare-one/connections/connect-devices/warp/"><u>WARP client</u></a>. These logs are uploaded to an API, stored in a database, and ultimately visualized in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://one.dash.cloudflare.com/"><u>Cloudflare Dashboard</u></a>. </p><p>As with many new engineering teams at Cloudflare, DEX started as a “tiger team”: a small group of experienced engineers tasked with validating a new product quickly. I worked with the following constraints:</p><ul><li><p>Team of three full-stack engineers.</p></li><li><p>Daily collaboration with 2-3 other teams.</p></li><li><p>Can launch in beta, engineering can drive product limits.</p></li><li><p>Emphasis on shipping fast.</p></li></ul><p>To strike a balance between usefulness and simplicity, we made deliberate design decisions early on:</p><ul><li><p>Fleet status logs would be uploaded from WARP clients at fixed 2-minute intervals.</p></li><li><p>Synthetic tests required users to preconfigure them by target (HTTP or traceroute) and frequency.</p></li><li><p>We capped usage: each device could run up to 10 synthetic tests, no more than once every 5 minutes.</p></li><li><p>Data retention of 7 days.</p></li></ul><p>These guardrails gave us room to ship DEX months earlier and gather early feedback from customers without prematurely investing in scalability and performance.</p><p>We knew we needed a basic <b>configuration plane </b>— an interface in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://one.dash.cloudflare.com/"><u>Dashboard</u></a> for users to create and manage synthetic tests, supported by an API and database to persist this data. That led us to the following setup:</p><ul><li><p>HTTP API for managing test configurations.</p></li><li><p>PostgreSQL for storing those configurations.</p></li><li><p>React UI embedded in the Cloudflare Dashboard.</p></li></ul>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2Qz0VnYZOG35OC3fd76W67/3dbe226e4cdef8d91c925224c5e43256/2.png">
+</figure><p>Just three components — simple, focused, and exactly what we needed. Of course, each of these boxes came with real complexity under the hood. PostgreSQL was deployed as a high-availability cluster: one primary, one synchronous replica for failover scenarios, and several asynchronous replicas distributed across two geographies. The API was deployed on horizontally scaled Kubernetes pods across two geographies. The React app was served globally as standard via Cloudflare’s network. Thanks to our platform teams, all of that complexity was abstracted away, allowing us to think in terms of just three essential parts, but it really shows that each box can come with a huge cost behind the scenes. </p><p>Next, we needed to build the <b>analytics plane </b>— an ingestion pipeline to collect structured logs from WARP clients, store them, and visualize them for our customers in the Dashboard. I was personally excited to explore ClickHouse for this. I have seen its performance in other projects and was eager to experiment with it. But as I dug into the internal documentation on how to get started with ClickHouse, reality set in:</p><blockquote><p><i>Writing data to Clickhouse</i></p><p><i>Your service must generate logs in a clear format, using Cap'n Proto or Protocol Buffers. Logs should be written to a socket for logfwdr to transport to PDX, then to a Kafka topic. Use a Concept:Inserter to read from Kafka, batching data to achieve a write rate of less than one batch per second.</i></p></blockquote><p>Oh. That’s a lot. Including ClickHouse and the WARP client, we’re looking at five boxes to be added to the system diagram. This architecture exists for good reason, though. The default and most commonly used table engine in ClickHouse, MergeTree, is optimized for high-throughput batch inserts. It writes each insert as a separate partition, then runs background merges to keep data manageable. This makes writes very fast, but not when they arrive in lots of tiny batches, which was exactly our case with millions of individual devices uploading one log event every 2 minutes. Too many small writes can trigger write amplification, resource contention, and throttling. </p><p>So it became clear that ClickHouse is a sports car and to get value out of it we had to bring it to a race track, shift into high gear, and drive it at top speed. But we didn’t need a race car — we needed a daily driver for short trips to a grocery store. For our initial launch, we didn’t need millions of inserts per second. We needed something easy to set up, reliable, familiar, and good enough to get us to market. A colleague suggested we just use PostgreSQL, quoting “it can be cranked up” to handle the load we were expecting. So, we took the leap!</p><p>First design of configuration and analytics plane for DEX:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1hqhwCJXGIzffw77xgabiW/c1afd012c972c39112aee0660f53129a/3.png">
+</figure>
+<div>
+<h2>Using PostgreSQL for analytics</h2>
+<a href="#using-postgresql-for-analytics">
+</a>
+</div>
+<p>Structurally, there’s not much difference between configuration data and analytical logs. Logs are simply structured payloads — often in JSON — that can be transformed into a columnar format and persisted in a relational database.</p><p>Here’s an example of a device state log:</p>
+<pre><code>&#123;
+  “timestamp”: “2025-06-16T22:50:12.226Z”,
+  “accountId”: “025779fde8cd4ab8a3e5138f870584a7”,
+  “deviceId”: “07dfde77-3f8a-4431-89f7-acfcf4ead4fc”,
+  “colo”: “SJC”,
+  “status”: “connected”,
+  “mode”: “warp+doh”,
+  “clientVersion”: “2024.3.409.0”,
+  “clientPlatform”: “windows”,
+&#125;</code></pre>
+<p>To store these logs, we created a simple PostgreSQL table:</p>
+<pre><code>CREATE TABLE device_state (
+    "timestamp" TIMESTAMP WITH TIME ZONE NOT NULL,
+    account_id TEXT NOT NULL,
+    device_id TEXT NOT NULL,
+    colo TEXT,
+    status TEXT,
+    mode TEXT,
+    client_version TEXT,
+    client_platform TEXT
+);</code></pre>
+<p>You might notice that this table doesn’t have a primary key. That’s intentional, because time-series data is almost never queried by a unique ID. Instead, we query by time ranges and filter by various attributes (e.g. account ID or device ID). Still, we needed a way to deduplicate logs in case of client retries. </p><p>We created two indexes to optimize for our most common queries:</p>
+<pre><code>CREATE UNIQUE INDEX device_state_device_account_time ON device_state USING btree (device_id, account_id, “timestamp”);
+CREATE INDEX device_state_account_time ON device_state USING btree (account_id, “timestamp”);</code></pre>
+<p>The unique index ensures deduplication: each (device, account, timestamp) tuple represents a single, unique log. The second index supports typical time-window queries at the account level. Since we always query by account_id (represents individual customers) and timestamp, they are always a part of the index. </p><p>We inserted data from our API using UPSERT query:</p>
+<pre><code>INSERT INTO device_state (…) VALUES (…) ON CONFLICT DO NOTHING;
+</code></pre>
+<div>
+<h2>About order of columns in multicolumn indexes</h2>
+<a href="#about-order-of-columns-in-multicolumn-indexes">
+</a>
+</div>
+<p>PostgreSQL's B-tree indexes support multiple columns, but column order has a major impact on query performance.</p><p>From PostgreSQL documentation <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/indexes-multicolumn.html"><u>about multicolumn indexes</u></a>:</p><blockquote><p><i>A multicolumn B-tree index can be used with query conditions that involve any subset of the index's columns, but the index is most efficient when there are constraints on the leading (leftmost) columns. The exact rule is that equality constraints on leading columns, plus any inequality constraints on the first column that does not have an equality constraint, will be used to limit the portion of the index that is scanned. Constraints on columns to the right of these columns are checked in the index, so they save visits to the table proper, but they do not reduce the portion of the index that has to be scanned.</i></p></blockquote><p>What’s interesting in time series workloads is that the queries usually have inequality constraints on the time column, and then equality constraints on all other columns. </p><p>A typical query to build line charts and pie charts visualizing data in a time interval often looks like this:</p>
+<pre><code>SELECT 
+  DATE_TRUNC(‘hour’, timestamp) as hour, 
+  account_id,
+  device_id,
+  status,
+  COUNT(*) as total
+FROM device_state 
+WHERE 
+  account_id = ‘a’ AND
+  device_id = ‘b’ AND
+  timestamp BETWEEN ‘2025-07-01’ AND ‘2025-07-02’
+GROUP BY hour, account_id, device_id, status;</code></pre>
+<p>Notice our WHERE clause — it has equality constraints on account_id and device_id, and two inequality constraints on timestamp. If we had built our index in the order of (timestamp, account_id, device_id), only the “timestamp” section of the index could’ve been used to reduce the index section to be scanned, and account_id and device_id would have to be fully scanned, with values that are not ‘a’ or ‘b’ filtered out after scanning. </p><p>Additionally, the runtime complexity of search in btree is O(log n) — the search will get slower as the size of your table (and all indexes) grows, so another optimization is to reduce the portion of the index that needs to be scanned. Even for columns with equality constraints, you can greatly reduce query times by ordering columns by cardinality. We’ve seen up to 100% improvement in SELECT query performance when we simply changed the order of account_id and device_id in our multicolumn index.</p><p>To get the best performance for time range queries, we follow these rules for order of columns:</p><ul><li><p>The timestamp column is always last.</p></li><li><p>Other columns are leading columns, ordered by their cardinalities starting with the highest cardinality column.</p></li></ul>
+<div>
+<h2>Launch and improvements</h2>
+<a href="#launch-and-improvements">
+</a>
+</div>
+<p>Because we took a step back during system design and avoided optimizing for the future, thanks to our minimal and focused architecture, we went from zero to a working DEX MVP in under four months. </p><p>Early metrics were promising, providing reasonable throughput capabilities and latency for API requests:</p><ul><li><p>~200 inserts/sec at launch.</p></li><li><p>Query latencies in the hundreds of milliseconds for most customers.</p></li></ul><p>Post-launch, we focused on collecting feedback while monitoring system behavior. As adoption grew, we scaled to 1,000 inserts/sec, and our tables grew to billions of rows. That’s when we started to see performance degradation — particularly for large customers querying 7+ day time ranges across tens of thousands of devices.</p>
+<div>
+<h2>Optimizing query performance with precomputed aggregates</h2>
+<a href="#optimizing-query-performance-with-precomputed-aggregates">
+</a>
+</div>
+<p>As DEX grew to billions of device logs, one of the first performance optimizations we explored was precomputing aggregates, also known as downsampling.</p><p>The idea is that if you know the shape of your queries ahead of time — say, grouped by status, mode, or geographic location — you can precompute and store those summaries in advance, rather than querying the raw data repeatedly. This dramatically reduces the volume of data scanned and the complexity of the query execution.</p><p>To illustrate this in an example, let’s consider DEX Fleet Status:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/719sTyUjPzvI7IBUPuVKUc/c6a09ef143bebba6b1e3dba77d6f043f/4.png">
+</figure><p>In our DEX Fleet Status dashboard, we render common visualizations like:</p><ul><li><p>Number of connected devices by data center location (colo)</p></li><li><p>Device status and connection mode over time</p></li></ul><p>These charts typically group logs by status, mode, or colo, either over a 1-hour window or across the full time range.</p><p>Our largest customers may have 30,000+ devices, each reporting logs every 2 minutes. That’s millions of records per day per customer. But the columns we’re visualizing (e.g. status and mode) only have a few distinct values (4–6). By aggregating this data ahead of time, we can collapse millions of rows into a few hundred per interval and query dramatically smaller, narrower tables.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4kzEM3I7ZxCYdGI1T0LrEO/97a31f967a886a6d641205dd6fd39b79/5.png">
+</figure><p>This made a huge impact: we saw up to 1000x query performance improvement and charts that previously took several seconds now render instantly, even for 7-day views across tens of thousands of devices.</p><p>Implementing this technique in PostgreSQL is challenging. While PostgreSQL does support <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/rules-materializedviews.html"><u>materialized views</u></a>, they didn’t fit our needs out of the box because they don’t refresh automatically and incrementally. Instead, we used a cron job that was periodically running custom aggregation queries for all pre-aggregate tables (we had 6 of them). Our Database platform team had a lightweight framework built for data retention purposes that we plugged into. Still, any schema change required cross-team coordination, and we invested considerable time in optimizing aggregation performance. But the results were worth it: fast, reliable queries for the majority of customer use cases.</p>
+<div>
+<h2>Table partitioning</h2>
+<a href="#table-partitioning">
+</a>
+</div>
+<p>Pre-computed aggregates are great, but they’re not the answer to everything. As we were adding more table columns for new DEX features, we needed to invest time in creating new pre-aggregated tables. Additionally, some features required queries with combined filters, which required querying the raw data that included all the columns. But we didn’t have good enough performance in raw tables.</p><p>One technique we considered to improve performance on raw tables was <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/ddl-partitioning.html"><u>table partitioning</u></a>. In PostgreSQL, tables are stored in one large file (large tables are split to 1 GB segment files). With partitioning, you can break a large table into smaller child tables, each covering a slice of data (e.g. one day of logs). PostgreSQL then scans only the relevant partitions based on your query’s timestamp filter. This can dramatically improve query performance in some cases. </p><p>What was particularly interesting for us was range-partitioning on the timestamp column, because our customers wanted longer data retention, up to one year, and storing one year of data in one large table would have destroyed query performance.</p>
+<pre><code>CREATE TABLE device_state (
+    …
+) PARTITION BY RANGE (timestamp);
+
+<p>CREATE TABLE device_state_20250601 PARTITION OF device_state<br>    FOR VALUES FROM (‘2025-06-01’) TO (‘2025-06-02’);<br>CREATE TABLE device_state_20250601 PARTITION OF device_state<br>    FOR VALUES FROM (‘2025-06-02’) TO (‘2025-06-03’);<br>CREATE TABLE device_state_20250601 PARTITION OF device_state<br>    FOR VALUES FROM (‘2025-06-03’) TO (‘2025-06-04’);</p></code></pre><p></p>
+<p>Unfortunately, PostgreSQL doesn’t automatically manage partitions — you must manually create each one as shown above, so we would have needed to build a full partition management system to automate this.</p><p>We ended up not adopting it because in the end, partitioning didn’t solve our core problem: speeding up frequent dashboard queries on recent raw data up to past 7 days.</p>
+<div>
+<h2>TimescaleDB</h2>
+<a href="#timescaledb">
+</a>
+</div>
+<p>As our raw PostgreSQL setup began to show its limits, we started exploring other options to improve query performance. That’s when we discovered TimescaleDB. What particularly caught my attention was <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hypercore/real-time-analytics-in-hypercore/"><b><u>columnstore</u></b></a><b> and </b><a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hypertables/improve-query-performance/"><b><u>sparse indexes</u></b></a>, common techniques in OLAP databases like ClickHouse. It seemed to be the solution for our raw performance problem. On top of that:</p><ul><li><p><b>It's Postgres:</b> TimescaleDB is packaged as a PostgreSQL extension and it seamlessly coexists with it, granting access to the entire Postgres ecosystem. We can still use vanilla Postgres tables for transactional workloads, and TimescaleDB <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hypertables/"><u>hypertables</u></a> for analytical tasks, offering convenience of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.tigerdata.com/blog/postgres-for-everything"><u>one database for everything</u></a>.</p></li><li><p><b>Automatic partition management:</b> Unlike Postgres, which requires manual<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/ddl-partitioning.html"> <u>table partitioning</u></a>, TimescaleDB's<a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hypertables/"><u> hypertables</u></a> are partitioned by default and automatically managed. </p></li><li><p><b>Automatic data pre-aggregation/downsampling</b>: Tedious processes in native Postgres, such as creating and managing downsampled tables, are automated in TimescaleDB through <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/continuous-aggregates/about-continuous-aggregates/"><u>continuous aggregates</u></a>. This feature eliminates the need for custom-built cron jobs and simplifies the development and deployment of pre-computed aggregates.</p></li><li><p><b>Realtime data pre-aggregation/downsampling:</b> A common problem with async aggregates is that they can be out-of-date, because aggregation jobs can take a long time to complete. TimescaleDB addresses the issue of outdated async aggregates with its <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/continuous-aggregates/real-time-aggregates/"><u>realtime aggregation</u></a> by seamlessly integrating the most recent raw data into rollup tables during queries.</p></li><li><p><b>Compression: </b><a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/compression/about-compression/"><u>Compression</u></a> is a cornerstone feature of TimescaleDB. Compression can reduce table size by more than 90% while simultaneously enhancing query performance.</p></li><li><p><b>Columnstore performance for real-time analytics:</b> TimescaleDB’s hybrid row/columnar engine, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hypercore/"><u>Hypercore</u></a>, enables fast scans and aggregations over large datasets. It’s fully mutable, so we can backfill with UPSERTs. Combined with compression, it delivers strong performance for analytical queries while minimizing storage overhead.</p></li><li><p><b>Rich library of analytics tools and functions: </b>TimescaleDB offers a suite of tools and functions tailored for analytical workloads, including <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hyperfunctions/percentile-approx/"><u>percentile approximation</u></a>,<a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hyperfunctions/approx-count-distincts/"><u> count of unique values approximation</u></a>,<a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.tigerdata.com/use-timescale/latest/hyperfunctions/time-weighted-averages/"><u> time-weighted averages</u></a>, etc…</p></li></ul><p>One especially compelling aspect: TimescaleDB made aggregation and data retention automatic, allowing us to simplify our infrastructure and remove a box from the system architecture entirely.</p>
+<div>
+<h2>Evaluating TimescaleDB for DEX</h2>
+<a href="#evaluating-timescaledb-for-dex">
+</a>
+</div>
+<p>We deployed a self-hosted TimescaleDB instance on our canary PostgreSQL cluster to run an apples-to-apples comparison against vanilla Postgres. Our production backend was dual-writing to both systems.</p><p>As expected, installing TimescaleDB was trivial. Simply load the library and run the following SQL query:</p>
+<pre><code>CREATE EXTENSION IF NOT EXISTS timescaledb;</code></pre>
+<p>Then we:</p><ul><li><p>Created raw tables</p></li><li><p>Converted them to hypertables</p></li><li><p>Enabled columnstore features</p></li><li><p>Set up continuous aggregates</p></li><li><p>Configured automated policies for compression and retention</p></li></ul><p>Here’s a condensed example for device_state logs:
+</p>
+<pre><code>– Create device_state table.
+CREATE TABLE device_state (
+    …
+);
+
+<p>– Convert it to a hypertable.<br>SELECT create_hypertable (‘device_state’, by_range (‘timestamp’, INTERVAL ‘1 hour’));</p>
+<p>– Add columnstore settings<br>ALTER TABLE device_state SET (<br>    timescaledb.enable_columnstore,<br>    timescaledb.segmentby &#x3D; ‘account_id’<br>);</p>
+<p>– Schedule recurring compression jobs<br>CALL add_columnstore_policy(‘device_state’, after &#x3D;&gt; INTERVAL ‘2 hours’, schedule_interval &#x3D;&gt; INTERVAL ‘1 hour’);</p>
+<p>– Schedule recurring data retention jobs<br>SELECT add_retention_policy(‘device_state’, INTERVAL ‘7 days’);</p>
+<p>– Create device_state_by_status_1h continuous aggregate<br>CREATE MATERIALIZED VIEW device_state_by_status_1h<br>WITH (timescaledb.continuous) AS<br>SELECT<br>  time_bucket (INTERVAL ‘1 hour’, TIMESTAMP) AS time_bucket,<br>  Account_id,<br>  Status,<br>  COUNT(*) as total<br>FROM device_state<br>GROUP BY 1,2,3<br>WITH no data;</p>
+<p>– Enable realtime aggregates<br>ALTER MATERIALIZED VIEW ‘device_state_by_status_1h’<br>SET (timescaledb.materialized_only&#x3D;FALSE);</p>
+<p>– Schedule recurring continuous aggregate jobs to refresh past 10 hours every 10 minutes<br>SELECT add_continuous_aggregate_policy (<br>  ‘device_state_by_status_1h’,<br>  start_offset&#x3D;&gt;INTERVAL ‘10 hours’,<br>  end_offset&#x3D;&gt;INTERVAL ‘1 minute’,<br>  schedule_interval&#x3D;&gt;INTERVAL ‘10 minutes’,<br>  buckets_per_batch &#x3D;&gt; 1<br>);</p></code></pre><p></p>
+<p>After a two-week backfill period, we ran side-by-side benchmarks using real production queries from our dashboard. We tested:</p><ul><li><p>3 time windows: past 1 hour, 24 hours, and 7 days</p></li><li><p>3 columnstore modes: uncompressed, compressed, and compressed with segmenting</p></li><li><p>Datasets containing 500 million to 1 billion rows</p></li></ul>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6YpApaIzs8rj9pwmPlG3xI/459a3498a160c7202797e8c52f0b4c98/6.png">
+</figure><p>We saw 5x to 35x performance improvements, depending on query type and time range:</p><ul><li><p>For short windows (1–24 hours), even uncompressed hypertables performed well.</p></li><li><p>For longer windows (7 days), compression and columnstore settings (especially with segmentby) made all the difference.</p></li><li><p>Sparse indexes were critical. Once PostgreSQL’s btree indexes broke down at scale, Timescale’s minmax sparse indexes and columnar layout outperformed.</p></li></ul><p>On top of query performance, we saw impressive compression ratios, up to 33x:</p>
+<pre><code>SELECT 
+    pg_size_pretty(before_compression_total_bytes) as before,
+    pg_size_pretty(after_compression_total_bytes) as after,
+    ROUND(before_compression_total_bytes / after_compression_total_bytes::numeric, 2) as compression_ratio
+FROM hypertable_compression_stats('device_state');
+
+<p>before: 1616 GB<br>after: 49 GB<br>compression_ratio: 32.83</p></code></pre><p></p>
+<p>That meant we could retain 33x more data for the same cost.</p>
+<div>
+<h2>What makes columnstore so fast?</h2>
+<a href="#what-makes-columnstore-so-fast">
+</a>
+</div>
+<p>Two main things: compression and sparse indexes.</p><p>It might seem counterintuitive that querying compressed data, which requires decompression, can be faster than querying raw data. But in practice, input/output (I/O) is the major bottleneck in most analytical workloads. The reduction in disk I/O from compression often outweighs the CPU cost of decompressing. In TimescaleDB, compression transforms a hypertable into a columnar format: values from each column are grouped in chunks (typically 1,000 at a time), stored in arrays, and then compressed into binary form. More detailed explanation in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.tigerdata.com/blog/building-columnar-compression-in-a-row-oriented-database#building-columnar-storage-on-a-row-based-system"><u>this TimescaleDB blog post</u></a>.</p><p>You might wonder how this is possible in PostgreSQL, which is traditionally row-based. TimescaleDB has a really clever solution for it by utilizing PostgreSQL <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/current/storage-toast.html"><u>TOAST</u></a> pages. The way it works is after tuples of 1000 values are compressed, they’re moved to external TOAST pages. The columnstore table itself then basically becomes a table of pointers to TOAST, where actual data is stored and only retrieved lazily, column-by-column.</p><p>The second factor is sparse minmax indexes. The idea behind sparse indexes is that rather than storing every single value in an index, store every N-th value. This makes them much smaller and more efficient to query in very large datasets. TimescaleDB implements minmax sparse indexes, where for each compressed tuple of 1,000 values it creates two additional metadata columns, storing min and max values. The query engine then looks at these columns to determine whether a value could possibly be found in a compressed tuple before attempting to decompress it.</p><p>What we found later, unfortunately, after we did our evaluation of TimescaleDB, is that sparse indexes need to be explicitly enabled via timescaledb.orderby option. Otherwise, TimescaleDB sets it to some default value, which may not always be the most efficient for your queries. We added all columns that we filter on to orderby setting:</p>
+<pre><code>– Add columnstore settings
+ALTER TABLE device_state SET (
+    timescaledb.enable_columnstore,
+    timescaledb.segmentby = ‘account_id’,
+    timescaledb.orderby = ‘timestamp,device_id,colo,mode,status,client_version,client_platform
+);</code></pre>
+<div>
+<h2>TimescaleDB at Cloudflare</h2>
+<a href="#timescaledb-at-cloudflare">
+</a>
+</div>
+<p>Following the success with DEX, other teams started exploring TimescaleDB for its simplicity and performance. One notable example is the Zero Trust Analytics &amp; Reporting (ART) team.</p><p>The ART team is responsible for generating analytics and long-term reports — spanning months or even years — for Zero Trust products such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/access/"><u>Access</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/gateway/"><u>Gateway</u></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/casb/"><u>CASB</u></a>, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/dlp/"><u>DLP</u></a>. These datasets live in various ClickHouse and PostgreSQL clusters that we wanted to replicate into a singular home that is specifically designed to unify related, but not co-located data points, together and modeled to address our customer’s analytical needs.</p><p>We chose to use TimescaleDB as the aggregation layer on top of raw logs stored elsewhere. We built a system of crawlers using cron jobs that periodically query the multitude of clusters for hourly aggregates across all customers. These aggregates are ingested into TimescaleDB, where we use continuous aggregates to further roll them up into daily and monthly summaries for reporting.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1Nb8N7QpnumcZiudZHp89m/f59a9558cc4c74fd4a8d0cf6772a27fa/7.png">
+</figure><p>Access and Gateway datasets are massive, often ingesting millions of rows per second. To support arbitrary filters in reporting, crawler queries group by all relevant fields, including high-cardinality columns like IP addresses. This means the downsampling ratio is low, and in some cases, we're inserting ~100,000 aggregated rows per second. TimescaleDB handles this load just fine, but to support it we made some adjustments:</p><ul><li><p>We switched from bulk INSERTS to COPY. This significantly improved ingestion throughput. We didn’t benchmark it ourselves, but plenty of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.tigerdata.com/learn/testing-postgres-ingest-insert-vs-batch-insert-vs-copy"><u>benchmarks</u></a> show that COPY performs much better with large batches.</p></li><li><p>We disabled synchronous replication. In our case, temporary data loss is acceptable — our crawlers are idempotent and can reprocess missing data as needed.</p></li><li><p>We also disabled <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.postgresql.org/docs/8.1/runtime-config-wal.html"><u>fsync</u></a>. Again, durability is less of a concern for this use case, so skipping disk syncs helped with ingest performance.</p></li><li><p>We dropped most indexes in hypertables, only kept one on (account_id, timestamp), and relied on aggressive compression and sparse indexes. The absence of indexes helped with insert rates and didn’t have a significant impact on query performance, because only a very small part of the table was uncompressed and relied on traditional btree indexes.</p></li></ul><p>You can see this system in action at <a target="_blank" rel="external nofollow noopener noreferrer" href="https://one.dash.cloudflare.com/?to=/:account/analytics/overview"><u>Cloudflare Zero Trust Analytics</u></a>.</p>
+<div>
+<h2>Conclusion</h2>
+<a href="#conclusion">
+</a>
+</div>
+<p>Prioritizing core value and resisting the urge to prematurely optimize can accelerate time to market—and sometimes take you on an unexpected journey that leads to better solutions than you'd originally planned. In the early days of DEX, taking a step back to focus on what truly mattered helped us discover TimescaleDB, which turned out to be exactly what we needed.</p><p>Not every team needs a hyper-specialized race car that requires 100 octane fuel, carbon ceramic brakes, and ultra-performance race tires: while each one of these elements boost performance, there's a real cost towards having those items in the form of maintenance and uniqueness. For many teams at Cloudflare, TimescaleDB strikes a phenomenal balance between the simplicity of storing your analytical data under the same roof as your configuration data, while also gaining much of the impressive performance of a specialized OLAP system.</p><p>Check out TimescaleDB in action by using our robust analytics, reporting, and digital experience monitoring capabilities on our Zero Trust platform. To learn more, reach out to your account team or sign up directly <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/"><u>here</u></a>.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How TimescaleDB helped us scale analytics and reporting" href="https://blog.cloudflare.com/timescaledb-art/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How TimescaleDB helped us scale analytics and reporting</span><span class="desc fs12">https://blog.cloudflare.com/timescaledb-art/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/3c531ade.html">Introducing Simple and Secure Egress Policies by Hostname in Cloudflare’s SASE Platform<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8e72d20b.html">Git Security Vulnerabilities Announced<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/887ebff0.html" title="Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7727"></div><span class="title">Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare </span></a><a class="item" href="/rss/d3e4a192.html" title="Cloudflare 1.1.1.1 Incident on July 14, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/XATlkx1Im1QhnBTJL3ER5/6cc65fce22bd66815c348dac555a1501/image1.png"></div><span class="title">Cloudflare 1.1.1.1 Incident on July 14, 2025</span></a><a class="item" href="/rss/f003b250.html" title="Cloudflare Recognized as a Visionary in 2025 Gartner® Magic Quadrant™ for SASE Platforms"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5546"></div><span class="title">Cloudflare Recognized as a Visionary in 2025 Gartner® Magic Quadrant™ for SASE Platforms</span></a><a class="item" href="/rss/c7e8d7a5.html" title="Content Independence Day: No AI Crawl Without Compensation!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6GFFa6knU0nKGjhJVh8Ar8/8a1b4c0661146596cc844cdd9dd900ea/BLOG-2860_2.png"></div><span class="title">Content Independence Day: No AI Crawl Without Compensation!</span></a><a class="item" href="/rss/1466dec5.html" title="Explore Your Cloudflare Data With Python Notebooks, Powered by Marimo"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2r3Dmuwcm4AZrhV39Gkhyl/c3f98a3780bc29f1c01ea945621fc005/image2.png"></div><span class="title">Explore Your Cloudflare Data With Python Notebooks, Powered by Marimo</span></a><a class="item" href="/rss/3d90fcc0.html" title="Control Content Use for AI Training With Cloudflare’s Managed robots.txt and Blocking for Monetized Content"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2B8KAmaP6DrMEMW5YSjLYP/d9eb0f67a998b730373a27aa707ade9d/image5.png"></div><span class="title">Control Content Use for AI Training With Cloudflare’s Managed robots.txt and Blocking for Monetized Content</span></a><a class="item" href="/rss/1e140cd.html" title="From Googlebot to GPTBot: Who’s Crawling Your Site in 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3W6ZVHbwe8r5R5pYrZE7Aw/20a6ef0f77c015ae932848861c04b556/image6.png"></div><span class="title">From Googlebot to GPTBot: Who’s Crawling Your Site in 2025</span></a><a class="item" href="/rss/a4f50154.html" title="Hyper-Volumetric DDoS Attacks Skyrocket: Cloudflare’s 2025 Q2 DDoS Threat Report"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4D7sY9wWyZAarqgEOuudjL/4a1a424dd002a85cd65ebd2678deeb9b/image11.png"></div><span class="title">Hyper-Volumetric DDoS Attacks Skyrocket: Cloudflare’s 2025 Q2 DDoS Threat Report</span></a><a class="item" href="/rss/ffac7c65.html" title="Introducing Pay per Crawl: Enabling Content Owners to Charge AI Crawlers for Access"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2PhxxI7f3Teb521mPRFQUL/1ecfd01f60f165b35c27ab9457f8b152/image3.png"></div><span class="title">Introducing Pay per Crawl: Enabling Content Owners to Charge AI Crawlers for Access</span></a><a class="item" href="/rss/bca15cdd.html" title="Message Signatures Are Now Part of Our Verified Bots Program, Simplifying Bot Authentication"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2lMYno3QOwtwfTDDgeqFx8/c69088229dcf9fc08f5a76ce7e0a0354/1.png"></div><span class="title">Message Signatures Are Now Part of Our Verified Bots Program, Simplifying Bot Authentication</span></a><a class="item" href="/rss/3c531ade.html" title="Introducing Simple and Secure Egress Policies by Hostname in Cloudflare’s SASE Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7KwZQRJksemP5QwXzT0S2P/2a45d3ac7581da31485a6d15c5ba6b03/image3.png"></div><span class="title">Introducing Simple and Secure Egress Policies by Hostname in Cloudflare’s SASE Platform</span></a><a class="item" href="/rss/166830a5.html" title="Quicksilver V2: Evolution of a Globally Distributed Key-Value Store (Part 2)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2mGYCFdZIWdYl1TuDzvlAf/45d1b975adce0ec4eb5cc2842c8bd185/image1.png"></div><span class="title">Quicksilver V2: Evolution of a Globally Distributed Key-Value Store (Part 2)</span></a><a class="item" href="/rss/3d456366.html" title="Quicksilver V2: Evolution of a Globally Distributed Key-Value Store (Part 1)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/336Tl3Q00d5MVe29nzkQcY/3781ee725f2da6a847677235c1c3c960/image5.png"></div><span class="title">Quicksilver V2: Evolution of a Globally Distributed Key-Value Store (Part 1)</span></a><a class="item" href="/rss/649ecee3.html" title="The Crawl Before the Fall… of Referrals: Understanding AI’s Impact on Content Providers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3SOsmpe6TAWwqK6g9irLI2/cca037eadf97578f7851e24ba6b90af4/image9.png"></div><span class="title">The Crawl Before the Fall… of Referrals: Understanding AI’s Impact on Content Providers</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Modeling CORS Frameworks With CodeQL to Find Security Vulnerabilities - RSSBOX</title>
+
+  
+    <meta name="description" content="There are many different types of vulnerabilities that can occur when setting up CORS for your web application, and insecure usage of CORS frameworks and logic errors in homemade CORS implementatio">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Modeling CORS Frameworks With CodeQL to Find Security Vulnerabilities">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/640f9746.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="There are many different types of vulnerabilities that can occur when setting up CORS for your web application, and insecure usage of CORS frameworks and logic errors in homemade CORS implementatio">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/cors1.jpg?resize=1024%2C847">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/cors2.png?resize=961%2C877">
+<meta property="article:published_time" content="2025-07-10T09:38:15.000Z">
+<meta property="article:modified_time" content="2025-07-10T09:38:15.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/cors1.jpg?resize=1024%2C847">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-modeling-headers-in-codeql"><span class="toc-text">Modeling headers in CodeQL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#modeling-frameworks-in-codeql"><span class="toc-text">Modeling frameworks in CodeQL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#writing-cors-misconfiguration-queries-in-codeql"><span class="toc-text">Writing CORS misconfiguration queries in CodeQL</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#extra-credit"><span class="toc-text">Extra credit</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#take-this-with-you"><span class="toc-text">Take this with you </span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-07-10T09:38:15.000Z">2025-07-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Modeling CORS Frameworks With CodeQL to Find Security Vulnerabilities</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p>There are many <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/security/application-security/localhost-dangers-cors-and-dns-rebinding/">different types of vulnerabilities</a> that can occur when setting up CORS for your web application, and insecure usage of CORS frameworks and logic errors in homemade CORS implementations can lead to serious security vulnerabilities that allow attackers to bypass authentication. What’s more, attackers can utilize CORS misconfigurations to escalate the severity of other existing vulnerabilities in web applications to access services on the intranet.</p>
+<figure class="wp-block-image size-large"><img><img alt="A CORS diagram showing communication between two websites in the browser." class="wp-image-89421" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="847" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/cors1.jpg?resize=1024%2C847" width="1024"></figure>
+<p>In this blog post, I’ll show how developers and security researchers can use CodeQL to model their own libraries, using work that I’ve done on CORS frameworks in Go as an example. Since the techniques that I used are useful for modeling other frameworks, this blog post can help you model and find vulnerabilities in your own projects. Because static analyzers like CodeQL have the ability to get the detailed information about structures, functions, and imported libraries, they’re more versatile than simple tools like grep. Plus, since CORS frameworks often use set configurations via specific structures and functions, using CodeQL is the easiest way to find misconfigurations in your codebases.</p>
+<h2 class="wp-block-heading" id="h-modeling-headers-in-codeql">Modeling headers in CodeQL</h2>
+<p>When adding code to CodeQL, it’s best practice to always check the related queries and frameworks that are already available so that we’re not reinventing the wheel. For most languages, CodeQL already has a CORS query that covers many of the default cases. The easiest and simplest way of implementing CORS is by manually setting the  <code>Access-Control-Allow-Origin</code> and <code>Access-Control-Allow-Credentials</code> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Glossary/Response_header">response headers</a>. By modeling the frameworks for a language (e.g., Django, FastAPI, and Flask), CodeQL can identify where in the code those headers are set. Building on those models by looking for specific header values, CodeQL can find simple examples of CORS and see if they match vulnerable values.</p>
+<p>In the following Go example, unauthenticated resources on the servers could be accessed by arbitrary websites.</p>
+<pre class="wp-block-code language-go"><code>func saveHandler(w http.ResponseWriter, r *http.Request) &#123; 
+    w.Header().Set("Access-Control-Allow-Origin", "*") 
+&#125;</code></pre>
+<p>This may be troublesome for web applications that do not have authentication, such as tools intended to be hosted locally, because any dangerous endpoint could be accessed and exploited by an attacker.</p>
+<p>This is a snippet of the Go http framework where CodeQL models the <code>Set</code> method to find security-related header writes for this framework. Header writes are modeled by the <code>HeaderWrite</code> class in <code>HTTP.qll</code>, which is extended by other modules and classes in order to find all header writes.</p>
+<pre class="wp-block-code language-go"><code> /** Provides a class for modeling new HTTP header-write APIs. */
+  module HeaderWrite &#123;
+    /**
+     * A data-flow node that represents a write to an HTTP header.
+     *
+     * Extend this class to model new APIs. If you want to refine existing API models,
+     * extend `HTTP::HeaderWrite` instead.
+     */
+    abstract class Range extends DataFlow::ExprNode &#123;
+      /** Gets the (lower-case) name of a header set by this definition. */
+      string getHeaderName() &#123; result = this.getName().getStringValue().toLowerCase() &#125;</code></pre>
+<p>Some useful methods such as <code>getHeaderName</code> and <code>getHeaderValue</code> can also  help in developing security queries related to headers, like CORS misconfiguration. Unlike the previous code example, the below pattern is an example of a CORS misconfiguration whose effect is much more impactful.</p>
+<pre class="wp-block-code language-go"><code>func saveHandler(w http.ResponseWriter, r *http.Request) &#123; 
+    w.Header().Set("Access-Control-Allow-Origin", 
+    r.Header.Get("Origin"))
+    w.Header().Set("Access-Control-Allow-Credentials", 
+    "true") 
+&#125;</code></pre>
+<p>Reflecting the request origin header and allowing credentials permits an attacking website to make requests as the current logged in user, which could compromise the entire web application.</p>
+<p>Using CodeQL, we can model the headers, looking for specific headers and methods in order to help CodeQL identify the relevant security code structures to find CORS vulnerabilities.</p>
+<pre class="wp-block-code language-plaintext"><code>/**
+ * An `Access-Control-Allow-Credentials` header write.
+ */
+class AllowCredentialsHeaderWrite extends Http::HeaderWrite &#123;
+    AllowCredentialsHeaderWrite() &#123;
+        this.getHeaderName() = headerAllowCredentials()
+    &#125;
+&#125;
+
+<p>&#x2F;**</p>
+<ul>
+<li>predicate for CORS query.</li>
+</ul>
+<p> *&#x2F;<br>predicate allowCredentialsIsSetToTrue(DataFlow::ExprNode allowOriginHW) &amp;#123;<br>        exists(AllowCredentialsHeaderWrite allowCredentialsHW |<br>                allowCredentialsHW.getHeaderValue().toLowerCase() &#x3D; “true”</p></code></pre><p></p>
+<p>Here, the <code>HTTP::HeaderWrite</code> class, as previously discussed, is used as a superclass for <code>AllowCredentialsHeaderWrite</code>, which finds all header writes of the value <code>Access-Control-Allow-Credentials</code>. Then, when our CORS misconfiguration query checks whether credentials are enabled, we use AllowCredentialsHeaderWrite as one of the possible sources to check.</p>
+<p>The simplest way for developers to set a CORS policy is by setting headers on HTTP responses in their server. By modeling all instances where a header is set, we can check for these CORS cases in our CORS query. </p>
+<p>When modeling web frameworks using CodeQL, creating classes that extend more generic superclasses such as <code>HTTP::HeaderWrite</code> allows the impact of the model to be used in all CodeQL security queries that need them. Since headers in web applications can be so important, modeling all the ways they can be written to in a framework can be a great first step to adding that web framework to CodeQL.</p>
+<h2 class="wp-block-heading" id="modeling-frameworks-in-codeql">Modeling frameworks in CodeQL</h2>
+<figure class="wp-block-image size-full"><img><img alt="A computer with two windows open showing secure code." class="wp-image-89422" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="877" loading="lazy" sizes="auto, (max-width: 961px) 100vw, 961px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/cors2.png?resize=961%2C877" width="961"></figure>
+<p>Rather than setting the CORS headers manually, many developers use a CORS framework instead.  Generally, CORS frameworks use middleware in the router of a web framework in order to add headers for every response. Some web frameworks will have their own CORS middleware, or you may have to include a third-party package. When modeling a CORS framework in CodeQL, you’re usually modeling the relevant structures and methods that signify a CORS policy. Once the modeled structure or methods have the correct values, the query should check that the structure is actually used in the codebase.</p>
+<p>For frameworks, we’ll look into Go as our language of choice since it has great support for CORS. Go provides a couple of CORS frameworks, but most follow the structure of Gin CORS, a CORS middleware framework for the Gin web framework. Here’s an example of a Gin configuration for CORS:</p>
+<pre class="wp-block-code language-go"><code>package main
+
+<p>import (<br>  “time”</p>
+<p>  “github.com&#x2F;gin-contrib&#x2F;cors”<br>  “github.com&#x2F;gin-gonic&#x2F;gin”<br>)</p>
+<p>func main() &amp;#123;<br>  router :&#x3D; gin.Default()<br>  router.Use(cors.New(cors.Config&amp;#123;<br>    AllowOrigins:     []string&amp;#123;”<a target="_blank" rel="external nofollow noopener noreferrer" href="https://foo.com&quot;&amp;/#125">https://foo.com&quot;&amp;#125</a>;,<br>    AllowMethods:     []string&amp;#123;”PUT”, “PATCH”&amp;#125;,<br>    AllowHeaders:     []string&amp;#123;”Origin”&amp;#125;,<br>    ExposeHeaders:    []string&amp;#123;”Content-Length”&amp;#125;,<br>    AllowCredentials: true,<br>    AllowOriginFunc: func(origin string) bool &amp;#123;<br>      return origin &#x3D;&#x3D; “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com&quot;/">https://github.com&quot;</a><br>    &amp;#125;<br>  &amp;#125;))<br>  router.Run()<br>&amp;#125;</p></code></pre><p></p>
+<p>Now that we’ve modeled the <code>router.Use</code> method and <code>cors.New</code> — ensuring that <code>cors.Config</code> structure is at some point put into a <code>router.Use</code> function for actual use — we should then check all <code>cors.Config</code> structures for appropriate headers.</p>
+<p>Next, we find the appropriate headers fields we want to model. For a basic CORS misconfiguration query, we would model <code>AllowOrigins</code>, <code>AllowCredentials</code>, <code>AllowOriginFunc</code>. My pull requests for adding GinCors and RSCors to CodeQL can be used as references if you’re interested in seeing everything that goes into adding a framework to CodeQL. Below I’ll discuss some of the most important details.</p>
+<pre class="wp-block-code language-plaintext"><code> /**
+   * A variable of type Config that holds the headers to be set.
+   */
+  class GinConfig extends Variable &#123;
+    SsaWithFields v;
+
+<pre><code>GinConfig() &amp;#123;
+  this = v.getBaseVariable().getSourceVariable() and
+  v.getType().hasQualifiedName(packagePath(), &quot;Config&quot;)
+&amp;#125;
+
+/**
+ * Get variable declaration of GinConfig
+ */
+SsaWithFields getV() &amp;#123; result = v &amp;#125;
+</code></pre>
+<p>  &amp;#125;</p></code></pre><p></p>
+<p>I modeled the Config type by using SSAWithFields, which is a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Static_single-assignment_form">single static assignment</a> with fields. By using <code>getSourceVariable()</code>, we can get the variable that the structure was assigned to, which can help us see where the config is used. This allows us to find track variables that contain the CORS config structure across the codebase, including ones that are often initialized like this:</p>
+<pre class="wp-block-code language-go"><code>func main() &#123;
+...
+// We can now track the corsConfig variable for further updates,such as when one of the fields is updated.
+corsConfig:= cors.New(cors.Config&#123;
+...
+&#125;)&#125;</code></pre>
+<p>Now that we have the variable containing the relevant structure, we want to find all the instances where the variable is written to. By doing this, we can get an understanding of the relevant property values that have been assigned to it, and thus decide whether the CORS config is misconfigured.</p>
+<pre class="wp-block-code language-plaintext"><code> /**
+   * A write to the value of Access-Control-Allow-Origins header
+   */
+  class AllowOriginsWrite extends UniversalOriginWrite &#123;
+    DataFlow::Node base;
+    
+<pre><code>// This models all writes to the AllowOrigins field of the Config type
+AllowOriginsWrite() &amp;#123;
+
+  exists(Field f, Write w |
+    f.hasQualifiedName(packagePath(), &quot;Config&quot;, &quot;AllowOrigins&quot;) and
+    w.writesField(base, f, this) and
+
+    // To ensure we are finding the correct field, we look for a write of type string (SliceLit)
+    this.asExpr() instanceof SliceLit
+  )
+
+&amp;#125;
+
+/**
+ * Get config variable holding header values
+ */
+override GinConfig getConfig() &amp;#123;
+  exists(GinConfig gc |
+    (
+      gc.getV().getBaseVariable().getDefinition().(SsaExplicitDefinition).getRhs() =
+        base.asInstruction() or
+      gc.getV().getAUse() = base
+    ) and
+    result = gc
+  )
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;</p></code></pre><p></p>
+<p>By adding the <code>getConfig</code> function, we return the previously created <code>GinConfig</code>, which allows us to verify that any writes to relevant headers affect the same configuration structure. For example, a developer may create a config that has a vulnerable origin and another config that allows credentials. The config that allows credentials wouldn’t be highlighted because only configs with vulnerable origins would create a security issue. By allowing CORS relevant header writes from different frameworks to all extend <code>UniversalOriginWrite</code> and <code>UniversalCredentialsWrite</code>, we can use those in our CORS misconfiguration query. </p>
+<h2 class="wp-block-heading" id="writing-cors-misconfiguration-queries-in-codeql">Writing CORS misconfiguration queries in CodeQL</h2>
+<p>CORS issues are separated into two types: those without credentials (where we’re looking for * or null) and CORS with credentials (where we’re looking for origin reflection or null). If you want to keep the CodeQL query simple, you can create one query for each type of CORS vulnerability and assign their severity accordingly. For the Go language, CodeQL only has a “CORS with credentials” type of query because it’s applicable to all applications. </p>
+<p>Let’s tie in the models we just created above to see how they’re used in the Go CORS misconfiguration query itself. </p>
+<pre class="wp-block-code language-plaintext"><code>from DataFlow::ExprNode allowOriginHW, string message
+where
+  allowCredentialsIsSetToTrue(allowOriginHW) and
+  (
+    flowsFromUntrustedToAllowOrigin(allowOriginHW, message)
+    or
+    allowOriginIsNull(allowOriginHW, message)
+  ) and
+  not flowsToGuardedByCheckOnUntrusted(allowOriginHW)
+...
+select allowOriginHW, message</code></pre>
+<p>This query is only interested in critical vulnerabilities, so it checks whether credentials are allowed, and whether the allowed origins either come from a remote source or are hardcoded as null. In order to prevent false positives, it checks if there are certain guards — such as string comparisons —  before the remote source gets to the origin. Let’s take a closer look at the predicate <code>allowCredentialsIsSetToTrue</code>.</p>
+<pre class="wp-block-code language-plaintext"><code>/**
+ * Holds if the provided `allowOriginHW` HeaderWrite's parent ResponseWriter
+ * also has another HeaderWrite that sets a `Access-Control-Allow-Credentials`
+ * header to `true`.
+ */
+predicate allowCredentialsIsSetToTrue(DataFlow::ExprNode allowOriginHW) &#123;
+  exists(AllowCredentialsHeaderWrite allowCredentialsHW |
+    allowCredentialsHW.getHeaderValue().toLowerCase() = "true"
+  |
+    allowOriginHW.(AllowOriginHeaderWrite).getResponseWriter() =
+      allowCredentialsHW.getResponseWriter()
+  )
+  or
+...</code></pre>
+<p>For the first part of the predicate, we’ll use one of the headers we previously modeled, AllowCredentialsHeaderWrite, in order to compare headers. This will help us filter out all header writes that don’t have credentials set.</p>
+<pre class="wp-block-code language-plaintext"><code>  exists(UniversalAllowCredentialsWrite allowCredentialsGin |
+    allowCredentialsGin.getExpr().getBoolValue() = true
+  |
+    allowCredentialsGin.getConfig() = allowOriginHW.(UniversalOriginWrite).getConfig() and
+    not exists(UniversalAllowAllOriginsWrite allowAllOrigins |
+      allowAllOrigins.getExpr().getBoolValue() = true and
+      allowCredentialsGin.getConfig() = allowAllOrigins.getConfig()
+    )
+    or
+    allowCredentialsGin.getBase() = allowOriginHW.(UniversalOriginWrite).getBase() and
+    not exists(UniversalAllowAllOriginsWrite allowAllOrigins |
+      allowAllOrigins.getExpr().getBoolValue() = true and
+      allowCredentialsGin.getBase() = allowAllOrigins.getBase()
+    )
+  )
+&#125;</code></pre>
+<p>If CORS is not set through a header, we check for CORS frameworks using <code>UniversalAllowCredentialsWrite</code>.To filter out all instances whose corresponding Origin value is set to “*”, we use the <code>not</code> CodeQL keyword on <code>UniversalAllowAllOriginsWrite</code>,  since these are not applicable to this vulnerability. <code>flowsFromUntrustedToAllowOrigin</code> and <code>allowOriginIsNull</code> follow similar logic to ensure that the resulting header rights are vulnerable.</p>
+<h2 class="wp-block-heading" id="extra-credit">Extra credit</h2>
+<p>When you model CodeQL queries to detect vulnerabilities related to CORS, you can’t use a one-size-fits-all approach. Instead, you have to tailor your queries to each web framework for two reasons: </p>
+<ul class="wp-block-list">
+<li>Each framework implements CORS policies in its own way</li>
+<li>Vulnerability patterns depend on a framework’s behavior</li>
+</ul>
+<p>For example, we saw before in Gin CORS that there is an <code>AllowOriginFunc</code>. After looking at the documentation or experimenting with the code, we can see that it may override <code>AllowOrigins</code>. To improve our query, we could write a CodeQL query that looks for <code>AllowOriginFunc</code>s that always return true, which will result in a high severity vulnerability if paired with credentials.</p>
+<h2 class="wp-block-heading" id="take-this-with-you">Take this with you </h2>
+<p>Once you understand the behavior of web frameworks and headers with CodeQL, it’s simple to find security issues in your code and reduce the chance of vulnerabilities making their way into your work. The number of CodeQL languages that support CORS misconfiguration queries is still growing, and there is always room for improvement from the community . </p>
+<p>If this blog has been helpful in helping you write CodeQL queries, please feel free to open anything you’d like to share with the community in our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/GitHubSecurityLab/CodeQL-Community-Packs">CodeQL Community Packs</a>.</p>
+<p>Finally, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/security/advanced-security/code-security">GitHub Code Security</a> can help you secure your project by detecting and suggesting a fix for bugs such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://codeql.github.com/codeql-query-help/javascript/js-cors-misconfiguration-for-credentials/">CORS misconfiguration</a>!</p>
+<div class="wp-block-group post-content-cta has-global-padding is-layout-constrained wp-block-group-is-layout-constrained">
+<p><strong>Explore more</strong> GitHub Security Lab <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/tag/github-security-lab/">blog posts &gt;</a></p>
+</div>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/security/application-security/modeling-cors-frameworks-with-codeql-to-find-security-vulnerabilities/">Modeling CORS frameworks with CodeQL to find security vulnerabilities</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Modeling CORS frameworks with CodeQL to find security vulnerabilities" href="https://github.blog/security/application-security/modeling-cors-frameworks-with-codeql-to-find-security-vulnerabilities/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Modeling CORS frameworks with CodeQL to find security vulnerabilities</span><span class="desc fs12">https://github.blog/security/application-security/modeling-cors-frameworks-with-codeql-to-find-security-vulnerabilities/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a0881f32.html">Lynds Dark Nebula 1251<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e101c029.html">美丽的自然光人像 | 摄影师Lena Aires<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/e8e3da80.html" title="5 Ways to Transform Your Workflow Using GitHub Copilot and MCP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8957"></div><span class="title">5 Ways to Transform Your Workflow Using GitHub Copilot and MCP</span></a><a class="item" href="/rss/f01a8b39.html" title="Beyond Prompt Crafting: How to Be a Better Partner for Your AI Pair Programmer"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3705"></div><span class="title">Beyond Prompt Crafting: How to Be a Better Partner for Your AI Pair Programmer</span></a><a class="item" href="/rss/c149d570.html" title="CVE-2025-53367: An Exploitable Out-of-Bounds Write in DjVuLibre"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1215"></div><span class="title">CVE-2025-53367: An Exploitable Out-of-Bounds Write in DjVuLibre</span></a><a class="item" href="/rss/823e3e43.html" title="Code Review in the Age of AI: Why Developers Will Always Own the Merge Button"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7563"></div><span class="title">Code Review in the Age of AI: Why Developers Will Always Own the Merge Button</span></a><a class="item" href="/rss/c5bd5dba.html" title="From Chaos to Clarity: Using GitHub Copilot Agents to Improve Developer Workflows"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2631"></div><span class="title">From Chaos to Clarity: Using GitHub Copilot Agents to Improve Developer Workflows</span></a><a class="item" href="/rss/691901a.html" title="For the Love of Code: A Summer Hackathon for Joyful, Ridiculous, and Wildly Creative Projects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://s.w.org/images/core/emoji/16.0.1/72x72/1f3af.png"></div><span class="title">For the Love of Code: A Summer Hackathon for Joyful, Ridiculous, and Wildly Creative Projects</span></a><a class="item" href="/rss/8e72d20b.html" title="Git Security Vulnerabilities Announced"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1040"></div><span class="title">Git Security Vulnerabilities Announced</span></a><a class="item" href="/rss/8da922b7.html" title="GitHub Availability Report: June 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4114"></div><span class="title">GitHub Availability Report: June 2025</span></a><a class="item" href="/rss/33add838.html" title="How to Catch GitHub Actions Workflow Injections Before Attackers Do"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/07/vulnerabilities.png?resize=768%2C768"></div><span class="title">How to Catch GitHub Actions Workflow Injections Before Attackers Do</span></a><a class="item" href="/rss/887ebff0.html" title="Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7727"></div><span class="title">Celebrate Micro-Small, and Medium-Sized Enterprises Day With Cloudflare </span></a><a class="item" href="/rss/d3e4a192.html" title="Cloudflare 1.1.1.1 Incident on July 14, 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/XATlkx1Im1QhnBTJL3ER5/6cc65fce22bd66815c348dac555a1501/image1.png"></div><span class="title">Cloudflare 1.1.1.1 Incident on July 14, 2025</span></a><a class="item" href="/rss/f003b250.html" title="Cloudflare Recognized as a Visionary in 2025 Gartner® Magic Quadrant™ for SASE Platforms"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5546"></div><span class="title">Cloudflare Recognized as a Visionary in 2025 Gartner® Magic Quadrant™ for SASE Platforms</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
