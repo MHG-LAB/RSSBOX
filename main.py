@@ -306,7 +306,7 @@ class Crawl(threading.Thread):
       if requests_url.startswith('/'):
         requests_url = RSSHUB_API + requests_url + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
         print("====== "+RSSHUB_API+" ========> " + requests_url + " ======")
-      else if requests_url.startswith('OLD_RSSHUB_API'):
+      elif requests_url.startswith('OLD_RSSHUB_API'):
         requests_url = OLD_RSSHUB_API + requests_url.replace("OLD_RSSHUB_API", "") + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
         print("====== "+OLD_RSSHUB_API+" ========> " + requests_url + " ======")
       else:
