@@ -22,9 +22,11 @@ if os.path.exists('config.api.yml'):
   c=load_config('config.api.yml')
   CORS_API = c['CORS_API']
   RSSHUB_API = c['RSSHUB_API']
+  OLD_RSSHUB_API = c['OLD_RSSHUB_API']
 else:
   CORS_API = sys.argv[1]
   RSSHUB_API = sys.argv[2]
+  OLD_RSSHUB_API = sys.argv[3]
 
 # 反反爬虫
 def getRandUa():
@@ -304,6 +306,9 @@ class Crawl(threading.Thread):
       if requests_url.startswith('/'):
         requests_url = RSSHUB_API + requests_url + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
         print("====== "+RSSHUB_API+" ========> " + requests_url + " ======")
+      else if requests_url.startswith('OLD_RSSHUB_API'):
+        requests_url = OLD_RSSHUB_API + requests_url.replace("OLD_RSSHUB_API", "") + "?time=%s" % int(time.time()) + "&rand=%s" % str(random.randint(0,10000))
+        print("====== "+OLD_RSSHUB_API+" ========> " + requests_url + " ======")
       else:
         print("====== " + requests_url + " ======")
       response = get_data(requests_url)
