@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>RAG — Chunking 策略实战 - RSSBOX</title>
+
+  
+    <meta name="description" content="一、背 景 在 RAG 系统中，即便采用性能卓越的 LLM 并反复打磨 Prompt，问答仍可能出现上下文缺失、事实性错误或拼接不连贯等问题。多数团队会频繁更换检索算法与 Embedding模型，但收益常常有限。真正的瓶颈，往往潜伏在数据入库之前的一个细节——文档分块（chunking）。不当的分块会破坏语义边界，拆散关键线索并与噪声纠缠，使被检索的片段呈现“顺序错乱、信息残缺”的面貌。在这">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RAG — Chunking 策略实战">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/9779a8bf.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="一、背 景 在 RAG 系统中，即便采用性能卓越的 LLM 并反复打磨 Prompt，问答仍可能出现上下文缺失、事实性错误或拼接不连贯等问题。多数团队会频繁更换检索算法与 Embedding模型，但收益常常有限。真正的瓶颈，往往潜伏在数据入库之前的一个细节——文档分块（chunking）。不当的分块会破坏语义边界，拆散关键线索并与噪声纠缠，使被检索的片段呈现“顺序错乱、信息残缺”的面貌。在这">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=MjNlZjZmNjk4ZmZiMWE3OWQ2NGM0OTZiY2VhOTdmODEsMTc2MTgxMjkyMDE4MA==">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=YWE1MDU2ODEwZGM0MTAyYWExOTIxNTA2MzBkZGYwMzcsMTc2MTgxMjkyMDE4MA==">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=ODlmMGRlMzFjY2I5ZGIwYmJkMzY1Yzc5ZjEzZmUxYzIsMTc2MTgxMjkyMDE4MA==">
+<meta property="article:published_time" content="2025-10-30T07:30:00.000Z">
+<meta property="article:modified_time" content="2025-10-30T07:30:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="开源中国">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=MjNlZjZmNjk4ZmZiMWE3OWQ2NGM0OTZiY2VhOTdmODEsMTc2MTgxMjkyMDE4MA==">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E5%BC%80%E6%BA%90%E4%B8%AD%E5%9B%BD/">开源中国</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-30T07:30:00.000Z">2025-10-30</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>RAG — Chunking 策略实战</span></h1>
+<div>
+<div class="content">
+<span id="OSC_h1_1"></span>
+<h1>一、背 景</h1>
+<p>在 RAG 系统中，即便采用性能卓越的 LLM 并反复打磨 Prompt，问答仍可能出现上下文缺失、事实性错误或拼接不连贯等问题。多数团队会频繁更换检索算法与 Embedding模型，但收益常常有限。真正的瓶颈，往往潜伏在数据入库之前的一个细节——文档分块（chunking）。不当的分块会破坏语义边界，拆散关键线索并与噪声纠缠，使被检索的片段呈现“顺序错乱、信息残缺”的面貌。在这样的输入下，再强大的模型也难以基于支离破碎的知识推理出完整、可靠的答案。某种意义上，分块质量几乎决定了RAG的性能上限——它决定知识是以连贯的上下文呈现，还是退化为无法拼合的碎片。</p>
+<p> </p>
+<p>在实际场景中，最常见的错误是按固定长度生硬切割，忽略文档的结构与语义：定义与信息被切开、表头与数据分离、步骤说明被截断、代码与注释脱节，结果就是召回命中却无法支撑结论，甚至诱发幻觉与错误引用。相反，高质量的分块应尽量贴合自然边界（标题、段落、列表、表格、代码块等），以适度重叠保持上下文连续，并保留必要的来源与章节元数据，确保可追溯与重排可用。当分块尊重文档的叙事与结构时，检索的相关性与答案的事实一致性往往显著提升，远胜于一味更换向量模型或调参；换言之，想要真正改善 RAG 的稳健性与上限，首先要把“知识如何被切开并呈现给模型”这件事做好。</p>
+<p> </p>
+<p><strong>PS：本文主要是针对中文文档类型的嵌入进行实战。</strong></p>
+<span id="OSC_h1_2"></span>
+<h1>二、什么是分块（Chunking）</h1>
+<p>分块是将大块文本分解成较小段落的过程，这使得文本数据更易于管理和处理。通过分块，我们能够更高效地进行内容嵌入（embedding），并显著提升从向量数据库中召回内容的相关性和准确性。</p>
+<p> </p>
+<p>在实际操作中，分块的好处是多方面的。首先，它能够提高模型处理的效率，因为较小的文本段落更容易进行嵌入和检索。</p>
+<p> </p>
+<p>其次，分块后的文本能够更精确地匹配用户查询，从而提供更相关的搜索结果。这对于需要高精度信息检索和内容生成的应用程序尤为重要。</p>
+<p> </p>
+<p>通过优化内容的分块和嵌入策略，我们可以最大化LLM在各种应用场景中的性能。分块技术不仅提高了内容召回的准确性，还提升了整体系统的响应速度和用户体验。</p>
+<p> </p>
+<p>因此，在构建和优化基于LLM的应用程序时，理解和应用分块技术是不可或缺的步骤。</p>
+<p> </p>
+<p>分块过程中主要的两个概念：chunk_size块的大小，chunk_overlap重叠窗口。</p>
+<div>
+<img class="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=MjNlZjZmNjk4ZmZiMWE3OWQ2NGM0OTZiY2VhOTdmODEsMTc2MTgxMjkyMDE4MA==" https: cors.mhuig.top ?r="https://my.oschina.net&url=https://my.oschina.net/">
+</div>
+<p> </p>
+<span id="OSC_h1_3"></span>
+<h1>三、为何要对内容做分块处理</h1>
+<ul>
+<li><strong>模型上下文窗口限制</strong>：LLM无法一次处理超长文本。分块的目的在于将长文档切成模型可稳定处理的中等粒度片段，并尽量对齐自然语义边界（如标题、段落、句子、代码块），避免硬切导致关键信息被截断或语义漂移。即便使用长上下文模型，过长输入也会推高成本并稀释信息密度，合理分块仍是必需的前置约束。</li>
+<li> </li>
+<li><strong>检索的信噪比</strong>：块过大时无关内容会稀释信号、降低相似度判别力；块过小时语境不足、容易“只命中词不命中义”。合适的块粒度可在召回与精度间取得更好平衡，既覆盖用户意图，又不引入多余噪声。在一定程度上提升检索相关性的同时又能保证结果稳定性。</li>
+<li> </li>
+<li><strong>语义连续性</strong>：跨段落或跨章节的语义关系常在边界处被切断。通过设置适度的 chunk_overlap，可保留跨块线索、减少关键定义/条件被“切开”的风险。对于强结构文档，优先让边界贴合标题层级与句子断点；必要时在检索阶段做轻量邻近扩展，以提升答案的连贯性与可追溯性，同时避免重复内容挤占上下文预算。</li>
+</ul>
+<p> </p>
+<p>总之理想的分块是在“上下文完整性”和“信息密度”之间取得动态平衡：chunk_size决定信息承载量，chunk_overlap 用于弥补边界断裂并维持语义连续。只要边界对齐语义、粒度贴合内容，检索与生成的质量就能提升。</p>
+<div>
+<img class="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=YWE1MDU2ODEwZGM0MTAyYWExOTIxNTA2MzBkZGYwMzcsMTc2MTgxMjkyMDE4MA==" https: cors.mhuig.top ?r="https://my.oschina.net&url=https://my.oschina.net/">
+</div>
+<p> </p>
+<span id="OSC_h1_4"></span>
+<h1>四、分块策略详解</h1>
+<span id="OSC_h1_5"></span>
+<h1>4.1 基础分块</h1>
+<p style="text-align:left"><strong>基于固定长度分块</strong></p>
+<ul>
+<li><strong>分块策略</strong>：按预设字符数 chunk_size 直接切分，不考虑文本结构。</li>
+<li><strong>优点</strong>：实现最简单、速度快、对任意文本通用。</li>
+<li><strong>缺点</strong>：容易破坏语义边界；块过大容易引入较多噪声，过小则会导致上下文不足。</li>
+<li><strong>适用场景</strong>：结构性弱的纯文本，或数据预处理初期的基线方案。</li>
+</ul>
+<pre><code>from langchain_text_splitters import CharacterTextSplitter
+
+
+<p>splitter &#x3D; CharacterTextSplitter(<br>    separator&#x3D;””,        # 纯按长度切<br>    chunk_size&#x3D;600,      # 依据实验与模型上限调整<br>    chunk_overlap&#x3D;90,    # 15% 重叠<br>)<br>chunks &#x3D; splitter.split_text(text)</p></code></pre><p></p>
+<ul>
+<li><strong>参数建议（仅限中文语料建议）</strong>： 
+  <ul>
+<li>chunk_size：300–800 字优先尝试；若嵌入模型最佳输入为 512/1024 tokens，可折算为约 350/700 中文字符起步。</li>
+<li>chunk_overlap：10%–20% 起步；超过 30% 通常导致索引体积与检索开销显著上升，对实际性能起负作用，最后的效果并不会得到明显提升。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<p style="text-align:left"><strong>基于句子的分块</strong></p>
+<ul>
+<li><strong>分块策略</strong>：先按句子切分，再将若干句子聚合成满足chunk_size的块；保证最基本的语义完整性。</li>
+<li><strong>优点</strong>：句子级完整性最好。对问句/答句映射友好。便于高质量引用。</li>
+<li><strong>缺点</strong>：中文分句需特别处理。仅句子级切分可能导致块过短，需后续聚合。</li>
+<li><strong>适用场景</strong>：法律法规、新闻、公告、FAQ 等以句子为主的文本。</li>
+<li><strong>中文分句注意事项</strong>： 
+  <ul>
+<li>不要直接用 NLTK 英文 Punkt：无法识别中文标点，分句会失败或异常。</li>
+<li>可以直接使用以下内容进行分句： 
+    <ul>
+<li>基于中文标点的正则：按“。！？；”等切分，保留引号与省略号等边界。</li>
+<li>使用支持中文的 NLP 库进行更精细的分句：</li>
+<li>HanLP（推荐，工业级，支持繁多语言学特性）Stanza（清华/斯坦福合作，中文支持较好）spaCy + pkuseg 插件（或 zh-core-web-sm/med/lg 生态）</li>
+</ul> </li>
+</ul> </li>
+<li><strong>示例</strong>（适配常见中文标点，基于正则的分句）：</li>
+</ul>
+<pre><code>import re
+
+
+<p>def split_sentences_zh(text: str):<br>    # 在句末标点（。！？；）后面带可选引号的场景断句<br>    pattern &#x3D; re.compile(r’([^。！？；]*[。！？；]+|[^。！？；]+$)’)<br>    sentences &#x3D; [m.group(0).strip() for m in pattern.finditer(text) if m.group(0).strip()]<br>    return sentences</p>
+<p>def sentence_chunk(text: str, chunk_size&#x3D;600, overlap&#x3D;80):<br>    sents &#x3D; split_sentences_zh(text)<br>    chunks, buf &#x3D; [], “”<br>    for s in sents:<br>        if len(buf) + len(s) &lt;&#x3D; chunk_size:<br>            buf +&#x3D; s<br>        else:<br>            if buf:<br>                chunks.append(buf)<br>            # 简单重叠：从当前块尾部截取 overlap 字符与下一句拼接<br>            buf &#x3D; (buf[-overlap:] if overlap &gt; 0 and len(buf) &gt; overlap else “”) + s<br>    if buf:<br>        chunks.append(buf)<br>    return chunks</p>
+<p>chunks &#x3D; sentence_chunk(text, chunk_size&#x3D;600, overlap&#x3D;90)</p></code></pre><p></p>
+<p>HanLP 分句示例：</p>
+<pre><code>from hanlp_common.constant import ROOT
+import hanlp
+
+
+<p>tokenizer &#x3D; hanlp.load(‘PKU_NAME_MERGED_SIX_MONTHS_CONVSEG’)  # 或句法&#x2F;句子级管线</p>
+<h1 id="HanLP-高层-API-通常通过句法-x2F-语料管线获得句子边界，具体以所用版本-API-为准"><a href="#HanLP-高层-API-通常通过句法-x2F-语料管线获得句子边界，具体以所用版本-API-为准" class="headerlink" title="HanLP 高层 API 通常通过句法&#x2F;语料管线获得句子边界，具体以所用版本 API 为准"></a>HanLP 高层 API 通常通过句法&#x2F;语料管线获得句子边界，具体以所用版本 API 为准</h1><h1 id="将句子列表再做聚合为-chunk-size"><a href="#将句子列表再做聚合为-chunk-size" class="headerlink" title="将句子列表再做聚合为 chunk_size"></a>将句子列表再做聚合为 chunk_size</h1></code></pre><p> </p>
+<p style="text-align:left"><strong>基于递归字符分块</strong></p>
+<ul>
+<li><strong>分块策略</strong>：给定一组由“粗到细”的分隔符（如段落→换行→空格→字符），自上而下递归切分，在不超出 chunk_size 的前提下尽量保留自然语义边界。</li>
+<li><strong>优点</strong>：在“保持语义边界”和“控制块大小”之间取得稳健平衡，对大多数文本即插即用。</li>
+<li><strong>缺点</strong>：分隔符配置不当会导致块粒度失衡，极度格式化文本（表格/代码）效果一般。</li>
+<li><strong>适用场景</strong>：综合性语料、说明文档、报告、知识库条目。</li>
+</ul>
+<pre><code>import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+<p>separators &#x3D; [<br>    r”\n#&amp;#123;1,6&amp;#125;\s”,                 # 标题<br>    r”\n\d+(?:.\d+)*\s”,          # 数字编号标题 1. &#x2F; 2.3. 等<br>    “\n\n”,                        # 段落<br>    “\n”,                          # 行<br>    “ “,                           # 空格<br>    “”,                            # 兜底字符级<br>]<br>splitter &#x3D; RecursiveCharacterTextSplitter(<br>    separators&#x3D;separators,<br>    chunk_size&#x3D;700,<br>    chunk_overlap&#x3D;100,<br>    is_separator_regex&#x3D;True,       # 告诉分割器上面包含正则<br>)<br>chunks &#x3D; splitter.split_text(text)</p></code></pre><p></p>
+<ul>
+<li><strong>参数与分隔符建议</strong>（仅中文文档建议）： 
+  <ul>
+<li>chunk_size：400–800 字符；如果内容更技术化、长句多时可适当上调该数值。</li>
+<li>chunk_overlap：10%–20%。</li>
+<li>separators（由粗到细，按需裁剪）： 
+    <ul>
+<li>章节/标题：正则 r"^#&#123;1,6&#125;\s"（Markdown 标题）、r"^\d+(.\d+)*\s"（编号标题）</li>
+<li>段落："\n\n"</li>
+<li>换行："\n"</li>
+<li>空格：" "</li>
+<li>兜底：""</li>
+</ul> </li>
+</ul> </li>
+</ul>
+<p style="text-align:left"><strong>总结</strong></p>
+<ul>
+<li><strong>调优流程</strong>： 
+  <ul>
+<li>固定检索与重排，只动分块参数。</li>
+<li>用验证集计算 Recall@k、nDCG、MRR、来源命中文档覆盖率、答案事实性（faithfulness）。</li>
+<li>观察块长分布：若长尾太长，适当收紧chunk_size 或增加粗粒度分隔符；若过短，放宽chunk_size 或降低分隔符优先级。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>重叠的成本与收益</strong>： 
+  <ul>
+<li>收益：缓解边界断裂，提升答案连贯性与可追溯性。</li>
+<li>成本：索引尺寸增长、召回重复块增多、rerank 负载提升。通常不建议超过 20%–25%。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>组合技巧</strong>： 
+  <ul>
+<li>先递归分块，再对“异常长句”或“跨段引用”场景加一点点额外 overlap。</li>
+<li>对标题块注入父级标题上下文，提高定位能力与可解释性。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>何时切换策略</strong>： 
+  <ul>
+<li>若问答频繁丢上下文或引用断裂：增大overlap或改用句子/结构感知策略。</li>
+<li>若召回含噪过多：减小 chunk_size 或引入更强的结构分隔符。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<span id="OSC_h1_6"></span>
+<h1>4.2 结构感知分块</h1>
+<p>利用文档固有结构（标题层级、列表、代码块、表格、对话轮次）作为分块边界，逻辑清晰、可追溯性强，能在保证上下文完整性的同时提升检索信噪比。</p>
+<p> </p>
+<p style="text-align:left"><strong>结构化文本分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li>以标题层级（H1–H6、编号标题）或语义块（段落、列表、表格、代码块）为此类型文档的天然边界，对过长的结构块再做二次细分，对过短的进行相邻合并。</li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>实施步骤</strong>
+<ul>
+<li>解析结构：Markdown 用解析器remark/markdown-it-py或正则识别标题与语块；HTML用 DOMBeautifulSoup/Cheerio遍历 Hx、p、li、pre、table 等。</li>
+<li>生成章节：以标题为父节点，将其后的连续兄弟节点纳入该章节，直至遇到同级或更高层级标题。</li>
+<li>二次切分：章节超出 chunk_size时，优先按子标题/段落切，再不足时按句子或递归字符切分。</li>
+<li>合并短块：低于 min_chunk_chars 的块与相邻块合并，优先与同一父标题下的前后块。</li>
+<li>上下文重叠：优先用“结构重叠”（父级标题路径、前一小节标题+摘要），再辅以小比例字符overlap（10%–15%）。</li>
+<li>写入 metadata。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>示例代码</strong></li>
+</ul>
+<pre><code>import re
+from typing import List, Dict
+
+
+<p>heading_pat &#x3D; re.compile(r’^(#&amp;#123;1,6&amp;#125;)\s+(.*)$’)  # 标题<br>fence_pat &#x3D; re.compile(r’^&#96;&#96;&#96;’)                 # fenced code fence</p>
+<p>def split_markdown_structure(text: str, chunk_size&#x3D;900, min_chunk&#x3D;250, overlap_ratio&#x3D;0.1) -&gt; List[Dict]:<br>    lines &#x3D; text.splitlines()<br>    sections &#x3D; []<br>    in_code &#x3D; False<br>    current &#x3D; &amp;#123;”level”: 0, “title”: “”, “content”: [], “path”: []&amp;#125;</p>
+<pre><code>path_stack = []  # [(level, title)]
+
+for ln in lines:
+    if fence_pat.match(ln):
+        in_code = not in_code
+    m = heading_pat.match(ln) if not in_code else None
+    if m:
+        if current[&quot;content&quot;]:
+            sections.append(current)
+        level = len(m.group(1))
+        title = m.group(2).strip()
+
+
+        while path_stack and path_stack[-1][0] &amp;gt;= level:
+            path_stack.pop()
+        path_stack.append((level, title))
+        breadcrumbs = [t for _, t in path_stack]
+        current = &amp;#123;&quot;level&quot;: level, &quot;title&quot;: title, &quot;content&quot;: [], &quot;path&quot;: breadcrumbs&amp;#125;
+    else:
+        current[&quot;content&quot;].append(ln)
+
+if current[&quot;content&quot;]:
+    sections.append(current)
+
+# 通过二次拆分/合并将部分平铺成块
+chunks = []
+def emit_chunk(text_block: str, path: List[str], level: int):
+    chunks.append(&amp;#123;
+        &quot;text&quot;: text_block.strip(),
+        &quot;meta&quot;: &amp;#123;
+            &quot;section_title&quot;: path[-1] if path else &quot;&quot;,
+            &quot;breadcrumbs&quot;: path,
+            &quot;section_level&quot;: level,
+        &amp;#125;
+    &amp;#125;)
+
+for sec in sections:
+    raw = &quot;\n&quot;.join(sec[&quot;content&quot;]).strip()
+    if not raw:
+        continue
+    if len(raw) &amp;lt;= chunk_size:
+        emit_chunk(raw, sec[&quot;path&quot;], sec[&quot;level&quot;])
+    else:
+        paras = [p.strip() for p in raw.split(&quot;\n\n&quot;) if p.strip()]
+        buf = &quot;&quot;
+        for p in paras:
+            if len(buf) + len(p) + 2 &amp;lt;= chunk_size:
+                buf += ((&quot;\n\n&quot; + p) if buf else p)
+            else:
+                if buf:
+                    emit_chunk(buf, sec[&quot;path&quot;], sec[&quot;level&quot;])
+                buf = p
+        if buf:
+            emit_chunk(buf, sec[&quot;path&quot;], sec[&quot;level&quot;])
+
+merged = []
+for ch in chunks:
+    if not merged:
+        merged.append(ch)
+        continue
+    if len(ch[&quot;text&quot;]) &amp;lt; min_chunk and merged[-1][&quot;meta&quot;][&quot;breadcrumbs&quot;] == ch[&quot;meta&quot;][&quot;breadcrumbs&quot;]:
+        merged[-1][&quot;text&quot;] += &quot;\n\n&quot; + ch[&quot;text&quot;]
+    else:
+        merged.append(ch)
+
+overlap = int(chunk_size * overlap_ratio)
+for ch in merged:
+    bc = &quot; &amp;gt; &quot;.join(ch[&quot;meta&quot;][&quot;breadcrumbs&quot;][-3:])
+    prefix = f&quot;[&amp;#123;bc&amp;#125;]\n&quot; if bc else &quot;&quot;
+    if prefix and not ch[&quot;text&quot;].startswith(prefix):
+        ch[&quot;text&quot;] = prefix + ch[&quot;text&quot;]
+    # optional character overlap can在检索阶段用邻接聚合替代，这里略
+
+return merged&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<ul>
+<li><strong>参数建议（中文文档）</strong>
+<ul>
+<li>chunk_size：600–1000 字；技术文/长段落可取上限，继续适当增加。</li>
+<li>min_chunk_chars：200–300 字（小于则合并）。</li>
+<li>chunk_overlap：10%–15%；若使用“父级标题路径 + 摘要”作为结构重叠，可降至 5%–10%。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<p style="text-align:left"><strong>对话式分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li><strong>以“轮次/说话人”为边界，优先按对话邻接对和小段话题窗口聚合。重叠采用“轮次重叠”而非单纯字符重叠，保证上下文流畅。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>适用场景</strong></li>
+<li><strong>客服对话、访谈、会议纪要、技术支持工单等多轮交流。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>检索期邻接聚合</strong></li>
+<li><strong>在检索阶段对对话块做“邻接扩展”：取被召回块前后各 1–2 轮上下文（或相邻块拼接）作为最终送审上下文，以提高回答连贯性与可追溯性。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>与重排协同</strong></li>
+<li><strong>可提升对“谁说的、在哪段说的”的判断力。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>示例代码</strong>：（按轮次滑动窗口分块）</li>
+</ul>
+<pre><code>from typing import List, Dict
+
+
+<p>def chunk_dialogue(turns: List[Dict], max_turns&#x3D;10, max_chars&#x3D;900, overlap_turns&#x3D;2):<br>    “””<br>    turns: [&amp;#123;”speaker”:”User”,”text”:”…” , “ts_start”:123, “ts_end”:130&amp;#125;, …]<br>    “””<br>    chunks &#x3D; []<br>    i &#x3D; 0<br>    while i &lt; len(turns):<br>        j &#x3D; i<br>        char_count &#x3D; 0<br>        speakers &#x3D; set()<br>        while j &lt; len(turns):<br>            t &#x3D; turns[j]<br>            uttr_len &#x3D; len(t[“text”])<br>            # 若单条超长，允许在句级二次切分（此处略），但不跨 speaker<br>            if (j - i + 1) &gt; max_turns or (char_count + uttr_len) &gt; max_chars:<br>                break<br>            char_count +&#x3D; uttr_len<br>            speakers.add(t[“speaker”])<br>            j +&#x3D; 1</p>
+<pre><code>    if j &amp;gt; i:
+        window = turns[i:j]
+    elif i &amp;lt; len(turns):
+        window = [turns[i]]
+    else:
+        break
+    text = &quot;\n&quot;.join([f&#39;&amp;#123;t[&quot;speaker&quot;]&amp;#125;: &amp;#123;t[&quot;text&quot;]&amp;#125;&#39; for t in window])
+    meta = &amp;#123;
+        &quot;speakers&quot;: list(speakers),
+        &quot;turns_range&quot;: (i, j - 1),
+        &quot;ts_start&quot;: window[0].get(&quot;ts_start&quot;),
+        &quot;ts_end&quot;: window[-1].get(&quot;ts_end&quot;),
+    &amp;#125;
+    chunks.append(&amp;#123;&quot;text&quot;: text, &quot;meta&quot;: meta&amp;#125;)
+    
+    # 按轮次重叠回退
+    if j &amp;gt;= len(turns):
+        break
+    next_start = i + len(window) - overlap_turns
+    i = max(next_start, i + 1)  # 确保至少前进1步
+return chunks&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<ul>
+<li><strong>参数建议</strong>
+<ul>
+<li>max_turns_per_chunk：6–12 轮起步；语速快信息密度高可取 8–10。</li>
+<li>max_chars_per_chunk：600–1000 字；若存在长段独白，优先句级再切，不跨说话人。</li>
+<li>overlap_turns：1–2 轮；保证上一问下一答的连续性。</li>
+<li>keep_pairing：不要拆开明显的问答对；若 chunk 临界，宁可扩一轮或后移切分点。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<p style="text-align:left"><strong>总结</strong></p>
+<ul>
+<li>首选用结构边界做第一次切分，再用句级/递归策略做二次细分。</li>
+<li>优先使用“结构重叠”（父标题路径、上段标题+摘要、相邻发言）替代大比例字符重叠。</li>
+<li>为每个块写好 metadata，可显著提升检索质量与可解释性。</li>
+<li>对 PDF/HTML 先去噪（页眉页脚、导航、广告等），避免把噪声索引进库。</li>
+</ul>
+<p> </p>
+<span id="OSC_h1_7"></span>
+<h1>4.3 语义与主题分块</h1>
+<p>该方法不依赖文档的物理结构，而是依据语义连续性与话题转移来决定切分点，尤其适合希望“块内高度内聚、块间清晰分界”的知识库与研究类文本。</p>
+<p> </p>
+<p style="text-align:left"><strong>语义分块</strong></p>
+<ul>
+<li><strong>分块策略</strong>
+<ul>
+<li>对文本先做句级切分，计算句子或短段的向量表示；</li>
+<li>当相邻语义的相似度显著下降（发生“语义突变”）时设为切分点。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>适用场景</strong>
+<ul>
+<li>专题化、论证结构明显的文档：</li>
+<li>白皮书、论文、技术手册、FAQ 聚合页；</li>
+<li>需要高内聚检索与高可追溯性。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用流程</strong>
+<ul>
+<li>句级切分：先用中文分句（标点/中文分句模型）得到句子序列。</li>
+<li>向量化：对每个句子编码，开启归一化（normalize）以便用余弦相似度。</li>
+<li>突变检测： 
+    <ul>
+<li>简单粗暴的方法：sim(i, i-1) 低于阈值则切分。</li>
+<li>稳健的方法：与“前后窗口的均值向量”比较，计算新颖度 novelty = 1 - cos(emb_i, mean_emb_window)，新颖度高于阈值则切分。</li>
+<li>平滑的方法：对相似度/新颖度做移动平均，降低抖动。</li>
+</ul> </li>
+<li>约束与修正：设置最小/最大块长，避免过碎或过长，必要时进行相邻块合并。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>与检索/重排的协同</strong></li>
+<li><strong>召回时可做“邻接扩展”（把被命中的块前后各追加一两句），再做重排序。语义分块的高内聚可让 重排序更精准地区分相近候选。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>代码示例</strong></li>
+</ul>
+<pre><code>from typing import List, Dict, Tuple
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import re
+
+
+<p>def split_sentences_zh(text: str) -&gt; List[str]:<br>    # 简易中文分句，可替换为 HanLP&#x2F;Stanza 更稳健的实现<br>    pattern &#x3D; re.compile(r’([^。！？；]*[。！？；]+|[^。！？；]+$)’)<br>    return [m.group(0).strip() for m in pattern.finditer(text) if m.group(0).strip()]</p>
+<p>def rolling_mean(vecs: np.ndarray, i: int, w: int) -&gt; np.ndarray:<br>    s &#x3D; max(0, i - w)<br>    e &#x3D; min(len(vecs), i + w + 1)<br>    return vecs[s:e].mean(axis&#x3D;0)</p>
+<p>def semantic_chunk(<br>    text: str,<br>    model_name: str &#x3D; “BAAI&#x2F;bge-m3”,<br>    window_size: int &#x3D; 2,<br>    min_chars: int &#x3D; 350,<br>    max_chars: int &#x3D; 1100,<br>    lambda_std: float &#x3D; 0.8,<br>    overlap_chars: int &#x3D; 80,<br>) -&gt; List[Dict]:<br>    sents &#x3D; split_sentences_zh(text)<br>    if not sents:<br>        return []</p>
+<pre><code>model = SentenceTransformer(model_name)
+emb = model.encode(sents, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+emb = np.asarray(emb)
+
+# 基于窗口均值的“新颖度”分数
+novelties = []
+for i in range(len(sents)):
+    ref = rolling_mean(emb, i-1, window_size) if i &amp;gt; 0 else emb[0]
+    ref = ref / (np.linalg.norm(ref) + 1e-8)
+    novelty = 1.0 - float(np.dot(emb[i], ref))
+    novelties.append(novelty)
+novelties = np.array(novelties)
+
+# 相对阈值：μ + λσ
+mu, sigma = float(novelties.mean()), float(novelties.std() + 1e-8)
+threshold = mu + lambda_std * sigma
+
+chunks, buf, start_idx = [], &quot;&quot;, 0
+def flush(end_idx: int):
+    nonlocal buf, start_idx
+    if buf.strip():
+        chunks.append(&amp;#123;
+            &quot;text&quot;: buf.strip(),
+            &quot;meta&quot;: &amp;#123;&quot;start_sent&quot;: start_idx, &quot;end_sent&quot;: end_idx-1&amp;#125;
+        &amp;#125;)
+    buf, start_idx = &quot;&quot;, end_idx
+
+for i, s in enumerate(sents):
+    # 若超长则先冲洗
+    if len(buf) + len(s) &amp;gt; max_chars and len(buf) &amp;gt;= min_chars:
+        flush(i)
+        # 结构化重叠：附加上一个块的尾部
+        if overlap_chars &amp;gt; 0 and len(s) &amp;lt; overlap_chars:
+            buf = s
+            continue
+    
+    buf += s
+    
+    # 达到最小长度后遇到突变则切分
+    if len(buf) &amp;gt;= min_chars and novelties[i] &amp;gt; threshold:
+        flush(i + 1)
+
+if buf:
+    flush(len(sents))
+
+return chunks&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<ul>
+<li><strong>参数调优说明</strong>（仅作参考） 
+  <ul>
+<li>阈值的含义：语义变化敏感度控制器，越低越容易切、越高越保守。</li>
+<li>设定方式： 
+    <ul>
+<li>绝对阈值：例如使用余弦相似度，若 sim &lt; 0.75 则切分（需按语料校准）。</li>
+<li>相对阈值：对全篇的相似度/新颖度分布估计均值μ与标准差σ，使用 μ ± λσ 作为阈值，更稳健。</li>
+</ul> </li>
+<li>初始的配置建议（仅限于中文技术/说明文档）： 
+    <ul>
+<li>窗口大小 window_size：2–4 句</li>
+<li>最小/最大块长：min_chunk_chars=300–400，max_chunk_chars=1000–1200</li>
+<li>阈值策略：novelty &gt; μ + 0.8σ 或相似度 &lt; μ - 0.8σ（先粗调后微调）</li>
+<li>overlap：10% 左右或按“附加上一句”做轻量轮次重叠</li>
+</ul> </li>
+</ul> </li>
+</ul>
+<p> </p>
+<p style="text-align:left"><strong>主题的分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li><strong>利用主题模型或聚类算法在“宏观话题”发生切换时进行切分，更多的关注章节级、段落级的主题边界。该类分块策略主要适合长篇、多主题材料。</strong></li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>适用场景</strong>
+<ul>
+<li>报告、书籍、长调研文档、综合评审；</li>
+<li>当文档内部确有较稳定的“话题块”。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用流程</strong>（最好用“句向量 + 聚类 + 序列平滑”而非纯 LDA） 
+  <ul>
+<li>句级切分并编码：首先通过向量模型得到句向量，normalize。</li>
+<li>文档内或语料级聚类： 
+    <ul>
+<li>文档内小规模：MiniBatchKMeans（k=3–8 先验）或 SpectralClustering。</li>
+<li>语料级统一主题：在大量文档上聚类（或用 HDBSCAN+UMAP），再将每篇文档的句子映射到最近主题中心。</li>
+</ul> </li>
+<li>序列平滑与解码： 
+    <ul>
+<li>对句子的主题标签做滑窗多数投票或一阶马尔可夫平滑，避免频繁抖动。</li>
+<li>当主题标签稳定变化并满足最小块长时，设为切分点。</li>
+</ul> </li>
+<li>主题命名：</li>
+<li>用 KeyBERT/TF-IDF 在每个块内抽关键词，或用小模型生成一句话主题摘要，写入 metadata。</li>
+<li>约束：min/max_chars，保留代码/表格等原子块，必要时与结构边界结合使用。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>代码示例</strong>（KMeans 文档内聚类 + 序列平滑）</li>
+</ul>
+<pre><code>from typing import List, Dict
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from sklearn.cluster import KMeans
+import re
+
+
+<p>def split_sentences_zh(text: str) -&gt; List[str]:<br>    pattern &#x3D; re.compile(r’([^。！？；]*[。！？；]+|[^。！？；]+$)’)<br>    return [m.group(0).strip() for m in pattern.finditer(text) if m.group(0).strip()]</p>
+<p>def topic_chunk(<br>    text: str,<br>    k_topics: int &#x3D; 5,<br>    min_chars: int &#x3D; 500,<br>    max_chars: int &#x3D; 1400,<br>    smooth_window: int &#x3D; 2,<br>    model_name: str &#x3D; “BAAI&#x2F;bge-m3”<br>) -&gt; List[Dict]:<br>    sents &#x3D; split_sentences_zh(text)<br>    if not sents:<br>        return []</p>
+<pre><code>model = SentenceTransformer(model_name)
+emb = model.encode(sents, normalize_embeddings=True, batch_size=64, show_progress_bar=False)
+emb = np.asarray(emb)
+
+km = KMeans(n_clusters=k_topics, n_init=&quot;auto&quot;, random_state=42)
+labels = km.fit_predict(emb)
+
+# 简单序列平滑：滑窗多数投票
+smoothed = labels.copy()
+for i in range(len(labels)):
+    s = max(0, i - smooth_window)
+    e = min(len(labels), i + smooth_window + 1)
+    window = labels[s:e]
+    vals, counts = np.unique(window, return_counts=True)
+    smoothed[i] = int(vals[np.argmax(counts)])
+
+chunks, buf, start_idx, cur_label = [], &quot;&quot;, 0, smoothed[0]
+def flush(end_idx: int):
+    nonlocal buf, start_idx
+    if buf.strip():
+        chunks.append(&amp;#123;
+            &quot;text&quot;: buf.strip(),
+            &quot;meta&quot;: &amp;#123;&quot;start_sent&quot;: start_idx, &quot;end_sent&quot;: end_idx-1, &quot;topic&quot;: int(cur_label)&amp;#125;
+        &amp;#125;)
+    buf, start_idx = &quot;&quot;, end_idx
+
+for i, s in enumerate(sents):
+    switched = smoothed[i] != cur_label
+    over_max = len(buf) + len(s) &amp;gt; max_chars
+    under_min = len(buf) &amp;lt; min_chars
+    
+    # 尝试延后切分，保证最小块长
+    if switched and not under_min:
+        flush(i)
+        cur_label = smoothed[i]
+    
+    if over_max and not under_min:
+        flush(i)
+    
+    buf += s
+
+if buf:
+    flush(len(sents))
+
+return chunks&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<ul>
+<li><strong>一些参数对结果的影响</strong>
+<ul>
+<li>k（主题数）：难以精准预设，可通过轮廓系数（silhouette）/肘部法初筛，再结合领域先验与人工校正。</li>
+<li>HDBSCAN：min_cluster_size 影响较大，过小会碎片化，过大则合并不同话题。</li>
+<li>min_topic_span_sents：如 5–8 句，防止标签抖动导致过密切分。</li>
+<li>小文档不宜用：样本太少时主题不可分，优先用语义分块或结构分块。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<span id="OSC_h1_8"></span>
+<h1>4.4 高级分块</h1>
+<p style="text-align:left"><strong>小-大分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li>用“小粒度块”（如句子/短句）做高精度召回，定位到最相关的微片段；再将其“所在的大粒度块”（如段落/小节）作为上下文送入 LLM，以兼顾精确性与上下文完整性。</li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用流程</strong>
+<ul>
+<li>构建索引（离线）： 
+    <ul>
+<li>Sentence/短句索引（索引A）：单位为句子或子句。</li>
+<li>段落/小节存储（存储B）：保留原始大块文本与结构信息。</li>
+</ul> </li>
+<li>检索（在线）： 
+    <ul>
+<li>用索引A召回 top_k_small 个小块（向量检索）。</li>
+<li>将小块按 parent_id 分组，计算组内分数（max/mean/加权），选出 top_m_big 个父块候选。</li>
+<li>对“查询-父块文本”做交叉编码重排，提升相关性排序的稳定性。</li>
+<li>上下文组装：在每个父块中高亮或优先保留命中小句附近的上下文（邻近N句或窗口字符 w），在整体 token 预算内拼接多块。</li>
+</ul> </li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>代码示例（伪代码）</strong></li>
+</ul>
+<pre><code># 离线：构建小块索引，并保存 parent_id -&gt; 大块文本 的映射
+# 在线检索：
+small_hits = small_index.search(embed(query), top_k=30)
+groups = group_by_parent(small_hits)
+scored_parents = score_groups(groups, agg="max")
+candidates = top_m(scored_parents, m=3)
+
+
+<h1 id="交叉编码重排"><a href="#交叉编码重排" class="headerlink" title="交叉编码重排"></a>交叉编码重排</h1><p>rerank_inputs &#x3D; [(query, parent_text(pid)) for pid in candidates]<br>reranked &#x3D; cross_encoder_rerank(rerank_inputs)</p>
+<h1 id="组装上下文：对每个父块，仅保留命中句及其邻近窗口，并加上标题路径"><a href="#组装上下文：对每个父块，仅保留命中句及其邻近窗口，并加上标题路径" class="headerlink" title="组装上下文：对每个父块，仅保留命中句及其邻近窗口，并加上标题路径"></a>组装上下文：对每个父块，仅保留命中句及其邻近窗口，并加上标题路径</h1><p>contexts &#x3D; []<br>for pid, _ in reranked:<br>    hits &#x3D; groups[pid]<br>    context &#x3D; build_local_window(parent_text(pid), hits, window_sents&#x3D;1)<br>    contexts.append(prefix_with_breadcrumbs(pid) + context)</p>
+<p>final_context &#x3D; pack_under_budget(contexts, token_budget&#x3D;3000)    # 留出回答空间</p></code></pre><p></p>
+<p style="text-align:left"><strong>父子段分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li>将文档按章节/段落等结构单元切成“父块”（Parent），再在每个父块内切出“子块”（通常为句子/短段或者笃固定块）。然后为“子块”建向量索引以做高精度召回。当检索时先召回子块，再按 parent_id 聚合并扩展到父块或父块中的局部窗口，兼顾最后召回内容的精准与上下文完整性。</li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>适用场景</strong>
+<ul>
+<li>结构清晰的说明文、手册、白皮书、法规、FAQ 聚合页；</li>
+<li>需要“句级证据准确 + 段/小节级上下文完整”的问答。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用流程</strong>
+<ul>
+<li>结构粗切（父块） 
+    <ul>
+<li>按标题层级/段落/代码块切出父块。</li>
+<li>父块写入 breadcrumbs（H1/H2/...）、anchor、block_type、start/end_offset。</li>
+</ul> </li>
+<li>精细切分（子块） 
+    <ul>
+<li>在父块内部以句子/子句/固定块为单位切分（可用递归分块兜底），小比例 overlap（或附加上一句内容）。</li>
+<li>为每个子块记录child_offset、sent_index_range、parent_id。</li>
+</ul> </li>
+<li>建索引与存储 
+    <ul>
+<li>子块向量索引A：先编码，normalize 后建索引。</li>
+<li>父块存储B：保存原文与结构元信息，此处可以选建一个父块级向量索引用于粗排或回退。</li>
+</ul> </li>
+<li>检索与组装 
+    <ul>
+<li>用索引A召回 top_k_child 子块。</li>
+<li>按 parent_id 分组并聚合打分（max/mean/命中密度），选出 top_m_parent 父块候选。</li>
+<li>对 (query, parent_text 或 parent_window) 交叉编码重排。</li>
+<li>上下文裁剪：对每个父块仅保留“命中子块±邻近窗口”（±1–2 句或 80–200 字），加上标题路径前缀，控制整体 token 预算。</li>
+</ul> </li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>打分与聚合策略</strong>
+<ul>
+<li>组分数：score_parent = α·max(child_scores) + (1-α)·mean(child_scores) + β·coverage（命中子块数/父块子块总数）。</li>
+<li>密度归一化：density = sum(exp(score_i)) / length(parent_text)，为避免长父块因命中多而“天然占优”。</li>
+<li>窗口合并：同一父块内相邻命中窗口若间距小于阈值则合并，减少重复与碎片。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>与“小-大分块”的关系</strong>
+<ul>
+<li>小-大分块是检索工作流（小粒度召回→大粒度上下文）；</li>
+<li>父子段分块是数据建模与索引设计（显式维护 parent–child 映射）。</li>
+<li>两者强相关、常配合使用：父子映射让小-大扩展更稳、更易去重与回链。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>示例</strong></li>
+</ul>
+<pre><code>from typing import List, Dict, Tuple
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
+
+
+
+<p>embedder &#x3D; SentenceTransformer(“BAAI&#x2F;bge-m3”)</p>
+<p>def search_parent_child(query: str, top_k_child&#x3D;40, top_m_parent&#x3D;3, window_chars&#x3D;180):<br>    q &#x3D; embedder.encode([query], normalize_embeddings&#x3D;True)[0]<br>    hits &#x3D; small_index.search(q, top_k&#x3D;top_k_child)  # 返回 [(child_id, score), …]<br>    # 分组<br>    groups: Dict[str, List[Tuple[str, float]]] &#x3D; &amp;#123;&amp;#125;<br>    for cid, score in hits:<br>        p &#x3D; child_parent_id[cid]<br>        groups.setdefault(p, []).append((cid, float(score)))</p>
+<pre><code># 聚合打分（max + coverage）
+scored = []
+for pid, items in groups.items():
+    scores = np.array([s for _, s in items])
+    agg = 0.7 * scores.max() + 0.3 * (len(items) / (len(parents[pid][&quot;sent_spans&quot;]) + 1e-6))
+    scored.append((pid, float(agg)))
+scored.sort(key=lambda x: x[1], reverse=True)
+candidates = [pid for pid, _ in scored[:top_m_parent]]
+
+# 为每个父块构造“命中窗口”
+contexts = []
+for pid in candidates:
+    ptext = parents[pid][&quot;text&quot;]
+    # 找到子块命中区间并合并窗口
+    spans = sorted([(children[cid][&quot;start&quot;], children[cid][&quot;end&quot;]) for cid, _ in groups[pid]])
+    merged = []
+    for s, e in spans:
+        s = max(0, s - window_chars)
+        e = min(len(ptext), e + window_chars)
+        if not merged or s &amp;gt; merged[-1][1] + 50:
+            merged.append([s, e])
+        else:
+            merged[-1][1] = max(merged[-1][1], e)
+    windows = [ptext[s:e] for s, e in merged]
+    prefix = &quot; &amp;gt; &quot;.join(parents[pid][&quot;meta&quot;].get(&quot;breadcrumbs&quot;, [])[-3:])
+    contexts.append((pid, f&quot;[&amp;#123;prefix&amp;#125;]\n&quot; + &quot;\n...\n&quot;.join(windows)))
+
+# 交叉编码重排（此处用占位函数）
+reranked = cross_encoder_rerank(query, [c[1] for c in contexts])  # 返回 indices 顺序
+ordered = [contexts[i] for i in reranked]
+return ordered  # [(parent_id, context_text), ...]&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<ul>
+<li><strong>调参建议</strong>（仅作参考，具体需要按照实际来）</li>
+<li>调参顺序：先定父/子块长度 → 标定 top_k_child 与聚合权重 → 调整窗口大小与合并阈值 → 最后接入交叉编码重排并控制 token 预算。</li>
+</ul>
+<p> </p>
+<p style="text-align:left"><strong>代理式分块</strong></p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li>使用一个小温度、强约束的 LLM Agent 模拟“人类阅读与编排”，根据语义、结构与任务目标动态决定分块边界，并输出结构化边界信息与理由（rationale 可选，不用于检索）。</li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>适用场景</strong>
+<ul>
+<li>高度复杂、长篇、非结构化且混合格式（文本+代码+表格）的文档；</li>
+<li>结构/语义/主题策略单独使用难以取得理想边界时。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用时的注意事项</strong>
+<ul>
+<li>规则护栏： 
+    <ul>
+<li>禁止在代码块、表格单元、引用块中间切分，对图片/公式作为原子单元处理。</li>
+<li>保持标题链路完整，强制最小/最大块长（min/max_chars / min/max_sents）。</li>
+</ul> </li>
+<li>目标对齐：</li>
+<li>在系统提示中明确“为了检索问答/用于摘要/用于诊断”的目标，Agent 以任务优先级决定边界与上下文冗余度。</li>
+<li>结构化输出：</li>
+<li>要求输出 segments: [&#123;start_offset, end_offset, title_path, reason&#125;]，不能接受自由文本。</li>
+<li>自检与回退：</li>
+<li>Agent 产出的边界先过一遍约束校验器（如长度、原子块、顺序等），不符合规则的内容则自动回退到递归/句级分块。</li>
+<li>成本控制： 
+    <ul>
+<li>长文分批阅读（分段滑动窗口）；</li>
+<li>在每段末尾只输出边界草案，最终汇总并去重；</li>
+<li>温度低（≤0.3）、max_tokens 受控。</li>
+</ul> </li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>示例</strong>：Agent 输出模式（伪 Prompt 片段）</li>
+</ul>
+<pre><code>系统：你是分块器。目标：为RAG检索创建高内聚、可追溯的块。规则：
+1) 不得在代码/表格/公式中间切分；
+2) 每块400-1000字；
+3) 保持标题路径完整；
+4) 尽量让“定义+解释”在同一块；
+5) 输出JSON，含 start_offset/end_offset/title_path。
+
+
+<p>用户：&lt;文档片段文本&gt;<br>助手（示例输出）：<br>&amp;#123;<br>  “segments”: [<br>    &amp;#123;”start”: 0, “end”: 812, “title_path”: [“指南”,”安装”], “reason”: “完整步骤+注意事项”&amp;#125;,<br>    &amp;#123;”start”: 813, “end”: 1620, “title_path”: [“指南”,”配置”], “reason”: “参数表与示例紧密相关”&amp;#125;<br>  ]<br>&amp;#125;</p></code></pre><p></p>
+<ul>
+<li><strong>集成的流程</strong>
+<ul>
+<li>粗切：先用结构感知/递归策略获得初步块，降低 Agent 处理跨度。</li>
+<li>Agent 精修：对“疑难块”（过长/多格式/主题混杂）调用 Agent 细化边界。</li>
+<li>质检：规则校验 + 语义稀疏度检测（块内相似度方差过大则再细分）。</li>
+<li>写入 metadata。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<span id="OSC_h1_9"></span>
+<h1>4.5 混合分块</h1>
+<p>单一策略难覆盖所有文档与场景。混合分块通过“先粗后细、按需细化”，在效率、可追溯性与答案质量之间取得稳健平衡。</p>
+<p> </p>
+<ul>
+<li><strong>分块策略</strong></li>
+<li>先用宏观边界（结构感知）做粗粒度切分，再对“过大或主题跨度大的块”应用更精细的策略（递归、句子、语义/主题）。查询时配合“小-大分块”/“父子段分块”的检索组装，以小精召回、以大保上下文。</li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>使用流程</strong>
+<ul>
+<li>粗切（离线）：按标题/段落/代码块/表格等结构单元切分，清理噪声（页眉页脚/导航）。</li>
+<li>细化（离线）：对超长或密度不均的块，按规则选用递归/句子/语义分块二次细分。</li>
+<li>索引（离线）：同时为“小块索引（句/子句）”与“大块存储（段/小节）”生成数据与metadata。</li>
+<li>检索（在线）：小块高精度召回 → 按父块聚合与重排→ 在父块中抽取命中句邻域作为上下文，控制整体 token 预算。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>策略选择规则</strong>
+<ul>
+<li>若块类型为代码/表格/公式：保持原子，不在中间切分，直接与其解释文字打包。</li>
+<li>若为对话：按轮次/说话人做对话式分块，overlap 使用“轮次重叠”。</li>
+<li>若为普通说明文/Markdown章节： 
+    <ul>
+<li>长度 &gt; max_coarse或句长方差高/标点稀疏：优先语义分块（句向量+突变阈值）。</li>
+<li>否则：递归字符分块（标题/段落/换行/空格/字符）保持语义边界。</li>
+</ul> </li>
+<li>对过短块：与同一父标题相邻块合并，优先向后合并。</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li><strong>质量-成本档位</strong>（仅供参考） 
+  <ul>
+<li>fast：仅结构→递归。overlap 5%–10%，不跑语义分块和主题分块</li>
+<li>balanced（推荐）：结构→递归，对异常块启用语义分块，小-大检索，overlap 10%左右</li>
+<li>quality：在 balanced 基础上对疑难块启用 Agent 精修，更强的邻接扩展与rerank</li>
+</ul> </li>
+</ul>
+<p> </p>
+<ul>
+<li>简洁调度器示例， 将结构粗切与若干细分器组合为一个“混合分块”入口，关键是类型判断与长度阈值控制。可以把前文已实现的结构/句子/语义/对话分块函数挂入此调度器。</li>
+</ul>
+<pre><code>from typing import List, Dict
+
+
+<p>def hybrid_chunk(<br>    doc_text: str,<br>    parse_structure,          # 函数：返回 [&amp;#123;’type’: ‘text|code|table|dialogue’, ‘text’: str, ‘breadcrumbs’: […], ‘anchor’: str&amp;#125;]<br>    recursive_splitter,       # 函数：text -&gt; [&amp;#123;’text’: str&amp;#125;]<br>    sentence_splitter,        # 函数：text -&gt; [&amp;#123;’text’: str&amp;#125;]<br>    semantic_splitter,        # 函数：text -&gt; [&amp;#123;’text’: str&amp;#125;]<br>    dialogue_splitter,        # 函数：turns(list) -&gt; [&amp;#123;’text’: str&amp;#125;]，若无对话则忽略<br>    max_coarse_len: int &#x3D; 1100,<br>    min_chunk_len: int &#x3D; 320,<br>    target_len: int &#x3D; 750,<br>    overlap_ratio: float &#x3D; 0.1,<br>) -&gt; List[Dict]:<br>    “””<br>    返回格式: [&amp;#123;’text’: str, ‘meta’: &amp;#123;…&amp;#125;&amp;#125;]<br>    “””<br>    blocks &#x3D; parse_structure(doc_text)  # 先拿到结构块<br>    chunks: List[Dict] &#x3D; []</p>
+<pre><code>def emit(t: str, meta_base: Dict):
+    t = t.strip()
+    if not t:
+        return
+    # 结构重叠前缀（标题路径）
+    bc = &quot; &amp;gt; &quot;.join(meta_base.get(&quot;breadcrumbs&quot;, [])[-3:])
+    prefix = f&quot;[&amp;#123;bc&amp;#125;]\n&quot; if bc else &quot;&quot;
+    chunks.append(&amp;#123;
+        &quot;text&quot;: (prefix + t) if not t.startswith(prefix) else t,
+        &quot;meta&quot;: meta_base
+    &amp;#125;)
+
+for b in blocks:
+    t = b[&quot;text&quot;]
+    btype = b.get(&quot;type&quot;, &quot;text&quot;)
+    
+    # 原子块：代码/表格
+    if btype in &amp;#123;&quot;code&quot;, &quot;table&quot;, &quot;formula&quot;&amp;#125;:
+        emit(t, &amp;#123;**b, &quot;splitter&quot;: &quot;atomic&quot;&amp;#125;)
+        continue
+    
+    # 对话块
+    if btype == &quot;dialogue&quot;:
+        for ck in dialogue_splitter(b.get(&quot;turns&quot;, [])):
+            emit(ck[&quot;text&quot;], &amp;#123;**b, &quot;splitter&quot;: &quot;dialogue&quot;&amp;#125;)
+        continue
+    
+    # 普通文本：依据长度与“可读性”启用不同细分器
+    if len(t) &amp;lt;= max_coarse_len:
+        # 中短文本：递归 or 句子
+        sub = recursive_splitter(t)
+        # 合并过短子块
+        buf = &quot;&quot;
+        for s in sub:
+            txt = s[&quot;text&quot;]
+            if len(buf) + len(txt) &amp;lt; min_chunk_len:
+                buf += txt
+            else:
+                emit(buf or txt, &amp;#123;**b, &quot;splitter&quot;: &quot;recursive&quot;&amp;#125;)
+                buf = &quot;&quot; if buf else &quot;&quot;
+        if buf:
+            emit(buf, &amp;#123;**b, &quot;splitter&quot;: &quot;recursive&quot;&amp;#125;)
+    else:
+        # 超长文本：语义分块优先
+        for ck in semantic_splitter(t):
+            emit(ck[&quot;text&quot;], &amp;#123;**b, &quot;splitter&quot;: &quot;semantic&quot;&amp;#125;)
+
+# 轻量字符重叠（可选）
+if overlap_ratio &amp;gt; 0:
+    overlapped = []
+    for i, ch in enumerate(chunks):
+        overlapped.append(ch)
+        if i + 1 &amp;lt; len(chunks) and ch[&quot;meta&quot;].get(&quot;breadcrumbs&quot;) == chunks[i+1][&quot;meta&quot;].get(&quot;breadcrumbs&quot;):
+            # 在相邻同章节块间引入小比例重叠
+            ov = int(len(ch[&quot;text&quot;]) * overlap_ratio)
+            if ov &amp;gt; 0:
+                head = ch[&quot;text&quot;][-ov:]
+                chunks[i+1][&quot;text&quot;] = head + chunks[i+1][&quot;text&quot;]
+    chunks = overlapped
+
+return chunks&lt;/code&gt;&lt;/pre&gt;
+</code></pre>
+<p><span id="OSC_h1_10"></span></p>
+<h1>五、结论</h1>
+<div>
+<img class="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://my.oschina.net&url=https://mp.toutiao.com/mp/agw/article_material/open_image/get?code=ODlmMGRlMzFjY2I5ZGIwYmJkMzY1Yzc5ZjEzZmUxYzIsMTc2MTgxMjkyMDE4MA==" https: cors.mhuig.top ?r="https://my.oschina.net&url=https://my.oschina.net/">
+</div>
+<p> </p>
+<span id="OSC_h1_11"></span>
+<h1>往期回顾</h1>
+<p> </p>
+<p>1. 告别数据无序：得物数据研发与管理平台的破局之路</p>
+<p>2. 从一次启动失败深入剖析：Spring循环依赖的真相｜得物技术</p>
+<p>3. Apex AI辅助编码助手的设计和实践｜得物技术</p>
+<p>4. 从 JSON 字符串到 Java 对象：Fastjson 1.2.83 全程解析｜得物技术</p>
+<p>5. 用好 TTL Agent 不踩雷：避开内存泄露与CPU 100%两大核心坑｜得物技术</p>
+<p> </p>
+<span id="OSC_h1_12"></span>
+<h1>文 /昆岚</h1>
+<p style="text-align:center"> </p>
+<p style="text-align:center">关注得物技术，每周更新技术干货</p>
+<p style="text-align:center">要是觉得文章对你有帮助的话，欢迎评论转发点赞～</p>
+<p style="text-align:center">未经得物技术许可严禁转载，否则依法追究法律责任。</p>
+<p> </p>
+</code></pre></code></pre></code></pre></code></pre></code></pre></code></pre></div>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="RAG — Chunking 策略实战" href="https://my.oschina.net/u/5783135/blog/18698011" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">RAG — Chunking 策略实战</span><span class="desc fs12">https://my.oschina.net/u/5783135/blog/18698011</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/2f60cc5e.html">App+1｜一个应用搞定多种笔记需求，零碎想法也有好去处：Re:card<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/4cc4d880.html">Figma 收购 AI 生成公司 Weavy，推新品牌 Figma Weave<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/78b63577.html" title="AI 写作辅助工具 Grammarly 完成品牌重塑，并发布全新 AI 工作平台“Superhuman Go”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-5d5276d95b1d2e0f8af6babec94d5a12619.png"></div><span class="title">AI 写作辅助工具 Grammarly 完成品牌重塑，并发布全新 AI 工作平台“Superhuman Go”</span></a><a class="item" href="/rss/91938a66.html" title="Apache Ignite 3.1.0 版本发布"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3538"></div><span class="title">Apache Ignite 3.1.0 版本发布</span></a><a class="item" href="/rss/9e3601f5.html" title="Canva 免费放出 Affinity 专业设计套件"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-477cdf4bf88e48a3ca6c864bf10e527bc05.png"></div><span class="title">Canva 免费放出 Affinity 专业设计套件</span></a><a class="item" href="/rss/67a2b508.html" title="EloqDoc - 弹性文档数据库"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet//f00177831e7eb67092ed33ffabaf0922.jpg"></div><span class="title">EloqDoc - 弹性文档数据库</span></a><a class="item" href="/rss/4cc4d880.html" title="Figma 收购 AI 生成公司 Weavy，推新品牌 Figma Weave"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-6c638d2d030cecbff7bdc2f93aa63b9f174.png"></div><span class="title">Figma 收购 AI 生成公司 Weavy，推新品牌 Figma Weave</span></a><a class="item" href="/rss/7a31f397.html" title="GOTC 2025 ：燧原科技展台人头攒动，打卡积赞福利满满"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/1101/142920_X3FI_4806939.png"></div><span class="title">GOTC 2025 ：燧原科技展台人头攒动，打卡积赞福利满满</span></a><a class="item" href="/rss/d7ce263b.html" title="OpenAI 揭秘 Atlas 浏览器 OWL 架构"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-42509c9cab14442a1cc38bb55dca948492c.png"></div><span class="title">OpenAI 揭秘 Atlas 浏览器 OWL 架构</span></a><a class="item" href="/rss/d620cf2a.html" title="万源共振，智构未来，全球开源技术峰会 GOTC 2025 在京开幕"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-a131f79b90358084c058b8b06f2b6f6f05d.png"></div><span class="title">万源共振，智构未来，全球开源技术峰会 GOTC 2025 在京开幕</span></a><a class="item" href="/rss/fa642c54.html" title="中国信通院人工智能所联合发布《大模型一体机应用研究报告（2025年）》"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6870"></div><span class="title">中国信通院人工智能所联合发布《大模型一体机应用研究报告（2025年）》</span></a><a class="item" href="/rss/6f5df660.html" title="亚马逊回应万人大裁员：重塑公司“文化”，非直接由 AI 技术取代"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-69fca555b44cdf1655eeb7bad44f6a0e39a.png"></div><span class="title">亚马逊回应万人大裁员：重塑公司“文化”，非直接由 AI 技术取代</span></a><a class="item" href="/rss/acff566.html" title="新一代 AI 视频生成模型 LTX-2 发布"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-71702579b13f41a50167392cdd234bf5c9e.png"></div><span class="title">新一代 AI 视频生成模型 LTX-2 发布</span></a><a class="item" href="/rss/ce6e9656.html" title="美的发布新一代 AI 交互系统“Home AI”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://oscimg.oschina.net/oscnet/up-67f5e00d2595872e5ae475f53d273a762fe.png"></div><span class="title">美的发布新一代 AI 交互系统“Home AI”</span></a><a class="item" href="/rss/a56f37ba.html" title="阿里 AI 编程工具 Qoder 发布 Linux 版本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/1031/190853_UGe7_2720166.png"></div><span class="title">阿里 AI 编程工具 Qoder 发布 Linux 版本</span></a><a class="item" href="/rss/da4f5608.html" title="零一万物联合开源中国推出 OAK 平台，目标打造 Agent 世界的“生态适配器”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.oschina.net&url=https://static.oschina.net/uploads/space/2025/1101/145331_13y6_2720166.png"></div><span class="title">零一万物联合开源中国推出 OAK 平台，目标打造 Agent 世界的“生态适配器”</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

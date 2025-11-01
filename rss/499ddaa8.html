@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>对 GPT 5 模型路由机制的深度解析 - RSSBOX</title>
+
+  
+    <meta name="description" content="编者按： 我们今天为大家带来的文章，作者的观点是：GPT-5 通过引入“智能路由器”架构，实现了按需调用不同专家模型的动态协作机制，标志着大模型正从“全能单体架构”迈向“专业化协同架构”的新范式。 文章深入剖析了 GPT-5 路由机制的四大决策支柱 —— 对话类型、任务复杂度、工具需求与用户显性意图，并对比了其相较于 GPT-4、Toolformer 及早期插件系统的突破性进步。作者还详细拆解">
+<meta property="og:type" content="article">
+<meta property="og:title" content="对 GPT 5 模型路由机制的深度解析">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/499ddaa8.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="编者按： 我们今天为大家带来的文章，作者的观点是：GPT-5 通过引入“智能路由器”架构，实现了按需调用不同专家模型的动态协作机制，标志着大模型正从“全能单体架构”迈向“专业化协同架构”的新范式。 文章深入剖析了 GPT-5 路由机制的四大决策支柱 —— 对话类型、任务复杂度、工具需求与用户显性意图，并对比了其相较于 GPT-4、Toolformer 及早期插件系统的突破性进步。作者还详细拆解">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b22ce078a1ea437dad51cfba2933d500~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=RvWI8QrUl%2FXHJUCZUvf3jEHgXnU%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/38d123e33f4545d7af39963842a601fd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=T2TLjb2WybEm5VAHVpRPSklMmB0%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b66bebff2f0343f49b03285a849951bf~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=vkL5pWOhZh388Fm1gramXPjtbRM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6969db9f103540cea6170fad94b1737d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=55%2BZkSv1j95WtqnTIeELAv5g8R4%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/4f63fccaf34d4f7fb458155246981894~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=Mm11ftD3nhH22bfFE4O1p%2BGOOPE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e10569bff3474d2b91bb99732eb1353d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=WHiuFpi0J3pBkbbKHDnkLySzqhU%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ba3332af1bae44c2aa4fda5f46a80be5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=IMX%2FgwL0EDsmvvB4kuGCnwA1mJA%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/104737cfbed4405eb262113dfe00eb13~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=TdCvMt3KD5KMoyoYSy%2B2lFb6csE%3D">
+<meta property="article:published_time" content="2025-10-31T01:25:01.000Z">
+<meta property="article:modified_time" content="2025-10-31T01:25:01.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b22ce078a1ea437dad51cfba2933d500~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=RvWI8QrUl%2FXHJUCZUvf3jEHgXnU%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">01 为什么路由机制现在非常重要？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">02 路由机制的四大支柱</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">03 超越 Toolformer 与内置插件的一次飞跃</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">04 构建属于你自己的 GPT-5 式路由器</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">05 GPT-5 路由器的核心优势</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">06 隐忧与挑战：局限性分析</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">07 这一技术将如何影响 AI 的未来发展？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">08 Final thoughts</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-31T01:25:01.000Z">2025-10-31</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>对 GPT 5 模型路由机制的深度解析</span></h1>
+<div>
+<blockquote>
+<p><strong>编者按：</strong> 我们今天为大家带来的文章，作者的观点是：GPT-5 通过引入“智能路由器”架构，实现了按需调用不同专家模型的动态协作机制，标志着大模型正从“全能单体架构”迈向“专业化协同架构”的新范式。</p>
+<p>文章深入剖析了 GPT-5 路由机制的四大决策支柱 —— 对话类型、任务复杂度、工具需求与用户显性意图，并对比了其相较于 GPT-4、Toolformer 及早期插件系统的突破性进步。作者还详细拆解了该架构的技术实现路径、核心优势（如响应速度提升、资源成本优化、可解释性）以及潜在挑战（如延迟叠加、路由误判、调试困难）。尤为难得的是，文中还提供了基于开源工具构建轻量级 GPT-5 式路由器的可行方案，为开发者指明了实践方向。</p>
+</blockquote>
+<p><strong>作者 | Bhavishya Pandit</strong></p>
+<p><strong>编译 | 岳扬</strong></p>
+<p>初次与 GPT-5 对话时，我就意识到它不仅是在回答问题，更在精心选择回应方式。其背后的智能“路由器”会将每个问题分配给最合适的处理模块：轻量级核心模型瞬间处理各类简单问题和总结摘要类任务，重量级的 GPT-5 思考模型则专攻复杂推理，而需要工具支持时，“路由器”会启动计算器或外部检索功能。</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b22ce078a1ea437dad51cfba2933d500~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=RvWI8QrUl%2FXHJUCZUvf3jEHgXnU%3D"></p>
+<p>这种架构变革的意义十分重大。如今的 GPT-5 不再是一个单一系统，更像是由“路由器”协调的专家网络。在本期《Where’s The Future in Tech》中，我将解析其运行机制，对比历代模型的差异，并探讨其中预示的人工智能设计新方向。</p>
+<h2 data-id="heading-0"><strong>01 为什么路由机制现在非常重要？</strong></h2>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/38d123e33f4545d7af39963842a601fd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=T2TLjb2WybEm5VAHVpRPSklMmB0%3D"></p>
+<p>坦白说，早在 GPT-4 面世时，我们就已发现一个比较严重的问题 —— 无论是创作莎士比亚风格的诗歌还是检查是否有拼写错误，人们都在使用同一个庞然大物。这简直就是用火箭发动机烤面包 —— 虽然可行，但既浪费资源、成本高昂，又常常大材小用。</p>
+<p>GPT-5 的路由机制彻底改变了这种局面。它不再每次都启动火箭引擎，而是通过路由系统快速分析请求并分配到合适的处理路径：</p>
+<ul>
+<li>简单闲聊？ → 分流至快速的轻量级模型</li>
+<li>复杂推理？ → 导向 GPT-5 的核心思考模块</li>
+<li>数理逻辑？ → 转至 symbolic tool（译者注：利用传统编程和数学规则来保证结果精确性的工具）或计算器</li>
+<li>结构化任务（SQL、API）？ → 分配给专用任务执行器</li>
+</ul>
+<h2 data-id="heading-1"><strong>02 路由机制的四大支柱</strong></h2>
+<p>GPT-5 在决定启动哪个“大脑”时究竟考量哪些因素？通过日常使用并研读 OpenAI 的技术文档后，我发现其核心逻辑可归纳为四大要素：对话类型（conversation type）、任务复杂度（task complexity）、工具需求（tool needs）及显性的用户意图（explicit user intent）。</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b66bebff2f0343f49b03285a849951bf~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=vkL5pWOhZh388Fm1gramXPjtbRM%3D"></p>
+<p><strong>1. 对话类型</strong></p>
+<p>当前对话是随意闲聊，还是代码审查、数学证明或故事草稿等结构化任务？GPT-5 已学会为不同对话类型匹配最优的处理模型。例如关于周末计划的闲聊会启用高速响应模式，而分步骤推导定理则会立即激活深度思考模式。</p>
+<p><strong>2. 任务复杂度</strong></p>
+<p>当指令看起来比较复杂时，GPT-5 会立即调用重量级推理模型。用技术术语来说，路由器能识别出你话语中隐含的、关于任务难度的细微信号，并分配更强大的模型来处理。正如 AIMultiple 所指：GPT-5采用多模型混合架构，根据提示词复杂度与响应速度需求进行路由 —— 既避免在简单任务上耗费算力，也确保复杂需求得到充分解决。</p>
+<p><strong>3. 工具需求</strong></p>
+<p>一旦指令中出现“计算”、“查询”或“起草邮件”等关键词，路由器会自动调度配备专用工具的模型。与早期需手动启用插件的系统不同，现在的 GPT-5 会隐形处理这一过程：若查询明显需要执行代码或访问数据库，系统将自动移交专属模型。早期测试显示，凭借更精准的路由与专业化分工，GPT-5 的工具调用错误率较 GPT-4 降低近 50%。</p>
+<p><strong>4. 显性的用户意图</strong></p>
+<p>一般情况下，路由器会直接响应用户指令。若输入“请深入思考”，系统会立即启动深度推理模式。笔者测试过“快速总结”与“深度剖析”等具有细微差异的不同措辞，能清晰观察到 GPT-5 在实时切换处理模式 —— 这仿佛解锁了新的“软指令”层，用户措辞对路由决策的影响程度，已不亚于系统内置的启发式规则。</p>
+<h2 data-id="heading-2"><strong>03 超越 Toolformer 与内置插件的一次飞跃</strong></h2>
+<p>有些人可能还记得 Toolformer[1]：那是 2023 年的一篇论文，这项研究让语言模型在训练中自学通过 API 调用外部工具。这个想法很聪明，但却是静态的 —— 模型仅能从数据集中的信号 tokens 学习固定的规则，比如“此处使用计算器”。部署完成后，它就无法超越自己的记忆范围进行适配。</p>
+<p>GPT-5 的路由器则截然不同，它能在运行时动态做出决策。它不会机械地复述预设指令，而是像一位实时在线的助手 —— 听到你的问题后，能当场判断：“我现在应该调用计算器了。”</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6969db9f103540cea6170fad94b1737d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=55%2BZkSv1j95WtqnTIeELAv5g8R4%3D"></p>
+<p>ChatGPT 曾经的插件同样存在类似的局限：用户必须手动启用插件，并明确指示“用 Wolfram Alpha 进行数学计算”。GPT-5 则用一个内置的策略层取代了这种模式。只要用户查询需要调用工具，路由器就会直接将请求路由到已连接相应工具的合适模型。即便是新 API 中推出的自定义工具，其后端也依赖这套路由系统。</p>
+<p>简言之，GPT-5 融合了 Toolformer 的自主工具调用能力与 ChatGPT 的插件生态，但在中间加入了一位实时的“交通指挥员”。如果说 GPT-4 像一台独立的超级计算机，那么 GPT-5 则更像是由路由器协调的一组云端脑处理单元（cloud of brain processes）。如果你曾经调试过微服务，立刻就能明白这个比喻为何如此贴切。</p>
+<h2 data-id="heading-3"><strong>04 构建属于你自己的 GPT-5 式路由器</strong></h2>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/4f63fccaf34d4f7fb458155246981894~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=Mm11ftD3nhH22bfFE4O1p%2BGOOPE%3D"></p>
+<p>现在，我知道你可能会想：“这个概念很酷，但我到底该怎么自己动手做出类似的东西呢？”幸运的是，你并不需要像 OpenAI 那样拥有无限算力才能尝试。借助当前的开源生态，你完全可以在自己的机器上搭建一个轻量级的 GPT-5 式路由器。以下是一种可行的实现思路：</p>
+<p><strong>1. 用户意图与请求复杂度识别</strong></p>
+<p>路由器必须首先理解请求的类型：是快速的事实信息查询、需要大量推理过程的数学证明题、还是图像生成需求，还是需要浏览网页呢？一个轻量级的分类器（甚至小型 LLM）即可完成这项工作。</p>
+<p><strong>2. 不同模式间的动态路由</strong></p>
+<p>路由器会智能地在不同模式间进行切换，而非一致地处理所有查询：</p>
+<ul>
+<li>快速模式：将查询发送给低延迟模型以获取快速响应</li>
+<li>思考模式：启用推理 token 进行更长时间的思考，以便处理需要深度逻辑分析、权衡多种因素、或通过多个步骤才能解决的复杂问题</li>
+<li>备用模式：当 GPU 显存紧张时，就将请求路由到更小的备用模型，从而确保系统永不宕机</li>
+</ul>
+<p><strong>3. 底层技术架构</strong></p>
+<p>以下是一套可落地的开源方案：</p>
+<ul>
+<li>核心推理引擎 + 资源限制机制（thinking budget） → NVIDIA[2] Nemotron Nano V2 9B（一款混合了 Mamba 与 Transformer 架构的模型，兼容 RTX 显卡，支持 token 使用量调控）</li>
+<li>多模态理解 → Nemotron Nano VL 8B（支持文本 + 图像输入）</li>
+<li>图像生成 → Flux Dev（视觉内容生成）</li>
+<li>智能体框架 → CrewAI[3]（任务管理与工作流管理）</li>
+<li>记忆模块 → Mem0[4]（跨对话上下文持久化）</li>
+</ul>
+<p>仅凭该技术栈，我们就能构建出与 GPT-5 底层运作极为相似的路由器系统。</p>
+<p><strong>4. 通过资源限制机制（thinking budget）控制成本</strong></p>
+<p>并非每个指令都需要“耗费万枚 token 的深度思考”。通过限制单次请求的推理 token 上限，可大幅降低开销。采用这种方法的团队报告称，该方法最高可节省 60% 成本，因为路由器只在真正需要的地方投入算力。</p>
+<p><strong>5. 面向生产的 API</strong></p>
+<p>NVIDIA 已通过 NIM API 和 Hugging Face 提供这些模型。这意味着你无需从头训练，现在即可接入模型开始实验。</p>
+<h2 data-id="heading-4"><strong>05 GPT-5 路由器的核心优势</strong></h2>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e10569bff3474d2b91bb99732eb1353d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=WHiuFpi0J3pBkbbKHDnkLySzqhU%3D"></p>
+<ul>
+<li><strong>效率与速度</strong>
+<ul>
+<li><strong>大多数查询默认交给快速模型处理，大幅节省算力</strong></li>
+<li><strong>轻量级任务不再占用深度推理引擎资源</strong></li>
+<li><strong>OpenAI 曾暗示，当系统负载过高时，“mini”模型可以接手低优先级的用户查询，实现弹性扩展</strong></li>
+</ul>
+</li>
+<li><strong>响应速度</strong>
+<ul>
+<li><strong>对于基础问题，GPT-5 能“即时”作答，在基准测试中通常比 GPT-4 Turbo 快 2–3 倍</strong></li>
+<li><strong>自动路由机制意味着用户无需手动切换模型 —— 需要速度时自动给出快速回答，需要深度时则提供深入分析</strong></li>
+<li><strong>保留“快速模式/思考模式”的手动切换开关，满足用户精准控制的需求</strong></li>
+</ul>
+</li>
+<li><strong>可解释性与模块化设计</strong>
+<ul>
+<li><strong>每个子模型都专注于特定领域，支持独立迭代升级</strong></li>
+<li><strong>错误定位更精准：可区分“路由选择失误”与“模型推理错误”</strong></li>
+<li><strong>这就像 AI 流水线中的微服务架构 —— 模块化、职责清晰、更易维护</strong></li>
+</ul>
+</li>
+<li><strong>专业化 = 更高质量</strong>
+<ul>
+<li><strong>子模型针对特定场景进行了专项优化：例如，“thinking” 模型用于多步骤推理，“main” 模型用于简洁准确的知识输出</strong></li>
+<li><strong>兼顾两者优势：兼具 GPT-4 级别的知识深度与 GPT-3 级别的响应速度</strong></li>
+<li><strong>支持对话中无缝切换模式，比如从头脑风暴无缝切换到代码处理，无需用户显式指令</strong></li>
+</ul>
+</li>
+</ul>
+<h2 data-id="heading-5"><strong>06 隐忧与挑战：局限性分析</strong></h2>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ba3332af1bae44c2aa4fda5f46a80be5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=IMX%2FgwL0EDsmvvB4kuGCnwA1mJA%3D"></p>
+<ul>
+<li><strong>调试困难</strong>
+<ul>
+<li><strong>错误溯源困难：问题究竟源于路由器选错模型，还是所选模型自身的失误？</strong></li>
+<li>调试过程更接近分布式系统，而非单一单体架构</li>
+<li>需借助专用追踪工具（借鉴 Amazon Bedrock 框架）记录每个环节：路由决策、工具调用、中间结果、最终的输出整合</li>
+<li>任何环节出错都意味着“需要检查的动态部件更多了”</li>
+</ul>
+</li>
+<li><strong>延迟叠加</strong>
+<ul>
+<li><strong>每一次额外的跳转（例如主模型→思考模型→数学工具→返回计算结果→最终答案）都会增加延迟</strong></li>
+<li>简单问题通常会绕过中间层，但复杂查询可能会明显变慢</li>
+<li>Amazon 的多智能体报告就曾警告过这一点：串行推理链越长，开销越大</li>
+<li>缓解方案：并行调用（parallelizing calls） + 结果缓存（caching results），但多工具工作流的响应速度仍可能低于单次 GPT-4 调用</li>
+</ul>
+</li>
+<li><strong>资源成本</strong>
+<ul>
+<li>多个小型模型有时反而比单个大模型消耗更多算力，必须精细调整路由器的阈值，确保边界任务被分配给更快的模型</li>
+<li>第三方研究发现，ChatGPT-5 在某些查询中使用的 token 数量是 GPT-4 的两倍，原因在于编排过程带来的额外开销</li>
+<li>OpenAI 也承认 GPT-5 虽追求效率，但可能“更耗算力”</li>
+<li>本质是更智能的资源分配与更高的系统复杂度之间的权衡</li>
+</ul>
+</li>
+<li><strong>用户体验偏差</strong>
+<ul>
+<li>一些用户已经注意到语气差异：思考模式（正式、严谨） vs 主模式（自然、流畅）</li>
+<li>通过“人格过滤器”对输出进行风格对齐，确保用户感知到的始终是一个连贯、统一、有辨识度的对话伙伴</li>
+<li>若未经调优，对话可能感觉像多个风格略有差异的 AI 在轮流发言</li>
+<li>正如一句调侃所说：“GPT-5 的大脑很聪明，但可能存在身份认知危机”</li>
+</ul>
+</li>
+<li><strong>路由失误</strong>
+<ul>
+<li>路由器有时会误判：该用“深度模式”的问题却选择了“快速模式”，反之亦然</li>
+<li>通过“模型切换”事件进行检测（例如用户点击“重新生成”答案时）</li>
+<li>最终补救措施仍是用户点击“重新生成”，然后期待路由器作出不同选择</li>
+<li>每次切换都需重新加载静态提示词，既增加延迟，又增加 token 消耗</li>
+<li>实际应用中，回答过程中的模式切换会破坏“流畅对话”的体验</li>
+</ul>
+</li>
+</ul>
+<h2 data-id="heading-6"><strong>07 这一技术将如何影响 AI 的未来发展？</strong></h2>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/104737cfbed4405eb262113dfe00eb13~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762478701&amp;x-signature=TdCvMt3KD5KMoyoYSy%2B2lFb6csE%3D"></p>
+<p>GPT-5 的“路由器 + 多模型”架构讲述了一个更大的故事：AI 正在告别“一刀切”的单一模型时代。研究人员长期以来一直在探讨模块化与 Agentic AI，而 GPT-5 正是这一转变正在发生的最清晰例证之一。正如某份分析所言，GPT-5 的“多智能体架构（路由器 + 模型）”暗示了我们未来可能会如何设计模块化的 AI 系统，来突破单一模型的局限。用通俗的话说，未来大语言模型系统将由专家网络构成，而不是依赖一个“全能的”通用模型。</p>
+<p>未来的 AI 很可能会变得更像多个智能体协同工作，而非由单一模型包揽一切。我们或许很快会看到更加细粒度的专家模型（一些实验室已在测试“100-expert LLMs”），由一个中央控制器协调调度。GPT-5 已经证明，只要硬件持续进化，这种因为协调过程而产生的开销是值得的。因此，如果 GPT-6 或 Gemini Next 配备了一个超强路由器，管理数十个子模型，或者插件演变为由元模型（metamodel）按需调用的自主“智能体”，你也不必感到惊讶。</p>
+<p><strong>前方的挑战</strong></p>
+<p>当然，模块化并非没有代价。GPT-5 也凸显了我们必须解决的几大挑战：</p>
+<ul>
+<li>未来需要统一的模型，最终将各种专业化角色融合进一个“大脑”中。</li>
+<li>通过更智能的缓存技术，来避免路由过程中因重复加载静态提示词而产生的额外开销。</li>
+<li>需要更强大的溯源工具，来帮助开发者调试由多个智能体协同完成的复杂对话。</li>
+<li>采用更高级的路由器训练方法（例如强化学习），让路由器真正学会最优的决策策略。</li>
+</ul>
+<p>尽管如此，GPT-5 的设计清楚地表明了一点：模块化已成定局。这种架构正反映了人类组织知识的方式——由专业化专家团队协作完成复杂任务。如今，AI 终于开始迎头赶上。</p>
+<h2 data-id="heading-7"><strong>08 Final thoughts</strong></h2>
+<p>在使用 GPT-5 数月之后，我既感到兴奋，也心怀敬畏。实时路由器已将这个模型从一个孤独的“天才”，转变为一个由多个专家组成的协作集体。 路由器和专家模型的分工架构在带来效率和能力提升的同时，也带来了一个挑战：如何让这个分布式系统中的所有部件保持协调一致、同步工作。就像乐队成员必须听从指挥、节奏统一，否则再厉害的乐手也奏不出和谐乐章。</p>
+<p>最让我兴奋的是，GPT-5 证明了人工智能不必是一个单一、庞大的整体。我们可以实现“按需专业化” —— 系统不仅能学会如何学习，还能针对每个查询动态调整自己的策略。作为一名开发者，我甚至学会了如何“与路由器对话”—— 通过类似 “Auto mode” 或 “Fast” 这样的提示词来引导它。展望未来，如果 GPT-6 的表现更像一个“心智社会”（译者注：society of minds，是一个在人工智能和认知科学领域非常著名且富有诗意的概念，由 Marvin Minsky 提出。它认为智能并非源于一个单一的、统一的处理器，而是由大量简单的、各司其职的“智能体”通过交互、协作与竞争涌现出来的。），我也不会感到意外。但就目前而言，GPT-5 的路由机制已经是一个令人着迷的里程碑，我很庆幸自己有机会深入探索它。</p>
+<p><strong>END</strong></p>
+<p><strong>本期互动内容 🍻</strong></p>
+<p><strong>❓你觉得 AI 的“人格一致性”重要吗？如果一次对话中因为调用不同模块导致语气不同，你会觉得割裂吗？</strong></p>
+<p><strong>文中链接</strong></p>
+<p>[1]<a href="https://link.juejin.cn/?target=https%3A%2F%2Farxiv.org%2Fabs%2F2302.04761" ref="nofollow noopener noreferrer" target="_blank" title="https://arxiv.org/abs/2302.04761" rel="external nofollow noopener noreferrer">arxiv.org/abs/2302.04…</a></p>
+<p>[2]<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.nvidia.com%2Fen-in%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://www.nvidia.com/en-in/" rel="external nofollow noopener noreferrer">www.nvidia.com/en-in/</a></p>
+<p>[3]<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.crewai.com%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://www.crewai.com/" rel="external nofollow noopener noreferrer">www.crewai.com/</a></p>
+<p>[4]<a href="https://link.juejin.cn/?target=https%3A%2F%2Fmem0.ai%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://mem0.ai/" rel="external nofollow noopener noreferrer">mem0.ai/</a></p>
+<p><strong><strong>本文经原作者授权，由</strong> <strong>Baihai IDP</strong> <strong>编译。如需转载译文，请联系获取授权。</strong></strong></p>
+<p><strong>原文链接：</strong></p>
+<p><a href="https://link.juejin.cn/?target=https%3A%2F%2Fbhavishyapandit9.substack.com%2Fp%2Fgpt5-router-a-deep-dive" ref="nofollow noopener noreferrer" target="_blank" title="https://bhavishyapandit9.substack.com/p/gpt5-router-a-deep-dive" rel="external nofollow noopener noreferrer">bhavishyapandit9.substack.com/p/gpt5-rout…</a></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="对 GPT 5 模型路由机制的深度解析" href="https://juejin.cn/post/7566897837763018802" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">对 GPT 5 模型路由机制的深度解析</span><span class="desc fs12">https://juejin.cn/post/7566897837763018802</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/35168f09.html">毛利率国产车第一！赛力斯发布三季度财报：净赚23亿元<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a4dd8675.html">翻译：苹果那传奇般的细节关注去哪儿了？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/94ebdae8.html" title="AI产品发展必经之路： 从售卖工具到售卖解决方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3075c572d5cc4f84960e8cfbc7584378~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y2O5rSb:q75.awebp?rk3s=f64ab15b&x-expires=1762410050&x-signature=yehyzPbxYZn8kN1pMUld8gAahKw%3D"></div><span class="title">AI产品发展必经之路： 从售卖工具到售卖解决方案</span></a><a class="item" href="/rss/f98299b5.html" title="Python编程实战：日期处理与数学算法综合练习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9464"></div><span class="title">Python编程实战：日期处理与数学算法综合练习</span></a><a class="item" href="/rss/27abc8d1.html" title="K8s Service会话保持导致Pod流量不均：故障排查与深度解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5301"></div><span class="title">K8s Service会话保持导致Pod流量不均：故障排查与深度解析</span></a><a class="item" href="/rss/f560986c.html" title="iOS基础问题整理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2466"></div><span class="title">iOS基础问题整理</span></a><a class="item" href="/rss/30942235.html" title="RIVAL：面向机器翻译的迭代对抗强化学习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7472fc7f373d40ca931c42a2bb217027~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&x-expires=1762488137&x-signature=uKIdVTbYaU6gkSIWY6b9VMdh6LE%3D"></div><span class="title">RIVAL：面向机器翻译的迭代对抗强化学习</span></a><a class="item" href="/rss/f3aae144.html" title="一网打尽：手把手教你搭建PXE网络启动服务器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9901"></div><span class="title">一网打尽：手把手教你搭建PXE网络启动服务器</span></a><a class="item" href="/rss/8fd20786.html" title="上传项目至GitHub与从Github克隆项目"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3707"></div><span class="title">上传项目至GitHub与从Github克隆项目</span></a><a class="item" href="/rss/c4e8ca55.html" title="告别Div地狱：现代HTML的语义化编程革命"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2628"></div><span class="title">告别Div地狱：现代HTML的语义化编程革命</span></a><a class="item" href="/rss/1cd95816.html" title="大语言模型是如何听懂并会说人话的"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f73f48697a264e9b9fd715ddb4860435~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiO5byA5Y-R5ZCM6KGM:q75.awebp?rk3s=f64ab15b&x-expires=1762511211&x-signature=GH1pwXffHHALfU6MC07XPmtF9oA%3D"></div><span class="title">大语言模型是如何听懂并会说人话的</span></a><a class="item" href="/rss/d2fd7096.html" title="学而时习之：C++中的函数"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/eb8c65c77d9a42efbc81d077a031e7ae~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg54Wk55CD546L5a2Q:q75.awebp?rk3s=f64ab15b&x-expires=1762398184&x-signature=SDsJe%2FKsJyTaLwHVo0c45QezbLM%3D"></div><span class="title">学而时习之：C++中的函数</span></a><a class="item" href="/rss/65d5b4e1.html" title="现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9701"></div><span class="title">现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践</span></a><a class="item" href="/rss/a4dd8675.html" title="翻译：苹果那传奇般的细节关注去哪儿了？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/04906cb5825f40d49bb8be1d09af2721~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgSnVjaGVjYXI=:q75.awebp?rk3s=f64ab15b&x-expires=1762481178&x-signature=Uk%2F6x%2FkQ47E1xnyhXluU8G1HKE4%3D"></div><span class="title">翻译：苹果那传奇般的细节关注去哪儿了？</span></a><a class="item" href="/rss/cb218f94.html" title="改变世界的编程语言MoonBit：配置系统介绍(下)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9821"></div><span class="title">改变世界的编程语言MoonBit：配置系统介绍(下)</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

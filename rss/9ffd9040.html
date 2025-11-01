@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>BGP Zombies and Excessive Path Hunting - RSSBOX</title>
+
+  
+    <meta name="description" content="Here at Cloudflare, we’ve been celebrating Halloween with some zombie hunting of our own. The zombies we’d like to remove are those that disrupt the core framework responsible for how the Internet r">
+<meta property="og:type" content="article">
+<meta property="og:title" content="BGP Zombies and Excessive Path Hunting">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/9ffd9040.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Here at Cloudflare, we’ve been celebrating Halloween with some zombie hunting of our own. The zombies we’d like to remove are those that disrupt the core framework responsible for how the Internet r">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xRNAHChJUyiMbtBZyLOlF/973d10be053b7b7f088721389c34c10e/BLOG-3059_2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7h3Vba4T7tm6XPB2pIyQex/f5f7c27148bed4dd72959b3820d045ac/BLOG-3059_3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5sCGMS95R8y32WTjnUigfN/1e5c9a7551c572a08596985edac5c17b/BLOG-3059_4.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/20shWBMhqLR3tBMh50v7Uy/bf40e90c2f6a506a5bcfc9bafd1e31d2/BLOG-3059_5.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4WOQBZb7MV2a5PA84xm6Be/28e252e5212781ae2d477150692605db/25x_10fps_a.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4O7r3Nffpbus6ht3Eo6eiF/a7d577042e43c9b4da988cf9bd29f6fe/BLOG-3059_7.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/KmRvPsGUOp5PsNXcKCE1F/78f2c29c8c278d158972114df875ad0c/25x_10fps_b.gif">
+<meta property="article:published_time" content="2025-10-31T15:30:00.000Z">
+<meta property="article:modified_time" content="2025-10-31T15:30:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xRNAHChJUyiMbtBZyLOlF/973d10be053b7b7f088721389c34c10e/BLOG-3059_2.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Path hunting</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Spawning a zombie</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Lessening the zombie outbreak</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What next?</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-31T15:30:00.000Z">2025-10-31</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>BGP Zombies and Excessive Path Hunting</span></h1>
+<div>
+ <p>Here at Cloudflare, we’ve been celebrating Halloween with some zombie hunting of our own. The zombies we’d like to remove are those that disrupt the core framework responsible for how the Internet routes traffic: <a target="_blank" rel="external nofollow noopener noreferrer" href="http://cloudflare.com/learning/security/glossary/what-is-bgp/"><u>BGP (Border Gateway Protocol)</u></a>.</p><p>A <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dl.acm.org/doi/10.1145/3472305.3472315"><u>BGP zombie</u></a> is a silly name for a route that has become stuck in the Internet’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Default-free_zone"><u>Default-Free Zone</u></a>, aka the DFZ: the collection of all internet routers that do not require a default route, potentially due to a missed or lost prefix withdrawal.</p><p>The underlying root cause of a zombie could be multiple things, spanning from buggy software in routers or just general route processing slowness. It’s when a BGP prefix is meant to be gone from the Internet, but for one reason or another it becomes a member of the undead and hangs around for some period of time.</p><p>The longer these zombies linger, the more they create operational impact and become a real headache for network operators. Zombies can lead packets astray, either by trapping them inside of route loops or by causing them to take an excessively scenic route. Today, we’d like to celebrate Halloween by covering how BGP zombies form and how we can lessen the likelihood that they wreak havoc on Internet traffic.</p>
+<div>
+<h2>Path hunting</h2>
+<a href="#path-hunting">
+</a>
+</div>
+<p>To understand the slowness that can often lead to BGP zombies, we need to talk about path hunting. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.noction.com/blog/bgp-path-hunting"><u>Path hunting</u></a> occurs when routers running BGP exhaustively search for the best path to a prefix as determined by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Longest_prefix_match"><u>Longest Prefix Matching</u></a> (LPM) and BGP routing attributes like path length and local preference. This becomes relevant in our observations of exactly how routes become stuck, for how long they become stuck, and how visible they are on the Internet.</p><p>For example, path hunting happens when a more-specific BGP prefix is withdrawn from the global routing table, and networks need to fallback to a less-specific BGP advertisement. In this example, we use 2001:db8::/48 for the more-specific BGP announcement and 2001:db8::/32 for the less-specific prefix. When the /48 is withdrawn by the originating <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/network-layer/what-is-an-autonomous-system/"><u>Autonomous System</u></a> (AS), BGP routers have to recognize that route as missing and begin routing traffic to IPs such as 2001:db8::1 via the 2001:db8::/32 route, which still remains while the prefix 2001:db8::/48 is gone. </p><p>Let’s see what this could look like in action with a few diagrams. </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xRNAHChJUyiMbtBZyLOlF/973d10be053b7b7f088721389c34c10e/BLOG-3059_2.png">
+</figure><p><sub><i>Diagram 1: Active 2001:db8::/48 route</i></sub></p><p>In this initial state, 2001:db8::/48 is used actively for traffic forwarding, which all flows through AS13335 on the way to AS64511. In this case, AS64511 would be a BYOIP customer of Cloudflare. AS64511 also announces a <i>backup</i> route to another Internet Service Provider (ISP), AS64510, but this route is not active even in AS64510’s routing table for forwarding to 2001:db8::1 because 2001:db8::/48 is a longer prefix match when compared to 2001:db8::/32.</p><p>Things get more interesting when AS64510 signals for 2001:db8::/48 to be withdrawn by Cloudflare (AS13335), perhaps because a DDoS attack is over and the customer opts to use Cloudflare only when they are actively under attack.</p><p>When the customer signals to Cloudflare (via BGP Control or API call) to withdraw the 2001:db8::/48 announcement, all BGP routers have to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Convergence_(routing)"><u>converge</u></a> upon this update, which involves path hunting. AS13335 sends a BGP withdrawal message for 2001:db8::/48 to its directly-connected BGP neighbors. While the news of withdrawal may travel quickly from AS13335 to the other networks, news may travel more quickly to some of the neighbors than others. This means that until everyone has received and processed the withdrawal, networks may try routing through one another to reach the 2001:db8::/48 prefix – even after AS13335 has withdrawn it. </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7h3Vba4T7tm6XPB2pIyQex/f5f7c27148bed4dd72959b3820d045ac/BLOG-3059_3.png">
+</figure><p><sub><i>Diagram 2: 2001:db8::/48 route withdrawn via AS13335</i></sub></p><p>Imagine AS64501 is a little slower than the rest – perhaps due to using older hardware, hardware being overloaded, a software bug, specific configuration settings, poor luck, or some other factor – and still has not processed the withdrawal of the /48. This in itself could be a BGP zombie, since the route is stuck for a small period. Our pings toward 2001:db8::1 are never able to actually reach AS64511, because AS13335 knows the /48 is meant to be withdrawn, but some routers carrying a full table have not yet converged upon that result.</p><p>The length of time spent path hunting is amplified by something called the Minimum Route Advertisement Interval (MRAI). The MRAI specifies the minimum amount of time between BGP advertisement messages from a BGP router, meaning it introduces a purposeful number of seconds of delay between each BGP advertisement update. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc4271"><u>RFC4271</u></a> recommends an MRAI value of 30-seconds for eBGP updates, and while this can cut down on the chattiness of BGP, or even potential oscillation of updates, it also makes path hunting take longer. </p><p>At the next cycle of path hunting, even AS64501, which was previously still pointing toward a nonexistent /48 route from AS13335, should find the /32 advertisement is all that is left toward 2001:db8::1. Once it has done so, the traffic flow will become the following: </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5sCGMS95R8y32WTjnUigfN/1e5c9a7551c572a08596985edac5c17b/BLOG-3059_4.png">
+</figure><p><sub><i>Diagram 3: Routing fallback to 2001:db8::/32 and 2001:db8::/48 is gone from DFZ</i></sub></p><p>This would mean BGP path hunting is over, and the Internet has realized that the 2001:db8::/32 is the best route available toward 2001:db8::1, and that 2001:db8::/48 is really gone. While in this example we’ve purposely made path hunting only last two cycles, in reality it can be far more, especially with how highly connected AS13335 is to thousands of peer networks and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Tier_1_network"><u>Tier-1</u></a>’s globally. </p><p>Now that we’ve discussed BGP path hunting and how it works, you can probably already see how a BGP zombie outbreak can begin and how routing tables can become stuck for a lengthy period of time. Excessive BGP path hunting for a previously-known more-specific prefix can be an early indicator that a zombie could follow.</p>
+<div>
+<h2>Spawning a zombie</h2>
+<a href="#spawning-a-zombie">
+</a>
+</div>
+<p>Zombies have captured our attention more recently as they were noticed by some of our customers leveraging <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/byoip/"><u>Bring-Your-Own-IP (BYOIP)</u></a> on-demand advertisement for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/network-services/products/magic-transit/"><u>Magic Transit</u></a>. BYOIP may be configured in two modes: "always-on", in which a prefix is continuously announced, or "on-demand", where a prefix is announced only when a customer chooses to. For some on-demand customers, announcement and withdrawal cycles <i>may</i> be a more frequent occurrence, which can lead to an increase in BGP zombies.</p><p>With that in mind and also knowing how path hunting works, let’s spawn our own zombie onto the Internet. To do so, we’ll take a spare block of IPv4 and IPv6 and announce them like so:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/20shWBMhqLR3tBMh50v7Uy/bf40e90c2f6a506a5bcfc9bafd1e31d2/BLOG-3059_5.png">
+</figure><p>Once the routes are announced and stable, we’ll then proceed to withdraw the more specific routes advertised via Cloudflare globally. With a few quick clicks, we’ve successfully re-animated the dead.</p><p><i>Variant A: Ghoulish Gateways</i></p><p>One place zombies commonly occur is between upstream ISPs. When one router in a given ISP’s network is a little slower to update, routes can become stuck. </p><p>Take, for example, the following loop we observed between two of our upstream partners:</p>
+<pre><code>7. be2431.ccr31.sjc04.atlas.cogentco.com
+8. tisparkle.sjc04.atlas.cogentco.com
+9. 213.144.177.184
+10. 213.144.177.184
+11. 89.221.32.227
+12. (waiting for reply)
+13. be2749.rcr71.goa01.atlas.cogentco.com
+14. be3219.ccr31.mrs02.atlas.cogentco.com
+15. be2066.agr21.mrs02.atlas.cogentco.com
+16. telecomitalia.mrs02.atlas.cogentco.com
+17. 213.144.177.186
+18. 89.221.32.227</code></pre>
+<p></p><p>Or this loop - observed on the same withdrawal test - between two different providers:  </p>
+<pre><code>15. if-bundle-12-2.qcore2.pvu-paris.as6453.net
+16. if-bundle-56-2.qcore1.fr0-frankfurt.as6453.net
+17. if-bundle-15-2.qhar1.fr0-frankfurt.as6453.net
+18. 195.219.223.11
+19. 213.144.177.186
+20. 195.22.196.137
+21. 213.144.177.186
+22. 195.22.196.137</code></pre>
+<p><i></i></p><p><i>Variant B: Undead LAN (Local Area Network)</i></p><p>Simultaneously, zombies can occur entirely within a given network. When a route is withdrawn from Cloudflare’s network, each device in our network must individually begin the process of withdrawing the route. While this is generally a smooth process, things can still become stuck.</p><p>Take, for instance, a situation where one router inside of our network has not yet fully processed the withdrawal. Connectivity partners will continue routing traffic towards that router (as they have not yet received the withdrawal) while no host remains behind the router which is capable of actually processing the traffic. The result is an internal-only looping path:</p>
+<pre><code>10. 192.0.2.112
+11. 192.0.2.113
+12. 192.0.2.112
+13. 192.0.2.113
+14. 192.0.2.112
+15. 192.0.2.113
+16. 192.0.2.112
+17. 192.0.2.113
+18. 192.0.2.112
+19. 192.0.2.113
+</code></pre>
+<p></p><p>Unlike most fictionally-depicted hoards of the walking dead, our highly-visible zombie has a limited lifetime in most major networks – in this instance, only around around 6 minutes, after which most had re-converged around the less-specific as the best path. Sadly, this is on the shorter side – in some cases, we have seen long-lived zombies cause reachability issues for more than 10 minutes. It’s safe to say this is longer than most network operators would expect BGP convergence to take in a normal situation. </p><p>But, you may ask – is this the excessive path hunting we talked about earlier, or a BGP zombie? Really, it depends on the expectation and tolerance around <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dl.acm.org/doi/10.1145/3472305.3472315"><u>how long BGP convergence</u></a> should take to process the prefix withdrawal. In any case, even over 30 minutes after our withdrawal of our more-specific prefix, we are able to see zombie routes in the route-views public collectors easily:</p>
+<pre><code>~ % monocle search --start-ts 2025-10-28T12:40:13Z --end-ts 2025-10-28T13:00:13Z --prefix 198.18.0.0/24
+A|1761656125.550447|206.82.105.116|54309|198.18.0.0/24|54309 13335 395747|IGP|206.82.104.31|0|0|54309:111|false|||route-views.ny
+
+<p></p></code></pre><p></p>
+<p></p><p>You might argue that six to eleven minutes (or more) is a reasonable time for worst-case BGP convergence in the Tier-1 network layer, though that itself seems like a stretch. Even setting that aside, our data shows that very real BGP zombies exist in the global routing table, and they will negatively impact traffic. Curiously, we observed the path hunting delay is worse on IPv4, with the longest observed IPv6 impact in major (Tier-1) networks being just over 4 minutes. One could speculate this is in part due to the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://bgp.potaroo.net/index-bgp.html"><u>much higher number</u></a> of IPv4 prefixes in the Internet global routing table than the IPv6 global table, and how BGP speakers handle them separately.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4WOQBZb7MV2a5PA84xm6Be/28e252e5212781ae2d477150692605db/25x_10fps_a.gif">
+</figure><p><sub><i>Source: RIPEstat’s BGPlay</i></sub></p><p>Part of the delay appears to originate from how interconnected AS13335 is; being heavily peered with a large portion of the Internet increases the likelihood of a route becoming stuck in a given location. Given that, perhaps a zombie would be shorter-lived if we operated in the opposite direction: announcing a less-specific persistently to 13335 and announcing more specifics via our local ISP during normal operation. Since the withdrawal will come from what is likely a less well-peered network, the time-to-convergence may be shorter:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4O7r3Nffpbus6ht3Eo6eiF/a7d577042e43c9b4da988cf9bd29f6fe/BLOG-3059_7.png">
+</figure><p>Indeed, as predicted, we still get a stuck route, and it only lives for around 20 seconds in the Tier-1 network layer:</p>
+<pre><code>19. be12488.ccr42.ams03.atlas.cogentco.com
+20. 38.88.214.142
+21. be2020.ccr41.ams03.atlas.cogentco.com
+22. 38.88.214.142
+23. (waiting for reply)
+24. 38.88.214.142
+25. (waiting for reply)
+26. 38.88.214.142
+</code></pre>
+<p></p><p>Unfortunately, that 20 seconds is still an impactful 20 seconds - while better, it’s not where we want to be. The exact length of time will depend on the native ISP networks one is connected with, and it could certainly ease into the minutes worth of stuck routing. </p><p>In both cases, the initial time-to-announce yielded no loss, nor was a zombie created, as both paths remained valid for the entirety of their initial lifetime. Zombies were only created when a more specific prefix was fully withdrawn. A newly-announced route is not subject to path hunting in the same way a withdrawn more-specific route is. As they say, good (new) news travels fast.</p>
+<div>
+<h2>Lessening the zombie outbreak</h2>
+<a href="#lessening-the-zombie-outbreak">
+</a>
+</div>
+<p>Our findings lead us to believe that the withdrawal of a more-specific prefix may lead to zombies running rampant for longer periods of time. Because of this, we are exploring some improvements that make the consequences of BGP zombie routing less impactful for our customers relying on our on-demand BGP functionality.</p><p>For the traffic that <b>does</b> reach Cloudflare with stuck routes, we will introduce some BGP traffic forwarding improvements internally that allow for a more graceful withdrawal of traffic, even if routes are erroneously pointing toward us. In many ways, this will closely resemble the BGP <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc1997.html"><u>well-known no-export</u></a> community’s functionality from our servers running BGP. This means even if we receive traffic from external parties due to stuck routing, we will still have the opportunity to deliver traffic to our far-end customers over a tunneled connection or via a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network-services/products/network-interconnect/"><u>Cloudflare Network Interconnect</u></a> (CNI). We look forward to reporting back the positive impact after making this improvement for a more graceful draining of traffic by default. </p><p>For the traffic that <b>does not</b> reach Cloudflare’s edge, and instead loops between network providers, we need to use a different approach. Since we know more-specific to less-specific prefix routing fallback is more prone to BGP zombie outbreak, we are encouraging customers to instead use a multi-step draining process when they want traffic drained from the Cloudflare edge for an on-demand prefix without introducing route loops or blackhole events. The draining process when removing traffic for a BYOIP prefix from Cloudflare should look like this: </p><ol><li><p>The customer is already announcing an example prefix from Cloudflare, ex. 198.18.0.0/24</p></li><li><p>The customer begins <i>natively </i>announcing the prefix 198.18.0.0/24 (i.e. the same-length as the prefix they are advertising via Cloudflare) from their network to the Internet Service Providers that they wish to fail over traffic to.</p></li><li><p>After a few minutes, the customer signals BGP withdrawal from Cloudflare for the 198.18.0.0/24 prefix.</p></li></ol><p>The result is a clean cut over: impactful zombies are avoided because the same-length prefix (198.18.0.0/24) remains in the global routing table. Excessive path hunting is avoided because instead of routers needing to aggressively seek out a missing more-specific prefix match, they can fallback to the same-length announcement that persists in the routing table from the natively-originated path to the customer’s network.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/KmRvPsGUOp5PsNXcKCE1F/78f2c29c8c278d158972114df875ad0c/25x_10fps_b.gif">
+</figure><p><sub><i>Source: RIPEstat’s BGPlay</i></sub></p>
+<div>
+<h2>What next?</h2>
+<a href="#what-next">
+</a>
+</div>
+<p>We are going to continue to refine our methods of measuring BGP zombies, so you can look forward to more insights in the future. There is also <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.thousandeyes.com/bgp-stuck-route-observatory/"><u>work from others</u></a> in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.benjojo.co.uk/post/bgp-stuck-routes-tcp-zero-window"><u>community</u></a> around zombie measurement that is interesting and producing useful data. In terms of combatting the software bugs around BGP zombie creation, routing vendors should implement <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc9687"><u>RFC9687</u></a>, the BGP SendHoldTimer. The general idea is that a local router can detect via the SendHoldTimer if the far-end router stops processing BGP messages unexpectedly, which lowers the possibility of zombies becoming stuck for long periods of time. </p><p>In addition, it’s worth keeping in mind our observations made in this post about more-specific prefix announcements and excessive path hunting. If as a network operator you rely on more-specific BGP prefix announcements for failover, or for traffic engineering, you need to be aware that routes could become stuck for a longer period of time before full BGP convergence occurs.</p><p>If you’re interested in problems like BGP zombies, consider <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/careers/jobs/?location=default"><u>coming to work</u></a> at Cloudflare or applying for an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/careers/early-talent/"><u>internship</u></a>. Together we can help build a better Internet!  </p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="BGP zombies and excessive path hunting" href="https://blog.cloudflare.com/going-bgp-zombie-hunting/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">BGP zombies and excessive path hunting</span><span class="desc fs12">https://blog.cloudflare.com/going-bgp-zombie-hunting/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/cb218f94.html">改变世界的编程语言MoonBit：配置系统介绍(下)<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/d06d4acc.html">成绩惨淡：消息称苹果 iPhone Air 首销周激活量 5 万 +<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/295e1a01.html" title="Announcing Workers Automatic Tracing, Now in Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4F7l3WSJ2hY0eu6kX47Rdp/c7c3934e9abbbb1f01ec979941d35b54/unnamed.png"></div><span class="title">Announcing Workers Automatic Tracing, Now in Open Beta</span></a><a class="item" href="/rss/904ddf9.html" title="A Framework for Measuring Internet Resilience"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4S52jlwCpQ8WVS6gRSdNqp/4722abb10331624a54b411708f1e576b/image5.png"></div><span class="title">A Framework for Measuring Internet Resilience</span></a><a class="item" href="/rss/e36d4049.html" title="Anonymous Credentials: Rate-Limiting Bots and Agents Without Compromising Privacy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6lXTePCTUORCyyOWNNcwZ8/5978abd1878f78107a2c9606c3a1ef51/image4.png"></div><span class="title">Anonymous Credentials: Rate-Limiting Bots and Agents Without Compromising Privacy</span></a><a class="item" href="/rss/12e04793.html" title="Beyond IP Lists: A Registry Format for Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=901"></div><span class="title">Beyond IP Lists: A Registry Format for Bots and Agents</span></a><a class="item" href="/rss/1eb74c1b.html" title="Go and Enhance Your Calm: Demolishing an HTTP/2 Interop Problem"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2OL6xA151F9JNR4S0wE0DG/f6ae4b0a261da5d189d82ccfa401104e/image1.png"></div><span class="title">Go and Enhance Your Calm: Demolishing an HTTP/2 Interop Problem</span></a><a class="item" href="/rss/46648b4f.html" title="Defending QUIC From Acknowledgement-Based DDoS Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/44jjkcx22rpD7VdnZKsnPD/4d514e73c885a729bd973b3efb2564bf/image4.jpg"></div><span class="title">Defending QUIC From Acknowledgement-Based DDoS Attacks</span></a><a class="item" href="/rss/e415a17b.html" title="Helping Protect the 2025 Moldova Elections"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/36PlFQIaFV2p47TTTn4tQF/690a36f7587cd9510d0ee63ad3272fb0/image3.png"></div><span class="title">Helping Protect the 2025 Moldova Elections</span></a><a class="item" href="/rss/b5baec57.html" title="How to Build Your Own VPN, Or: The History of WARP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5uT2VOMUn2fJ9NleofEfVB/b871de07a16714f1d05b2b3d0d547aa7/image6.png"></div><span class="title">How to Build Your Own VPN, Or: The History of WARP</span></a><a class="item" href="/rss/85299236.html" title="Keeping the Internet Fast and Secure: Introducing Merkle Tree Certificates"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4LGhISsS07kbpSgDkqx8p2/68e3b36deeca7f97139654d2c769df68/image3.png"></div><span class="title">Keeping the Internet Fast and Secure: Introducing Merkle Tree Certificates</span></a><a class="item" href="/rss/92fd2bef.html" title="Measuring Characteristics of TCP Connections at Internet Scale"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5ksUQ7xlzXPWp2hH7eX4dG/124456d20c6fd5e7e185d68865aee6fa/image5.png"></div><span class="title">Measuring Characteristics of TCP Connections at Internet Scale</span></a><a class="item" href="/rss/e5dcba26.html" title="One IP Address, Many Users: Detecting CGNAT to Reduce Collateral Effects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2YBdqPx0ALt7pY7rmQZyLQ/049922bae657a715728700c764c4af16/BLOG-3046_2.png"></div><span class="title">One IP Address, Many Users: Detecting CGNAT to Reduce Collateral Effects</span></a><a class="item" href="/rss/d463f3e6.html" title="So Long, and Thanks for All the Fish: How to Escape the Linux Networking Stack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1NsU3FdxgJ0FNL78SDCo9D/65a27e8fd4339d3318a1b55b5979e3c6/image3.png"></div><span class="title">So Long, and Thanks for All the Fish: How to Escape the Linux Networking Stack</span></a><a class="item" href="/rss/21ebeaf5.html" title="Policy, Privacy and Post-Quantum: Anonymous Credentials for Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1ihEZ5KhWBQ0PZF5pTc0Bi/e35de03a89af0c2254bcc114041f6904/image4.png"></div><span class="title">Policy, Privacy and Post-Quantum: Anonymous Credentials for Everyone</span></a><a class="item" href="/rss/59a08ba2.html" title="State of the Post-Quantum Internet in 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1EUFTKSnJptvd5WDGvB9Rf/4865f75c71e43f2c261d393322d24f34/image5.png"></div><span class="title">State of the Post-Quantum Internet in 2025</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

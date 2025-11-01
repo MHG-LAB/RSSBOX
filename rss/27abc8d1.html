@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>K8s Service会话保持导致Pod流量不均：故障排查与深度解析 - RSSBOX</title>
+
+  
+    <meta name="description" content="在K8s集群中，一个配置项就可能导致服务流量严重倾斜，让部分Pod&quot;压力山大&quot;，而其他Pod却&quot;无所事事&quot;。最近，我们就遭遇了这样一次故障：某个服务的多个Pod实例流量分配严重不均，部分Pod负载极高，而其他Pod几乎处于空闲状态。 通过执行一条命令，我们迅速恢复了流量的均衡分布： kubectl patch svc my-service -n &lt;namespace&gt; -p &#39;&amp;#1">
+<meta property="og:type" content="article">
+<meta property="og:title" content="K8s Service会话保持导致Pod流量不均：故障排查与深度解析">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/27abc8d1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="在K8s集群中，一个配置项就可能导致服务流量严重倾斜，让部分Pod&quot;压力山大&quot;，而其他Pod却&quot;无所事事&quot;。最近，我们就遭遇了这样一次故障：某个服务的多个Pod实例流量分配严重不均，部分Pod负载极高，而其他Pod几乎处于空闲状态。 通过执行一条命令，我们迅速恢复了流量的均衡分布： kubectl patch svc my-service -n &lt;namespace&gt; -p &#39;&amp;#1">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2025-10-31T08:37:45.000Z">
+<meta property="article:modified_time" content="2025-10-31T08:37:45.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、Session Affinity工作机制剖析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">什么是Session Affinity？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">默认行为 vs 启用会话保持</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、问题根源：为什么Session Affinity会导致流量失衡？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 客户端IP集中性</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 长连接的&quot;雪上加霜&quot;</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、问题诊断与排查指南</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 检查Service配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 验证Endpoints状态</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 监控流量分布</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、解决方案与实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">方案一：彻底禁用会话保持（适用于无状态服务）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 使用kubectl patch命令（立即生效）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 通过编辑YAML文件（持久化修改）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 验证修改结果</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">方案二：精细化流量控制（适用于需要会话保持的场景）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 调整会话保持时间</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 使用Ingress控制器实现更智能的会话保持</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 使用服务网格（如Istio）实现智能负载均衡</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、预防措施与最佳实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 明确应用需求</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 代码与配置审查</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 监控与告警</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. 文档化配置标准</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-31T08:37:45.000Z">2025-10-31</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>K8s Service会话保持导致Pod流量不均：故障排查与深度解析</span></h1>
+<div>
+<p>在K8s集群中，一个配置项就可能导致服务流量严重倾斜，让部分Pod"压力山大"，而其他Pod却"无所事事"。最近，我们就遭遇了这样一次故障：某个服务的多个Pod实例流量分配严重不均，部分Pod负载极高，而其他Pod几乎处于空闲状态。</p>
+<p>通过执行一条命令，我们迅速恢复了流量的均衡分布：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl patch svc my-service -n &lt;namespace&gt; -p <span class="hljs-string">'&#123;"spec": &#123;"sessionAffinity": "None"&#125;&#125;'</span>
+</code></pre>
+<p>故障得以解决，但探究其背后原理至关重要。本文将复盘整个排查过程，深入解析Session Affinity的工作机制、问题根源，并提供全面的解决方案与最佳实践。</p>
+<h2 data-id="heading-0">一、Session Affinity工作机制剖析</h2>
+<h3 data-id="heading-1">什么是Session Affinity？</h3>
+<p>Session Affinity，又称会话保持或会话粘滞，是Kubernetes Service的一种负载均衡机制。当配置为<code>sessionAffinity: ClientIP</code>时，Kubernetes会基于客户端的IP地址进行会话保持，来自同一IP的请求在会话保持的超时时间窗口内会被持续转发到同一个后端Pod。</p>
+<h3 data-id="heading-2">默认行为 vs 启用会话保持</h3>
+<p><strong>默认配置</strong>：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span>
+<span class="hljs-attr">kind:</span> <span class="hljs-string">Service</span>
+<span class="hljs-attr">metadata:</span>
+  <span class="hljs-attr">name:</span> <span class="hljs-string">my-service</span>
+<span class="hljs-attr">spec:</span>
+  <span class="hljs-attr">selector:</span>
+    <span class="hljs-attr">app:</span> <span class="hljs-string">my-app</span>
+  <span class="hljs-attr">ports:</span>
+    <span class="hljs-bullet">-</span> <span class="hljs-attr">protocol:</span> <span class="hljs-string">TCP</span>
+      <span class="hljs-attr">port:</span> <span class="hljs-number">80</span>
+      <span class="hljs-attr">targetPort:</span> <span class="hljs-number">8080</span>
+  <span class="hljs-comment"># 默认 sessionAffinity: "None" - 使用轮询负载均衡</span>
+</code></pre>
+<p><strong>启用会话保持的配置</strong>：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span>
+<span class="hljs-attr">kind:</span> <span class="hljs-string">Service</span>
+<span class="hljs-attr">metadata:</span>
+  <span class="hljs-attr">name:</span> <span class="hljs-string">my-service</span>
+<span class="hljs-attr">spec:</span>
+  <span class="hljs-attr">selector:</span>
+    <span class="hljs-attr">app:</span> <span class="hljs-string">my-app</span>
+  <span class="hljs-attr">ports:</span>
+    <span class="hljs-bullet">-</span> <span class="hljs-attr">protocol:</span> <span class="hljs-string">TCP</span>
+      <span class="hljs-attr">port:</span> <span class="hljs-number">80</span>
+      <span class="hljs-attr">targetPort:</span> <span class="hljs-number">8080</span>
+  <span class="hljs-attr">sessionAffinity:</span> <span class="hljs-string">ClientIP</span>  <span class="hljs-comment"># 启用客户端IP会话亲和性</span>
+  <span class="hljs-attr">sessionAffinityConfig:</span>
+    <span class="hljs-attr">clientIP:</span>
+      <span class="hljs-attr">timeoutSeconds:</span> <span class="hljs-number">10800</span>  <span class="hljs-comment"># 会话保持时间（默认3小时，仅在iptables模式下有效）</span>
+</code></pre>
+<blockquote>
+<p><strong>重要说明</strong>：默认超时时间（10800秒/3小时）仅在<code>kube-proxy</code>以<code>iptables</code>模式运行时生效。如果使用IPVS模式，超时配置可能有所不同。</p>
+</blockquote>
+<h2 data-id="heading-3">二、问题根源：为什么Session Affinity会导致流量失衡？</h2>
+<p>对于无状态服务，Session Affinity配置不当是流量不均的"头号杀手"。其核心原因在于：</p>
+<h3 data-id="heading-4">1. 客户端IP集中性</h3>
+<p>生产环境中，用户请求通常经过<strong>有限的网关、负载均衡器或NAT设备</strong>。这导致海量用户请求在到达后端Service时，源IP被收敛为少数几个。</p>
+<p>当启用<code>ClientIP</code>模式的会话保持时，Kubernetes会将这些"浓缩"的客户端IP固定到特定的后端Pod。结果是：</p>
+<ul>
+<li><strong>少数Pod</strong>需要承载绝大部分流量，不堪重负</li>
+<li><strong>其他Pod</strong>几乎闲置，造成资源浪费</li>
+</ul>
+<h3 data-id="heading-5">2. 长连接的"雪上加霜"</h3>
+<p>现代应用普遍使用<strong>HTTP/Keep-Alive</strong>等长连接技术。在同一TCP连接上发起的所有请求，由于源IP和端口不变，在Session Affinity作用下会始终命中同一个Pod。</p>
+<p>这意味着，即使客户端快速发起多个请求，只要连接未断开，流量就无法被分摊到其他Pod上，进一步加剧了负载不均。</p>
+<h2 data-id="heading-6">三、问题诊断与排查指南</h2>
+<p>当发现Pod流量不均时，建议按照以下流程系统性排查：</p>
+<pre><code class="hljs language-mermaid" lang="mermaid">graph TD
+    A[发现Pod流量不均] --&gt; B&#123;检查Service SessionAffinity配置&#125;;
+    B --&gt;|sessionAffinity=ClientIP| C[禁用或调整会话保持];
+    B --&gt;|sessionAffinity=None| D[排查其他原因：&lt;br&gt;1. Endpoints状态&lt;br&gt;2. kube-proxy模式&lt;br&gt;3. Pod资源分配];
+    C --&gt; E[问题解决];
+    D --&gt; E;
+</code></pre>
+<h3 data-id="heading-7">1. 检查Service配置</h3>
+<p>使用以下命令查看Service的会话保持设置：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe service &lt;service-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>重点关注输出中的<code>Session Affinity</code>字段。若显示<code>ClientIP</code>，则说明已启用会话保持。</p>
+<h3 data-id="heading-8">2. 验证Endpoints状态</h3>
+<p>确保所有健康的Pod都已注册到Service的Endpoints中：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get endpoints &lt;service-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>如果某个健康的Pod未出现在Endpoints列表中，请求自然不会转发到该Pod。</p>
+<h3 data-id="heading-9">3. 监控流量分布</h3>
+<p>通过<strong>Prometheus + Grafana</strong>等监控工具观察各Pod的流量接收情况，这是确认流量不均现象最直观的方法。</p>
+<h2 data-id="heading-10">四、解决方案与实践</h2>
+<h3 data-id="heading-11">方案一：彻底禁用会话保持（适用于无状态服务）</h3>
+<p>对于绝大多数无状态服务，<strong>最简单的解决方案就是直接禁用Session Affinity</strong>。</p>
+<h4 data-id="heading-12">1. 使用kubectl patch命令（立即生效）</h4>
+<p>针对特定Service的修复：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl patch svc &lt;your-service-name&gt; -n &lt;namespace&gt; -p <span class="hljs-string">'&#123;"spec": &#123;"sessionAffinity": "None"&#125;&#125;'</span>
+</code></pre>
+<p>批量修复命名空间内所有Service：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 注意：此命令将修改指定命名空间下 ALL Services，请确认是否符合预期</span>
+kubectl get svc -n &lt;namespace&gt; -o name | xargs -I &#123;&#125; kubectl patch &#123;&#125; -n &lt;namespace&gt; -p <span class="hljs-string">'&#123;"spec": &#123;"sessionAffinity": "None"&#125;&#125;'</span>
+</code></pre>
+<h4 data-id="heading-13">2. 通过编辑YAML文件（持久化修改）</h4>
+<p>如果需要持久化修改，可以编辑Service的YAML配置：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl edit service &lt;service-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>然后将<code>sessionAffinity</code>字段的值从<code>ClientIP</code>改为<code>None</code>，或直接删除该字段（默认为<code>None</code>）。</p>
+<h4 data-id="heading-14">3. 验证修改结果</h4>
+<p>执行命令后，立即验证配置是否生效：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get svc &lt;service-name&gt; -n &lt;namespace&gt; -o jsonpath=<span class="hljs-string">'&#123;.spec.sessionAffinity&#125;'</span>
+</code></pre>
+<p>输出应为 <code>None</code>。同时，观察监控系统，可以看到各Pod的流量曲线会逐渐趋于平衡。</p>
+<h3 data-id="heading-15">方案二：精细化流量控制（适用于需要会话保持的场景）</h3>
+<p>如果应用确实需要会话保持，但不希望流量严重不均，可以考虑以下替代方案：</p>
+<h4 data-id="heading-16">1. 调整会话保持时间</h4>
+<p>缩短会话保持的超时时间，平衡"保持会话"与"负载均衡"的需求：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">sessionAffinity:</span> <span class="hljs-string">ClientIP</span>
+<span class="hljs-attr">sessionAffinityConfig:</span>
+  <span class="hljs-attr">clientIP:</span>
+    <span class="hljs-attr">timeoutSeconds:</span> <span class="hljs-number">3600</span>  <span class="hljs-comment"># 从默认3小时缩短为1小时</span>
+</code></pre>
+<h4 data-id="heading-17">2. 使用Ingress控制器实现更智能的会话保持</h4>
+<p>Nginx Ingress支持基于Cookie的会话保持，比IP-based方式更精细：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">networking.k8s.io/v1</span>
+<span class="hljs-attr">kind:</span> <span class="hljs-string">Ingress</span>
+<span class="hljs-attr">metadata:</span>
+  <span class="hljs-attr">name:</span> <span class="hljs-string">my-ingress</span>
+  <span class="hljs-attr">annotations:</span>
+    <span class="hljs-attr">nginx.ingress.kubernetes.io/affinity:</span> <span class="hljs-string">"cookie"</span>
+    <span class="hljs-attr">nginx.ingress.kubernetes.io/session-cookie-name:</span> <span class="hljs-string">"route"</span>
+    <span class="hljs-attr">nginx.ingress.kubernetes.io/session-cookie-expires:</span> <span class="hljs-string">"3600"</span>
+    <span class="hljs-attr">nginx.ingress.kubernetes.io/session-cookie-max-age:</span> <span class="hljs-string">"3600"</span>
+</code></pre>
+<h4 data-id="heading-18">3. 使用服务网格（如Istio）实现智能负载均衡</h4>
+<p>Istio可以基于实际负载情况（如延迟、错误率）动态调整流量分发：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">networking.istio.io/v1alpha3</span>
+<span class="hljs-attr">kind:</span> <span class="hljs-string">DestinationRule</span>
+<span class="hljs-attr">metadata:</span>
+  <span class="hljs-attr">name:</span> <span class="hljs-string">my-service</span>
+<span class="hljs-attr">spec:</span>
+  <span class="hljs-attr">host:</span> <span class="hljs-string">my-service</span>
+  <span class="hljs-attr">trafficPolicy:</span>
+    <span class="hljs-attr">loadBalancer:</span>
+      <span class="hljs-attr">simple:</span> <span class="hljs-string">LEAST_CONN</span>  <span class="hljs-comment"># 最少连接数算法</span>
+    <span class="hljs-attr">outlierDetection:</span>
+      <span class="hljs-attr">consecutive5xxErrors:</span> <span class="hljs-number">5</span>
+      <span class="hljs-attr">interval:</span> <span class="hljs-string">10s</span>
+      <span class="hljs-attr">baseEjectionTime:</span> <span class="hljs-string">1m</span>
+</code></pre>
+<h2 data-id="heading-19">五、预防措施与最佳实践</h2>
+<p>为了避免类似问题再次发生，建议采取以下预防措施：</p>
+<h3 data-id="heading-20">1. 明确应用需求</h3>
+<p>在部署服务前，架构师和开发团队应该明确回答：</p>
+<ul>
+<li>这是有状态服务还是无状态服务？</li>
+<li>是否真正需要会话保持？</li>
+<li>如果需要，什么级别的会话保持（IP-based、Cookie-based）是合适的？</li>
+</ul>
+<h3 data-id="heading-21">2. 代码与配置审查</h3>
+<p>将Service配置审查纳入CI/CD流程：</p>
+<ul>
+<li>在Pull Request中自动检查Session Affinity配置</li>
+<li>对于无状态服务，如果发现<code>sessionAffinity: ClientIP</code>配置，应该提出警告</li>
+<li>建立配置模板和规范</li>
+</ul>
+<h3 data-id="heading-22">3. 监控与告警</h3>
+<p>建立完善的监控体系：</p>
+<ul>
+<li>监控各Pod的请求量、CPU使用率、内存使用率</li>
+<li>设置Pod间负载差异告警阈值（如：最大负载Pod的请求量是最小负载Pod的3倍以上）</li>
+<li>定期生成负载分布报告</li>
+</ul>
+<h3 data-id="heading-23">4. 文档化配置标准</h3>
+<p>在团队内部分享Session Affinity的影响，形成统一的配置标准：</p>
+<pre><code class="hljs language-markdown" lang="markdown"><span class="hljs-section"># Kubernetes Service配置标准</span>
+
+<p><span class="hljs-section">## Session Affinity配置准则</span></p>
+<p><span class="hljs-bullet">1.</span> <span class="hljs-strong"><strong>无状态Web服务</strong></span>: sessionAffinity: None<br><span class="hljs-bullet">2.</span> <span class="hljs-strong"><strong>需要会话状态的服务</strong></span>:<br><span class="hljs-bullet">   -</span> 首选: 通过Ingress Controller的Cookie-based会话保持<br><span class="hljs-bullet">   -</span> 次选: 缩短超时时间的ClientIP会话保持<br><span class="hljs-bullet">3.</span> <span class="hljs-strong"><strong>有状态服务</strong></span>: 使用StatefulSet而非Session Affinity</p>
+<p><span class="hljs-section">## 审查清单</span><br><span class="hljs-bullet">-</span> [ ] 确认服务是否真正需要会话保持<br><span class="hljs-bullet">-</span> [ ] 如果启用会话保持，是否设置了合理的超时时间<br><span class="hljs-bullet">-</span> [ ] 是否有监控机制检测流量分布<br></p></code></pre><p></p>
+<h2 data-id="heading-24">六、总结</h2>
+<p>这次故障排查经历揭示了Kubernetes Session Affinity配置的重要性。通过本文的分析和解决方案，希望大家能够：</p>
+<ol>
+<li><strong>深入理解Session Affinity的工作机制</strong>及其对流量分发的深远影响</li>
+<li><strong>掌握快速诊断和修复的方法</strong>，特别是使用kubectl patch命令进行批量操作的能力</li>
+<li><strong>根据应用特性合理选择</strong>是否启用会话保持，以及如何精细化配置</li>
+</ol>
+<p>记住，Session Affinity是一把双刃剑：对于需要保持会话状态的应用，它能确保用户体验的一致性；但对于无状态应用，它可能成为流量不均的罪魁祸首。</p>
+<p>正确处理Session Affinity配置，结合适当的监控和告警机制，能够让你的Kubernetes集群运行更加稳定高效，真正发挥云原生架构的优势。</p>
+<hr>
+<p><strong>经验教训</strong>：在K8s中，看似简单的配置项背后可能隐藏着复杂的影响。始终保持对配置的敬畏之心，建立完善的审查和监控机制，才能在云原生之旅中行稳致远。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="K8s Service会话保持导致Pod流量不均：故障排查与深度解析" href="https://juejin.cn/post/7567181492066123791" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">K8s Service会话保持导致Pod流量不均：故障排查与深度解析</span><span class="desc fs12">https://juejin.cn/post/7567181492066123791</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e1808919.html">港科提出新算法革新大模型推理范式：随机策略估值竟成LLM数学推理「神操作」<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/40a2b8b6.html">大模型公司不搞浏览器搞Agent，实测找到原因了<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/94ebdae8.html" title="AI产品发展必经之路： 从售卖工具到售卖解决方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3075c572d5cc4f84960e8cfbc7584378~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y2O5rSb:q75.awebp?rk3s=f64ab15b&x-expires=1762410050&x-signature=yehyzPbxYZn8kN1pMUld8gAahKw%3D"></div><span class="title">AI产品发展必经之路： 从售卖工具到售卖解决方案</span></a><a class="item" href="/rss/f98299b5.html" title="Python编程实战：日期处理与数学算法综合练习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9464"></div><span class="title">Python编程实战：日期处理与数学算法综合练习</span></a><a class="item" href="/rss/f560986c.html" title="iOS基础问题整理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2466"></div><span class="title">iOS基础问题整理</span></a><a class="item" href="/rss/30942235.html" title="RIVAL：面向机器翻译的迭代对抗强化学习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7472fc7f373d40ca931c42a2bb217027~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&x-expires=1762488137&x-signature=uKIdVTbYaU6gkSIWY6b9VMdh6LE%3D"></div><span class="title">RIVAL：面向机器翻译的迭代对抗强化学习</span></a><a class="item" href="/rss/f3aae144.html" title="一网打尽：手把手教你搭建PXE网络启动服务器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9901"></div><span class="title">一网打尽：手把手教你搭建PXE网络启动服务器</span></a><a class="item" href="/rss/8fd20786.html" title="上传项目至GitHub与从Github克隆项目"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3707"></div><span class="title">上传项目至GitHub与从Github克隆项目</span></a><a class="item" href="/rss/c4e8ca55.html" title="告别Div地狱：现代HTML的语义化编程革命"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2628"></div><span class="title">告别Div地狱：现代HTML的语义化编程革命</span></a><a class="item" href="/rss/1cd95816.html" title="大语言模型是如何听懂并会说人话的"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f73f48697a264e9b9fd715ddb4860435~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiO5byA5Y-R5ZCM6KGM:q75.awebp?rk3s=f64ab15b&x-expires=1762511211&x-signature=GH1pwXffHHALfU6MC07XPmtF9oA%3D"></div><span class="title">大语言模型是如何听懂并会说人话的</span></a><a class="item" href="/rss/499ddaa8.html" title="对 GPT 5 模型路由机制的深度解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b22ce078a1ea437dad51cfba2933d500~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1762478701&x-signature=RvWI8QrUl%2FXHJUCZUvf3jEHgXnU%3D"></div><span class="title">对 GPT 5 模型路由机制的深度解析</span></a><a class="item" href="/rss/d2fd7096.html" title="学而时习之：C++中的函数"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/eb8c65c77d9a42efbc81d077a031e7ae~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg54Wk55CD546L5a2Q:q75.awebp?rk3s=f64ab15b&x-expires=1762398184&x-signature=SDsJe%2FKsJyTaLwHVo0c45QezbLM%3D"></div><span class="title">学而时习之：C++中的函数</span></a><a class="item" href="/rss/65d5b4e1.html" title="现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9701"></div><span class="title">现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践</span></a><a class="item" href="/rss/a4dd8675.html" title="翻译：苹果那传奇般的细节关注去哪儿了？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/04906cb5825f40d49bb8be1d09af2721~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgSnVjaGVjYXI=:q75.awebp?rk3s=f64ab15b&x-expires=1762481178&x-signature=Uk%2F6x%2FkQ47E1xnyhXluU8G1HKE4%3D"></div><span class="title">翻译：苹果那传奇般的细节关注去哪儿了？</span></a><a class="item" href="/rss/cb218f94.html" title="改变世界的编程语言MoonBit：配置系统介绍(下)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9821"></div><span class="title">改变世界的编程语言MoonBit：配置系统介绍(下)</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

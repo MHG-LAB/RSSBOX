@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>RIVAL：面向机器翻译的迭代对抗强化学习 - RSSBOX</title>
+
+  
+    <meta name="description" content="一、概述 本文提出 RIVAL（Reinforcement Learning with Iterative and Adversarial Optimization），一种针对机器翻译（MT）的迭代对抗强化学习框架。我们发现基于人类反馈的强化学习（RLHF）在口语化字幕翻译任务中表现不佳，主要是因为奖励模型（RM）与翻译模型（LLM）之间存在分布偏移，导致训练失效。RIVAL通过以下创新解决该问">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RIVAL：面向机器翻译的迭代对抗强化学习">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/30942235.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="一、概述 本文提出 RIVAL（Reinforcement Learning with Iterative and Adversarial Optimization），一种针对机器翻译（MT）的迭代对抗强化学习框架。我们发现基于人类反馈的强化学习（RLHF）在口语化字幕翻译任务中表现不佳，主要是因为奖励模型（RM）与翻译模型（LLM）之间存在分布偏移，导致训练失效。RIVAL通过以下创新解决该问">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7472fc7f373d40ca931c42a2bb217027~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=uKIdVTbYaU6gkSIWY6b9VMdh6LE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d2020f950674487baeeabebcf33df84d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=g9SZsGu0olaNo3B77b3a2E146Gk%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8d176c3e04114dd6900094732bf8779a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=LY%2FmEu5YyvJ%2FQ60eFabIz2Pr6bk%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/53707bd44d944bc79dfc85830fd2393a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=De2rA9PRCzKhySG1PLD%2BRn4Ph8k%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8561c7ede1f64372b29e6152c141a93f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=ysDrkQN6RX5wlFa3GjYOJYjsofg%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b6eded6c157f486d8a8ded775683e8ff~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=B4XHLjvOZYMhfmkfrLyRvGkwvyg%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/14eab76fb196439fb4a811e4aebc4b11~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=3vUCQxHV%2FgSuIx4LcZ2FezRLMRY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d69a27228d6d490887721bd6ac801e2b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=FmpyoK99pq4iVq9UyTPodWhqg1k%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/20c6d2e5fd7743a48e1b0198256fc73e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=KX%2BQPh86bFYG1df%2FDKLTebbUwdU%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ac47c262b53c4a8593f084ba8d93d819~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=uMNNuQCUYxXhiH4c6KVVHmn8x7I%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ced4b13ec50546018459ccd0c9c7b75a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=1U31NmRIGJd5HN6tAgO3B6MKMXg%3D">
+<meta property="article:published_time" content="2025-10-31T04:02:17.000Z">
+<meta property="article:modified_time" content="2025-10-31T04:02:17.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7472fc7f373d40ca931c42a2bb217027~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=uKIdVTbYaU6gkSIWY6b9VMdh6LE%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、动机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、 方法</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 RIVAL框架：对抗式迭代优化范式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 RM和LLM优化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 结合定量偏好奖励</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、 实验</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">参考文献</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-31T04:02:17.000Z">2025-10-31</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>RIVAL：面向机器翻译的迭代对抗强化学习</span></h1>
+<div>
+<h2 data-id="heading-0"><strong>一、概述</strong></h2>
+<p>本文提出 RIVAL（Reinforcement Learning with Iterative and Adversarial Optimization），一种针对机器翻译（MT）的迭代对抗强化学习框架。我们发现基于人类反馈的强化学习（RLHF）在口语化字幕翻译任务中表现不佳，主要是因为奖励模型（RM）与翻译模型（LLM）之间存在分布偏移，导致训练失效。RIVAL通过以下创新解决该问题：</p>
+<ol>
+<li>对抗博弈机制：将RM与LLM的优化过程建模为最小化-最大化博弈，RM负责区分强弱翻译，LLM负责优化弱翻译，以缩小与强翻译的质量差距。</li>
+<li>双奖励设计：结合语义对齐的定性偏好奖励与定量偏好奖励（如：BLEU分数），提升迭代强化学习训练的稳定性与泛化性。</li>
+</ol>
+<p>实验表明，RIVAL在口语字幕和WMT数据集上显著优于监督微调（SFT）和专用翻译模型（如：Tower-7B-v0.2），同时保持跨语言泛化能力。</p>
+<p>论文已被EMNLP 2025收录，链接：<em><a href="https://link.juejin.cn/?target=https%3A%2F%2Farxiv.org%2Fabs%2F2506.05070" ref="nofollow noopener noreferrer" target="_blank" title="https://arxiv.org/abs/2506.05070" rel="external nofollow noopener noreferrer">arxiv.org/abs/2506.05…</a></em></p>
+<h2 data-id="heading-1"><strong>二、动机</strong></h2>
+<p>大语言模型（LLM）在多任务中展现出突破性能力，其强大的多语言理解与生成能力为MT提供了新范式。大部分研究是基于极大似然估计的SFT，这种方法容易受到暴露偏差的影响，导致错误累积与翻译质量退化。同时，有限的句子级上下文建模能力难以保证全局连贯性。所以另一种可选的方案是RLHF。当前MT研究主要聚焦于正式的书面语，而口语化字幕翻译面临独特挑战：口语化字幕具有高度非正式性（如俚语、语气词、语法省略）、结构松散及多领域混杂性等特点，在真实场景中缺乏高质量平行语料，传统依赖人工标注的评估方法（如BLEU）在语义对齐优先的场景中失效。为填补这一空白，我们首次构建了大规模口语化字幕数据集，并尝试应用RLHF优化翻译质量。</p>
+<p>我们在探索LLM在机器翻译中的应用时，发现使用RLHF优化口语化字幕翻译任务的效果不佳。具体示例如下：LLM对源文本翻译完成后，又额外补充了“It's ok! It's great!”的正向翻译，但源文本中并没有对应的原文。这种“投机行为”导致翻译失真，违背语义忠实性原则，是典型的Reward Hacking问题。</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7472fc7f373d40ca931c42a2bb217027~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=uKIdVTbYaU6gkSIWY6b9VMdh6LE%3D"></p>
+<p align="center">Reward Hacking示例</p>
+<p>为了探究出现Reward Hacking的原因，我们对比了RM与GPT-4o的评分差异。我们发现RM的评分差（强翻译-弱翻译）持续下降：随着LLM优化，评分差越来越大，RM误判弱翻译的质量越来越好。然而，GPT-4o的评分差先降后升，表明真实的弱翻译质量先因初始正确的奖励信号不断提升，后因翻译模型过拟合RM而偏离真实的质量评分。追溯其根本原因，离线RM是基于初始的弱翻译训练得到的，无法适应LLM优化过程中数据的分布偏移，导致给出的奖励信号失效。</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d2020f950674487baeeabebcf33df84d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=g9SZsGu0olaNo3B77b3a2E146Gk%3D"></p>
+<p align="center">RM和GPT-4o对强弱翻译的评分差</p>
+<p>受生成对抗网络（GAN）的启发，我们提出RIVAL框架：将RM与LLM的优化过程建模为最小化-最大化博弈，二者可通过博弈共同进化，离线RM被转化为在线RM，从而避免数据分布偏移问题。</p>
+<h2 data-id="heading-2"><strong>三、</strong> <strong>方法</strong></h2>
+<h3 data-id="heading-3"><strong>3.1 RIVAL框架：对抗式迭代优化范式</strong></h3>
+<p>RIVAL框架将传统RLHF的两阶段训练重构为RM与LLM的对抗博弈。其核心思想源自GAN的生成-判别机制，形式化为以下最小化-最大化目标：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8d176c3e04114dd6900094732bf8779a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=LY%2FmEu5YyvJ%2FQ60eFabIz2Pr6bk%3D"></p>
+<p>其中，r_Phi是奖励模型，作为判别器来区分强弱翻译，pi_theta是翻译模型，作为生成器逼近来强翻译分布P_strong，pi_ref是参考模型，即初始化的模型，通过KL散度约束防止模型过度偏移。通过不断地迭代优化，并且利用当前轮的LLM构造RM的训练数据，RM能够有效地学习并适应新的数据分布。同时，LLM也能在准确的奖励信号监督下不断探索新的动作空间，从而逐渐变成强翻译模型。RIVAL框架的示意图如下：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/53707bd44d944bc79dfc85830fd2393a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=De2rA9PRCzKhySG1PLD%2BRn4Ph8k%3D"></p>
+<p align="center">RIVAL框架</p>
+<h3 data-id="heading-4"><strong>3.2 RM和LLM优化</strong></h3>
+<p>在RM优化时，固定LLM的参数，其优化目标简化为：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8561c7ede1f64372b29e6152c141a93f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=ysDrkQN6RX5wlFa3GjYOJYjsofg%3D"></p>
+<p>其中，x 是输入的源文本，y_strong是GPT-4o生成的强翻译，y_weak是当前LLM生成的弱翻译。其物理含义为尽可能增大强弱翻译之间的差距，损失函数的形式为rank loss。在本文中，我们将其命名为定性的偏好损失。此外，在每一轮的迭代训练中，我们不仅只利用当前轮LLM生成的弱翻译，也会回放历史轮数据，来增强数据的多样性以及防止数据分布偏移。</p>
+<p>相似地，LLM优化时，我们需要固定RM的参数。其优化目标被简化为：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b6eded6c157f486d8a8ded775683e8ff~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=B4XHLjvOZYMhfmkfrLyRvGkwvyg%3D"></p>
+<p>其物理含义为尽可能最大化RM给出的奖励分数。我们采用GRPO算法来优化LLM模型。</p>
+<h3 data-id="heading-5"><strong>3.3 结合定量偏好奖励</strong></h3>
+<p>由于翻译任务的动作探索空间比较大，在GRPO训练中，只依赖定性偏好奖励可能会导致训练不稳定。另外，考虑到计算开销，我们设计了多头RM，一个输出头用来预测定性偏好奖励，另一个输出头用来预测定量偏好奖励，例如：BLEU分数。所以，最终我们的RM损失函数除来上述介绍的rank loss，还包含了对BLEU分数预测的mae loss。具体形式如下：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/14eab76fb196439fb4a811e4aebc4b11~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=3vUCQxHV%2FgSuIx4LcZ2FezRLMRY%3D"></p>
+<p>详细的算法流程图如下：</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d69a27228d6d490887721bd6ac801e2b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=FmpyoK99pq4iVq9UyTPodWhqg1k%3D"></p>
+<p align="center">RIVAL算法流程图</p>
+<h2 data-id="heading-6"><strong>四、</strong> <strong>实验</strong></h2>
+<p>我们在自建的口语字幕数据集和WMT标准数据集上验证RIVAL框架的有效性。针对两个任务的特性，我们选用了不同的评估指标：口语字幕任务采用GPT-4o多维度评分（准确性、完整性、连贯性、风格一致性）和COMETKiwi指标，因为更侧重语义对齐而非字面匹配；WMT任务则同时使用BLEU和COMETKiwi，以兼顾词汇忠实度与语义充分性。</p>
+<p>在口语字幕翻译任务中，RIVAL框架展现出显著优势。仅使用定性偏好奖励的RIVAL-Iter1模型在GPT-4o评估中达到3.68的平均分，较基线模型提升5.5%，COMETKiwi指标同步改善至66.27。然而，迭代至第三轮时GPT-4o的评分出现回落（平均分3.53），表明纯定性偏好奖励在开放空间中的优化方向存在不稳定性。WMT翻译任务的实验进一步验证了双奖励机制的必要性。当引入定量偏好奖励（BLEU）后，RIVAL-Iter2-Qual+Quant在英中和中英翻译任务上的BLEU分数和COMETKiwi指标都优于使用单独的定性偏好奖励优化的模型。这种提升源于双奖励的协同作用：定量奖励锚定词汇对齐，定性奖励保障语义质量。</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/20c6d2e5fd7743a48e1b0198256fc73e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=KX%2BQPh86bFYG1df%2FDKLTebbUwdU%3D"><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ac47c262b53c4a8593f084ba8d93d819~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=uMNNuQCUYxXhiH4c6KVVHmn8x7I%3D"></p>
+<p align="center">RIVAL框架在字幕翻译和WMT翻译任务上的效果</p>
+<p>在跨语言泛化性测试中，RIVAL展现出优于SFT的鲁棒性。以医疗领域的中德翻译为例，SFT模型在OOD场景下COMETKiwi降至49.15，显著低于原始模型（52.58），而RIVAL-Iter1仍保持53.42的优异表现，甚至在部分OOD任务上超越原始模型，证明其通过探索有效翻译策略而非模式记忆实现泛化。</p>
+<p>我们也画了后两轮迭代过程中RM和GPT-4o对强弱翻译的评分差，从图中可以看到，RIVAL通过对抗机制将评分差稳定维持在较小范围，有效缓解了奖励模型与翻译模型间的分布偏移问题。</p>
+<p><img class="lazy" alt="图片" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ced4b13ec50546018459ccd0c9c7b75a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZOU5ZOp5ZOU5ZOp5oqA5pyv:q75.awebp?rk3s=f64ab15b&amp;x-expires=1762488137&amp;x-signature=1U31NmRIGJd5HN6tAgO3B6MKMXg%3D"></p>
+<h2 data-id="heading-7"><strong>五、总结</strong></h2>
+<p>本文提出 RIVAL 框架，通过对抗式迭代优化解决了RLHF在口语字幕翻译中的分布偏移问题。RIVAL将LLM和RM的优化建模为最小化-最大化博弈：RM最大化强弱翻译评分差距，LLM缩小与强翻译质量差距，并创新引入双奖励机制使得训练更稳定。我们在口语字幕翻译任务和WMT英中翻译任务中，验证了RIVAL方法相较基线、SFT模型和专用翻译模型的优越性。此外，RIVAL在OOD测试中的性能也超越SFT，证明其通过探索有效策略避免灾难性遗忘。尽管迭代上限与计算成本仍需优化，但该框架为机器翻译甚至后训练方法提供了兼具理论创新与实用价值的新范式。</p>
+<h2 data-id="heading-8"><strong>参考文献</strong></h2>
+<p>[1] Ouyang L, Wu J, Jiang X, et al. Training language models to follow instructions with human feedback[J]. Advances in neural information processing systems, 2022, 35: 27730-27744.</p>
+<p>[2] Luo W, Li H, Zhang Z, et al. Sambo-rl: Shifts-aware model-based offline reinforcement learning[J]. arXiv preprint arXiv:2408.12830, 2024.</p>
+<p>[3] Goodfellow I J, Pouget-Abadie J, Mirza M, et al. Generative adversarial nets[J]. Advances in neural information processing systems, 2014, 27.</p>
+<p>[4] Shao Z, Wang P, Zhu Q, et al. Deepseekmath: Pushing the limits of mathematical reasoning in open language models[J]. arXiv preprint arXiv:2402.03300, 2024.</p>
+<p>[5] Achiam J, Adler S, Agarwal S, et al. Gpt-4 technical report[J]. arXiv preprint arXiv:2303.08774, 2023.</p>
+<p>[6] Rei R, Treviso M, Guerreiro N M, et al. CometKiwi: IST-unbabel 2022 submission for the quality estimation shared task[J]. arXiv preprint arXiv:2209.06243, 2022.</p>
+<p>[7] Shoeybi M, Patwary M, Puri R, et al. Megatron-lm: Training multi-billion parameter language models using model parallelism[J]. arXiv preprint arXiv:1909.08053, 2019.</p>
+<p>[8] Sheng G, Zhang C, Ye Z, et al. Hybridflow: A flexible and efficient rlhf framework[C]//Proceedings of the Twentieth European Conference on Computer Systems. 2025: 1279-1297.</p>
+<p>[9] Guo D, Yang D, Zhang H, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning[J]. arXiv preprint arXiv:2501.12948, 2025.</p>
+<p>[10] Alves D M, Pombal J, Guerreiro N M, et al. Tower: An open multilingual large language model for translation-related tasks[J]. arXiv preprint arXiv:2402.17733, 2024.</p>
+<p>-End-</p>
+<p>作者丨Index MT Team</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="RIVAL：面向机器翻译的迭代对抗强化学习" href="https://juejin.cn/post/7566946330694910002" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">RIVAL：面向机器翻译的迭代对抗强化学习</span><span class="desc fs12">https://juejin.cn/post/7566946330694910002</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e533cfdd.html">「套壳」的最高境界：OpenAI揭秘Atlas浏览器架构OWL<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/4b347ad2.html">OpenAI首个GPT-5找Bug智能体：全自动读代码找漏洞写修复<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/94ebdae8.html" title="AI产品发展必经之路： 从售卖工具到售卖解决方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3075c572d5cc4f84960e8cfbc7584378~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y2O5rSb:q75.awebp?rk3s=f64ab15b&x-expires=1762410050&x-signature=yehyzPbxYZn8kN1pMUld8gAahKw%3D"></div><span class="title">AI产品发展必经之路： 从售卖工具到售卖解决方案</span></a><a class="item" href="/rss/f98299b5.html" title="Python编程实战：日期处理与数学算法综合练习"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9464"></div><span class="title">Python编程实战：日期处理与数学算法综合练习</span></a><a class="item" href="/rss/27abc8d1.html" title="K8s Service会话保持导致Pod流量不均：故障排查与深度解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5301"></div><span class="title">K8s Service会话保持导致Pod流量不均：故障排查与深度解析</span></a><a class="item" href="/rss/f560986c.html" title="iOS基础问题整理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2466"></div><span class="title">iOS基础问题整理</span></a><a class="item" href="/rss/f3aae144.html" title="一网打尽：手把手教你搭建PXE网络启动服务器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9901"></div><span class="title">一网打尽：手把手教你搭建PXE网络启动服务器</span></a><a class="item" href="/rss/8fd20786.html" title="上传项目至GitHub与从Github克隆项目"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3707"></div><span class="title">上传项目至GitHub与从Github克隆项目</span></a><a class="item" href="/rss/c4e8ca55.html" title="告别Div地狱：现代HTML的语义化编程革命"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2628"></div><span class="title">告别Div地狱：现代HTML的语义化编程革命</span></a><a class="item" href="/rss/1cd95816.html" title="大语言模型是如何听懂并会说人话的"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f73f48697a264e9b9fd715ddb4860435~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiO5byA5Y-R5ZCM6KGM:q75.awebp?rk3s=f64ab15b&x-expires=1762511211&x-signature=GH1pwXffHHALfU6MC07XPmtF9oA%3D"></div><span class="title">大语言模型是如何听懂并会说人话的</span></a><a class="item" href="/rss/499ddaa8.html" title="对 GPT 5 模型路由机制的深度解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b22ce078a1ea437dad51cfba2933d500~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1762478701&x-signature=RvWI8QrUl%2FXHJUCZUvf3jEHgXnU%3D"></div><span class="title">对 GPT 5 模型路由机制的深度解析</span></a><a class="item" href="/rss/d2fd7096.html" title="学而时习之：C++中的函数"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/eb8c65c77d9a42efbc81d077a031e7ae~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg54Wk55CD546L5a2Q:q75.awebp?rk3s=f64ab15b&x-expires=1762398184&x-signature=SDsJe%2FKsJyTaLwHVo0c45QezbLM%3D"></div><span class="title">学而时习之：C++中的函数</span></a><a class="item" href="/rss/65d5b4e1.html" title="现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9701"></div><span class="title">现代JavaScript字符串处理：从基础语法到模板字符串的深度演进与技术实践</span></a><a class="item" href="/rss/a4dd8675.html" title="翻译：苹果那传奇般的细节关注去哪儿了？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/04906cb5825f40d49bb8be1d09af2721~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgSnVjaGVjYXI=:q75.awebp?rk3s=f64ab15b&x-expires=1762481178&x-signature=Uk%2F6x%2FkQ47E1xnyhXluU8G1HKE4%3D"></div><span class="title">翻译：苹果那传奇般的细节关注去哪儿了？</span></a><a class="item" href="/rss/cb218f94.html" title="改变世界的编程语言MoonBit：配置系统介绍(下)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9821"></div><span class="title">改变世界的编程语言MoonBit：配置系统介绍(下)</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

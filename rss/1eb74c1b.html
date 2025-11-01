@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Go and Enhance Your Calm: Demolishing an HTTP/2 Interop Problem - RSSBOX</title>
+
+  
+    <meta name="description" content="In September 2025, a thread popped up in our internal engineering chat room asking, &quot;Which part of our stack would be responsible for sending ErrCode&#x3D;ENHANCE_YOUR_CALM to an HTTP&#x2F;2 client?&quot; Two inte">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Go and Enhance Your Calm: Demolishing an HTTP&#x2F;2 Interop Problem">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1eb74c1b.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="In September 2025, a thread popped up in our internal engineering chat room asking, &quot;Which part of our stack would be responsible for sending ErrCode&#x3D;ENHANCE_YOUR_CALM to an HTTP&#x2F;2 client?&quot; Two inte">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2OL6xA151F9JNR4S0wE0DG/f6ae4b0a261da5d189d82ccfa401104e/image1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/71AXf477FP8u9znjdqXIh9/d6d22049a3f5f5488b8b7e9ac7f832a9/image3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6v9oBdn5spdqw1BjDW1bS3/a9b36ef9252d580a79c978eb366f7a7a/image2.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/R0Bbw1SFYwcyb280RdwjY/578628489c97f67a5ac877a55f4f3e3b/image6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6doWYOkW3zbafkANt31knv/b00387716b1971d61eb8b4915ee58783/image5.png">
+<meta property="article:published_time" content="2025-10-31T13:00:00.000Z">
+<meta property="article:modified_time" content="2025-10-31T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2OL6xA151F9JNR4S0wE0DG/f6ae4b0a261da5d189d82ccfa401104e/image1.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">HTTP&#x2F;2 is powerful – but it can be easy to misuse</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Solving a microservice miscommunication mystery</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Reading bodies in Go can be unintuitive</span></a></li></ol><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Actions to take if you encounter ENHANCE_YOUR_CALM</span></a></li></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-31T13:00:00.000Z">2025-10-31</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Go and Enhance Your Calm: Demolishing an HTTP/2 Interop Problem</span></h1>
+<div>
+ <p>In September 2025, a thread popped up in our internal engineering chat room asking, "Which part of our stack would be responsible for sending <code>ErrCode=ENHANCE_YOUR_CALM</code> to an HTTP/2 client?" Two internal microservices were experiencing a critical error preventing their communication and the team needed a timely answer.</p><p>In this blog post, we describe the background to well-known HTTP/2 attacks that trigger Cloudflare defences, which close connections. We then document an easy-to-make mistake using Go's standard library that can cause clients to send PING flood attacks and how you can avoid it.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2OL6xA151F9JNR4S0wE0DG/f6ae4b0a261da5d189d82ccfa401104e/image1.png">
+</figure>
+<div>
+<h3>HTTP/2 is powerful – but it can be easy to misuse</h3>
+<a href="#http-2-is-powerful-but-it-can-be-easy-to-misuse">
+</a>
+</div>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9113"><u>HTTP/2</u></a> defines a binary wire format for encoding <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9110.html"><u>HTTP semantics</u></a>. Request and response messages are encoded as a series of HEADERS and DATA frames, each associated with a logical stream, sent over a TCP connection using TLS. There are also control frames that relate to the management of streams or the connection as a whole. For example, SETTINGS frames advertise properties of an endpoint, WINDOW_UPDATE frames provide flow control credit to a peer so that it can send data, RST_STREAM can be used to cancel or reject a request or response, while GOAWAY can be used to signal graceful or immediate connection closure.</p><p>HTTP/2 provides many powerful features that have legitimate uses. However, with great power comes responsibility and opportunity for accidental or intentional misuse. The specification details a number of <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc9113#section-10.5"><u>denial-of-service considerations</u></a>. Implementations are advised to harden themselves: "An endpoint that doesn't monitor use of these features exposes itself to a risk of denial of service. Implementations SHOULD track the use of these features and set limits on their use."</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/71AXf477FP8u9znjdqXIh9/d6d22049a3f5f5488b8b7e9ac7f832a9/image3.png">
+</figure><p>Cloudflare implements many different HTTP/2 defenses, developed over years in order to protect our systems and our customers. Some notable examples include mitigations added in 2019 to address "<a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/on-the-recent-http-2-dos-attacks/"><u>Netflix vulnerabilities</u></a>" and in 2023 to mitigate <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/technical-breakdown-http2-rapid-reset-ddos-attack/"><u>Rapid Reset</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/madeyoureset-an-http-2-vulnerability-thwarted-by-rapid-reset-mitigations/"><u>similar</u></a> style attacks.</p><p>When Cloudflare detects that HTTP/2 client behaviour is likely malicious, we close the connection using the GOAWAY frame and include the error code <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9113#ENHANCE_YOUR_CALM"><code><u>ENHANCE_YOUR_CALM</u></code></a>.</p><p>One of the well-known and common attacks is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cve.org/CVERecord?id=CVE-2019-9512"><u>CVE-2019-9512</u></a>, aka PING flood: "The attacker sends continual pings to an HTTP/2 peer, causing the peer to build an internal queue of responses. Depending on how efficiently this data is queued, this can consume excess CPU, memory, or both." Sending a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9113#section-6.7"><u>PING frame</u></a> causes the peer to respond with a PING acknowledgement (indicated by an ACK flag). This allows for checking the liveness of the HTTP connection, along with measuring the layer 7 round-trip time – both useful things. The requirement to acknowledge a PING, however, provides the potential attack vector since it generates work for the peer.</p><p>A client that PINGs the Cloudflare edge too frequently will trigger our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cve.org/CVERecord?id=CVE-2019-9512"><u>CVE-2019-9512</u></a> mitigations, causing us to close the connection. Shortly after we <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/road-to-grpc/"><u>launched support for gRPC</u></a> in 2020, we encountered interoperability issues with some gRPC clients that sent many PINGs as part of a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://grpc.io/blog/grpc-go-perf-improvements/#bdp-estimation-and-dynamic-flow-control-window"><u>performance optimization for window tuning</u></a>. We also discovered that the Rust Hyper crate had a feature called Adaptive Window that emulated the design and triggered a similar <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/hyperium/hyper/issues/2526"><u>problem</u></a> until Hyper made a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/hyperium/hyper/pull/2550"><u>fix</u></a>.</p>
+<div>
+<h3>Solving a microservice miscommunication mystery</h3>
+<a href="#solving-a-microservice-miscommunication-mystery">
+</a>
+</div>
+<p>When that thread popped up asking which part of our stack was responsible for sending the <code>ENHANCE_YOUR_CALM</code> error code, it was regarding a client communicating over HTTP/2 between two internal microservices.</p><p>We suspected that this was an HTTP/2 mitigation issue and confirmed it was a PING flood mitigation in our logs. But taking a step back, you may wonder why two internal microservices are communicating over the Cloudflare edge at all, and therefore hitting our mitigations. In this case, communicating over the edge provides us with several advantages:</p><ol><li><p>We get to dogfood our edge infrastructure and discover issues like this!</p></li><li><p>We can use Cloudflare Access for authentication. This allows our microservices to be accessed securely by both other services (using service tokens) and engineers (which is invaluable for debugging).</p></li><li><p>Internal services that are written with Cloudflare Workers can easily communicate with services that are accessible at the edge.</p></li></ol>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6v9oBdn5spdqw1BjDW1bS3/a9b36ef9252d580a79c978eb366f7a7a/image2.png">
+</figure><p>The question remained: Why was this client behaving this way? We traded some ideas as we attempted to get to the bottom of the issue.</p><p>The client had a configuration that would indicate that it didn't need to PING very frequently:</p>
+<pre><code>t2.PingTimeout = 2 * time.Second
+t2.ReadIdleTimeout = 5 * time.Second</code></pre>
+<p>However, in situations like this it is generally a good idea to establish ground truth about what is really happening "on the wire." For instance, grabbing a packet capture that can be dissected and explored in Wireshark can provide unequivocal evidence of precisely what was sent over the network. The next best option is detailed/trace logging at the sender or receiver, although sometimes logging can be misleading, so caveat emptor.</p><p>In our particular case, it was simpler to use logging with <code>GODEBUG=http2debug=2</code>. We built a simplified minimal reproduction of the client that triggered the error, helping to eliminate other potential variables. We did some group log analysis, combined with diving into some of the Go standard library code to understand what it was really doing. Issac Asimov is commonly credited with the quote "The most exciting phrase to hear in science, the one that heralds new discoveries, is not 'Eureka!' but 'That's funny...'" and sure enough, within the hour someone declared–
+
+</p><p><i>the funny part I see is this:</i></p><p></p>
+<pre><code>2025/09/02 17:33:18 http2: Framer 0x14000624540: wrote RST_STREAM stream=9 len=4 ErrCode=CANCEL
+2025/09/02 17:33:18 http2: Framer 0x14000624540: wrote PING len=8 ping="j\xe7\xd6R\xdaw\xf8+"</code></pre>
+<p><i>every ping seems to be preceded by a RST_STREAM</i></p><p>Observant readers will recall the earlier mention of Rapid Reset. However, our logs clearly indicated ENHANCE_YOUR_CALM being triggered due to the PING flood. A bit of searching landed us on this <a target="_blank" rel="external nofollow noopener noreferrer" href="https://groups.google.com/g/grpc-io/c/sWYYQJXHCAQ/m/SWFHxw9IAgAJ"><u>mailing list thread</u></a> and the comment "Sending a PING frame along with an RST_STREAM allows a client to distinguish between an unresponsive server and a slow response." That seemed quite relevant. We also found <a target="_blank" rel="external nofollow noopener noreferrer" href="https://go-review.googlesource.com/c/net/+/632995"><u>a change that was committed</u></a> related to this topic. This partly answered why there were so many PINGs, but it also raised a new question: Why so many stream resets?
+
+</p><p>So we went back to the logs and built up a little more context about the interaction:</p><p></p>
+<pre><code>2025/09/02 17:33:18 http2: Transport received DATA flags=END_STREAM stream=47 len=0 data=""
+2025/09/02 17:33:18 http2: Framer 0x14000624540: wrote RST_STREAM stream=47 len=4 ErrCode=CANCEL
+2025/09/02 17:33:18 http2: Framer 0x14000624540: wrote PING len=8 ping="\x97W\x02\xfa&gt;\xa8\xabi"</code></pre>
+<p>The interesting thing here is that the server had sent a DATA frame with the END_STREAM flag set. Per the HTTP/2 stream <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9113#section-5.1"><u>state machine</u></a>, the stream should have transitioned to <b>closed</b> when a frame with END_STREAM was processed. The client doesn't need to do anything in this state – sending a RST_STREAM is entirely unnecessary.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/R0Bbw1SFYwcyb280RdwjY/578628489c97f67a5ac877a55f4f3e3b/image6.png">
+</figure><p>A little more digging and noodling and an engineer proclaimed:
+
+</p><p><i>I noticed that the reset+ping only happens when you call r</i><code><i>esp.Body.Close()</i></code></p><p><i>I believe Go’s HTTP library doesn’t actually read the response body automatically, but keeps the stream open for you to use until you call r</i><code><i>esp.Body.Close()</i></code><i>, which you can do at any point you like.</i></p><p>The hilarious thing in our example was that there wasn’t actually any HTTP body to read. From the earlier example: <code>received DATA flags=END_STREAM stream=47 len=0 data=""</code>.</p><p>Science and engineering are at times weird and counterintuitive. We decided to tweak our client to read the (absent) body via <code>io.Copy(io.Discard, resp.Body)</code> before closing it. </p><p>Sure enough, this immediately stopped the client sending both a useless RST_STREAM and, by association, a PING frame. </p><p>Mystery solved?</p><p>To prove we had fixed the root cause, the production client was updated with a similar fix. A few hours later, all the ENHANCE_YOUR_CALM closures were eliminated.</p><p></p>
+<div>
+<h3>Reading bodies in Go can be unintuitive</h3>
+<a href="#reading-bodies-in-go-can-be-unintuitive">
+</a>
+</div>
+<p>It’s worth noting that in some situations, ensuring the response body is always read can sometimes be unintuitive in Go. For example, at first glance it appears that the response body will always be read in the following example:</p>
+<pre><code>resp, err := http.DefaultClient.Do(req)
+if err != nil &#123;
+    return err
+&#125;
+defer resp.Body.Close()
+
+<p>if err :&#x3D; json.NewDecoder(resp.Body).Decode(&amp;respBody); err !&#x3D; nil &amp;#123;<br>    return err<br>&amp;#125;</p></code></pre><p></p>
+<p>However, <code>json.Decoder</code> stops reading as soon as it finds a complete JSON document or errors. If the response body contains multiple JSON documents or invalid JSON, then the entire response body may still not be read.</p><p>Therefore, in our clients, we’ve started replacing <code>defer response.Body.Close()</code> with the following pattern to ensure that response bodies are always fully read:</p>
+<pre><code>resp, err := http.DefaultClient.Do(req)
+if err != nil &#123;
+    return err
+&#125;
+defer func() &#123;
+    io.Copy(io.Discard, resp.Body)
+    resp.Body.Close()
+&#125;()
+
+<p>if err :&#x3D; json.NewDecoder(resp.Body).Decode(&amp;respBody); err !&#x3D; nil &amp;#123;<br>    return err<br>&amp;#125;</p></code></pre><p></p>
+<div>
+<h2>Actions to take if you encounter ENHANCE_YOUR_CALM</h2>
+<a href="#actions-to-take-if-you-encounter-enhance_your_calm">
+</a>
+</div>
+<p>HTTP/2 is a protocol with several features. Many implementations have implemented hardening to protect themselves from misuse of features, which can trigger a connection to be closed. The recommended error code for closing connections in such conditions is ENHANCE_YOUR_CALM. There are numerous HTTP/2 implementations and APIs, which may drive the use of HTTP/2 features in unexpected ways that could appear like attacks.</p><p>If you have an HTTP/2 client that encounters closures with ENHANCE_YOUR_CALM, we recommend that you try to establish ground truth with packet captures (including TLS decryption keys via mechanisms like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://wiki.wireshark.org/TLS#using-the-pre-master-secret"><u>SSLKEYLOGFILE</u></a>) and/or detailed trace logging. Look for patterns of frequent or repeated frames that might be similar to malicious traffic. Adjusting your client may help avoid it getting misclassified as an attacker.</p><p>If you use Go, we recommend always reading HTTP/2 response bodies (even if empty) in order to avoid sending unnecessary RST_STREAM and PING frames. This is especially important if you use a single connection for multiple requests, which can cause a high frequency of these frames.</p><p>This was also a great reminder of the advantages of dogfooding our own products within our internal services. When we run into issues like this one, our learnings can benefit our customers with similar setups.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6doWYOkW3zbafkANt31knv/b00387716b1971d61eb8b4915ee58783/image5.png">
+</figure><p></p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Go and enhance your calm: demolishing an HTTP/2 interop problem" href="https://blog.cloudflare.com/go-and-enhance-your-calm/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Go and enhance your calm: demolishing an HTTP/2 interop problem</span><span class="desc fs12">https://blog.cloudflare.com/go-and-enhance-your-calm/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/2a0de12e.html">单张4090跑到30fps，范浩强团队让VLA实时跑起来了<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ccb936b6.html">本月玩什么｜羊蹄山、宝可梦Z-A、天外世界2<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/295e1a01.html" title="Announcing Workers Automatic Tracing, Now in Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4F7l3WSJ2hY0eu6kX47Rdp/c7c3934e9abbbb1f01ec979941d35b54/unnamed.png"></div><span class="title">Announcing Workers Automatic Tracing, Now in Open Beta</span></a><a class="item" href="/rss/904ddf9.html" title="A Framework for Measuring Internet Resilience"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4S52jlwCpQ8WVS6gRSdNqp/4722abb10331624a54b411708f1e576b/image5.png"></div><span class="title">A Framework for Measuring Internet Resilience</span></a><a class="item" href="/rss/9ffd9040.html" title="BGP Zombies and Excessive Path Hunting"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xRNAHChJUyiMbtBZyLOlF/973d10be053b7b7f088721389c34c10e/BLOG-3059_2.png"></div><span class="title">BGP Zombies and Excessive Path Hunting</span></a><a class="item" href="/rss/e36d4049.html" title="Anonymous Credentials: Rate-Limiting Bots and Agents Without Compromising Privacy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6lXTePCTUORCyyOWNNcwZ8/5978abd1878f78107a2c9606c3a1ef51/image4.png"></div><span class="title">Anonymous Credentials: Rate-Limiting Bots and Agents Without Compromising Privacy</span></a><a class="item" href="/rss/12e04793.html" title="Beyond IP Lists: A Registry Format for Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=901"></div><span class="title">Beyond IP Lists: A Registry Format for Bots and Agents</span></a><a class="item" href="/rss/46648b4f.html" title="Defending QUIC From Acknowledgement-Based DDoS Attacks"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/44jjkcx22rpD7VdnZKsnPD/4d514e73c885a729bd973b3efb2564bf/image4.jpg"></div><span class="title">Defending QUIC From Acknowledgement-Based DDoS Attacks</span></a><a class="item" href="/rss/e415a17b.html" title="Helping Protect the 2025 Moldova Elections"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/36PlFQIaFV2p47TTTn4tQF/690a36f7587cd9510d0ee63ad3272fb0/image3.png"></div><span class="title">Helping Protect the 2025 Moldova Elections</span></a><a class="item" href="/rss/b5baec57.html" title="How to Build Your Own VPN, Or: The History of WARP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5uT2VOMUn2fJ9NleofEfVB/b871de07a16714f1d05b2b3d0d547aa7/image6.png"></div><span class="title">How to Build Your Own VPN, Or: The History of WARP</span></a><a class="item" href="/rss/85299236.html" title="Keeping the Internet Fast and Secure: Introducing Merkle Tree Certificates"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4LGhISsS07kbpSgDkqx8p2/68e3b36deeca7f97139654d2c769df68/image3.png"></div><span class="title">Keeping the Internet Fast and Secure: Introducing Merkle Tree Certificates</span></a><a class="item" href="/rss/92fd2bef.html" title="Measuring Characteristics of TCP Connections at Internet Scale"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5ksUQ7xlzXPWp2hH7eX4dG/124456d20c6fd5e7e185d68865aee6fa/image5.png"></div><span class="title">Measuring Characteristics of TCP Connections at Internet Scale</span></a><a class="item" href="/rss/e5dcba26.html" title="One IP Address, Many Users: Detecting CGNAT to Reduce Collateral Effects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2YBdqPx0ALt7pY7rmQZyLQ/049922bae657a715728700c764c4af16/BLOG-3046_2.png"></div><span class="title">One IP Address, Many Users: Detecting CGNAT to Reduce Collateral Effects</span></a><a class="item" href="/rss/d463f3e6.html" title="So Long, and Thanks for All the Fish: How to Escape the Linux Networking Stack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1NsU3FdxgJ0FNL78SDCo9D/65a27e8fd4339d3318a1b55b5979e3c6/image3.png"></div><span class="title">So Long, and Thanks for All the Fish: How to Escape the Linux Networking Stack</span></a><a class="item" href="/rss/21ebeaf5.html" title="Policy, Privacy and Post-Quantum: Anonymous Credentials for Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1ihEZ5KhWBQ0PZF5pTc0Bi/e35de03a89af0c2254bcc114041f6904/image4.png"></div><span class="title">Policy, Privacy and Post-Quantum: Anonymous Credentials for Everyone</span></a><a class="item" href="/rss/59a08ba2.html" title="State of the Post-Quantum Internet in 2025"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1EUFTKSnJptvd5WDGvB9Rf/4865f75c71e43f2c261d393322d24f34/image5.png"></div><span class="title">State of the Post-Quantum Internet in 2025</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

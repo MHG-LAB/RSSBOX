@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>The Road to Better Completions: Building a Faster, Smarter GitHub Copilot With a New Custom Model - RSSBOX</title>
+
+  
+    <meta name="description" content="Code completion remains the most widely used GitHub Copilot feature, helping millions of developers stay in the flow every day. Our team has continuously iterated on the custom models powering the">
+<meta property="og:type" content="article">
+<meta property="og:title" content="The Road to Better Completions: Building a Faster, Smarter GitHub Copilot With a New Custom Model">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/6efd46d0.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Code completion remains the most widely used GitHub Copilot feature, helping millions of developers stay in the flow every day. Our team has continuously iterated on the custom models powering the">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/partial-token-completion-error.png?resize=1024%2C447">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/HumanEvalInfilling_1200x630.png?resize=1024%2C538">
+<meta property="article:published_time" content="2025-10-23T10:31:14.000Z">
+<meta property="article:modified_time" content="2025-10-23T10:31:14.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/partial-token-completion-error.png?resize=1024%2C447">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-why-it-matters-nbsp"><span class="toc-text">Why it matters </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-how-we-evaluate-custom-models-nbsp"><span class="toc-text">How we evaluate custom models </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-1-offline-evaluations-nbsp-nbsp"><span class="toc-text">1) Offline evaluations  </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-2-pre-production-evaluations-qualitative-dogfooding-nbsp"><span class="toc-text">2) Pre-production evaluations: Qualitative dogfooding </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-3-production-based-evaluations-a-b-testing-nbsp"><span class="toc-text">3) Production-based evaluations: A&#x2F;B testing </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-how-we-trained-our-new-copilot-completions-model-nbsp"><span class="toc-text">How we trained our new Copilot completions model </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-mid-training-nbsp"><span class="toc-text">Mid-training </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-supervised-fine-tuning-nbsp"><span class="toc-text">Supervised fine-tuning </span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-reinforcement-learning-nbsp"><span class="toc-text">Reinforcement learning </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-what-we-learned-nbsp"><span class="toc-text">What we learned </span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-what-s-next-nbsp"><span class="toc-text">What’s next </span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-acknowledgments-nbsp"><span class="toc-text">Acknowledgments </span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2025-10-23T10:31:14.000Z">2025-10-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>The Road to Better Completions: Building a Faster, Smarter GitHub Copilot With a New Custom Model</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p>Code completion remains the most widely used GitHub Copilot feature, helping millions of developers stay in the flow every day. Our team has continuously iterated on the custom models powering the completions experience in GitHub Copilot driven by developer feedback. That work has had a big impact on giving you faster, more relevant suggestions in the editor.  </p>
+<p>We’re now delivering suggestions with 20% more accepted and retained characters, 12% higher acceptance rate, 3x higher token-per-second throughput, and a 35% reduction in latency. </p>
+<p>These updates now power GitHub Copilot across editors and environments. We’d like to share our journey on how we trained and evaluated our custom model for code completions. </p>
+<h2 class="wp-block-heading" id="h-why-it-matters-nbsp">Why it matters </h2>
+<p>When Copilot completions improve, you spend less time editing and more time building. The original Copilot was optimized for the highest acceptance rate possible. However, we realized that a heavy focus on acceptance rates could lead to incorrectly favoring a high volume of simple and short suggestions.  </p>
+<p>We heard your feedback that this didn’t reflect real developer needs or deliver the highest quality experience. So, we pivoted to also optimize for accepted and retained characters, code flow, and other metrics. </p>
+<ul class="wp-block-list">
+<li><strong>20% higher accepted-and-retained characters</strong> results in more of each Copilot suggestion staying in your final code, not just ending up temporarily accepted and deleted later. In other words, suggestions provide more value with fewer keystrokes.</li>
+<li><strong>12% higher acceptance rate</strong> means you find suggestions more useful more often, reflecting better immediate utility. </li>
+<li><strong>3x throughput</strong> <strong>with 35% lower latency</strong> makes Copilot feel faster. It handles more requests at once while keeping your coding flow unbroken (throughput describes how much work the system can handle overall, while latency describes how quickly each individual request completes).</li>
+</ul>
+<h2 class="wp-block-heading" id="h-how-we-evaluate-custom-models-nbsp">How we evaluate custom models </h2>
+<p>Copilot models are evaluated using combined signals from <strong>offline</strong>, <strong>pre-production</strong>, and <strong>production</strong> evaluations. Each layer helps us refine different aspects of the experience while ensuring better quality in real developer workflows. </p>
+<h3 class="wp-block-heading" id="h-1-offline-evaluations-nbsp-nbsp">1) Offline evaluations  </h3>
+<p><strong>Execution-based benchmark: </strong>As part of our offline evaluations, we first test against internal and public repositories with strong code by unit test and scenario coverage, spanning all major languages. Each test simulates real tasks, accepts suggestions, and measures build-and-test pass rates. This emphasizes functional correctness over surface fluency.  </p>
+<p>Below is an example of a partial token completion error: the model produced <code>data<strong>et</strong></code> instead of <code>data<strong>set</strong></code>.</p>
+<figure class="wp-block-image size-large"><img><img alt="Screenshot of a Python code editor showing a function named resolve_file inside a file called dataset_utilities.py. The function takes two string arguments, dataset and filename, and returns a string. The purpose, according to the docstring, is to resolve a file from a dataset and assert that only one file is found. The code uses os.path and glob to find files. There’s a highlighted line path = os.path.join(dat... with an error under dat, suggesting a variable name typo (dat instead of dataset). Several red underlines indicate syntax or reference errors in the code." class="wp-image-91828" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="447" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/partial-token-completion-error.png?resize=1024%2C447" width="1024"></figure>
+<p><strong>LLM-judge scoring: </strong>While we start with execution-based evaluation, this has downsides: it only tells if the code will compile, but the results are not always aligned with developer preferences. To ensure the best possible outcomes, we run an independent LLM to score completions across three axes:  </p>
+<ul class="wp-block-list">
+<li><strong>Quality:</strong> Ensure syntax validity, duplication/overlap, format and style consistency. </li>
+<li><strong>Relevance: </strong>Focus on relevant code, avoid hallucination and overreach. </li>
+<li><strong>Helpfulness:</strong> Reduce manual effort, avoid outdated or deprecated APIs. </li>
+</ul>
+<h3 class="wp-block-heading" id="h-2-pre-production-evaluations-qualitative-dogfooding-nbsp">2) Pre-production evaluations: Qualitative dogfooding </h3>
+<p>Our next step includes working with internal developers and partners to test models side-by-side in real workflows (to do the latter, we exposed the preview model to developers through Copilot’s model picker). We collect structured feedback on readability, trust, and “taste.” Part of this process includes working with language experts to improve overall completion quality. This is unique: while execution-based testing, LLM-based evaluations, dogfood testing, and A/B testing are common, we find language-specific evaluations lead to better outcomes along quality and style preferences. </p>
+<h3 class="wp-block-heading" id="h-3-production-based-evaluations-a-b-testing-nbsp">3) Production-based evaluations: A/B testing </h3>
+<p>Ultimately, the lived experience of developers like you is what matters most. We measure improvements using accepted-and-retained characters, acceptance rates, completion-shown rate, time-to-first token, latency, and many other metrics. We ship only when statistically significant improvements hold up under real developer workloads. </p>
+<h2 class="wp-block-heading" id="h-how-we-trained-our-new-copilot-completions-model-nbsp">How we trained our new Copilot completions model </h2>
+<h3 class="wp-block-heading" id="h-mid-training-nbsp">Mid-training </h3>
+<p>Modern codebases use modern APIs. Before fine-tuning, we build a code-specific foundational model via mid-training using a curated, de-duplicated corpus of modern, idiomatic, public, and internal code with nearly 10M repositories and 600-plus programming languages. (Mid-training refers to the stage after the base model has been pretrained on a very large, diverse corpus, but before it undergoes final fine-tuning or instruction-tuning). </p>
+<p>This is a critical step to ensure behaviors, new language syntax, and recent API versions are utilized by the model. We then use supervised fine-<s> </s>tuning and reinforcement learning while mixing objectives beyond next-token prediction—span infillings and docstring/function pairs—so the model learns structure, naming, and intent, not just next-token prediction. This helps us make the foundational model code-fluent, style-consistent, and context-aware, ready for more targeted fine-tuning via supervised fine-tuning. </p>
+<h3 class="wp-block-heading" id="h-supervised-fine-tuning-nbsp">Supervised fine-tuning </h3>
+<p>Newer general-purpose chat models perform well in natural language to generate code, but underperform on fill-in-the-middle (FIM) code completion. In practice, chat models experience cursor-misaligned inserts, duplication of code before the cursor (prefix), and overwrites of code after the cursor (suffix).  </p>
+<p>As we moved to fine-tuned behaviors, we trained models specialized in completions by way of synthetic fine-tuning to behave like a great FIM engine. In practice, this improves: </p>
+<ul class="wp-block-list">
+<li><strong>Prefix/suffix awareness</strong>: Accurate inserts between tokens, mid-line continuations, full line completions, and multi-line block completions without trampling the suffix. </li>
+<li><strong>Formatting fidelity</strong>: Respect local style (indentation, imports, docstrings) and avoid prefix duplication. </li>
+</ul>
+<p>The result is significantly improved FIM performance. For example, here is a benchmark comparing our latest completions model to GPT-4.1-mini on <a href="https://github.com/openai/human-eval-infilling" rel="external nofollow noopener noreferrer" target="_blank">OpenAI’s HumanEval Infilling Benchmarks</a>.  </p>
+<figure class="wp-block-image size-large"><img><img alt="A chart showing HumanEval Infilling Benchmarks for two different AI models. These include a custom model from GitHub named Copilot Completions and OpenAI's GPT-4o-mini. The evaluations show superior performance across single line, multi line, random span, and random span light tests for the Copilot Completions model. " class="wp-image-91837" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="538" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/HumanEvalInfilling_1200x630.png?resize=1024%2C538" width="1024"></figure>
+<h3 class="wp-block-heading" id="h-reinforcement-learning-nbsp">Reinforcement learning </h3>
+<p>Finally, we used a custom reinforcement learning algorithm, teaching the model through rewards and penalties to internalize what makes code suggestions useful in real developer scenarios along three axes:</p>
+<ul class="wp-block-list">
+<li><strong>Quality</strong>: Syntax-valid, compilable code that follows project style (indentations, imports, headers).  </li>
+<li><strong>Relevance</strong>: On-task suggestions that respect surrounding context and the file’s intent.  </li>
+<li><strong>Helpfulness</strong>: Suggestions that reduce manual effort and prefer modern APIs.  </li>
+</ul>
+<p>Together, these create completions that are correct, relevant, and genuinely useful at the cursor instead of being verbose or superficially helpful. </p>
+<h2 class="wp-block-heading" id="h-what-we-learned-nbsp">What we learned </h2>
+<p>After talking with programming language experts and finding success in our prompt-based<s> </s>approach, one of our most important lessons was adding related files like C++ header files to our training data. Beyond this, we also came away with three key learnings: </p>
+<ul class="wp-block-list">
+<li><strong>Reward carefully: </strong>Early reinforcement learning version over-optimized for longer completions, adding too many comments in the form of “reward hacking.” To mitigate this problem, we introduced comment guardrails to keep completions concise and focused on moving the task forward while penalizing unnecessary commentary. </li>
+<li><strong>Metrics matter: </strong>Being hyper-focused on a metric like acceptance rate can lead to experiences that look good on paper, but do not result in happy developers. That makes it critical to evaluate performance by monitoring multiple metrics with real-world impact.</li>
+<li><strong>Train for real-world usage: </strong>We align our synthetic fine-tuning data with real-world usage and adapt our training accordingly. This helps us identify problematic patterns and remove them via training to improve real-world outcomes.  </li>
+</ul>
+<h2 class="wp-block-heading" id="h-what-s-next-nbsp">What’s next </h2>
+<p>We’re continuing to push the frontier of Copilot completions by: </p>
+<ul class="wp-block-list">
+<li>Expanding into domain-specific slices (e.g., game engines, financial, ERP). </li>
+<li>Refining reward functions for build/test success, semantic usefulness (edits that advance the user’s intent without bloat), and API modernity preference for up-to-date, idiomatic libraries and patterns. This is helping us shape completion behavior with greater precision. </li>
+<li>Driving faster, cheaper, higher-quality completions across all developer environments.  </li>
+</ul>
+<div class="wp-block-group post-content-cta has-global-padding is-layout-constrained wp-block-group-is-layout-constrained">
+<p>Experience faster, smarter code completions yourself. <a href="https://github.com/features/copilot" rel="external nofollow noopener noreferrer" target="_blank">Try GitHub Copilot in VS Code &gt;</a> </p>
+</div>
+<h3 class="wp-block-heading" id="h-acknowledgments-nbsp">Acknowledgments </h3>
+<p>First, a big shoutout to our developer community for continuing to give us feedback and push us to deliver the best possible experiences with GitHub Copilot. Moreover, a huge thanks to the researchers, engineers, product managers, designers across GitHub and Microsoft who curated the training data, built the training pipeline, evaluation suites, client and serving stack<s> </s>—<s> </s>and to the GitHub Copilot product and engineering teams for smooth model releases. </p>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/ai-and-ml/github-copilot/the-road-to-better-completions-building-a-faster-smarter-github-copilot-with-a-new-custom-model/">The road to better completions: Building a faster, smarter GitHub Copilot with a new custom model</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="The road to better completions: Building a faster, smarter GitHub Copilot with a new custom model" href="https://github.blog/ai-and-ml/github-copilot/the-road-to-better-completions-building-a-faster-smarter-github-copilot-with-a-new-custom-model/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">The road to better completions: Building a faster, smarter GitHub Copilot with a new custom model</span><span class="desc fs12">https://github.blog/ai-and-ml/github-copilot/the-road-to-better-completions-building-a-faster-smarter-github-copilot-with-a-new-custom-model/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/8c3fb974.html">日本：红枫季的关东与关西（关西篇）<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/c51c4849.html">How to Find, Install, and Manage MCP Servers With the GitHub MCP Registry<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/e9beb529.html" title="Announcing the 2025 GitHub Partner Award Winners 🎉"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6246"></div><span class="title">Announcing the 2025 GitHub Partner Award Winners 🎉</span></a><a class="item" href="/rss/13683c13.html" title="From Karaoke Terminals to AI Résumés: The Winners of GitHub’s for the Love of Code Challenge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/plane-tracker.jpg?resize=771%2C1024"></div><span class="title">From Karaoke Terminals to AI Résumés: The Winners of GitHub’s for the Love of Code Challenge</span></a><a class="item" href="/rss/454610e2.html" title="GitHub Game Off 2025 Theme Announcement"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/hang10.gif?resize=500%2C281"></div><span class="title">GitHub Game Off 2025 Theme Announcement</span></a><a class="item" href="/rss/c51c4849.html" title="How to Find, Install, and Manage MCP Servers With the GitHub MCP Registry"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9733"></div><span class="title">How to Find, Install, and Manage MCP Servers With the GitHub MCP Registry</span></a><a class="item" href="/rss/f6da3d81.html" title="How to Update Community Health Files With AI"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4995"></div><span class="title">How to Update Community Health Files With AI</span></a><a class="item" href="/rss/a854f796.html" title="Introducing Agent HQ: Any Agent, Any Way You Work"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/Quotes_v5.jpg?resize=2796%2C2022"></div><span class="title">Introducing Agent HQ: Any Agent, Any Way You Work</span></a><a class="item" href="/rss/af84c6b2.html" title="Measuring What Matters: How Offline Evaluation of GitHub MCP Server Works"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2315"></div><span class="title">Measuring What Matters: How Offline Evaluation of GitHub MCP Server Works</span></a><a class="item" href="/rss/7f316f72.html" title="Top Security Researcher Shares Their Bug Bounty Process"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6786"></div><span class="title">Top Security Researcher Shares Their Bug Bounty Process</span></a><a class="item" href="/rss/97c17374.html" title="Octoverse: A New Developer Joins GitHub Every Second as AI Leads TypeScript to #1"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2025/10/Octoverse-2025-top-level-metrics.png?resize=1440%2C810"></div><span class="title">Octoverse: A New Developer Joins GitHub Every Second as AI Leads TypeScript to #1</span></a><a class="item" href="/rss/295e1a01.html" title="Announcing Workers Automatic Tracing, Now in Open Beta"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4F7l3WSJ2hY0eu6kX47Rdp/c7c3934e9abbbb1f01ec979941d35b54/unnamed.png"></div><span class="title">Announcing Workers Automatic Tracing, Now in Open Beta</span></a><a class="item" href="/rss/904ddf9.html" title="A Framework for Measuring Internet Resilience"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/4S52jlwCpQ8WVS6gRSdNqp/4722abb10331624a54b411708f1e576b/image5.png"></div><span class="title">A Framework for Measuring Internet Resilience</span></a><a class="item" href="/rss/9ffd9040.html" title="BGP Zombies and Excessive Path Hunting"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/7xRNAHChJUyiMbtBZyLOlF/973d10be053b7b7f088721389c34c10e/BLOG-3059_2.png"></div><span class="title">BGP Zombies and Excessive Path Hunting</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
