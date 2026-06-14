@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>告别繁琐的 Plist 文件，我是如何优雅管理 macOS 后台服务的 - RSSBOX</title>
+
+  
+    <meta name="description" content="macOS 后台服务管理，本该更优雅一点对于喜欢折腾 macOS 的效率玩家或开发者来说，系统底层的 launchd 绝对是个让人又爱又恨的东西。作为 macOS 的标准后台守护进程管理器，不管是开机自启的脚本、定时执行的自动化任务，还是常驻后台的服务，底层都由它操控。但让人头疼的是，苹果官方只给了一个极其硬核的命令行工具 launchctl。前段时间，我折腾着把一台 M4 Mac Mini 改">
+<meta property="og:type" content="article">
+<meta property="og:title" content="告别繁琐的 Plist 文件，我是如何优雅管理 macOS 后台服务的">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/bded6adf.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="macOS 后台服务管理，本该更优雅一点对于喜欢折腾 macOS 的效率玩家或开发者来说，系统底层的 launchd 绝对是个让人又爱又恨的东西。作为 macOS 的标准后台守护进程管理器，不管是开机自启的脚本、定时执行的自动化任务，还是常驻后台的服务，底层都由它操控。但让人头疼的是，苹果官方只给了一个极其硬核的命令行工具 launchctl。前段时间，我折腾着把一台 M4 Mac Mini 改">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/d03f91fde8c034a371fe081c38d6ae6f.png">
+<meta property="article:published_time" content="2026-06-05T02:14:57.000Z">
+<meta property="article:modified_time" content="2026-06-05T02:14:57.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="少数派">
+<meta property="article:tag" content="少数派Matrix">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/d03f91fde8c034a371fe081c38d6ae6f.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">macOS 后台服务管理，本该更优雅一点</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">顺手的工具，怎么这么难找？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">LaunchManager：把复杂的命令行，变成直观的开关</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">顺便聊聊 AI 辅助开发与开源</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/">少数派</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/%E5%B0%91%E6%95%B0%E6%B4%BEmatrix/">少数派Matrix</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-05T02:14:57.000Z">2026-06-05</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>告别繁琐的 Plist 文件，我是如何优雅管理 macOS 后台服务的</span></h1>
+<div>
+<img class="lazy" alt="Article Cover Image" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/d03f91fde8c034a371fe081c38d6ae6f.png" style="display: block; margin: 0 auto;"><br><h3>macOS 后台服务管理，本该更优雅一点</h3><p>对于喜欢折腾 macOS 的效率玩家或开发者来说，系统底层的 <code>launchd</code> 绝对是个让人又爱又恨的东西。</p><p>作为 macOS 的标准后台守护进程管理器，不管是开机自启的脚本、定时执行的自动化任务，还是常驻后台的服务，底层都由它操控。但让人头疼的是，苹果官方只给了一个极其硬核的命令行工具 <code>launchctl</code>。</p><p>前段时间，我折腾着把一台 M4 Mac Mini 改造为本地的 Home Lab，上面跑了各种常驻服务、反向代理和内网穿透工具。为了让这些服务在后台稳定运行且开机自启，我不得不反复在终端里切来切去，手写或修改一堆冗长、容易错漏的 <code>.plist</code> (XML) 配置文件，还要一遍遍地敲 <code>launchctl load</code> 和 <code>unload</code> 命令。</p><p>对于一个追求效率的人来说，这种机械式的操作体验实在不够优雅。</p><h4>顺手的工具，怎么这么难找？</h4><p>在决定自己动手之前，我也试过市面上的现有方案。</p><p>老牌工具 LaunchControl 功能确实很顶，但它的界面过于硬核和复杂，堆满了专业术语，学习曲线陡峭，而且售价不便宜；另一款 Lingon Pro 的界面虽然现代了一些，但作为一款轻量级需求的工具，它依然是付费的闭源商业软件。</p><p>我想要的很简单：一个轻量、直观、能让我随时看清并控制 Mac 后台服务的控制台。既然市场上找不到完全称心如意的，那不如自己动手写一个。于是，就有了 <strong>LaunchManager</strong>。</p><h4>LaunchManager：把复杂的命令行，变成直观的开关</h4><p>LaunchManager 是一款专为 macOS 设计的开源后台服务管理工具。它的想法很纯粹：把那些别扭的命令行和 XML 配置文件，变成一目了然的可视化开关。</p><p>它主要帮我解决了这几个痛点：</p><p><strong>告别终端，可视化管理：</strong> 所有的 User Agents、Global Daemons 等后台进程都被分门别类地整理好。现在只需要在 UI 界面上点一下，就能一键启用、禁用或重启某个服务，不用再去死记硬背复杂的 <code>launchctl</code> 命令。</p><p><strong>运行状态一目了然：</strong> 某个服务到底有没有在跑？有没有报错退出？LaunchManager 提供了直观的状态指示灯，服务的运行状态和 PID 盯着屏幕就能看清。</p><p><strong>极致轻量，清爽克制：</strong> 它没有任何商业化代码和广告，只是个纯粹的工具。界面采用了原生的现代化设计，能很好地融入 macOS 的系统视觉。</p><h4>顺便聊聊 AI 辅助开发与开源</h4><p>作为一个习惯用自动化工具解决问题的开发者，LaunchManager 也是我用 Claude 进行结对编程的产物。AI 的加入确实帮我缩短了从构想到落地的时间，让我能腾出更多精力去琢磨 UI 细节和交互逻辑。</p><p>我深知开源社区对开发者的价值。所以，LaunchManager 采用了 MIT 协议完全开源。它不需要任何费用，任何人都可以查看它的代码，或者根据自己的需求进行二次开发。</p><p><strong>项目主页与下载：</strong> <a href="https://launchmanager.seanhub.top/" target="_blank" rel="external nofollow noopener noreferrer">https://launchmanager.seanhub.top/</a></p><p>如果你也曾被 macOS 的启动项和后台服务折磨过，或者正在为自己的 Mac 寻找一个好用的后台管理面板，不妨试试 LaunchManager。希望这个小工具能帮你省下折腾终端的时间。如果它对你有帮助，欢迎在 GitHub 上帮我点个 Star，这就是对独立开发者最好的鼓励了。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="告别繁琐的 plist 文件，我是如何优雅管理 macOS 后台服务的" href="https://sspai.com/post/110536" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">告别繁琐的 plist 文件，我是如何优雅管理 macOS 后台服务的</span><span class="desc fs12">https://sspai.com/post/110536</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/732240cc.html">Nemotron 3.5 Content Safety: Customizable Multimodal Safety for Global Enterprise AI<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/3ba4c2a1.html">倾听的力量：如何有效开导你的朋友<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/2f9ddd9a.html" title="AI 让写论文更高效了，但你真的用对了吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/04/78316b0d3b6700bde7bada350a7f5f94.jpg"></div><span class="title">AI 让写论文更高效了，但你真的用对了吗？</span></a><a class="item" href="/rss/68828d8a.html" title="Luminara：那个借手机时总让我尴尬的痛点，我自己做了个 App 来解决"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/7455d6ba9c2c36bca936406836f094f5.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"></div><span class="title">Luminara：那个借手机时总让我尴尬的痛点，我自己做了个 App 来解决</span></a><a class="item" href="/rss/aad8dc5b.html" title="Obsidian 模板开发日志（一）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/2424cb6c1bd6ea4a93067c9d01ae0c12.png"></div><span class="title">Obsidian 模板开发日志（一）</span></a><a class="item" href="/rss/ab9c187b.html" title="Tono：我把换壁纸这件小事，放进了 Mac 菜单栏"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/02/aa51550b43eab86580f5becda1986ea9.png"></div><span class="title">Tono：我把换壁纸这件小事，放进了 Mac 菜单栏</span></a><a class="item" href="/rss/c00d5900.html" title="为什么普通高校学生那么努力准备考研，却事倍功半?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/10/efdf1720c8fb24142af763c29400c781.jpg"></div><span class="title">为什么普通高校学生那么努力准备考研，却事倍功半?</span></a><a class="item" href="/rss/6bcb3932.html" title="从「查一下攻略」到「刷了半小时」，我 Vibe 了一个 App 拦住自己"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/11/253552f5abc101f8f05ca038bd065589.png"></div><span class="title">从「查一下攻略」到「刷了半小时」，我 Vibe 了一个 App 拦住自己</span></a><a class="item" href="/rss/20a26909.html" title="互联网赋能颠覆高端制造？清闲OC1 Pro vs 保友金豪E2 Pro"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/06/9745504dcd486c2554e884f5c75d4015.jpg"></div><span class="title">互联网赋能颠覆高端制造？清闲OC1 Pro vs 保友金豪E2 Pro</span></a><a class="item" href="/rss/3ba4c2a1.html" title="倾听的力量：如何有效开导你的朋友"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/05/8b5ea519bc525f1069e17873e3be13d8.jpg"></div><span class="title">倾听的力量：如何有效开导你的朋友</span></a><a class="item" href="/rss/5fce67d8.html" title="免费Docker镜像站失效？部署这款开源工具，自动优选最快节点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/10/bf8df4f7b2891a9b4c118e78eac2e111.jpg"></div><span class="title">免费Docker镜像站失效？部署这款开源工具，自动优选最快节点</span></a><a class="item" href="/rss/a478c1f.html" title="当 AI 把窗外的鸟认成树懒：一台树莓派的观鸟相机调教记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/06/321c89c4153b4534349e5243dec4a0f6.png"></div><span class="title">当 AI 把窗外的鸟认成树懒：一台树莓派的观鸟相机调教记</span></a><a class="item" href="/rss/ba07714e.html" title="文本自动间距落地： DTP的未来会是Web的天下吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7799"></div><span class="title">文本自动间距落地： DTP的未来会是Web的天下吗？</span></a><a class="item" href="/rss/60df8385.html" title="有的短板，错过了就可能补不上了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/06/14b94b43c9285c039ffdb8face32d551.jpg"></div><span class="title">有的短板，错过了就可能补不上了</span></a><a class="item" href="/rss/179c6b4d.html" title="用二手配件装机，或许没网上说的那么不靠谱"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/07/627e91068a46bb1f40c4754b8872b03f.jpg"></div><span class="title">用二手配件装机，或许没网上说的那么不靠谱</span></a><a class="item" href="/rss/f7eef753.html" title="聊点打工人关心的，我做了个更快复制粘贴的浏览器扩展"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/06/07/46fa0b7cb323c7e43a58324151d3fef9.jpg"></div><span class="title">聊点打工人关心的，我做了个更快复制粘贴的浏览器扩展</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

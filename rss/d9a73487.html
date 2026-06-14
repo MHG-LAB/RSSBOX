@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>网络编程代码实例：IO复用版 - RSSBOX</title>
+
+  
+    <meta name="description" content="前言 网络编程代码实例：IO复用版。  代码仓库   yezhening&#x2F;programming-essays: 编程随笔 &#x2F;环境和网络编程&#x2F;IO_multiplexing&#x2F;    内容  使用传输控制协议（TCP） 服务端多进程，一个服务端可连接多个客户端 用户在客户端终端输入，可多次手动通信 在上一份代码实例：多进程版的基础上，服务端增加获取客户端地址的逻辑；更新部分函数使用、错误处理、注释">
+<meta property="og:type" content="article">
+<meta property="og:title" content="网络编程代码实例：IO复用版">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/d9a73487.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="前言 网络编程代码实例：IO复用版。  代码仓库   yezhening&#x2F;programming-essays: 编程随笔 &#x2F;环境和网络编程&#x2F;IO_multiplexing&#x2F;    内容  使用传输控制协议（TCP） 服务端多进程，一个服务端可连接多个客户端 用户在客户端终端输入，可多次手动通信 在上一份代码实例：多进程版的基础上，服务端增加获取客户端地址的逻辑；更新部分函数使用、错误处理、注释">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ad286e491e674fe689d4fdf6f2cc6cf1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=PmlfABwg9gQlZKZf4ZBwueEcCeI%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/78fe813a964946918cd39479f6c242c6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=1Yy6rsPV24DUHtcL4Q9zySfiNUE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58420ec68e5f475b8beef1e2d86c785b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=ptX3rlkDUgoWayFZuemIFx%2FXuBw%3D">
+<meta property="article:published_time" content="2026-06-10T03:59:12.000Z">
+<meta property="article:modified_time" content="2026-06-10T03:59:12.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">代码仓库</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">内容</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">代码（有详细注释）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">server.c</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">client_select.c</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">client_poll.c</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">client_epoll.c</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">结果</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">参考资料</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">作者的话</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-10T03:59:12.000Z">2026-06-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>网络编程代码实例：IO复用版</span></h1>
+<div>
+<h2 data-id="heading-0">前言</h2>
+<p>网络编程代码实例：IO复用版。</p>
+<hr>
+<h2 data-id="heading-1">代码仓库</h2>
+<ul>
+<li>
+<p><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fyezhening%2Fprogramming-essays" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/yezhening/programming-essays" rel="external nofollow noopener noreferrer">yezhening/programming-essays: 编程随笔</a></p>
+<p>/环境和网络编程/IO_multiplexing/</p>
+</li>
+</ul>
+<hr>
+<h2 data-id="heading-2">内容</h2>
+<ul>
+<li>使用传输控制协议（TCP）</li>
+<li>服务端多进程，一个服务端可连接多个客户端</li>
+<li>用户在客户端终端输入，可多次手动通信</li>
+<li>在上一份代码实例：多进程版的基础上，服务端增加获取客户端地址的逻辑；更新部分函数使用、错误处理、注释和Makefile文件；为保证代码简洁，部分输入输出和字符串处理函数未进行错误检测</li>
+<li>3个客户端代码实例分别使用IO复用的select、poll和epoll技术，同时监听用户输入和网络接收，可即时接收服务端进程终止和服务端主机关机消息</li>
+<li>客户端使用shutdown()而不是close()关闭连接，当客户端主动关闭写半部连接后，服务端仍能够接收而不是丢弃批量输入的缓冲区数据</li>
+</ul>
+<hr>
+<h2 data-id="heading-3">代码（有详细注释）</h2>
+<h3 data-id="heading-4">server.c</h3>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 头文件————————————————————</span>
+<span class="hljs-comment">// #include &lt;sys/socket.h&gt; // socket()、sockaddr&#123;&#125;、bind()、listen()、accept()、recv()、send()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span>  <span class="hljs-comment">// perror()、printf()、sprintf()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span> <span class="hljs-comment">// exit()</span></span>
+<span class="hljs-comment">// #include &lt;netinet/in.h&gt; // sockaddr_in&#123;&#125;、htons()、ntohs()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;string.h&gt;</span>    <span class="hljs-comment">// memset()、strcpy()、strcat()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;arpa/inet.h&gt;</span> <span class="hljs-comment">// inet_pton()、inet_ntop()</span></span>
+<span class="hljs-comment">// #include &lt;unistd.h&gt;  // close()、fork()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;errno.h&gt;</span> <span class="hljs-comment">// errno</span></span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 全局常量————————————————————</span><br><span class="hljs-type">const</span> <span class="hljs-type">char</span> g_serv_listen_ip[INET_ADDRSTRLEN] &#x3D; <span class="hljs-string">“0.0.0.0”</span>; <span class="hljs-comment">&#x2F;&#x2F; 服务端监听的IP地址</span><br><span class="hljs-type">const</span> <span class="hljs-type">uint16_t</span> g_serv_listen_port &#x3D; <span class="hljs-number">6000</span>;                 <span class="hljs-comment">&#x2F;&#x2F; 服务端监听的端口号</span><br><span class="hljs-type">const</span> <span class="hljs-type">int</span> g_listen_max_count &#x3D; <span class="hljs-number">5</span>;                         <span class="hljs-comment">&#x2F;&#x2F; 监听的最大连接数</span><br><span class="hljs-type">const</span> <span class="hljs-type">int</span> g_buff_size &#x3D; <span class="hljs-number">32</span>;                               <span class="hljs-comment">&#x2F;&#x2F; 消息缓冲区的大小。单位：字节</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数声明————————————————————</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle_request</span><span class="hljs-params">(<span class="hljs-type">int</span>, <span class="hljs-keyword">struct</span> sockaddr_in)</span>; <span class="hljs-comment">&#x2F;&#x2F; 处理请求</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 主函数————————————————————</span><br><span class="hljs-type">int</span> <span class="hljs-title function_">main</span><span class="hljs-params">(<span class="hljs-type">int</span> arg, <span class="hljs-type">char</span> *argv[])</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 网络连接————————————————————</span><br>    <span class="hljs-type">int</span> listen_fd; <span class="hljs-comment">&#x2F;&#x2F; 监听套接字文件描述符</span><br>    <span class="hljs-comment">&#x2F;&#x2F;  创建套接字并获取套接字文件描述符</span><br>    <span class="hljs-keyword">if</span> ((listen_fd &#x3D; socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) &#x3D;&#x3D; <span class="hljs-number">-1</span>)<br>    &amp;#123;<br>        perror(<span class="hljs-string">“socket() error”</span>);<br>        <span class="hljs-built_in">exit</span>(EXIT_FAILURE);<br>    &amp;#125;</p>
+<pre><code>&lt;span class=&quot;hljs-class&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;sockaddr_in&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;serv_addr&lt;/span&gt;;&lt;/span&gt; &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 初始化服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;serv_addr, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr));
+serv_addr.sin_family = AF_INET;
+serv_addr.sin_port = htons(g_serv_listen_port);
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((inet_pton(AF_INET, g_serv_listen_ip, &amp;amp;serv_addr.sin_addr)) != &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;inet_pton() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 绑定套接字与网络信息&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((bind(listen_fd, (&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr *)(&amp;amp;serv_addr), &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr))) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(listen_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;bind() close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;bind() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 套接字设置被动监听状态&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((listen(listen_fd, g_listen_max_count)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(listen_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;listen() close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;listen() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-class&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;sockaddr_in&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;clie_addr&lt;/span&gt;;&lt;/span&gt; &lt;span class=&quot;hljs-comment&quot;&gt;// 客户端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; clie_addr_size;           &lt;span class=&quot;hljs-comment&quot;&gt;// 客户端网络信息结构体大小&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; connect_fd;               &lt;span class=&quot;hljs-comment&quot;&gt;// 连接套接字文件描述符&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;clie_addr, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(clie_addr));
+clie_addr_size = &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr);
+&lt;span class=&quot;hljs-type&quot;&gt;pid_t&lt;/span&gt; pid; &lt;span class=&quot;hljs-comment&quot;&gt;// 进程标识符&lt;/span&gt;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 循环监听客户端请求&lt;/span&gt;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 原则：父进程不能退出，子进程可以退出&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 与客户端建立连接&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((connect_fd = accept(listen_fd, (&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr *)(&amp;amp;clie_addr), &amp;amp;clie_addr_size)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;accept() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续监听&lt;/span&gt;
+    &amp;#125;
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 创建子进程处理请求&lt;/span&gt;
+    pid = fork();
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (pid == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 错误&lt;/span&gt;
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;fork() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续监听&lt;/span&gt;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (pid == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 子进程&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(listen_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 1.关闭监听套接字文件描述符&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(connect_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;fork() close() connect_fd child_process error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE); &lt;span class=&quot;hljs-comment&quot;&gt;// 子进程退出&lt;/span&gt;
+            &amp;#125;
+
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;fork() close() listen_fd child_process error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE); &lt;span class=&quot;hljs-comment&quot;&gt;// 子进程退出&lt;/span&gt;
+        &amp;#125;
+
+        handle_request(connect_fd, clie_addr); &lt;span class=&quot;hljs-comment&quot;&gt;// 2.处理请求&lt;/span&gt;
+
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(connect_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 3.关闭连接套接字文件描述符&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;fork() close() connect_fd2 child_process error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE); &lt;span class=&quot;hljs-comment&quot;&gt;// 子进程退出&lt;/span&gt;
+        &amp;#125;
+
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_SUCCESS);
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (pid &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 父进程&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(connect_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 关闭连接套接字文件描述符&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;fork() close() connect_fd parent_process error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续监听&lt;/span&gt;
+        &amp;#125;
+    &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(listen_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 父进程关闭监听套接字文件描述符。实际不会执行&lt;/span&gt;
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;close() listen_fd error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数定义————————————————————</span><br><span class="hljs-comment">&#x2F;&#x2F; 处理请求</span><br><span class="hljs-comment">&#x2F;&#x2F; 参数：连接套接字文件描述符，客户端网络信息结构体</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle_request</span><span class="hljs-params">(<span class="hljs-type">int</span> connect_fd, <span class="hljs-keyword">struct</span> sockaddr_in clie_addr)</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 获取客户端的IP地址和端口————————————————————</span><br>    <span class="hljs-type">char</span> clie_ip[INET_ADDRSTRLEN];          <span class="hljs-comment">&#x2F;&#x2F; 客户端的IP地址    如：127.0.0.1</span><br>    <span class="hljs-type">uint16_t</span> clie_port;                     <span class="hljs-comment">&#x2F;&#x2F; 客户端的端口  如：42534</span><br>    <span class="hljs-type">char</span> clie_port_str[<span class="hljs-number">5</span>];                  <span class="hljs-comment">&#x2F;&#x2F; 客户端的端口，char[]类型  如：42534</span><br>    <span class="hljs-type">char</span> clie_ip_port[INET_ADDRSTRLEN + <span class="hljs-number">5</span>]; <span class="hljs-comment">&#x2F;&#x2F; 客户端的IP地址和端口  如：127.0.0.1:42534</span></p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((inet_ntop(AF_INET, &amp;amp;clie_addr.sin_addr, clie_ip, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(clie_ip))) == &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;inet_ntop() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束子进程&lt;/span&gt;
+&amp;#125;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 注意：返回值和第3个参数值相同，区别为一个是常量一个是变量&lt;/span&gt;
+clie_port = ntohs(clie_addr.sin_port);
+&lt;span class=&quot;hljs-built_in&quot;&gt;sprintf&lt;/span&gt;(clie_port_str, &lt;span class=&quot;hljs-string&quot;&gt;&quot;%d&quot;&lt;/span&gt;, clie_port);
+&lt;span class=&quot;hljs-built_in&quot;&gt;strcpy&lt;/span&gt;(clie_ip_port, clie_ip);
+&lt;span class=&quot;hljs-built_in&quot;&gt;strcat&lt;/span&gt;(clie_ip_port, &lt;span class=&quot;hljs-string&quot;&gt;&quot;:&quot;&lt;/span&gt;);
+&lt;span class=&quot;hljs-built_in&quot;&gt;strcat&lt;/span&gt;(clie_ip_port, clie_port_str);
+&lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Client connection: %s\n&quot;&lt;/span&gt;, clie_ip_port);
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 传输消息————————————————————&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_recv[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 从客户端接收的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_send[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 发送到客户端的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; recv_byte;              &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息字节数&lt;/span&gt;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 循环接收和发送消息&lt;/span&gt;
+&amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_recv, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_recv));
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_send, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_send));
+
+    recv_byte = recv(connect_fd, msg_recv, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收消息&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)                                      &lt;span class=&quot;hljs-comment&quot;&gt;// 有消息&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;From %s received message: %s&quot;&lt;/span&gt;, clie_ip_port, msg_recv); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息&lt;/span&gt;
+
+        &lt;span class=&quot;hljs-built_in&quot;&gt;strcpy&lt;/span&gt;(msg_send, msg_recv);                             &lt;span class=&quot;hljs-comment&quot;&gt;// 发送的消息&lt;/span&gt;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((send(connect_fd, msg_send, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 发送消息&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;send() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束子进程&lt;/span&gt;
+        &amp;#125;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 文件末尾EOF：在客户端标准输入Ctrl+D或Ctrl+C&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;From %s received the end of file\n&quot;&lt;/span&gt;, clie_ip_port);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束子进程&lt;/span&gt;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &amp;amp;&amp;amp; (errno == EINTR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 信号或网络中断recv()&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续接收消息&lt;/span&gt;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 错误&lt;/span&gt;
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;recv() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束子进程&lt;/span&gt;
+    &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-5">client_select.c</h3>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 头文件————————————————————</span>
+<span class="hljs-comment">// #include &lt;sys/socket.h&gt; // socket()、sockaddr&#123;&#125;、connect()、send()、recv()、shutdown()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span>  <span class="hljs-comment">// perror()、printf()、gets()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span> <span class="hljs-comment">// exit()</span></span>
+<span class="hljs-comment">// #include &lt;netinet/in.h&gt; // sockaddr_in&#123;&#125;、htons()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;string.h&gt;</span>     <span class="hljs-comment">// memset()、strcat()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;arpa/inet.h&gt;</span>  <span class="hljs-comment">// inet_pton()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;unistd.h&gt;</span>     <span class="hljs-comment">// close()、STDIN_FILENO</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;errno.h&gt;</span>      <span class="hljs-comment">// errno</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/select.h&gt;</span> <span class="hljs-comment">// select()</span></span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 全局常量————————————————————</span><br><span class="hljs-type">const</span> <span class="hljs-type">char</span> g_connect_serv_ip[INET_ADDRSTRLEN] &#x3D; <span class="hljs-string">“127.0.0.1”</span>; <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的IP地址</span><br><span class="hljs-type">const</span> <span class="hljs-type">uint16_t</span> g_connect_serv_port &#x3D; <span class="hljs-number">6000</span>;                   <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的端口号</span><br><span class="hljs-type">const</span> <span class="hljs-type">int</span> g_buff_size &#x3D; <span class="hljs-number">32</span>;                                  <span class="hljs-comment">&#x2F;&#x2F; 消息缓冲区大小。单位：字节</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数声明————————————————————</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span>)</span>; <span class="hljs-comment">&#x2F;&#x2F; 处理</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 主函数————————————————————</span><br><span class="hljs-type">int</span> <span class="hljs-title function_">main</span><span class="hljs-params">(<span class="hljs-type">int</span> argc, <span class="hljs-type">char</span> *argv[])</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 网络连接————————————————————</span><br>    <span class="hljs-type">int</span> sock_fd; <span class="hljs-comment">&#x2F;&#x2F; 套接字文件描述符</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 创建套接字并获取套接字文件描述符</span><br>    <span class="hljs-keyword">if</span> ((sock_fd &#x3D; socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) &#x3D;&#x3D; <span class="hljs-number">-1</span>)<br>    &amp;#123;<br>        perror(<span class="hljs-string">“socket() error”</span>);<br>        <span class="hljs-built_in">exit</span>(EXIT_FAILURE);<br>    &amp;#125;</p>
+<pre><code>&lt;span class=&quot;hljs-class&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;sockaddr_in&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;serv_addr&lt;/span&gt;;&lt;/span&gt; &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 初始化服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;serv_addr, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr));
+serv_addr.sin_family = AF_INET;
+serv_addr.sin_port = htons(g_connect_serv_port);
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((inet_pton(AF_INET, g_connect_serv_ip, &amp;amp;serv_addr.sin_addr)) != &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;inet_pton() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 与服务端建立连接&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((connect(sock_fd, (&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr *)(&amp;amp;serv_addr), &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr))) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+handle(sock_fd); &lt;span class=&quot;hljs-comment&quot;&gt;// 处理&lt;/span&gt;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 关闭套接字文件描述符&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;close() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数定义————————————————————</span><br><span class="hljs-comment">&#x2F;&#x2F; 处理</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span> sock_fd)</span> <span class="hljs-comment">&#x2F;&#x2F; 参数：套接字文件描述符</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; select()准备————————————————————</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 监听标准输入文件描述符和套接字文件描述符的可读条件</span><br>    <span class="hljs-type">int</span> maxfdp1;        <span class="hljs-comment">&#x2F;&#x2F; 要监听描述符的最大值+1</span><br>    fd_set read_fd_set; <span class="hljs-comment">&#x2F;&#x2F; 可读文件描述符集合</span><br>    <span class="hljs-keyword">if</span> (STDIN_FILENO &gt;&#x3D; sock_fd)<br>    &amp;#123;<br>        maxfdp1 &#x3D; STDIN_FILENO + <span class="hljs-number">1</span>;<br>    &amp;#125;<br>    <span class="hljs-keyword">else</span><br>    &amp;#123;<br>        maxfdp1 &#x3D; sock_fd + <span class="hljs-number">1</span>;<br>    &amp;#125;<br>    FD_ZERO(&amp;read_fd_set);</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 传输消息————————————————————&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_send[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 发送到服务端的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_recv[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 从服务端接收的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; recv_byte;              &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息字节数&lt;/span&gt;
+
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符读到文件末尾的标志：0未读到EOF，1读到EOF&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Please input the message to be sent directly below:\n&quot;&lt;/span&gt;);
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 循环发送和接收消息&lt;/span&gt;
+&amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 1.select()调用&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 因为select()返回会修改fd_set，所以每循环都要重新设置监听的fd_set&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 当stdin_eof == 1时，写半部关闭，不需要再设置监听标准输入文件描述符&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+    &amp;#123;
+        FD_SET(STDIN_FILENO, &amp;amp;read_fd_set);
+    &amp;#125;
+    FD_SET(sock_fd, &amp;amp;read_fd_set);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((select(maxfdp1, &amp;amp;read_fd_set, &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;, &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;, &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;select() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 若有错误在下个循环继续调用&lt;/span&gt;
+    &amp;#125;
+
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_send, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_send));
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_recv, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_recv));
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 2.select()检测&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (FD_ISSET(STDIN_FILENO, &amp;amp;read_fd_set)) &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符可读&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((fgets(msg_send, g_buff_size, &lt;span class=&quot;hljs-built_in&quot;&gt;stdin&lt;/span&gt;)) == &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)
+        &lt;span class=&quot;hljs-comment&quot;&gt;// 从标准输入获取消息。错误或遇到文件结尾(EOF)：在客户端标准输入Ctrl+D或Ctrl+C，相当于关闭连接&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;End of connection\n&quot;&lt;/span&gt;);
+
+            stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;                          &lt;span class=&quot;hljs-comment&quot;&gt;// 设置标志&lt;/span&gt;
+            FD_CLR(STDIN_FILENO, &amp;amp;read_fd_set);     &lt;span class=&quot;hljs-comment&quot;&gt;// 清理fd_set&lt;/span&gt;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((shutdown(sock_fd, SHUT_WR)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 写半部关闭&lt;/span&gt;
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;shutdown() error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 不是return，因为可能还需要从网络套接字文件描述符读&lt;/span&gt;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 不需要进入下面的send()，服务端会recv()接收EOF&lt;/span&gt;
+        &amp;#125;
+
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((send(sock_fd, msg_send, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 发送消息&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;send() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Send message: %s&quot;&lt;/span&gt;, msg_send);
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (FD_ISSET(sock_fd, &amp;amp;read_fd_set)) &lt;span class=&quot;hljs-comment&quot;&gt;// 套接字文件描述符可读&lt;/span&gt;
+    &amp;#123;
+        recv_byte = recv(sock_fd, msg_recv, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收消息&lt;/span&gt;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)                                   &lt;span class=&quot;hljs-comment&quot;&gt;// 有数据&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Received message: %s&quot;&lt;/span&gt;, msg_recv); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端进程提前终止，在服务端标准输入Ctrl+C中断进程&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 如果已经调用shutdown()写半部关闭，当服务端recv()EOF后调用close()时，是正常的结束连接&lt;/span&gt;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 否则，是服务端ctrl+c提前关闭连接&lt;/span&gt;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+            &amp;#123;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Server terminated prematurely\n&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &amp;amp;&amp;amp; (errno == EINTR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 信号或网络中断recv()&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续发送和接收数据&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 错误&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;recv() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+    &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-6">client_poll.c</h3>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 头文件————————————————————</span>
+<span class="hljs-comment">// #include &lt;sys/socket.h&gt; // socket()、sockaddr&#123;&#125;、connect()、send()、recv()、shutdown()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span>  <span class="hljs-comment">// perror()、printf()、gets()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span> <span class="hljs-comment">// exit()</span></span>
+<span class="hljs-comment">// #include &lt;netinet/in.h&gt; // sockaddr_in&#123;&#125;、htons()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;string.h&gt;</span>    <span class="hljs-comment">// memset()、strcat()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;arpa/inet.h&gt;</span> <span class="hljs-comment">// inet_pton()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;unistd.h&gt;</span>    <span class="hljs-comment">// close()、STDIN_FILENO</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;errno.h&gt;</span>     <span class="hljs-comment">// errno</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;poll.h&gt;</span>      <span class="hljs-comment">// poll()</span></span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 全局常量————————————————————</span><br><span class="hljs-type">const</span> <span class="hljs-type">char</span> g_connect_serv_ip[INET_ADDRSTRLEN] &#x3D; <span class="hljs-string">“127.0.0.1”</span>; <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的IP地址</span><br><span class="hljs-type">const</span> <span class="hljs-type">uint16_t</span> g_connect_serv_port &#x3D; <span class="hljs-number">6000</span>;                   <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的端口号</span><br><span class="hljs-type">const</span> <span class="hljs-type">int</span> g_buff_size &#x3D; <span class="hljs-number">32</span>;                                  <span class="hljs-comment">&#x2F;&#x2F; 消息缓冲区大小。单位：字节</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数声明————————————————————</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span>)</span>; <span class="hljs-comment">&#x2F;&#x2F; 处理</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 主函数————————————————————</span><br><span class="hljs-type">int</span> <span class="hljs-title function_">main</span><span class="hljs-params">(<span class="hljs-type">int</span> argc, <span class="hljs-type">char</span> *argv[])</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 网络连接————————————————————</span><br>    <span class="hljs-type">int</span> sock_fd; <span class="hljs-comment">&#x2F;&#x2F; 套接字文件描述符</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 创建套接字并获取套接字文件描述符</span><br>    <span class="hljs-keyword">if</span> ((sock_fd &#x3D; socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) &#x3D;&#x3D; <span class="hljs-number">-1</span>)<br>    &amp;#123;<br>        perror(<span class="hljs-string">“socket() error”</span>);<br>        <span class="hljs-built_in">exit</span>(EXIT_FAILURE);<br>    &amp;#125;</p>
+<pre><code>&lt;span class=&quot;hljs-class&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;sockaddr_in&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;serv_addr&lt;/span&gt;;&lt;/span&gt; &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 初始化服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;serv_addr, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr));
+serv_addr.sin_family = AF_INET;
+serv_addr.sin_port = htons(g_connect_serv_port);
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((inet_pton(AF_INET, g_connect_serv_ip, &amp;amp;serv_addr.sin_addr)) != &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;inet_pton() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 与服务端建立连接&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((connect(sock_fd, (&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr *)(&amp;amp;serv_addr), &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr))) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+handle(sock_fd); &lt;span class=&quot;hljs-comment&quot;&gt;// 处理&lt;/span&gt;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 关闭套接字文件描述符&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;close() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数定义————————————————————</span><br><span class="hljs-comment">&#x2F;&#x2F; 处理</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span> sock_fd)</span> <span class="hljs-comment">&#x2F;&#x2F; 参数：套接字文件描述符</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; poll()准备————————————————————</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 监听标准输入文件描述符和套接字文件描述符的可读条件</span><br>    <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">pollfd</span> <span class="hljs-title">pollfd_array</span>[2];</span> <span class="hljs-comment">&#x2F;&#x2F; pollfd&amp;#123;&amp;#125;结构数组</span><br>    pollfd_array[<span class="hljs-number">0</span>].fd &#x3D; STDIN_FILENO;<br>    pollfd_array[<span class="hljs-number">0</span>].events &#x3D; POLLIN;<br>    pollfd_array[<span class="hljs-number">1</span>].fd &#x3D; sock_fd;<br>    pollfd_array[<span class="hljs-number">1</span>].events &#x3D; POLLIN;</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 传输消息————————————————————&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_send[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 发送到服务端的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_recv[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 从服务端接收的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; recv_byte;              &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息字节数&lt;/span&gt;
+
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符读到文件末尾的标志：0未读到EOF，1读到EOF&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Please input the message to be sent directly below:\n&quot;&lt;/span&gt;);
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 循环发送和接收消息&lt;/span&gt;
+&amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 1.poll()调用&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 当stdin_eof == 1时，写半部关闭，不需要再设置监听标准输入文件描述符&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 不监听的成员fd设置为-1，会忽略成员events，返回时将成员revents置0&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    &amp;#123;
+        pollfd_array[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;].fd = &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((poll(pollfd_array, &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;poll() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 若有错误在下个循环继续调用&lt;/span&gt;
+    &amp;#125;
+
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_send, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_send));
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_recv, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_recv));
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 2.poll()检测&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (pollfd_array[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;].revents &amp;amp; (POLLIN | POLLERR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符可读&lt;/span&gt;
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((fgets(msg_send, g_buff_size, &lt;span class=&quot;hljs-built_in&quot;&gt;stdin&lt;/span&gt;)) == &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)
+        &lt;span class=&quot;hljs-comment&quot;&gt;// 从标准输入获取消息。错误或遇到文件结尾(EOF)：在客户端标准输入Ctrl+D或Ctrl+C，相当于关闭连接&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;End of connection\n&quot;&lt;/span&gt;);
+
+            stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;                          &lt;span class=&quot;hljs-comment&quot;&gt;// 设置标志&lt;/span&gt;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((shutdown(sock_fd, SHUT_WR)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 写半部关闭&lt;/span&gt;
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;shutdown() error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 不是return，因为可能还需要从网络套接字文件描述符读&lt;/span&gt;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 不需要进入下面的send()，服务端会recv()接收EOF&lt;/span&gt;
+        &amp;#125;
+
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((send(sock_fd, msg_send, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 发送消息&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;send() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Send message: %s&quot;&lt;/span&gt;, msg_send);
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (pollfd_array[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;].revents &amp;amp; (POLLIN | POLLERR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 套接字文件描述符可读&lt;/span&gt;
+    &amp;#123;
+        recv_byte = recv(sock_fd, msg_recv, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收消息&lt;/span&gt;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)                                   &lt;span class=&quot;hljs-comment&quot;&gt;// 有数据&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Received message: %s&quot;&lt;/span&gt;, msg_recv); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端进程提前终止，在服务端标准输入Ctrl+C中断进程&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 如果已经调用shutdown()写半部关闭，当服务端recv()EOF后调用close()时，是正常的结束连接&lt;/span&gt;
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 否则，是服务端ctrl+c提前关闭连接&lt;/span&gt;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+            &amp;#123;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Server terminated prematurely\n&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &amp;amp;&amp;amp; (errno == EINTR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 信号或网络中断recv()&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续发送和接收数据&lt;/span&gt;
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 错误&lt;/span&gt;
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;recv() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+        &amp;#125;
+    &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-7">client_epoll.c</h3>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 头文件————————————————————</span>
+<span class="hljs-comment">// #include &lt;sys/socket.h&gt; // socket()、sockaddr&#123;&#125;、connect()、send()、recv()、shutdown()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdio.h&gt;</span>  <span class="hljs-comment">// perror()、printf()、gets()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;stdlib.h&gt;</span> <span class="hljs-comment">// exit()</span></span>
+<span class="hljs-comment">// #include &lt;netinet/in.h&gt; // sockaddr_in&#123;&#125;、htons()</span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;string.h&gt;</span>    <span class="hljs-comment">// memset()、strcat()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;arpa/inet.h&gt;</span> <span class="hljs-comment">// inet_pton()</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;unistd.h&gt;</span>    <span class="hljs-comment">// close()、STDIN_FILENO</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;errno.h&gt;</span>     <span class="hljs-comment">// errno</span></span>
+<span class="hljs-meta">#<span class="hljs-keyword">include</span> <span class="hljs-string">&lt;sys/epoll.h&gt;</span> <span class="hljs-comment">// epoll()</span></span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 全局常量————————————————————</span><br><span class="hljs-type">const</span> <span class="hljs-type">char</span> g_connect_serv_ip[INET_ADDRSTRLEN] &#x3D; <span class="hljs-string">“127.0.0.1”</span>; <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的IP地址</span><br><span class="hljs-type">const</span> <span class="hljs-type">uint16_t</span> g_connect_serv_port &#x3D; <span class="hljs-number">6000</span>;                   <span class="hljs-comment">&#x2F;&#x2F; 连接服务端的端口号</span><br><span class="hljs-type">const</span> <span class="hljs-type">int</span> g_buff_size &#x3D; <span class="hljs-number">32</span>;                                  <span class="hljs-comment">&#x2F;&#x2F; 消息缓冲区大小。单位：字节</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数声明————————————————————</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span>)</span>; <span class="hljs-comment">&#x2F;&#x2F; 处理</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 主函数————————————————————</span><br><span class="hljs-type">int</span> <span class="hljs-title function_">main</span><span class="hljs-params">(<span class="hljs-type">int</span> argc, <span class="hljs-type">char</span> *argv[])</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 网络连接————————————————————</span><br>    <span class="hljs-type">int</span> sock_fd; <span class="hljs-comment">&#x2F;&#x2F; 套接字文件描述符</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 创建套接字并获取套接字文件描述符</span><br>    <span class="hljs-keyword">if</span> ((sock_fd &#x3D; socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) &#x3D;&#x3D; <span class="hljs-number">-1</span>)<br>    &amp;#123;<br>        perror(<span class="hljs-string">“socket() error”</span>);<br>        <span class="hljs-built_in">exit</span>(EXIT_FAILURE);<br>    &amp;#125;</p>
+<pre><code>&lt;span class=&quot;hljs-class&quot;&gt;&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;sockaddr_in&lt;/span&gt; &lt;span class=&quot;hljs-title&quot;&gt;serv_addr&lt;/span&gt;;&lt;/span&gt; &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-comment&quot;&gt;// 初始化服务端网络信息结构体&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;serv_addr, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr));
+serv_addr.sin_family = AF_INET;
+serv_addr.sin_port = htons(g_connect_serv_port);
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((inet_pton(AF_INET, g_connect_serv_ip, &amp;amp;serv_addr.sin_addr)) != &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;inet_pton() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 与服务端建立连接&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((connect(sock_fd, (&lt;span class=&quot;hljs-keyword&quot;&gt;struct&lt;/span&gt; sockaddr *)(&amp;amp;serv_addr), &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(serv_addr))) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;connect() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+handle(sock_fd); &lt;span class=&quot;hljs-comment&quot;&gt;// 处理&lt;/span&gt;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 关闭套接字文件描述符&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(sock_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;close() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-built_in&quot;&gt;exit&lt;/span&gt;(EXIT_FAILURE);
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 函数定义————————————————————</span><br><span class="hljs-comment">&#x2F;&#x2F; 处理</span><br><span class="hljs-type">void</span> <span class="hljs-title function_">handle</span><span class="hljs-params">(<span class="hljs-type">int</span> sock_fd)</span> <span class="hljs-comment">&#x2F;&#x2F; 参数：套接字文件描述符</span><br>&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; epoll()准备————————————————————</span><br>    <span class="hljs-comment">&#x2F;&#x2F; 监听标准输入文件描述符和套接字文件描述符的可读条件</span><br>    <span class="hljs-type">int</span> epoll_fd;                           <span class="hljs-comment">&#x2F;&#x2F; epoll用的文件描述符</span><br>    <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">epoll_event</span> <span class="hljs-title">epoll_listen_event</span>;</span>  <span class="hljs-comment">&#x2F;&#x2F; epoll监听的事件</span><br>    <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">epoll_event</span> <span class="hljs-title">epoll_wait_event</span>[2];</span> <span class="hljs-comment">&#x2F;&#x2F; epoll等待的事件</span><br>    <span class="hljs-type">int</span> epoll_wait_event_num;               <span class="hljs-comment">&#x2F;&#x2F; epoll_wait()调用返回的就绪事件数</span></p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_fd = epoll_create(&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_create() error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+&amp;#125;
+epoll_listen_event.data.fd = STDIN_FILENO;
+epoll_listen_event.events = EPOLLIN; &lt;span class=&quot;hljs-comment&quot;&gt;// 默认水平触发，未设置边缘触发&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_ctl(epoll_fd, EPOLL_CTL_ADD, STDIN_FILENO, &amp;amp;epoll_listen_event)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(epoll_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 注意关闭epoll用的文件描述符&lt;/span&gt;
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() STDIN_FILENO EPOLL_CTL_ADD close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() STDIN_FILENO EPOLL_CTL_ADD error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+&amp;#125;
+epoll_listen_event.data.fd = sock_fd; &lt;span class=&quot;hljs-comment&quot;&gt;// 同一个变量可重复使用，修改后注册到epoll_ctl()即可&lt;/span&gt;
+epoll_listen_event.events = EPOLLIN;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_ctl(epoll_fd, EPOLL_CTL_ADD, sock_fd, &amp;amp;epoll_listen_event)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(epoll_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() sock_fd close() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+    &amp;#125;
+
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() sock_fd error&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 传输消息————————————————————&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_send[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 发送到服务端的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;char&lt;/span&gt; msg_recv[g_buff_size]; &lt;span class=&quot;hljs-comment&quot;&gt;// 从服务端接收的消息缓冲区&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; recv_byte;              &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息字节数&lt;/span&gt;
+
+&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符读到文件末尾的标志：0未读到EOF，1读到EOF&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Please input the message to be sent directly below:\n&quot;&lt;/span&gt;);
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 循环发送和接收消息&lt;/span&gt;
+&amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 1.epoll()调用&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 当stdin_eof == 1时，写半部关闭，不需要再设置监听标准输入文件描述符&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_ctl(epoll_fd, EPOLL_CTL_DEL, STDIN_FILENO, &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 删除事件时，第4个参数设置为NULL&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(epoll_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() STDIN_FILENO EPOLL_CTL_DEL close() error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+            &amp;#125;
+
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_ctl() STDIN_FILENO EPOLL_CTL_DEL error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+        &amp;#125;
+    &amp;#125;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_wait_event_num = epoll_wait(epoll_fd, epoll_wait_event, &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(epoll_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+        &amp;#123;
+            perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_wait() close() error&quot;&lt;/span&gt;);
+            &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+        &amp;#125;
+
+        perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;epoll_wait() error&quot;&lt;/span&gt;);
+        &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 若有错误在下个循环继续调用&lt;/span&gt;
+    &amp;#125;
+
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_send, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_send));
+    &lt;span class=&quot;hljs-built_in&quot;&gt;memset&lt;/span&gt;(&amp;amp;msg_recv, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-keyword&quot;&gt;sizeof&lt;/span&gt;(*msg_recv));
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 2.epoll()检测&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-type&quot;&gt;int&lt;/span&gt; i = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; i &amp;lt; epoll_wait_event_num; ++i)
+    &amp;#123;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_wait_event[i].data.fd == STDIN_FILENO) &amp;amp;&amp;amp; (epoll_wait_event[i].events &amp;amp; (EPOLLIN | EPOLLERR))) &lt;span class=&quot;hljs-comment&quot;&gt;// 标准输入文件描述符可读&lt;/span&gt;
+        &amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((fgets(msg_send, g_buff_size, &lt;span class=&quot;hljs-built_in&quot;&gt;stdin&lt;/span&gt;)) == &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;)
+            &lt;span class=&quot;hljs-comment&quot;&gt;// 从标准输入获取消息。错误或遇到文件结尾(EOF)：在客户端标准输入Ctrl+D或Ctrl+C，相当于关闭连接&lt;/span&gt;
+            &amp;#123;
+                &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;End of connection\n&quot;&lt;/span&gt;);
+
+                stdin_eof = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;;                          &lt;span class=&quot;hljs-comment&quot;&gt;// 设置标志&lt;/span&gt;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((shutdown(sock_fd, SHUT_WR)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 写半部关闭&lt;/span&gt;
+                &amp;#123;
+                    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;shutdown() error&quot;&lt;/span&gt;);
+                    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+                &amp;#125;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;;
+                &lt;span class=&quot;hljs-comment&quot;&gt;// 不是return，因为可能还需要从网络套接字文件描述符读&lt;/span&gt;
+                &lt;span class=&quot;hljs-comment&quot;&gt;// 不需要进入下面的send()，服务端会recv()接收EOF&lt;/span&gt;
+            &amp;#125;
+
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((send(sock_fd, msg_send, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 发送消息&lt;/span&gt;
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;send() error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭连接套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Send message: %s&quot;&lt;/span&gt;, msg_send);
+        &amp;#125;
+        &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((epoll_wait_event[i].data.fd == sock_fd) &amp;amp;&amp;amp; (epoll_wait_event[i].events &amp;amp; (EPOLLIN | EPOLLERR))) &lt;span class=&quot;hljs-comment&quot;&gt;// 套接字文件描述符可读&lt;/span&gt;
+        &amp;#123;
+            recv_byte = recv(sock_fd, msg_recv, g_buff_size, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收消息&lt;/span&gt;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)                                   &lt;span class=&quot;hljs-comment&quot;&gt;// 有数据&lt;/span&gt;
+            &amp;#123;
+                &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Received message: %s&quot;&lt;/span&gt;, msg_recv); &lt;span class=&quot;hljs-comment&quot;&gt;// 接收的消息&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 服务端进程提前终止，在服务端标准输入Ctrl+C中断进程&lt;/span&gt;
+            &amp;#123;
+                &lt;span class=&quot;hljs-comment&quot;&gt;// 如果已经调用shutdown()写半部关闭，当服务端recv()EOF后调用close()时，是正常的结束连接&lt;/span&gt;
+                &lt;span class=&quot;hljs-comment&quot;&gt;// 否则，是服务端ctrl+c提前关闭连接&lt;/span&gt;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (stdin_eof == &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+                &amp;#123;
+                    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+                &amp;#125;
+
+                &lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;Server terminated prematurely\n&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &amp;amp;&amp;amp; (errno == EINTR)) &lt;span class=&quot;hljs-comment&quot;&gt;// 信号或网络中断recv()&lt;/span&gt;
+            &amp;#123;
+                &lt;span class=&quot;hljs-keyword&quot;&gt;continue&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 继续发送和接收数据&lt;/span&gt;
+            &amp;#125;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (recv_byte == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;) &lt;span class=&quot;hljs-comment&quot;&gt;// 错误&lt;/span&gt;
+            &amp;#123;
+                perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;recv() error&quot;&lt;/span&gt;);
+                &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;; &lt;span class=&quot;hljs-comment&quot;&gt;// 函数返回后，关闭套接字文件描述符，结束进程&lt;/span&gt;
+            &amp;#125;
+        &amp;#125;
+    &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ((close(epoll_fd)) == &lt;span class=&quot;hljs-number&quot;&gt;-1&lt;/span&gt;)
+&amp;#123;
+    perror(&lt;span class=&quot;hljs-string&quot;&gt;&quot;close()&quot;&lt;/span&gt;);
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+&amp;#125;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h2 data-id="heading-8">结果</h2>
+<p>操作时序：</p>
+<ol>
+<li>启动服务端</li>
+<li>启动client_select，发送消息"client_select"</li>
+<li>启动client_poll，发送消息"client_poll"</li>
+<li>启动client_epoll，发送消息"client_epoll"</li>
+<li>客户端client_select，使用Ctrl+C异常终止</li>
+<li>客户端client_poll，使用Ctrl+D正常终止</li>
+<li>服务端，使用Ctrl+C异常终止</li>
+<li>客户端client_epoll，被迫终止</li>
+</ol>
+<p>server：</p>
+<p><img class="lazy" alt="server.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></p>
+<p>client_select：</p>
+<p><img class="lazy" alt="client_select.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ad286e491e674fe689d4fdf6f2cc6cf1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=PmlfABwg9gQlZKZf4ZBwueEcCeI%3D"></p>
+<p>client_poll：</p>
+<p><img class="lazy" alt="client_poll.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/78fe813a964946918cd39479f6c242c6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=1Yy6rsPV24DUHtcL4Q9zySfiNUE%3D"></p>
+<p>client_epoll：</p>
+<p><img class="lazy" alt="client_epoll.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58420ec68e5f475b8beef1e2d86c785b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&amp;x-expires=1781668751&amp;x-signature=ptX3rlkDUgoWayFZuemIFx%2FXuBw%3D"></p>
+<hr>
+<h2 data-id="heading-9">总结</h2>
+<p>网络编程代码实例：IO复用版。</p>
+<hr>
+<h2 data-id="heading-10">参考资料</h2>
+<ul>
+<li>《UNIX环境高级编程（第3版）》作者：W.Richard Stevens，Stephen A.Rago</li>
+<li>《UNIX网络编程（第3版）》作者：W.Richard Stevens，Bill Fenner，Andrew M.Rudoff</li>
+</ul>
+<hr>
+<h2 data-id="heading-11">作者的话</h2>
+<ul>
+<li><strong>感谢参考资料的作者/博主</strong></li>
+<li>作者：夜悊</li>
+<li>版权所有，转载请注明出处，谢谢~</li>
+<li><strong>如果文章对你有帮助，请点个赞或加个粉丝吧，你的支持就是作者的动力~</strong></li>
+<li>文章在描述时有疑惑的地方，请留言，定会一一耐心讨论、解答</li>
+<li>文章在认识上有错误的地方, 敬请批评指正</li>
+<li>望读者们都能有所收获</li>
+</ul>
+<hr>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="网络编程代码实例：IO复用版" href="https://juejin.cn/post/7649271193527484426" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">网络编程代码实例：IO复用版</span><span class="desc fs12">https://juejin.cn/post/7649271193527484426</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/4392ea5e.html">Linux字符设备驱动的实现与QEMU验证<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8c6deee6.html">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/8c6deee6.html" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5373"></div><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></a><a class="item" href="/rss/eefd564d.html" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2008"></div><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/7abc5878.html" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2331"></div><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/c37d5e7b.html" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5322"></div><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d544d93c.html" title="网络问题导致 Pod Pending"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3667"></div><span class="title">网络问题导致 Pod Pending</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

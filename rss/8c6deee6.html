@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise - RSSBOX</title>
+
+  
+    <meta name="description" content="深入浅出 JavaScript 同步异步与 Promise — 从小白到上手 前言 写 JS 的同学一定见过这种&quot;反直觉&quot;的现象：明明 setTimeout 写在最前面，结果却是最后才输出。这背后就是 JavaScript 最核心的执行机制——同步与异步。 本文带你从&quot;单线程为什么还能不卡&quot;这个问题出发，一步步搞懂 Event Loop、Promise，以及如何优雅地控制异步流程。  一、JS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/8c6deee6.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="深入浅出 JavaScript 同步异步与 Promise — 从小白到上手 前言 写 JS 的同学一定见过这种&quot;反直觉&quot;的现象：明明 setTimeout 写在最前面，结果却是最后才输出。这背后就是 JavaScript 最核心的执行机制——同步与异步。 本文带你从&quot;单线程为什么还能不卡&quot;这个问题出发，一步步搞懂 Event Loop、Promise，以及如何优雅地控制异步流程。  一、JS">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-10T04:10:48.000Z">
+<meta property="article:modified_time" content="2026-06-10T04:10:48.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">深入浅出 JavaScript 同步异步与 Promise — 从小白到上手</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、JS 为什么是单线程？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、遇到耗时任务怎么办？—— Event Loop（事件循环）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、异步顺序怎么控制？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、Promise — 给异步任务一个&quot;承诺&quot;</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 Promise 是什么？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 Promise 核心要点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 fetch — Promise 的最佳实践</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 手写 sleep 函数，彻底搞懂 Promise</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、来挑战一下</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-10T04:10:48.000Z">2026-06-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></h1>
+<div>
+<h2 data-id="heading-0">深入浅出 JavaScript 同步异步与 Promise — 从小白到上手</h2>
+<h3 data-id="heading-1">前言</h3>
+<p>写 JS 的同学一定见过这种"反直觉"的现象：明明 <code>setTimeout</code> 写在最前面，结果却是最后才输出。这背后就是 JavaScript 最核心的执行机制——<strong>同步与异步</strong>。</p>
+<p>本文带你从"单线程为什么还能不卡"这个问题出发，一步步搞懂 Event Loop、Promise，以及如何优雅地控制异步流程。</p>
+<hr>
+<h3 data-id="heading-2">一、JS 为什么是单线程？</h3>
+<p>先看最简单的同步代码：</p>
+<pre><code class="hljs language-ini" lang="ini">let <span class="hljs-attr">a</span> = <span class="hljs-number">1</span><span class="hljs-comment">;</span>
+let <span class="hljs-attr">b</span> = <span class="hljs-number">2</span><span class="hljs-comment">;</span>
+let <span class="hljs-attr">c</span> = <span class="hljs-number">3</span><span class="hljs-comment">;</span>
+console.log(a + b + c)<span class="hljs-comment">; // 6</span>
+</code></pre>
+<p>一行执行完才执行下一行，这就是<strong>同步（Sync）</strong> ——顺序执行，毫无意外。</p>
+<p>那为什么 JS 不搞多线程？C++、Java 多线程执行效率高，但编程模型复杂。JS 最初设计出来是为了在浏览器里操作 DOM、响应用户交互，如果多个线程同时操作同一个 DOM 节点，到底听谁的？所以 JS 干脆选择了<strong>单进程单线程</strong>，够简单、够可靠。</p>
+<p><strong>类比理解：</strong></p>
+<ul>
+<li><strong>进程</strong> = 董事长（有 PID），负责分配公司资源</li>
+<li><strong>线程</strong> = 经理，实际干活的人</li>
+<li>JS 这家公司只有<strong>一个董事长 + 一个经理</strong>，事情一件一件来，不会乱也不会打架</li>
+</ul>
+<hr>
+<h3 data-id="heading-3">二、遇到耗时任务怎么办？—— Event Loop（事件循环）</h3>
+<p>单线程最大的问题就是：遇到耗时任务（定时器、网络请求）怎么办？难道整个页面卡住不动？</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'start'</span>);
+
+<p><span class="hljs-built_in">setTimeout</span>(<span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘222’</span>);<br>&amp;#125;, <span class="hljs-number">1000</span>);</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘end’</span>);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 输出顺序：start → end → 222</span><br></p></code></pre><p></p>
+<p><code>222</code> 明明写在前面，却是最后输出。因为 JS 的执行策略是：</p>
+<ol>
+<li><strong>先把同步代码执行完</strong> — 同步代码是用户马上需要看到的页面内容，不能拖</li>
+<li>遇到 <code>setTimeout</code>、<code>fetch</code>、事件监听等<strong>耗时性任务（Async Task）</strong> ，JS 会把它们丢进 <strong>Event Loop（事件循环）</strong> ，暂时跳过</li>
+<li>同步代码全部跑完后，再到 Event Loop 里把异步任务取出来执行</li>
+</ol>
+<blockquote>
+<p><strong>核心知识点：</strong> CPU 的执行时间是按几十毫秒的轮询分配给进程的。JS 不能让一个耗时任务霸占主线程不放，所以用 Event Loop 把异步任务"排队"，同步清空后再回头处理。</p>
+</blockquote>
+<p><strong>画个图帮你记住：</strong></p>
+<pre><code class="hljs language-arduino" lang="arduino">调用栈（同步代码一条道走到黑）
+    ↓ 遇到异步 → 丢进任务队列
+任务队列（setTimeout、fetch、事件...）
+    ↓ 等同步代码全跑完
+拿出来一个一个执行
+</code></pre>
+<hr>
+<h3 data-id="heading-4">三、异步顺序怎么控制？</h3>
+<p>真实开发中常有这种需求：</p>
+<blockquote>
+<p>A. fetch 获取所有用户列表 → B. 根据结果再 fetch 每个用户详情</p>
+</blockquote>
+<p>B 依赖 A 的结果，这种"串行异步"如果只用回调函数写，就会陷入<strong>回调地狱</strong>：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 反模式，别这么写</span>
+<span class="hljs-title function_">getUsers</span>(<span class="hljs-keyword">function</span>(<span class="hljs-params">users</span>) &#123;
+    <span class="hljs-title function_">getUserDetail</span>(users[<span class="hljs-number">0</span>].<span class="hljs-property">id</span>, <span class="hljs-keyword">function</span>(<span class="hljs-params">detail</span>) &#123;
+        <span class="hljs-title function_">getOrders</span>(detail.<span class="hljs-property">id</span>, <span class="hljs-keyword">function</span>(<span class="hljs-params">orders</span>) &#123;
+            <span class="hljs-comment">// 一层套一层，越套越深...</span>
+        &#125;);
+    &#125;);
+&#125;);
+</code></pre>
+<p>所以 ES6 带来了 <strong>Promise</strong>，专门解决异步流程控制。</p>
+<hr>
+<h3 data-id="heading-5">四、Promise — 给异步任务一个"承诺"</h3>
+<h4 data-id="heading-6">4.1 Promise 是什么？</h4>
+<p>把 Promise 理解成一张<strong>承诺书</strong>：</p>
+<ul>
+<li>你说"2 秒后给你结果" → 这就是创建了一个 Promise</li>
+<li>2 秒后成功了 → <strong>履约（resolve）</strong> ，走 <code>.then()</code></li>
+<li>2 秒后失败了 → <strong>毁约（reject）</strong> ，走 <code>.catch()</code></li>
+<li>不管成败 → 最后都会走 <code>.finally()</code></li>
+</ul>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> p = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve, reject</span>) =&gt;</span> &#123;
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'许诺言'</span>);  <span class="hljs-comment">// executor 立即执行！这是同步代码</span>
+
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 耗时性任务，2 秒后出结果&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;setTimeout&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;() =&amp;gt;&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// resolve(666);         // 成功 → then&lt;/span&gt;
+    &lt;span class=&quot;hljs-title function_&quot;&gt;reject&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;网络错误&#39;&lt;/span&gt;);       &lt;span class=&quot;hljs-comment&quot;&gt;// 失败 → catch&lt;/span&gt;
+&amp;#125;, &lt;span class=&quot;hljs-number&quot;&gt;2000&lt;/span&gt;);
+</code></pre>
+<p>&amp;#125;);</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(p.<span class="hljs-property"><strong>proto</strong></span>);  <span class="hljs-comment">&#x2F;&#x2F; then&#x2F;catch&#x2F;finally 都在原型上</span></p>
+<p>p<br>    .<span class="hljs-title function_">then</span>(<span class="hljs-function"><span class="hljs-params">data</span> &#x3D;&gt;</span> &amp;#123;<br>        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(data);   <span class="hljs-comment">&#x2F;&#x2F; resolve 传的值会到这里</span><br>    &amp;#125;)<br>    .<span class="hljs-title function_">catch</span>(<span class="hljs-function"><span class="hljs-params">error</span> &#x3D;&gt;</span> &amp;#123;<br>        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(error);  <span class="hljs-comment">&#x2F;&#x2F; reject 传的值会到这里</span><br>    &amp;#125;)<br>    .<span class="hljs-title function_">finally</span>(<span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘finally’</span>);  <span class="hljs-comment">&#x2F;&#x2F; 不管成败都会执行</span><br>    &amp;#125;);<br></p></code></pre><p></p>
+<h4 data-id="heading-7">4.2 Promise 核心要点</h4>
+<table><thead><tr><th>要点</th><th>说明</th></tr></thead><tbody><tr><td><strong>executor 立即执行</strong></td><td><code>new Promise(fn)</code> 里的 <code>fn</code> 是<strong>同步</strong>的，Promise 只是容纳异步任务的"容器"</td></tr><tr><td><strong>resolve</strong></td><td>表示异步任务成功 → 触发 <code>.then()</code></td></tr><tr><td><strong>reject</strong></td><td>表示异步任务失败 → 触发 <code>.catch()</code></td></tr><tr><td><strong>状态不可逆</strong></td><td>一旦 resolve 或 reject，状态就固定了，不能反悔</td></tr><tr><td><strong>链式调用</strong></td><td><code>.then().catch().finally()</code> 像流水线一样处理结果</td></tr></tbody></table>
+<h4 data-id="heading-8">4.3 fetch — Promise 的最佳实践</h4>
+<p><code>fetch</code> 是浏览器内置 API，底层返回的就是 Promise：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'start'</span>);
+
+<p><span class="hljs-title function_">fetch</span>(<span class="hljs-string">‘<a target="_blank" rel="external nofollow noopener noreferrer" href="https://api.deepseek.com/chat/completions&#39;">https://api.deepseek.com/chat/completions&#39;</a></span>, &amp;#123;<br>    <span class="hljs-attr">method</span>: <span class="hljs-string">‘POST’</span>,<br>&amp;#125;)<br>    .<span class="hljs-title function_">then</span>(<span class="hljs-function"><span class="hljs-params">data</span> &#x3D;&gt;</span> &amp;#123;<br>        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(data);  <span class="hljs-comment">&#x2F;&#x2F; 响应成功时处理</span><br>    &amp;#125;)<br>    .<span class="hljs-title function_">catch</span>(<span class="hljs-function"><span class="hljs-params">error</span> &#x3D;&gt;</span> &amp;#123;<br>        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(error); <span class="hljs-comment">&#x2F;&#x2F; 网络出错时处理</span><br>    &amp;#125;);</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘end’</span>);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 输出：start → end → data（data 是异步的，最后到）</span><br></p></code></pre><p></p>
+<h4 data-id="heading-9">4.4 手写 sleep 函数，彻底搞懂 Promise</h4>
+<p>JS 没有像 Python 那样的 <code>time.sleep()</code>，但我们可以用 Promise 自己封装：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">function</span> <span class="hljs-title function_">sleep</span>(<span class="hljs-params">t</span>) &#123;
+    <span class="hljs-keyword">const</span> p = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve, reject</span>) =&gt;</span> &#123;
+        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'同步'</span>);        <span class="hljs-comment">// executor 立即执行！</span>
+        <span class="hljs-built_in">setTimeout</span>(<span class="hljs-function">() =&gt;</span> &#123;
+            <span class="hljs-title function_">resolve</span>();              <span class="hljs-comment">// t 毫秒后履约</span>
+        &#125;, t);
+    &#125;);
+    <span class="hljs-keyword">return</span> p;                       <span class="hljs-comment">// 返回 Promise，让外面 .then()</span>
+&#125;
+
+<p><span class="hljs-title function_">sleep</span>(<span class="hljs-number">2000</span>).<span class="hljs-title function_">then</span>(<span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘2000ms 后执行’</span>);<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 输出：</span><br><span class="hljs-comment">&#x2F;&#x2F; 同步            ← 立即输出</span><br><span class="hljs-comment">&#x2F;&#x2F; 2000ms 后执行    ← 2 秒后输出</span><br></p></code></pre><p></p>
+<p>这个 <code>sleep</code> 完美展示了 Promise 的套路：</p>
+<ol>
+<li><code>new Promise</code> 包裹异步操作</li>
+<li>executor 里的<strong>同步代码立即执行</strong>（<code>console.log('同步')</code>）</li>
+<li>异步任务完成 → 调用 <code>resolve</code></li>
+<li>返回 Promise，外部用 <code>.then()</code> 拿到结果</li>
+</ol>
+<hr>
+<h3 data-id="heading-10">五、总结</h3>
+<table><thead><tr><th>概念</th><th>一句话</th></tr></thead><tbody><tr><td><strong>同步</strong></td><td>上一行跑完再跑下一行</td></tr><tr><td><strong>异步</strong></td><td>先跳过，同步跑完再回来处理</td></tr><tr><td><strong>Event Loop</strong></td><td>JS 的"调度中心"，把异步任务排队，同步清空后再取</td></tr><tr><td><strong>Promise</strong></td><td>异步任务的"承诺书"，resolve → then，reject → catch</td></tr><tr><td><strong>executor</strong></td><td><code>new Promise(fn)</code> 里的 fn，<strong>同步立即执行</strong>，内部包裹异步任务</td></tr></tbody></table>
+<p><strong>最后一句话记住 Promise：</strong></p>
+<blockquote>
+<p>Promise 是容纳异步任务的容器，executor 同步立即执行；成功调 resolve → 走 then，失败调 reject → 走 catch。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-11">六、来挑战一下</h3>
+<p>下面代码的输出顺序是什么？（答案在最后）</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'1'</span>);
+
+<p><span class="hljs-built_in">setTimeout</span>(<span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘2’</span>);<br>&amp;#125;, <span class="hljs-number">0</span>);</p>
+<p><span class="hljs-keyword">const</span> p &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">Promise</span>(<span class="hljs-function">(<span class="hljs-params">resolve, reject</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘3’</span>);<br>    <span class="hljs-title function_">resolve</span>(<span class="hljs-string">‘4’</span>);<br>&amp;#125;);</p>
+<p>p.<span class="hljs-title function_">then</span>(<span class="hljs-function"><span class="hljs-params">data</span> &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(data);<br>&amp;#125;);</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘5’</span>);<br></p></code></pre><p></p>
+<hr>
+<blockquote>
+<p><strong>答案：<code>1 → 3 → 5 → 4 → 2</code></strong></p>
+<p>解析：</p>
+<ol>
+<li><code>console.log('1')</code> — 同步，直接输出 <code>1</code></li>
+<li><code>setTimeout</code> — 异步，丢进<strong>宏任务</strong>队列，跳过</li>
+<li>Promise executor — <strong>同步立即执行</strong>，输出 <code>3</code>，<code>resolve('4')</code> 把 <code>.then</code> 丢进<strong>微任务</strong>队列</li>
+<li><code>console.log('5')</code> — 同步，输出 <code>5</code></li>
+<li>同步跑完 → 先清空<strong>微任务</strong>（Promise.then）→ 输出 <code>4</code></li>
+<li>再处理<strong>宏任务</strong>（setTimeout）→ 输出 <code>2</code></li>
+</ol>
+</blockquote>
+<p>如果你能完整解释这个输出顺序，恭喜，JS 同步异步机制已经拿下了！🎉</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise" href="https://juejin.cn/post/7649258799287877651" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span><span class="desc fs12">https://juejin.cn/post/7649258799287877651</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/d9a73487.html">网络编程代码实例：IO复用版<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/eefd564d.html">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/eefd564d.html" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2008"></div><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/7abc5878.html" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2331"></div><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/c37d5e7b.html" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5322"></div><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d544d93c.html" title="网络问题导致 Pod Pending"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3667"></div><span class="title">网络问题导致 Pod Pending</span></a><a class="item" href="/rss/d9a73487.html" title="网络编程代码实例：IO复用版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&x-expires=1781668751&x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></div><span class="title">网络编程代码实例：IO复用版</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

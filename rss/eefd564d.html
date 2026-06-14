@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>LangGraph多Agent踩坑实录：不是每个Agent都需要大模型 - RSSBOX</title>
+
+  
+    <meta name="description" content="上周央视报道了企业里AI Agent落地的新闻，其中提到重庆有企业用三类Agent组成&quot;AI超级团队&quot;，重构开发流程。看到这个的时候，我正对着自己那台4核8G的云服务器发呆——我的选股助手项目也在用类似的多Agent架构，只不过跑在一台配置寒酸的服务器上，折腾了快两个月。 我想聊聊这个过程。 为什么选股需要多Agent 做A股的人都知道，选股是个需要综合判断的事。你要看基本面——营收增长、ROE">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/eefd564d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="上周央视报道了企业里AI Agent落地的新闻，其中提到重庆有企业用三类Agent组成&quot;AI超级团队&quot;，重构开发流程。看到这个的时候，我正对着自己那台4核8G的云服务器发呆——我的选股助手项目也在用类似的多Agent架构，只不过跑在一台配置寒酸的服务器上，折腾了快两个月。 我想聊聊这个过程。 为什么选股需要多Agent 做A股的人都知道，选股是个需要综合判断的事。你要看基本面——营收增长、ROE">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-10T04:17:48.000Z">
+<meta property="article:modified_time" content="2026-06-10T04:17:48.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么选股需要多Agent</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第一个坑：不是所有Agent都需要大模型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第二个坑：Agent之间的对话像个黑箱子</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第三个坑：多空辩论的Token消耗像个无底洞</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第四个坑：4G内存根本跑不动LangGraph</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一点感受</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-10T04:17:48.000Z">2026-06-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></h1>
+<div>
+<p>上周央视报道了企业里AI Agent落地的新闻，其中提到重庆有企业用三类Agent组成"AI超级团队"，重构开发流程。看到这个的时候，我正对着自己那台4核8G的云服务器发呆——我的选股助手项目也在用类似的多Agent架构，只不过跑在一台配置寒酸的服务器上，折腾了快两个月。</p>
+<p>我想聊聊这个过程。</p>
+<h2 data-id="heading-0">为什么选股需要多Agent</h2>
+<p>做A股的人都知道，选股是个需要综合判断的事。你要看基本面——营收增长、ROE、负债率；要看技术面——均线排列、MACD、成交量异动；还得看市场情绪——新闻舆情、资金流向。这些维度说实话，单个模型很难同时搞定。</p>
+<p>所以我决定用多Agent分工：基本面Agent管财务指标解读，技术面Agent管指标计算，舆情Agent管情绪分析，最后一个决策协调Agent综合各方意见给建议。</p>
+<p>这个设计思路其实和企业级Agent落地是一个逻辑。据央视报道，深圳那边有AI营销智能体覆盖约3000个项目，靠的也是多个专业Agent协作。看起来分工明确、各司其职很美好，但真正搭起来之后我才发现，坑比想象中多得多。</p>
+<h2 data-id="heading-1">第一个坑：不是所有Agent都需要大模型</h2>
+<p>最开始我犯了个低级错误——所有Agent都调用大模型。基本面的财务指标让DeepSeek读，技术面的MACD计算也让DeepSeek算，舆情分析还是DeepSeek。</p>
+<p>结果账单出来的时候我傻了。技术面计算那部分，每天查询几十次股票数据，每次都调一遍API，算出来的MACD值其实就是几行加减乘除。这不是杀鸡用牛刀，这是杀鸡用屠龙刀还要按屠龙刀的价格收费。</p>
+<p>我后来把技术面Agent改成了纯代码计算。用ta-lib库直接算，技术指标秒出结果，完全不花钱调用API。改动很小，但成本直接降了一个数量级。</p>
+<p>这个经验后来在掘金上看到有人提过——多智能体系统里，小模型能搞定的事情就别上大模型。省下来的token可以喂给真正需要推理的部分。</p>
+<pre><code class="hljs language-python" lang="python"><span class="hljs-comment"># 改写前的技术面Agent（烧钱版）</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">technical_agent</span>(<span class="hljs-params">stock_code</span>):
+    prompt = <span class="hljs-string">f"请计算<span class="hljs-subst">&#123;stock_code&#125;</span>的MACD指标，返回金叉还是死叉"</span>
+    result = llm.invoke(prompt)
+    <span class="hljs-keyword">return</span> result
+
+<p><span class="hljs-comment"># 改写后的技术面Agent（省钱版）</span><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">technical_agent</span>(<span class="hljs-params">stock_code</span>):<br>    <span class="hljs-keyword">import</span> talib<br>    <span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;# 获取历史数据&lt;/span&gt;
+prices = get_historical_prices(stock_code)
+close_prices = np.array(prices[&lt;span class=&quot;hljs-string&quot;&gt;&#39;close&#39;&lt;/span&gt;])
+
+&lt;span class=&quot;hljs-comment&quot;&gt;# 直接用ta-lib计算MACD&lt;/span&gt;
+macd, signal, hist = talib.MACD(close_prices, fastperiod=&lt;span class=&quot;hljs-number&quot;&gt;12&lt;/span&gt;, slowperiod=&lt;span class=&quot;hljs-number&quot;&gt;26&lt;/span&gt;, signalperiod=&lt;span class=&quot;hljs-number&quot;&gt;9&lt;/span&gt;)
+
+&lt;span class=&quot;hljs-comment&quot;&gt;# 判断金叉死叉&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;hljs-built_in&quot;&gt;len&lt;/span&gt;(macd) &amp;lt; &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;:
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;数据不足&quot;&lt;/span&gt;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; macd[-&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] &amp;gt; signal[-&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] &lt;span class=&quot;hljs-keyword&quot;&gt;and&lt;/span&gt; macd[-&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] &amp;lt;= signal[-&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;]:
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;金叉&quot;&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;elif&lt;/span&gt; macd[-&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] &amp;lt; signal[-&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] &lt;span class=&quot;hljs-keyword&quot;&gt;and&lt;/span&gt; macd[-&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] &amp;gt;= signal[-&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;]:
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;死叉&quot;&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;else&lt;/span&gt;:
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;横盘&quot;&lt;/span&gt;
+</code></pre>
+<p></p></code></pre><p></p>
+<p>改完之后我才意识到，多Agent系统的设计关键不是"让AI做什么"，而是"让AI做它真正擅长的部分"。计算型任务交给代码，推理型任务交给大模型，这个分工原则说起来简单，但刚开始写代码的时候脑子转不过来。</p>
+<h2 data-id="heading-2">第二个坑：Agent之间的对话像个黑箱子</h2>
+<p>多Agent跑起来之后，另一个头疼的问题出现了：Agent之间的信息传递经常出问题。</p>
+<p>基本面Agent说"这股票ROE不错"，技术面Agent说"均线多头排列"，舆情Agent说"最近有利好消息"。决策协调Agent拿到这三个结论的时候，问题来了——它的输入格式完全不统一。有时候是"建议买入"这样的结论，有时候是"ROE为15%"这样的数据，有时候又是"市场情绪偏多"这样的判断。</p>
+<p>协调Agent拿到这些之后，经常会困惑，不知道该怎么整合。后来我强制要求每个Agent输出固定格式的JSON，必须包含signal（多/空/中性）、confidence（置信度0-1）、reason（简要理由）三个字段。</p>
+<p>这个改动看起来简单，但让我debug了很久。LangGraph里Agent之间通过State传递数据，State的格式如果不统一，某一个节点的输出就可能把后续节点的逻辑搅乱。有个晚上我盯着日志看了两个小时，就为了搞清楚为什么协调Agent偶尔会输出乱码。最后发现是舆情Agent情绪分析的时候，返回的JSON里嵌套了一层多余的引号字符串。</p>
+<pre><code class="hljs language-python" lang="python"><span class="hljs-comment"># 错误的输出格式（让后续Agent解析失败）</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">sentiment_agent</span>(<span class="hljs-params">state</span>):
+    <span class="hljs-keyword">return</span> &#123;
+        <span class="hljs-string">"analysis"</span>: <span class="hljs-string">'&#123;"signal": "多", "reason": "利好消息较多"&#125;'</span>  <span class="hljs-comment"># 字符串里套JSON字符串</span>
+    &#125;
+
+<p><span class="hljs-comment"># 正确的输出格式</span><br><span class="hljs-keyword">def</span> <span class="hljs-title function_">sentiment_agent</span>(<span class="hljs-params">state</span>):<br>    <span class="hljs-keyword">return</span> &amp;#123;<br>        <span class="hljs-string">“analysis”</span>: &amp;#123;<br>            <span class="hljs-string">“signal”</span>: <span class="hljs-string">“多”</span>,<br>            <span class="hljs-string">“confidence”</span>: <span class="hljs-number">0.75</span>,<br>            <span class="hljs-string">“reason”</span>: <span class="hljs-string">“利好消息较多”</span><br>        &amp;#125;<br>    &amp;#125;<br></p></code></pre><p></p>
+<p>LangGraph的State设计本身是好的，但用起来你会发现，多Agent之间的状态管理比单Agent复杂得多。每个Agent都要严格遵守约定的数据格式，稍微有一点偏差，系统就会在某个意想不到的地方报错。</p>
+<h2 data-id="heading-3">第三个坑：多空辩论的Token消耗像个无底洞</h2>
+<p>我的决策协调Agent设计了一个多空辩论机制——让正面Agent和负面Agent各自陈述观点，然后综合判断。这个设计听起来很合理，但实际上Token消耗远超预期。</p>
+<p>一次完整的辩论流程，正面说一遍、负面说一遍、协调Agent总结一遍，三次大模型调用。每一轮对话还要带上之前的上下文，Token几乎是线性增长的。一开始我设置了最多5轮辩论，跑了几次之后发现，光是多空辩论这一个环节，一次查询就要烧掉好几块钱的Token。</p>
+<p>后来我做了几个调整：第一，技术面、基本面、舆情三个Agent的输出先压缩成摘要，再喂给辩论环节；第二，辩论轮数从5轮砍到2轮；第三，明确终止条件——如果前两轮正反两方已经有明显倾向，直接进入综合判断环节。</p>
+<p>调整之后的成本大概降了70%，但说实话，辩论的质量确实受了一些影响。以前5轮辩论偶尔能挖出一些深层次的逻辑矛盾，现在2轮就收尾，有些隐含风险可能被漏掉。</p>
+<p>这个问题其实和企业级Agent落地遇到的困境是一样的——多轮交互听起来很智能，但每一轮都要花钱。用户最终要的不是"最完美的推理过程"，而是"够用且负担得起的结果"。在效果和成本之间找平衡，比单纯追求技术上的完美要难得多。</p>
+<h2 data-id="heading-4">第四个坑：4G内存根本跑不动LangGraph</h2>
+<p>最让我崩溃的是资源限制。</p>
+<p>我这台4核4G的云服务器，跑单个LangGraph应用没问题，但一旦加上Checkpoint机制和状态持久化，内存就开始告急。每次Agent执行完一个节点，Checkpoint会保存当前State的快照，这个快照默认是存在内存里的。如果一个查询涉及多个Agent、多个节点，State对象会变得很大，4G内存分分钟被吃满。</p>
+<p>有几次线上跑着跑着，进程直接被OOM Killer杀掉。一开始我还以为是代码有内存泄漏，查了半天，最后定位到是LangGraph的Checkpoint机制在作妖。</p>
+<p>最后的解决方案是把Checkpoint改成增量快照模式——只保存关键字段的变化，而不是每次都保存完整的State。同时把长文本的中间结果压缩存储，不让它们占用太多内存。</p>
+<p>这个改动花了我整整一个周末。但也让我理解了一个道理：企业级Agent系统和个人项目最大的差距，往往不在算法，而在于对资源的精细化管理。央视报道里那些企业，背后是有专门的运维团队和充足的算力支撑的。个人开发者想做类似的事情，必须在资源约束下找到自己的生存空间。</p>
+<h2 data-id="heading-5">一点感受</h2>
+<p>看完央视那期关于AI Agent企业落地的报道，我最大的感受是：新闻里看到的都是"已经成功落地"的案例，背后倒下的项目可能十倍不止。</p>
+<p>报道里提到"AI超级团队"、"数字员工上岗"，听起来很美好。但我在搭建选股助手的过程里体会到，光是一个多Agent协作的状态管理，就已经够让人头秃了。更别说企业里还有审批流程、数据安全、合规审查这些额外的约束。</p>
+<p>不过话说回来，这些困难不意味着多Agent方向错了。恰恰相反，正是因为有价值，落地难度才大。</p>
+<p>这两个月最大的收获不是项目本身跑通了，而是对多Agent系统有了更具体的认知。以前看技术文章讲"多Agent协作"，总觉得是个很抽象的概念。现在真正动手做了，才发现每个Agent的职责边界怎么划、状态怎么管理、成本怎么控制，这些细节才是落地的真正难点。</p>
+<p>下一步打算给选股助手加上学习引擎，让它能根据市场状态调整各Agent的权重。跑通了再来分享。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型" href="https://juejin.cn/post/7649312912219193395" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span><span class="desc fs12">https://juejin.cn/post/7649312912219193395</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/8c6deee6.html">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/5fce67d8.html">免费Docker镜像站失效？部署这款开源工具，自动优选最快节点<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/8c6deee6.html" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5373"></div><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/7abc5878.html" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2331"></div><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/c37d5e7b.html" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5322"></div><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d544d93c.html" title="网络问题导致 Pod Pending"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3667"></div><span class="title">网络问题导致 Pod Pending</span></a><a class="item" href="/rss/d9a73487.html" title="网络编程代码实例：IO复用版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&x-expires=1781668751&x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></div><span class="title">网络编程代码实例：IO复用版</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

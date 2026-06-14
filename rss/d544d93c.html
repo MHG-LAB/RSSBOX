@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>网络问题导致 Pod Pending - RSSBOX</title>
+
+  
+    <meta name="description" content="ContainerCreating 虚占云厂商 Pod IP 配额，导致 Pod Pending 目录  1. 背景 2. 现象 3. 排查过程 4. 关键证据 5. 根因分析 6. 恢复动作 7. 预防和沉淀 8. 排查命令汇总 9. 适用场景  1. 背景 这次问题发生在一套云厂商 Kubernetes 服务集群里。业务 Pod 需要调度到带有指定标签的节点上，Pod 网络依赖云厂商网络插件">
+<meta property="og:type" content="article">
+<meta property="og:title" content="网络问题导致 Pod Pending">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/d544d93c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="ContainerCreating 虚占云厂商 Pod IP 配额，导致 Pod Pending 目录  1. 背景 2. 现象 3. 排查过程 4. 关键证据 5. 根因分析 6. 恢复动作 7. 预防和沉淀 8. 排查命令汇总 9. 适用场景  1. 背景 这次问题发生在一套云厂商 Kubernetes 服务集群里。业务 Pod 需要调度到带有指定标签的节点上，Pod 网络依赖云厂商网络插件">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-13T06:09:17.000Z">
+<meta property="article:modified_time" content="2026-06-13T06:09:17.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">ContainerCreating 虚占云厂商 Pod IP 配额，导致 Pod Pending</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">目录</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 背景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 现象</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 排查过程</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 先确认调度失败原因</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 找到真正的候选节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 看候选节点的云厂商 Pod IP 记账</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 查节点上是否有长时间 ContainerCreating Pod</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.5 看 ContainerCreating 卡在哪</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.6 区分调度器记账和 CNI 真实分配</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. 关键证据</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 Pending Pod 的调度失败事件</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 节点扩展资源显示满载</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 同一节点有长时间 ContainerCreating Pod</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 Pod spec 里的 IP request 只是资源声明</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5. 根因分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">直接原因</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">触发条件</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">为什么删除或重建可以恢复</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6. 恢复动作</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">临时恢复</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">最终修复</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7. 预防和沉淀</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8. 排查命令汇总</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">9. 适用场景</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-13T06:09:17.000Z">2026-06-13</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>网络问题导致 Pod Pending</span></h1>
+<div>
+<h2 data-id="heading-0">ContainerCreating 虚占云厂商 Pod IP 配额，导致 Pod Pending</h2>
+<h3 data-id="heading-1">目录</h3>
+<ul>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#1-%E8%83%8C%E6%99%AF" title="#1-%E8%83%8C%E6%99%AF">1. 背景</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#2-%E7%8E%B0%E8%B1%A1" title="#2-%E7%8E%B0%E8%B1%A1">2. 现象</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#3-%E6%8E%92%E6%9F%A5%E8%BF%87%E7%A8%8B" title="#3-%E6%8E%92%E6%9F%A5%E8%BF%87%E7%A8%8B">3. 排查过程</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#4-%E5%85%B3%E9%94%AE%E8%AF%81%E6%8D%AE" title="#4-%E5%85%B3%E9%94%AE%E8%AF%81%E6%8D%AE">4. 关键证据</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#5-%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90" title="#5-%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90">5. 根因分析</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#6-%E6%81%A2%E5%A4%8D%E5%8A%A8%E4%BD%9C" title="#6-%E6%81%A2%E5%A4%8D%E5%8A%A8%E4%BD%9C">6. 恢复动作</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#7-%E9%A2%84%E9%98%B2%E5%92%8C%E6%B2%89%E6%B7%80" title="#7-%E9%A2%84%E9%98%B2%E5%92%8C%E6%B2%89%E6%B7%80">7. 预防和沉淀</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#8-%E6%8E%92%E6%9F%A5%E5%91%BD%E4%BB%A4%E6%B1%87%E6%80%BB" title="#8-%E6%8E%92%E6%9F%A5%E5%91%BD%E4%BB%A4%E6%B1%87%E6%80%BB">8. 排查命令汇总</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7650496822896787506#9-%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF" title="#9-%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF">9. 适用场景</a></li>
+</ul>
+<h3 data-id="heading-2">1. 背景</h3>
+<p>这次问题发生在一套云厂商 Kubernetes 服务集群里。业务 Pod 需要调度到带有指定标签的节点上，Pod 网络依赖云厂商网络插件分配 Pod IP。</p>
+<p>现场涉及的组件主要是：</p>
+<pre><code class="hljs language-text" lang="text">kube-scheduler
+kubelet
+cloud-network-agent / CNI
+cloud.example.com/pod-ip 扩展资源
+业务 Deployment / Pod
+候选节点 nodeAffinity
+</code></pre>
+<p>业务侧看到的是 Pod 长时间 <code>Pending</code>，新副本拉不起来。对 GPU 或计算类业务来说，这类问题的影响很直接：任务没有真正进到节点，GPU 算力也不会被业务使用。</p>
+<p>表面看是 <code>Insufficient cloud.example.com/pod-ip</code>，像是节点 Pod IP 已经用完了。但这次不能只按“IP 总量不足”处理。材料里更关键的一点是：候选节点上存在长时间 <code>ContainerCreating</code> 的 Pod。这些 Pod 在调度器侧已经占用了 <code>cloud.example.com/pod-ip</code> 的 request，但 CNI 侧还没有真正分配出 Pod IP。</p>
+<p>也就是调度器已经记账，CNI 还没发 IP，中间形成了 IP 配额虚占。</p>
+<h3 data-id="heading-3">2. 现象</h3>
+<p>业务 Pod 一直处于 <code>Pending</code>：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -n &lt;namespace&gt; -l &lt;label-selector&gt; -o wide
+</code></pre>
+<p><code>describe pod</code> 里能看到调度失败：</p>
+<pre><code class="hljs language-text" lang="text">Warning  FailedScheduling  default-scheduler  0/209 nodes are available:
+1 node(s) didn't match pod anti-affinity rules,
+195 node(s) didn't match Pod's node affinity/selector,
+2 Insufficient cloud.example.com/pod-ip,
+3 node(s) had untolerated taint &#123;env: system-service&#125;,
+5 node(s) were unschedulable.
+preemption: 0/209 nodes are available:
+2 Insufficient cloud.example.com/pod-ip,
+206 Preemption is not helpful for scheduling.
+</code></pre>
+<p>这里不要只盯着 <code>0/209 nodes are available</code>。真正和本次问题相关的是：</p>
+<pre><code class="hljs language-text" lang="text">2 Insufficient cloud.example.com/pod-ip
+</code></pre>
+<p>继续看候选节点，<code>Allocated resources</code> 里 <code>cloud.example.com/pod-ip</code> 显示已经满了：</p>
+<pre><code class="hljs language-text" lang="text">Resource              Requests  Limits
+cloud.example.com/pod-ip   16        16
+</code></pre>
+<p>但节点上同时存在卡在 <code>ContainerCreating</code> 的 Pod：</p>
+<pre><code class="hljs language-text" lang="text">NAMESPACE   NAME          READY   STATUS              RESTARTS   AGE
+xxx         pod-abc-xxx   0/1     ContainerCreating   0          30m
+</code></pre>
+<p>这个组合比较关键：</p>
+<pre><code class="hljs language-text" lang="text">Pending Pod 报 Insufficient cloud.example.com/pod-ip
+节点 cloud.example.com/pod-ip Requests = Allocatable
+同一节点存在长时间 ContainerCreating Pod
+</code></pre>
+<p>如果只看前两条，很容易判断成 IP 真满了。加上第三条以后，方向就要转成“是否有 Pod 虚占了调度器侧的 IP 配额”。</p>
+<h3 data-id="heading-4">3. 排查过程</h3>
+<h4 data-id="heading-5">3.1 先确认调度失败原因</h4>
+<p>先看 Pending Pod 的事件：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe pod &lt;pending-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>这一步不是为了泛泛看 Events，而是要确认调度器拒绝它的具体原因。调度失败可能是 nodeAffinity、taint、资源不足、反亲和，也可能是 IP 扩展资源不足。</p>
+<p>这次 Events 里明确出现：</p>
+<pre><code class="hljs language-text" lang="text">Insufficient cloud.example.com/pod-ip
+</code></pre>
+<p>说明调度器认为候选节点上的 <code>cloud.example.com/pod-ip</code> 资源已经不够。</p>
+<h4 data-id="heading-6">3.2 找到真正的候选节点</h4>
+<p>不能直接全局看所有节点。业务 Pod 通常有 nodeAffinity、nodeSelector 或反亲和限制。先把候选节点范围缩小：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get deploy &lt;deploy-name&gt; -n &lt;namespace&gt; \
+  -o jsonpath=<span class="hljs-string">'&#123;.spec.template.spec.affinity&#125;'</span> | python3 -m json.tool
+</code></pre>
+<p>如果 affinity 里要求某个标签，比如 <code>workload-type=model=true</code>，再按标签查节点：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get nodes -l workload-type=model -o wide
+</code></pre>
+<p>这样做的原因很简单：全集群可能还有很多节点有 IP，但调度器只会在满足业务约束的节点里挑。真正要看的，是这些候选节点的 IP 资源。</p>
+<h4 data-id="heading-7">3.3 看候选节点的云厂商 Pod IP 记账</h4>
+<p>对候选节点执行：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe node &lt;node-name&gt;
+</code></pre>
+<p>重点看 <code>Allocated resources</code>：</p>
+<pre><code class="hljs language-text" lang="text">Resource              Requests  Limits
+cloud.example.com/pod-ip   16        16
+</code></pre>
+<p>如果 <code>Requests &lt; Allocatable</code>，说明调度器侧还没记满，Pending 的原因就不该只归到 IP 满载上。</p>
+<p>如果 <code>Requests = Allocatable</code>，说明调度器侧已经认为 IP 配额满了。此时继续查是不是有 Pod 卡在创建阶段，导致 request 已经计入，但真实 IP 还没分配。</p>
+<h4 data-id="heading-8">3.4 查节点上是否有长时间 ContainerCreating Pod</h4>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -A --field-selector spec.nodeName=&lt;node-name&gt;
+</code></pre>
+<p>重点看 <code>STATUS</code> 和 <code>AGE</code>：</p>
+<pre><code class="hljs language-text" lang="text">NAMESPACE   NAME          READY   STATUS              RESTARTS   AGE
+xxx         pod-abc-xxx   0/1     ContainerCreating   0          30m
+</code></pre>
+<p><code>ContainerCreating</code> 不是一定有问题。刚创建几秒或一两分钟很正常。但如果已经卡了较长时间，尤其超过 5 分钟，还一直没有 Pod IP，就要怀疑它占着调度器资源账本，却没有走完 CNI 分配阶段。</p>
+<h4 data-id="heading-9">3.5 看 ContainerCreating 卡在哪</h4>
+<p>继续 describe 这个卡住的 Pod：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe pod &lt;containercreating-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>这里要找的是它为什么没有进入 Running。材料里列出的常见方向有几类：</p>
+<table><thead><tr><th>报错关键字</th><th>更可能的问题</th><th>处理方向</th></tr></thead><tbody><tr><td><code>hostPath ... no such file</code></td><td>节点本地目录不存在</td><td>补齐目录后删除 Pod 重建</td></tr><tr><td><code>ImagePullBackOff</code></td><td>镜像拉取失败</td><td>检查镜像地址、权限或凭证后重建</td></tr><tr><td><code>MountVolume failed</code></td><td>PVC、ConfigMap 或 Secret 挂载失败</td><td>先修复存储或配置资源</td></tr><tr><td><code>rpc error</code></td><td>containerd 或运行时异常</td><td>检查运行时状态，必要时恢复 containerd 后重建 Pod</td></tr></tbody></table>
+<p>这一步的目的不是把 Pending Pod 修好，而是找到哪个已经被调度到节点的 Pod 卡在创建流程里，导致 <code>cloud.example.com/pod-ip</code> 被调度器提前占用。</p>
+<h4 data-id="heading-10">3.6 区分调度器记账和 CNI 真实分配</h4>
+<p><code>cloud.example.com/pod-ip</code> 对调度器来说是一个扩展资源 request。它统计的是 Pod spec 里声明的数字：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">resources:</span>
+  <span class="hljs-attr">requests:</span>
+    <span class="hljs-attr">cloud.example.com/pod-ip:</span> <span class="hljs-number">1</span>
+</code></pre>
+<p>这个 <code>1</code> 不是一个真实的 <code>10.x.x.x</code> Pod IP。它只是告诉调度器：这个 Pod 要占用 1 个云厂商 Pod IP 资源配额。</p>
+<p>真实 IP 是后面 kubelet 调用 CNI 插件时才分配的。时序大概是：</p>
+<pre><code class="hljs language-text" lang="text">Pod 被调度到节点
+  -&gt; scheduler 把 requests.cloud.example.com/pod-ip=1 计入节点已分配资源
+  -&gt; kubelet 开始创建 Pod
+  -&gt; CNI 分配真实 Pod IP
+  -&gt; Pod 网络就绪
+</code></pre>
+<p>如果 Pod 卡在 <code>ContainerCreating</code>，就可能停在中间：</p>
+<pre><code class="hljs language-text" lang="text">scheduler 已经记账
+CNI 还没真正分配 IP
+Pod 长时间没有进入 Running
+新的 Pod 因调度器账本已满而 Pending
+</code></pre>
+<p>这个差异是这次问题的关键。</p>
+<h3 data-id="heading-11">4. 关键证据</h3>
+<h4 data-id="heading-12">4.1 Pending Pod 的调度失败事件</h4>
+<pre><code class="hljs language-text" lang="text">Warning  FailedScheduling  default-scheduler  0/209 nodes are available:
+2 Insufficient cloud.example.com/pod-ip
+preemption: 0/209 nodes are available:
+2 Insufficient cloud.example.com/pod-ip,
+206 Preemption is not helpful for scheduling.
+</code></pre>
+<p>这说明调度器在候选节点上判断 <code>cloud.example.com/pod-ip</code> 不够。</p>
+<h4 data-id="heading-13">4.2 节点扩展资源显示满载</h4>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe node &lt;node-name&gt;
+</code></pre>
+<p>关键输出：</p>
+<pre><code class="hljs language-text" lang="text">Allocated resources:
+Resource              Requests  Limits
+cloud.example.com/pod-ip   16        16
+</code></pre>
+<p><code>Requests = Allocatable</code>，所以调度器账本里这个节点已经没有可用云厂商 Pod IP 配额。</p>
+<h4 data-id="heading-14">4.3 同一节点有长时间 ContainerCreating Pod</h4>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -A --field-selector spec.nodeName=&lt;node-name&gt;
+</code></pre>
+<p>关键输出：</p>
+<pre><code class="hljs language-text" lang="text">NAMESPACE   NAME          READY   STATUS              RESTARTS   AGE
+xxx         pod-abc-xxx   0/1     ContainerCreating   0          30m
+</code></pre>
+<p>这个 Pod 已经被调度到节点，所以它的 <code>requests.cloud.example.com/pod-ip</code> 已经被 scheduler 计入。但它还卡在创建阶段，真实 IP 是否已经分配要继续看 Pod 状态和 CNI 侧情况。</p>
+<h4 data-id="heading-15">4.4 Pod spec 里的 IP request 只是资源声明</h4>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">resources:</span>
+  <span class="hljs-attr">requests:</span>
+    <span class="hljs-attr">cloud.example.com/pod-ip:</span> <span class="hljs-number">1</span>
+</code></pre>
+<p>这个字段是调度器统计用的扩展资源，不等于 Pod 已经拿到了真实 IP。</p>
+<h3 data-id="heading-16">5. 根因分析</h3>
+<h4 data-id="heading-17">直接原因</h4>
+<p>直接原因是候选节点上的 <code>cloud.example.com/pod-ip</code> 在调度器账本里已经被占满，新的业务 Pod 无法通过调度。</p>
+<p>但这个“满”不是简单的真实 IP 全部分配完。现场存在长时间 <code>ContainerCreating</code> 的 Pod，它们已经被 scheduler 计入 <code>cloud.example.com/pod-ip</code> request，却没有完成后续创建流程。</p>
+<p>链路可以写成：</p>
+<pre><code class="hljs language-text" lang="text">已有 Pod 被调度到节点
+  -&gt; requests.cloud.example.com/pod-ip 被 scheduler 计入
+  -&gt; Pod 卡在 ContainerCreating
+  -&gt; CNI 真实 IP 分配或后续创建流程没有完成
+  -&gt; 节点调度器侧 IP 配额显示满载
+  -&gt; 新 Pod 调度失败，报 Insufficient cloud.example.com/pod-ip
+</code></pre>
+<h4 data-id="heading-18">触发条件</h4>
+<p>触发条件是节点上有 Pod 长时间停在 <code>ContainerCreating</code>。从材料看，可能原因包括：</p>
+<pre><code class="hljs language-text" lang="text">hostPath 目录不存在
+镜像拉取失败
+PVC / ConfigMap 挂载失败
+containerd 或运行时 rpc error
+</code></pre>
+<p>这些问题本身不一定都是 CNI 问题，但都会让 Pod 卡在创建流程里。只要 Pod 已经调度到节点，它的扩展资源 request 就会被 scheduler 计入。</p>
+<h4 data-id="heading-19">为什么删除或重建可以恢复</h4>
+<p>删除卡住的 <code>ContainerCreating</code> Pod 后，调度器会重新计算节点上的资源占用。原来被这个 Pod 占住的 <code>cloud.example.com/pod-ip</code> request 会释放。</p>
+<p>如果底层卡住原因已经处理掉，比如目录补齐、镜像凭证修复、挂载恢复、containerd 恢复，那么重建后的 Pod 能正常走完 CNI 分配和容器创建流程，新 Pending Pod 也有机会重新调度成功。</p>
+<p>但如果只删除 Pod，不处理它卡住的真实原因，后续重建出来的 Pod 仍可能继续卡在 <code>ContainerCreating</code>，问题会反复出现。</p>
+<h3 data-id="heading-20">6. 恢复动作</h3>
+<h4 data-id="heading-21">临时恢复</h4>
+<p>优先处理长时间 <code>ContainerCreating</code> 的 Pod。删除前要确认它是否由 Deployment、Job、StatefulSet 等控制器托管，确认删除后可以自动重建：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl delete pod &lt;containercreating-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>删除后观察 Pending Pod 是否重新调度：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -n &lt;namespace&gt; -w
+</code></pre>
+<p>预期是卡住 Pod 释放 request 后，原本 Pending 的业务 Pod 在 1 到 2 分钟内重新进入调度流程。</p>
+<p>如果业务允许，也可以临时缩副本，先消除 Pending：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl scale deploy &lt;deploy-name&gt; -n &lt;namespace&gt; --replicas=&lt;n&gt;
+</code></pre>
+<p>这个动作只适合降载，不是根治。</p>
+<h4 data-id="heading-22">最终修复</h4>
+<p>最终要修的是导致 Pod 卡在 <code>ContainerCreating</code> 的原因。</p>
+<p>如果是 hostPath 目录不存在，要在目标节点补齐目录，再删除 Pod 重建。</p>
+<p>如果是镜像拉取失败，要修镜像地址、镜像仓库权限或凭证。</p>
+<p>如果是挂载失败，要先恢复 PVC、ConfigMap、Secret 等依赖资源。</p>
+<p>如果是 containerd 或运行时异常，要先确认运行时状态，再决定是否重启 containerd 或迁移业务。</p>
+<p>另外，如果候选节点本身 IP 配额长期偏紧，可以扩充候选节点。比如找一台 IP 有余量、taint 也满足要求的节点，再打上业务需要的标签：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl label node &lt;target-node&gt; workload-type=model
+</code></pre>
+<p>这个动作要结合业务调度策略评估，不能只为了让 Pod 调度成功就随便扩大节点范围。</p>
+<h3 data-id="heading-23">7. 预防和沉淀</h3>
+<p>这类问题要沉淀成两个方向：发现虚占，减少虚占。</p>
+<p>可以落地的动作：</p>
+<pre><code class="hljs language-text" lang="text">1. 监控 Pending Pod 的 FailedScheduling 事件，单独提取 Insufficient cloud.example.com/pod-ip；
+2. 监控节点上长时间 ContainerCreating 的 Pod，比如超过 5 分钟告警；
+3. 定期对比候选节点 cloud.example.com/pod-ip Requests 和 Allocatable；
+4. 对业务 nodeAffinity 覆盖的节点池做 IP 配额容量检查；
+5. 对 hostPath、本地目录、镜像凭证、PVC/ConfigMap 等创建前置条件做发布前校验；
+6. 把 ContainerCreating 清理动作 SOP 化，删除前确认控制器归属，避免误删孤立 Pod；
+7. 对高并发拉起的任务，提前评估节点 Pod IP、CPU、内存、GPU 是否同时满足。
+</code></pre>
+<p>还要注意一点：<code>Insufficient cloud.example.com/pod-ip</code> 不是天然等于真实 IP 地址全部耗尽。它首先表示调度器看到的扩展资源不足。是否真实耗尽，要结合 CNI 分配状态和节点上卡住的 Pod 一起判断。</p>
+<h3 data-id="heading-24">8. 排查命令汇总</h3>
+<p>查看 Pending Pod：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -n &lt;namespace&gt; -l &lt;label-selector&gt; -o wide
+</code></pre>
+<p>作用：确认业务 Pod 是否处于 <code>Pending</code>，以及是否已经绑定节点。</p>
+<p>预期结果：问题 Pod 没有节点，状态长时间为 <code>Pending</code>。</p>
+<p>查看调度失败事件：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe pod &lt;pending-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>作用：确认 Pending 的直接原因。</p>
+<p>预期结果：Events 中出现 <code>Insufficient cloud.example.com/pod-ip</code>。</p>
+<p>查看 Deployment affinity：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get deploy &lt;deploy-name&gt; -n &lt;namespace&gt; \
+  -o jsonpath=<span class="hljs-string">'&#123;.spec.template.spec.affinity&#125;'</span> | python3 -m json.tool
+</code></pre>
+<p>作用：确认业务 Pod 只能调度到哪些节点，避免看错节点池。</p>
+<p>预期结果：能看到 nodeAffinity、podAffinity 或 podAntiAffinity 规则。</p>
+<p>按标签列出候选节点：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get nodes -l workload-type=model -o wide
+</code></pre>
+<p>作用：列出符合业务调度约束的节点。</p>
+<p>预期结果：输出候选节点列表，后续只对这些节点检查 IP 配额。</p>
+<p>查看节点资源记账：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe node &lt;node-name&gt;
+</code></pre>
+<p>作用：查看 <code>Allocated resources</code> 中 <code>cloud.example.com/pod-ip</code> 的 Requests 和 Allocatable。</p>
+<p>预期结果：如果 <code>Requests = Allocatable</code>，说明调度器侧 IP 配额已经满载。</p>
+<p>查看指定节点上的 Pod：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -A --field-selector spec.nodeName=&lt;node-name&gt;
+</code></pre>
+<p>作用：检查节点上是否存在长时间 <code>ContainerCreating</code> 的 Pod。</p>
+<p>预期结果：如果有 <code>ContainerCreating</code> 且 AGE 较长，继续 describe 这个 Pod。</p>
+<p>查看卡住 Pod 的创建失败原因：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl describe pod &lt;containercreating-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>作用：确认它卡在 hostPath、镜像拉取、挂载还是运行时异常。</p>
+<p>预期结果：Events 中能看到具体失败关键字，比如 <code>hostPath ... no such file</code>、<code>ImagePullBackOff</code>、<code>MountVolume failed</code> 或 <code>rpc error</code>。</p>
+<p>列出节点上声明了云厂商 Pod IP request 的 Pod：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -A --field-selector spec.nodeName=&lt;node-name&gt; -o json | \
+python3 /tmp/check_ip.py
+</code></pre>
+<p>作用：确认哪些 Pod 在 spec 里声明了 <code>cloud.example.com/pod-ip</code> request。</p>
+<p>预期结果：输出 namespace、Pod 名称和对应的 <code>cloud.example.com/pod-ip</code> request 值。</p>
+<p>删除长时间 ContainerCreating 的 Pod：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl delete pod &lt;containercreating-pod-name&gt; -n &lt;namespace&gt;
+</code></pre>
+<p>作用：释放该 Pod 在调度器账本里的资源占用，让 Pending Pod 有机会重新调度。</p>
+<p>预期结果：如果 Pod 有控制器托管，会自动重建；原 Pending Pod 可能在短时间内重新调度成功。</p>
+<p>观察业务 Pod 状态变化：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl get pods -n &lt;namespace&gt; -w
+</code></pre>
+<p>作用：验证恢复动作是否生效。</p>
+<p>预期结果：Pending Pod 进入 <code>ContainerCreating</code>，随后进入 <code>Running</code> 或暴露新的创建失败原因。</p>
+<p>临时缩副本：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl scale deploy &lt;deploy-name&gt; -n &lt;namespace&gt; --replicas=&lt;n&gt;
+</code></pre>
+<p>作用：业务允许时降低同时占用的 IP request 数，先消除 Pending。</p>
+<p>预期结果：Deployment 副本数下降，Pending Pod 减少。</p>
+<p>扩充候选节点标签：</p>
+<pre><code class="hljs language-bash" lang="bash">kubectl label node &lt;target-node&gt; workload-type=model
+</code></pre>
+<p>作用：把有 IP 余量且符合条件的节点纳入候选范围。</p>
+<p>预期结果：新节点进入业务调度候选集合，但需要先确认 taint、资源和业务隔离要求。</p>
+<h3 data-id="heading-25">9. 适用场景</h3>
+<p>这篇排查适用于下面这类场景：</p>
+<pre><code class="hljs language-text" lang="text">1. Pod 长时间 Pending；
+2. describe pod 出现 Insufficient cloud.example.com/pod-ip；
+3. 候选节点 cloud.example.com/pod-ip Requests = Allocatable；
+4. 节点上存在长时间 ContainerCreating 的 Pod；
+5. 怀疑调度器侧 IP request 和 CNI 真实 IP 分配状态不一致。
+</code></pre>
+<p>不适用于所有 IP 不足问题。</p>
+<p>如果候选节点上没有长时间 <code>ContainerCreating</code> Pod，或者 CNI 已经真实分配了全部 Pod IP，那就要按真实 IP 池耗尽、节点 IP 配额不足、节点池容量不足、网络插件异常继续查。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="网络问题导致 Pod Pending" href="https://juejin.cn/post/7650496822896787506" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">网络问题导致 Pod Pending</span><span class="desc fs12">https://juejin.cn/post/7650496822896787506</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/9407e3f8.html">热门编程 IDE 工具 IntelliJ IDEA 确认适配华为鸿蒙电脑，预计今年第四季度上架<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8193bafb.html">HarmonyOS 7 原生“上车”，华为鸿蒙座舱模拟器登陆 DevEco Studio<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/8c6deee6.html" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5373"></div><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></a><a class="item" href="/rss/eefd564d.html" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2008"></div><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/7abc5878.html" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2331"></div><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/c37d5e7b.html" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5322"></div><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d9a73487.html" title="网络编程代码实例：IO复用版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&x-expires=1781668751&x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></div><span class="title">网络编程代码实例：IO复用版</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

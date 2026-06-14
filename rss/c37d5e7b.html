@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify - RSSBOX</title>
+
+  
+    <meta name="description" content="手写 Ajax + Node 服务，从 XHR 到 JSON.stringify 完全吃透  带你从零实现一个完整的 todo 应用：前端用原生 XMLHttpRequest 请求数据，后端用 Node 内置 http 模块提供接口。顺便彻底搞懂 JSON.stringify 的每个参数、XHR 的 readyState、跨域、以及模块化演进。  前言 很多前端同学初学网络请求时，要么直接上手">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/c37d5e7b.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="手写 Ajax + Node 服务，从 XHR 到 JSON.stringify 完全吃透  带你从零实现一个完整的 todo 应用：前端用原生 XMLHttpRequest 请求数据，后端用 Node 内置 http 模块提供接口。顺便彻底搞懂 JSON.stringify 的每个参数、XHR 的 readyState、跨域、以及模块化演进。  前言 很多前端同学初学网络请求时，要么直接上手">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-12T11:59:41.000Z">
+<meta property="article:modified_time" content="2026-06-12T11:59:41.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">手写 Ajax + Node 服务，从 XHR 到 JSON.stringify 完全吃透</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、项目概览与文件结构</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">最终运行效果</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、后端实现（index.js）逐行解读</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 模块化系统的历史包袱</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 创建 HTTP 服务器：http.createServer</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 路由判断</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.4 为什么必须用 JSON.stringify？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.5 监听端口</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、前端实现（index.html）逐行解读</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 XMLHttpRequest 的前世今生</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 核心步骤：实例化 → open → send → 监听状态</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 深入理解 readyState</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 异步执行顺序验证</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.5 动态渲染页面</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.6 为什么注释里保留了 fetch 写法？</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、重头戏：JSON.stringify 完全指南</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 基本用法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 第二个参数：replacer（取舍&#x2F;转换器）</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">4.2.1 数组形式 – 白名单过滤</span></a></li><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">4.2.2 函数形式 – 自定义转换</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 第三个参数：space – 格式化缩进</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">4.3.1 数字参数：指定缩进空格数</span></a></li><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">4.3.2 字符串参数：使用自定义字符缩进</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 注意事项与常见坑</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、完整流程串联与思考</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">关于模块化的补充思考</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、扩展练习</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、总结</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-12T11:59:41.000Z">2026-06-12</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></h1>
+<div>
+<h2 data-id="heading-0">手写 Ajax + Node 服务，从 XHR 到 JSON.stringify 完全吃透</h2>
+<blockquote>
+<p>带你从零实现一个完整的 todo 应用：前端用原生 XMLHttpRequest 请求数据，后端用 Node 内置 http 模块提供接口。顺便彻底搞懂 <code>JSON.stringify</code> 的每个参数、XHR 的 <code>readyState</code>、跨域、以及模块化演进。</p>
+</blockquote>
+<h3 data-id="heading-1">前言</h3>
+<p>很多前端同学初学网络请求时，要么直接上手 <code>axios</code>，要么只知道 <code>fetch</code>，对底层的 <code>XMLHttpRequest</code>（XHR）一知半解。对于后端，往往一上来就是 Express，却忽略了 Node 原生 <code>http</code> 模块的魅力。而对于 <code>JSON.stringify</code>，多数人只会传一个参数，剩下两个参数几乎从未使用过。</p>
+<p>今天，我们不依赖任何第三方库，<strong>手写一个完整的前后端交互应用</strong>。后端提供 <code>/todos</code> 接口，前端通过 XHR 请求并动态渲染页面。在这个过程中，我会把文件里每一行注释、每一个知识点都讲透，包括：</p>
+<ul>
+<li>原生 XHR 的完整生命周期（<code>readyState</code> 从 0 到 4）</li>
+<li>为什么有了 <code>fetch</code> 还要学 XHR</li>
+<li>Node 原生 <code>http</code> 模块的路由、跨域处理</li>
+<li><strong><code>JSON.stringify</code> 的 <code>replacer</code> 和 <code>space</code> 参数到底怎么用</strong></li>
+<li>CommonJS 与 ES Modules 的演进</li>
+<li>回调地狱与异步执行顺序</li>
+</ul>
+<p>读完这篇文章，你将不再惧怕任何前端网络面试题。</p>
+<hr>
+<h3 data-id="heading-2">一、项目概览与文件结构</h3>
+<p>我们只有两个核心文件：</p>
+<ul>
+<li><strong><code>index.html</code></strong> – 前端页面，包含一个 <code>&lt;ul&gt;</code> 容器和一个按钮。页面加载后会通过 XHR 请求 <code>http://localhost:3000/todos</code>，并将得到的 todo 列表渲染成 <code>&lt;li&gt;</code>。</li>
+<li><strong><code>index.js</code></strong> – Node 后端，使用内置 <code>http</code> 模块创建服务器，监听 3000 端口，提供 <code>/</code> 和 <code>/todos</code> 两个路由。</li>
+<li><strong><code>readme.md</code></strong> – 记录了关于 <code>JSON.stringify</code> 的笔记。</li>
+</ul>
+<h4 data-id="heading-3">最终运行效果</h4>
+<ol>
+<li>在终端执行 <code>node index.js</code>，控制台输出 <code>server is running on 3000 port</code>。</li>
+<li>在浏览器中打开 <code>index.html</code>（直接用文件协议或通过 live server）。</li>
+<li>页面会自动请求数据，几毫秒后页面显示出两个待办事项：“过四六级”和“回家过节”。</li>
+</ol>
+<hr>
+<h3 data-id="heading-4">二、后端实现（index.js）逐行解读</h3>
+<p>先看后端的完整代码，再拆分讲解。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// node 内置的http 模块 </span>
+<span class="hljs-comment">// 早期的js ,特别是前端没有模块化系统 </span>
+<span class="hljs-comment">// function  scr</span>
+<span class="hljs-comment">// node 一定要上模块化方案 require + module.exports</span>
+<span class="hljs-comment">// esm  是升级版 import + export default </span>
+<span class="hljs-comment">// require node 早期的模块化系统 commonjs </span>
+<span class="hljs-keyword">const</span> http = <span class="hljs-built_in">require</span>(<span class="hljs-string">'http'</span>);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 伺服状态</span><br>http.<span class="hljs-title function_">createServer</span>(<span class="hljs-function">(<span class="hljs-params">req, res</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 用户服务函数 </span><br>    <span class="hljs-keyword">const</span> todos &#x3D; [&amp;#123;<br>        <span class="hljs-attr">id</span>: <span class="hljs-string">“1”</span>,<br>        <span class="hljs-attr">title</span>: <span class="hljs-string">“过四六级”</span>,<br>        <span class="hljs-attr">completed</span>: <span class="hljs-literal">false</span><br>    &amp;#125;, &amp;#123;<br>        <span class="hljs-attr">id</span>: <span class="hljs-string">“2”</span>,<br>        <span class="hljs-attr">title</span>: <span class="hljs-string">“回家过节”</span>,<br>        <span class="hljs-attr">completed</span>: <span class="hljs-literal">false</span><br>    &amp;#125;];</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// req 用户对象&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt;(req.&lt;span class=&quot;hljs-property&quot;&gt;url&lt;/span&gt; === &lt;span class=&quot;hljs-string&quot;&gt;&#39;/&#39;&lt;/span&gt;)&amp;#123;
+    res.&lt;span class=&quot;hljs-title function_&quot;&gt;end&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;hello world&quot;&lt;/span&gt;);
+&amp;#125;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt;(req.&lt;span class=&quot;hljs-property&quot;&gt;url&lt;/span&gt; === &lt;span class=&quot;hljs-string&quot;&gt;&#39;/todos&#39;&lt;/span&gt;)&amp;#123;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 二进制文本&lt;/span&gt;
+    res.&lt;span class=&quot;hljs-title function_&quot;&gt;setHeader&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;Access-Control-Allow-Origin&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;*&#39;&lt;/span&gt;);
+    res.&lt;span class=&quot;hljs-title function_&quot;&gt;setHeader&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;Content-Type&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;application/json&#39;&lt;/span&gt; + &lt;span class=&quot;hljs-string&quot;&gt;&#39;; charset=utf-8&#39;&lt;/span&gt;);
+    res.&lt;span class=&quot;hljs-title function_&quot;&gt;end&lt;/span&gt;(&lt;span class=&quot;hljs-title class_&quot;&gt;JSON&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;stringify&lt;/span&gt;(todos));
+&amp;#125;
+</code></pre>
+<p>&amp;#125;).<span class="hljs-title function_">listen</span>(<span class="hljs-number">3000</span>, <span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>server is running on 3000 port</code></span>);<br>&amp;#125;);<br></p></code></pre><p></p>
+<h4 data-id="heading-5">2.1 模块化系统的历史包袱</h4>
+<p>代码开头的注释非常值得玩味：</p>
+<blockquote>
+<p>早期的js ,特别是前端没有模块化系统 / node 一定要上模块化方案 require + module.exports / esm 是升级版 import + export default</p>
+</blockquote>
+<p><strong>为什么会这样？</strong><br>
+JavaScript 诞生之初只是为了在浏览器里做简单的表单验证，根本没有模块的概念。所有变量都是全局的，多个脚本文件之间靠 <code>&lt;script&gt;</code> 顺序和全局对象来通信，极易冲突。</p>
+<p>后来 Node.js 问世，它需要在服务器端处理复杂的文件依赖，于是借鉴了 CommonJS 规范，引入了 <code>require</code> 和 <code>module.exports</code>。这也是为什么上面的代码第一行是 <code>const http = require('http')</code>。</p>
+<p>而在现代浏览器和最新的 Node 版本中，ES Modules（ESM）已经成为标准，使用 <code>import http from 'http'</code> 和 <code>export default</code>。但为了兼容性，很多老项目依然沿用 CommonJS。理解这个演进过程，能帮你读懂不同项目的代码风格。</p>
+<h4 data-id="heading-6">2.2 创建 HTTP 服务器：<code>http.createServer</code></h4>
+<p><code>http.createServer</code> 接受一个回调函数，该函数在每次请求到达时执行。回调参数 <code>req</code>（请求对象）和 <code>res</code>（响应对象）。</p>
+<ul>
+<li><code>req.url</code>：请求的路径（例如 <code>/todos</code> 或 <code>/</code>）。</li>
+<li><code>res.setHeader</code>：设置响应头。</li>
+<li><code>res.end</code>：结束响应并返回数据，参数必须是字符串或 Buffer。</li>
+</ul>
+<h4 data-id="heading-7">2.3 路由判断</h4>
+<p>我们手动实现了两个最简单路由：</p>
+<ul>
+<li><strong><code>/</code></strong>：返回 <code>"hello world"</code>。</li>
+<li><strong><code>/todos</code></strong>：返回 todos 数组的 JSON 字符串。</li>
+</ul>
+<p>这里隐含了一个问题：如果请求 <code>/todos</code> 时没有设置跨域头，前端从 <code>file://</code> 协议或不同端口发起的请求会被浏览器拦截。所以我们在 <code>/todos</code> 里添加了：</p>
+<pre><code class="hljs language-javascript" lang="javascript">res.<span class="hljs-title function_">setHeader</span>(<span class="hljs-string">'Access-Control-Allow-Origin'</span>, <span class="hljs-string">'*'</span>);
+</code></pre>
+<p>这表示允许任何源访问。生产环境中应替换为具体的域名。</p>
+<h4 data-id="heading-8">2.4 为什么必须用 <code>JSON.stringify</code>？</h4>
+<p><code>res.end()</code> 只能发送字符串或二进制数据。而 <code>todos</code> 是一个 JavaScript 对象，直接传递会报错。因此我们需要调用 <code>JSON.stringify(todos)</code> 将其序列化为 JSON 字符串。</p>
+<blockquote>
+<p>关于 <code>JSON.stringify</code> 的细节，我们会在第四节完整展开，包括它的第二个参数（replacer）和第三个参数（space）。</p>
+</blockquote>
+<h4 data-id="heading-9">2.5 监听端口</h4>
+<p><code>.listen(3000, callback)</code> 启动服务器，成功后执行回调打印日志。</p>
+<hr>
+<h3 data-id="heading-10">三、前端实现（index.html）逐行解读</h3>
+<p>下面是前端代码（已简化掉按钮的事件注册部分，保留核心 Ajax 逻辑）：</p>
+<pre><code class="hljs language-html" lang="html"><span class="hljs-meta">&lt;!DOCTYPE <span class="hljs-keyword">html</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">html</span> <span class="hljs-attr">lang</span>=<span class="hljs-string">"en"</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">head</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">charset</span>=<span class="hljs-string">"UTF-8"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">name</span>=<span class="hljs-string">"viewport"</span> <span class="hljs-attr">content</span>=<span class="hljs-string">"width=device-width, initial-scale=1.0"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">title</span>&gt;</span>Ajax Todo 示例<span class="hljs-tag">&lt;/<span class="hljs-name">title</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">ul</span> <span class="hljs-attr">id</span>=<span class="hljs-string">"todos"</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">ul</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">button</span> <span class="hljs-attr">id</span>=<span class="hljs-string">"btn"</span>&gt;</span>按钮<span class="hljs-tag">&lt;/<span class="hljs-name">button</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">script</span>&gt;</span><span class="javascript">
+        <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'start'</span>);
+        <span class="hljs-comment">// 事件的注册</span>
+        <span class="hljs-variable language_">document</span>.<span class="hljs-title function_">getElementById</span>(<span class="hljs-string">'btn'</span>).<span class="hljs-title function_">addEventListener</span>(<span class="hljs-string">'click'</span>, <span class="hljs-function">() =&gt;</span> &#123;
+            <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'点击按钮'</span>);
+        &#125;);
+    </span><span class="hljs-tag">&lt;/<span class="hljs-name">script</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">script</span>&gt;</span><span class="javascript">
+        <span class="hljs-comment">// fetch('http://localhost:3000/todos')</span>
+        <span class="hljs-comment">// .then(res =&gt; res.json())</span>
+        <span class="hljs-comment">// .then(data =&gt; console.log(data)); </span>
+        <span class="hljs-comment">// fetch 前辈</span>
+        <span class="hljs-comment">// 输入url, 点击a标签</span>
+        <span class="hljs-comment">// 底层本质是js 可以主动的去发起接口http请求， 当前页面还在</span>
+        <span class="hljs-comment">// fetch/xhr 请求接口， 动态的更新页面 web2.0时代 繁荣</span>
+
+<pre><code>    &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; xhr = &lt;span class=&quot;hljs-keyword&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;hljs-title class_&quot;&gt;XMLHttpRequest&lt;/span&gt;(); &lt;span class=&quot;hljs-comment&quot;&gt;// 实例化一个xhr对象&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 打开一个http 通道&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 异步请求&lt;/span&gt;
+    xhr.&lt;span class=&quot;hljs-title function_&quot;&gt;open&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;GET&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;http://localhost:3000/todos&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-literal&quot;&gt;true&lt;/span&gt;);
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 发送请求&lt;/span&gt;
+    xhr.&lt;span class=&quot;hljs-title function_&quot;&gt;send&lt;/span&gt;();
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 回调函数 callback&lt;/span&gt;
+    xhr.&lt;span class=&quot;hljs-property&quot;&gt;onreadystatechange&lt;/span&gt; = &lt;span class=&quot;hljs-keyword&quot;&gt;function&lt;/span&gt;(&lt;span class=&quot;hljs-params&quot;&gt;&lt;/span&gt;)&amp;#123;
+        &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(xhr.&lt;span class=&quot;hljs-property&quot;&gt;readyState&lt;/span&gt;);  &lt;span class=&quot;hljs-comment&quot;&gt;// 打印状态值 2,3,4&lt;/span&gt;
+        
+        &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt;(xhr.&lt;span class=&quot;hljs-property&quot;&gt;status&lt;/span&gt; === &lt;span class=&quot;hljs-number&quot;&gt;200&lt;/span&gt; &amp;amp;&amp;amp; xhr.&lt;span class=&quot;hljs-property&quot;&gt;readyState&lt;/span&gt; === &lt;span class=&quot;hljs-number&quot;&gt;4&lt;/span&gt;)&amp;#123;
+            &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; todos = &lt;span class=&quot;hljs-title class_&quot;&gt;JSON&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;parse&lt;/span&gt;(xhr.&lt;span class=&quot;hljs-property&quot;&gt;responseText&lt;/span&gt;);
+            &lt;span class=&quot;hljs-variable language_&quot;&gt;document&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;getElementById&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;todos&#39;&lt;/span&gt;).&lt;span class=&quot;hljs-property&quot;&gt;innerHTML&lt;/span&gt; = todos.&lt;span class=&quot;hljs-title function_&quot;&gt;map&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;&lt;span class=&quot;hljs-params&quot;&gt;todo&lt;/span&gt; =&amp;gt;&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;`&amp;lt;li&amp;gt;&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;todo.title&amp;#125;&lt;/span&gt;&amp;lt;/li&amp;gt;`&lt;/span&gt;).&lt;span class=&quot;hljs-title function_&quot;&gt;join&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;&#39;&lt;/span&gt;);
+        &amp;#125;
+    &amp;#125;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 注意：这里重复调用了一次 send，实际项目中只应调用一次。原代码有两处 send，我们保留一处。&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;// xhr.send();   // 为避免重复，注释掉，上面已经 send 过了&lt;/span&gt;
+    &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;end&#39;&lt;/span&gt;);
+&lt;/span&gt;&lt;span class=&quot;hljs-tag&quot;&gt;&amp;lt;/&lt;span class=&quot;hljs-name&quot;&gt;script&lt;/span&gt;&amp;gt;&lt;/span&gt;
+</code></pre>
+<p><span class="hljs-tag">&lt;&#x2F;<span class="hljs-name">body</span>&gt;</span><br><span class="hljs-tag">&lt;&#x2F;<span class="hljs-name">html</span>&gt;</span><br></p></span></code></pre><p></p>
+<blockquote>
+<p><strong>勘误</strong>：原文件中有两次 <code>xhr.send()</code>，第二次会触发重复请求。我们在讲解时只保留一次。另外原代码中 <code>xhr.open</code> 之后已经 <code>send</code>，后面又 <code>send</code> 了一次。此处已做修正说明。</p>
+</blockquote>
+<h4 data-id="heading-11">3.1 XMLHttpRequest 的前世今生</h4>
+<p>注释中提到：</p>
+<blockquote>
+<p>fetch 前辈 / 输入url, 点击a标签 / 底层本质是js 可以主动的去发起接口http请求，当前页面还在 / fetch/xhr 请求接口，动态的更新页面 web2.0时代 繁荣</p>
+</blockquote>
+<p>在 Web 1.0 时代，浏览器要获取新数据只能刷新整个页面（比如点击链接或提交表单）。2005 年，Google 在 Gmail 和 Google Maps 中大规模使用 XMLHttpRequest，实现了页面局部刷新，用户体验大幅提升，这就是 <strong>Ajax（Asynchronous JavaScript and XML）</strong> 的起源。</p>
+<p>后来 <code>fetch</code> 基于 Promise 设计，语法更简洁，但 XHR 依然是所有浏览器都支持的底层实现。理解 XHR 有助于：</p>
+<ul>
+<li>调试一些老旧系统的代码</li>
+<li>实现上传/下载进度监听（<code>xhr.upload.onprogress</code>）</li>
+<li>理解同步请求的危害（<code>open</code> 的第三个参数传 <code>false</code> 会阻塞页面）</li>
+</ul>
+<h4 data-id="heading-12">3.2 核心步骤：实例化 → open → send → 监听状态</h4>
+<ol>
+<li>
+<p><strong><code>new XMLHttpRequest()</code></strong><br>
+创建一个 XHR 对象。</p>
+</li>
+<li>
+<p><strong><code>xhr.open(method, url, async)</code></strong></p>
+<ul>
+<li><code>method</code>：HTTP 方法（GET、POST 等）</li>
+<li><code>url</code>：请求地址</li>
+<li><code>async</code>：<code>true</code> 表示异步（推荐），<code>false</code> 表示同步（会阻塞 JS 执行，不推荐）</li>
+</ul>
+</li>
+<li>
+<p><strong><code>xhr.send()</code></strong><br>
+真正发送请求。如果是 POST，可以在 <code>send</code> 中传入请求体字符串。</p>
+</li>
+<li>
+<p><strong><code>xhr.onreadystatechange</code></strong><br>
+每当 <code>readyState</code> 变化时触发。我们一般在此检查 <code>readyState === 4</code>（请求完成）和 <code>status === 200</code>（成功），然后处理响应。</p>
+</li>
+</ol>
+<h4 data-id="heading-13">3.3 深入理解 <code>readyState</code></h4>
+<table><thead><tr><th>值</th><th>常量名</th><th>含义</th></tr></thead><tbody><tr><td>0</td><td>UNSENT</td><td>未调用 <code>open()</code></td></tr><tr><td>1</td><td>OPENED</td><td>已调用 <code>open()</code>，尚未发送</td></tr><tr><td>2</td><td>HEADERS_RECEIVED</td><td>已收到响应头</td></tr><tr><td>3</td><td>LOADING</td><td>正在接收响应体（可能不完整）</td></tr><tr><td>4</td><td>DONE</td><td>响应完成（无论成功还是失败）</td></tr></tbody></table>
+<p>控制台会依次打印 2、3、4（跳过 0 和 1，因为注册监听时已经过了那俩状态）。<br>
+<strong>注意</strong>：<code>readyState</code> 为 4 只代表传输结束，不代表业务成功。还需要检查 <code>status</code>。</p>
+<h4 data-id="heading-14">3.4 异步执行顺序验证</h4>
+<p>代码中 <code>console.log('start')</code> 在请求前，<code>console.log('end')</code> 在请求后。实际控制台输出顺序为：</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">start</span>
+<span class="hljs-keyword">end</span>
+<span class="hljs-number">2</span>
+<span class="hljs-number">3</span>
+<span class="hljs-number">4</span>
+</code></pre>
+<p>这说明 <code>onreadystatechange</code> 里的代码是异步回调，不会阻塞后续 <code>console.log('end')</code>。这是 Ajax 非阻塞的核心表现。</p>
+<h4 data-id="heading-15">3.5 动态渲染页面</h4>
+<p>当请求成功，我们拿到 <code>xhr.responseText</code>（JSON 字符串），用 <code>JSON.parse</code> 转回数组，然后通过数组的 <code>map</code> 方法生成 <code>&lt;li&gt;</code> 字符串，最后赋值给 <code>innerHTML</code>。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable language_">document</span>.<span class="hljs-title function_">getElementById</span>(<span class="hljs-string">'todos'</span>).<span class="hljs-property">innerHTML</span> = todos.<span class="hljs-title function_">map</span>(<span class="hljs-function"><span class="hljs-params">todo</span> =&gt;</span> <span class="hljs-string">`&lt;li&gt;<span class="hljs-subst">$&#123;todo.title&#125;</span>&lt;/li&gt;`</span>).<span class="hljs-title function_">join</span>(<span class="hljs-string">''</span>);
+</code></pre>
+<p><code>join('')</code> 是为了把数组拼接成普通字符串，否则默认会带逗号。</p>
+<h4 data-id="heading-16">3.6 为什么注释里保留了 <code>fetch</code> 写法？</h4>
+<p>注释中是：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// fetch('http://localhost:3000/todos')</span>
+<span class="hljs-comment">// .then(res =&gt; res.json())</span>
+<span class="hljs-comment">// .then(data =&gt; console.log(data));</span>
+</code></pre>
+<p><code>fetch</code> 是 XHR 的现代替代品，基于 Promise，写法更优雅。但它的底层依然是 XHR（polyfill 或浏览器原生实现）。理解 XHR 后，你就能明白 <code>fetch</code> 的很多设计意图，比如为什么需要两次 <code>.then</code>（第一次拿到 Response 对象，第二次拿到实际数据）。</p>
+<hr>
+<h3 data-id="heading-17">四、重头戏：<code>JSON.stringify</code> 完全指南</h3>
+<p>根据 <code>readme.md</code> 的笔记，我们现在详细展开 <code>JSON.stringify</code> 的三个参数。这不仅是面试常考点，也是实际开发中很有用的技巧。</p>
+<h4 data-id="heading-18">4.1 基本用法</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> obj = &#123; <span class="hljs-attr">name</span>: <span class="hljs-string">'小明'</span>, <span class="hljs-attr">age</span>: <span class="hljs-number">18</span> &#125;;
+<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(obj);   <span class="hljs-comment">// '&#123;"name":"小明","age":18&#125;'</span>
+</code></pre>
+<p>作用：将 JavaScript 值转换为 JSON 字符串。支持的数据类型：对象、数组、字符串、数字、布尔值、<code>null</code>。不支持 <code>undefined</code>、函数、Symbol（会被忽略或转为 <code>null</code>）。</p>
+<h4 data-id="heading-19">4.2 第二个参数：<code>replacer</code>（取舍/转换器）</h4>
+<p><code>replacer</code> 可以是<strong>数组</strong>或<strong>函数</strong>，用于控制序列化时包含哪些属性。</p>
+<h5 data-id="heading-20">4.2.1 数组形式 – 白名单过滤</h5>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> todo = &#123;
+    <span class="hljs-attr">id</span>: <span class="hljs-number">1</span>,
+    <span class="hljs-attr">title</span>: <span class="hljs-string">'学 JSON.stringify'</span>,
+    <span class="hljs-attr">secret</span>: <span class="hljs-string">'内部密码'</span>,
+    <span class="hljs-attr">completed</span>: <span class="hljs-literal">false</span>
+&#125;;
+
+<p><span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(todo, [<span class="hljs-string">‘title’</span>, <span class="hljs-string">‘completed’</span>]);<br><span class="hljs-comment">&#x2F;&#x2F; 输出: ‘&amp;#123;”title”:”学 JSON.stringify”,”completed”:false&amp;#125;’</span><br><span class="hljs-comment">&#x2F;&#x2F; id 和 secret 被过滤掉了</span><br></p></code></pre><p></p>
+<p>这在只想发送部分字段到后端时非常有用。</p>
+<h5 data-id="heading-21">4.2.2 函数形式 – 自定义转换</h5>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> todos = [
+    &#123; <span class="hljs-attr">id</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">title</span>: <span class="hljs-string">'读书'</span>, <span class="hljs-attr">price</span>: <span class="hljs-number">100</span> &#125;,
+    &#123; <span class="hljs-attr">id</span>: <span class="hljs-number">2</span>, <span class="hljs-attr">title</span>: <span class="hljs-string">'写字'</span>, <span class="hljs-attr">price</span>: <span class="hljs-number">50</span> &#125;
+];
+
+<p><span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(todos, <span class="hljs-function">(<span class="hljs-params">key, value</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-keyword">if</span> (key &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘price’</span>) &amp;#123;<br>        <span class="hljs-keyword">return</span> value + <span class="hljs-string">‘元’</span>;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> value;<br>&amp;#125;);<br><span class="hljs-comment">&#x2F;&#x2F; 输出: ‘[&amp;#123;”id”:1,”title”:”读书”,”price”:”100元”&amp;#125;,&amp;#123;”id”:2,”title”:”写字”,”price”:”50元”&amp;#125;]’</span><br></p></code></pre><p></p>
+<p>还可以利用这个函数删除敏感信息：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> user = &#123; <span class="hljs-attr">name</span>: <span class="hljs-string">'Alice'</span>, <span class="hljs-attr">password</span>: <span class="hljs-string">'123456'</span> &#125;;
+<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(user, <span class="hljs-function">(<span class="hljs-params">key, value</span>) =&gt;</span> &#123;
+    <span class="hljs-keyword">if</span> (key === <span class="hljs-string">'password'</span>) <span class="hljs-keyword">return</span> <span class="hljs-literal">undefined</span>;
+    <span class="hljs-keyword">return</span> value;
+&#125;);
+<span class="hljs-comment">// '&#123;"name":"Alice"&#125;'</span>
+</code></pre>
+<h4 data-id="heading-22">4.3 第三个参数：<code>space</code> – 格式化缩进</h4>
+<p>正常情况下 JSON 字符串没有多余空格，目的是节省带宽。但在开发调试或写日志时，我们希望它可读性强一些，这时 <code>space</code> 就派上用场了。</p>
+<h5 data-id="heading-23">4.3.1 数字参数：指定缩进空格数</h5>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> obj = &#123;
+    <span class="hljs-attr">name</span>: <span class="hljs-string">'todo列表'</span>,
+    <span class="hljs-attr">items</span>: [<span class="hljs-string">'吃饭'</span>, <span class="hljs-string">'睡觉'</span>]
+&#125;;
+
+<p><span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(obj, <span class="hljs-literal">null</span>, <span class="hljs-number">2</span>);<br></p></code></pre><p></p>
+<p>输出（注意换行和缩进）：</p>
+<pre><code class="hljs language-json" lang="json"><span class="hljs-punctuation">&#123;</span>
+  <span class="hljs-attr">"name"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"todo列表"</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"items"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-string">"吃饭"</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-string">"睡觉"</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">&#125;</span>
+</code></pre>
+<p>如果写 <code>4</code>，则每级缩进 4 个空格。</p>
+<h5 data-id="heading-24">4.3.2 字符串参数：使用自定义字符缩进</h5>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(obj, <span class="hljs-literal">null</span>, <span class="hljs-string">'\t'</span>);
+</code></pre>
+<p>输出会用制表符缩进。</p>
+<blockquote>
+<p><strong>团队规范</strong>：很多公司的日志规范要求 JSON 格式化使用 2 个空格或 Tab。<code>space</code> 参数正是为此设计。但在生产环境的接口响应中，通常不传 <code>space</code> 以减小体积。</p>
+</blockquote>
+<h4 data-id="heading-25">4.4 注意事项与常见坑</h4>
+<ol>
+<li>
+<p><strong>循环引用</strong>：对象引用自身会抛出错误。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> obj = &#123;&#125;; obj.<span class="hljs-property">self</span> = obj;
+<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(obj); <span class="hljs-comment">// TypeError: Converting circular structure to JSON</span>
+</code></pre>
+</li>
+<li>
+<p><strong><code>undefined</code>、函数、Symbol</strong> 在对象中会被忽略，在数组中会转为 <code>null</code>。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>([<span class="hljs-literal">undefined</span>, <span class="hljs-keyword">function</span>(<span class="hljs-params"></span>)&#123;&#125;]); <span class="hljs-comment">// '[null,null]'</span>
+</code></pre>
+</li>
+<li>
+<p><strong><code>toJSON</code> 方法</strong>：如果对象有 <code>toJSON</code> 方法，<code>stringify</code> 会优先使用它的返回值。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> date = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Date</span>();
+date.<span class="hljs-title function_">toJSON</span>(); <span class="hljs-comment">// 返回 ISO 字符串</span>
+<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(date); <span class="hljs-comment">// 调用了 date.toJSON()</span>
+</code></pre>
+</li>
+<li>
+<p><strong><code>space</code> 不能超过 10</strong>：如果传入大于 10 的数字，实际只会用 10 个空格（规范限制）。</p>
+</li>
+</ol>
+<hr>
+<h3 data-id="heading-26">五、完整流程串联与思考</h3>
+<p>现在，我们把所有知识整合到一起：</p>
+<ol>
+<li>用户打开 <code>index.html</code>，浏览器解析 HTML。</li>
+<li>遇到第一个 <code>&lt;script&gt;</code>，注册按钮点击事件（虽然本例中未实际请求）。</li>
+<li>遇到第二个 <code>&lt;script&gt;</code>，立即执行：
+<ul>
+<li>新建 XHR 对象</li>
+<li><code>open</code> 配置异步 GET 请求</li>
+<li><code>send</code> 发送请求（到 <code>localhost:3000/todos</code>）</li>
+<li>注册 <code>onreadystatechange</code> 回调</li>
+<li>打印 <code>'end'</code></li>
+</ul>
+</li>
+<li>此时请求在网络中传输，主线程继续执行其他任务（比如响应用户点击）。</li>
+<li>Node 服务收到请求：
+<ul>
+<li><code>req.url</code> 匹配 <code>/todos</code></li>
+<li>设置跨域头和 Content-Type</li>
+<li><code>JSON.stringify(todos)</code> 将数组转为 JSON 字符串</li>
+<li><code>res.end</code> 返回</li>
+</ul>
+</li>
+<li>前端收到响应：
+<ul>
+<li><code>readyState</code> 依次变为 2、3、4</li>
+<li>每次变化触发回调</li>
+<li>当 <code>readyState === 4</code> 且 <code>status === 200</code>，执行：
+<ul>
+<li><code>JSON.parse</code> 解析响应文本</li>
+<li>生成 <code>&lt;li&gt;</code> 并插入到 DOM</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>用户看到动态渲染的 todo 列表。</li>
+</ol>
+<h4 data-id="heading-27">关于模块化的补充思考</h4>
+<p>后端用了 <code>require</code>，这是 CommonJS。前端没有使用任何模块化语法，因为浏览器环境直到近年才原生支持 ES Modules。如果你想把前端代码也模块化，可以在 <code>&lt;script type="module"&gt;</code> 中使用 <code>import</code>，但要注意跨域和路径问题。这也是为什么注释里提到“早期的 js，特别是前端没有模块化系统”的原因。</p>
+<hr>
+<h3 data-id="heading-28">六、扩展练习</h3>
+<p>学完这些，你可以尝试以下练习来巩固：</p>
+<ol>
+<li><strong>添加 POST 请求</strong>：在前端增加一个输入框和按钮，通过 XHR 发送 POST 请求，将新 todo 传给后端，后端将其添加到 <code>todos</code> 数组并返回更新后的列表。（注意：后端需要解析请求体，可能需要用到 <code>req.on('data')</code>。）</li>
+<li><strong>封装 XHR 为 Promise</strong>：写一个 <code>ajax(url, options)</code> 函数，内部使用 XHR，返回 Promise，模拟 <code>fetch</code> 的基本行为。</li>
+<li><strong>使用 <code>JSON.stringify</code> 美化日志</strong>：在 Node 端每次收到请求时，用 <code>space</code> 参数打印请求体到控制台，便于调试。</li>
+<li><strong>理解同步 XHR 的危害</strong>：将 <code>open</code> 的第三个参数改为 <code>false</code>，观察页面是否卡顿。</li>
+</ol>
+<hr>
+<h3 data-id="heading-29">七、总结</h3>
+<p>这篇文章我们从一个真实的 todo 应用出发，<strong>覆盖了以下核心知识点</strong>：</p>
+<ul>
+<li><strong>原生 XMLHttpRequest</strong> 的完整生命周期、状态码、异步模型。</li>
+<li><strong>Node 原生 http 模块</strong> 创建服务、路由、跨域、响应头。</li>
+<li><strong><code>JSON.stringify</code> 的三个参数</strong>：基础用法、<code>replacer</code> 数组/函数、<code>space</code> 格式化。</li>
+<li><strong>模块化演进</strong>：从全局污染到 CommonJS 再到 ES Modules。</li>
+<li><strong>Ajax 历史</strong>：从 Web 1.0 到 Web 2.0 的动态页面革命。</li>
+</ul>
+<p>前端开发不仅仅是会用框架，底层知识才是你解决疑难杂症的利器。当你真正理解了 XHR 的每一行代码和 <code>JSON.stringify</code> 的每个参数，面试官问起“Ajax 原理”或“如何格式化 JSON 输出”时，你就能自信地对答如流。</p>
+<p>如果你觉得这篇文章有帮助，请<strong>点赞、收藏、转发</strong>，让更多前端小伙伴告别一知半解！</p>
+<blockquote>
+<p>完整代码已整理在文中，你可以直接复制运行。有任何疑问欢迎评论区交流～</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify" href="https://juejin.cn/post/7650390724475338787" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span><span class="desc fs12">https://juejin.cn/post/7650390724475338787</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/84a3c06a.html">🔥MakuBoot 5.1 发布，低代码开发平台，快速开发利器<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/f125268b.html">Scaling Security Insights: How We Achieved a 10x Increase in Global Scanning Capacity<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/8c6deee6.html" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5373"></div><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></a><a class="item" href="/rss/eefd564d.html" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2008"></div><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/7abc5878.html" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2331"></div><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d544d93c.html" title="网络问题导致 Pod Pending"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3667"></div><span class="title">网络问题导致 Pod Pending</span></a><a class="item" href="/rss/d9a73487.html" title="网络编程代码实例：IO复用版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&x-expires=1781668751&x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></div><span class="title">网络编程代码实例：IO复用版</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Enforcing the First as in BGP AS_PATHs - RSSBOX</title>
+
+  
+    <meta name="description" content="Some recent route hijacks reported by Spamhaus captured our attention. In many of these hijack attempts, an apparent bad actor took advantage of unused autonomous system numbers, or ASNs. Notably in">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Enforcing the First as in BGP AS_PATHs">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/7ad0b0f9.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Some recent route hijacks reported by Spamhaus captured our attention. In many of these hijack attempts, an apparent bad actor took advantage of unused autonomous system numbers, or ASNs. Notably in">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/GRO488rbjQjXDht7DyzL0/dc61e2e2cc4029ba4b15c235d1104ac1/BLOG-3306_image5.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/xVIAFtmdXnloqo4xn6ZHj/d487ff2260925946987795bf0648d9e6/BLOG-3306_image4.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5vJhTqme76V9YRuD3lrjJ2/1a511f852b159b245e4bc2f24e9b26b8/BLOG-3306_image1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5Ip0roG2Wle8A5mFmCsncg/7eed8ff66cfc68786bb59ed6dadd7095/BLOG-3306_image6.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3uzzCBYR1Zh4IeXwEduPRt/19e8dadea31bb4b21c6ce137d723ff47/BLOG-3306_image3.png">
+<meta property="article:published_time" content="2026-06-03T17:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-03T17:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/GRO488rbjQjXDht7DyzL0/dc61e2e2cc4029ba4b15c235d1104ac1/BLOG-3306_image5.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Examining route hijacks involving forged paths</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The importance of First AS checking</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Example 1: Forged origin attacks</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Example 2: Shortening the AS_PATH to attract traffic</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Measurement by breaking the First AS rule on purpose</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">BGP implementations and default behaviors</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Safer Internet routing with your help: enforce the First AS</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-03T17:00:00.000Z">2026-06-04</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Enforcing the First as in BGP AS_PATHs</span></h1>
+<div>
+ <p>Some recent <a target="_blank" rel="external nofollow noopener noreferrer" href="https://x.com/spamhaus/status/2043708364941627683?s=20"><u>route hijacks reported by Spamhaus</u></a> captured our attention. In many of these hijack attempts, an apparent bad actor took advantage of unused <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/network-layer/what-is-an-autonomous-system/"><u>autonomous system numbers</u></a>, or ASNs. Notably in these hijacks, the actor appears to be creating fake AS_PATHs toward destinations, misdirecting traffic down an unexpected path. </p><p>By creating forged AS_PATHs, the hijacker is attempting to lead traffic somewhere it isn’t normally meant to go while also trying to conceal their identity. A hijacker could strip enough information away from a network path that they could pretend to be the origin of a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/security/glossary/what-is-bgp/"><u>Border Gateway Protocol</u></a> (BGP) prefix themselves. Attackers can use this hijacked route to intercept traffic and for other nefarious purposes.</p><p>There is a simple solution for these cases: basic verification that a BGP peer autonomous system (AS) always includes their network as the “First AS” in an advertised route. To get a sense of how well these safeguards are implemented, we stress-tested several major networks and researched their BGP implementations. Read on to see what we learned.</p>
+<div>
+<h2>Examining route hijacks involving forged paths</h2>
+<a href="#examining-route-hijacks-involving-forged-paths">
+</a>
+</div>
+<p>The idea that an actor is creating fake AS_PATHs is supported when we take a closer look at implausible <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.caida.org/catalog/datasets/as-relationships/"><u>AS relationships</u></a> in the path. For example, let’s examine one of the hijacks reported by Spamhaus, involving a prefix belonging to Orange S.A., the French telecom company. Using the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/bgpkit/monocle"><u>monocle</u></a> tool, we can <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/routing/mrt-explorer?url=https%3A%2F%2Fdata.ris.ripe.net%2Frrc26%2F2026.04%2Fupdates.20260413.0020.gz&amp;q=90.98.0.0%2F15"><u>easily find</u></a> a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc4271#section-4.3"><u>BGP UPDATE message</u></a> related to the hijack:</p>
+<pre><code>➜  ~ monocle search --start-ts 2026-04-13T00:20:00Z --end-ts 2026-04-13T00:23:59Z --prefix 90.98.0.0/15 --collector rrc26 --json
+&#123;
+  "aggr_asn": null,
+  "aggr_ip": null,
+  "as_path": "48237 1299 199524 270118 17072 41128",
+  "atomic": false,
+  "collector": "rrc26",
+  "communities": null,
+  "local_pref": 0,
+  "med": 0,
+  "next_hop": "185.1.8.3",
+  "origin": "IGP",
+  "peer_asn": 48237,
+  "peer_ip": "185.1.8.3",
+  "prefix": "90.98.0.0/15",
+  "timestamp": 1776039612.0,
+  "type": "ANNOUNCE"
+&#125;</code></pre>
+<p>We know AS1299 (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.arelion.com/"><u>Arelion</u></a>) is a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Tier_1_network"><u>Tier 1 network</u></a>, meaning every AS on the right-hand side in the path is describing an upstream (customer-to-provider) relationship. This implies that AS17072 is a transit provider for AS41128, AS270118 for AS17072, and AS199524 for AS270118. If we take a closer look at these networks:</p><ul><li><p>AS41128 is an unused ASN belonging to Orange France</p></li><li><p>AS17072 is an ISP primarily based in Mexico</p></li><li><p>AS270118 is a hosting provider based in Mexico</p></li><li><p>AS199524 is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://gcore.com/"><u>Gcore</u></a>, a provider with a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.peeringdb.com/net/5499"><u>global peering presence</u></a></p></li></ul><p>The order of the ASes in the message above would suggest that an unused Orange France AS is buying transit from Mexican ISPs, which is then upstreamed to Gcore and Tier 1 providers – which would be quite odd.</p><p>In another instance, a reported hijack for prefixes 47.1.0.0/16 and 47.2.0.0/16 from origin AS36429 even included Cloudflare’s main ASN, 13335, in the AS_PATH, “199524 270118 17072 13335 36429”. We can view examples of these BGP UPDATEs in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/routing/mrt-explorer?url=https%3A%2F%2Fdata.ris.ripe.net%2Frrc11%2F2026.04%2Fupdates.20260411.1245.gz&amp;q=47.1.0.0%2F16"><u>MRT Explorer</u></a> from Cloudflare Radar:</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/GRO488rbjQjXDht7DyzL0/dc61e2e2cc4029ba4b15c235d1104ac1/BLOG-3306_image5.png">
+</figure><p>We can authoritatively confirm that we (Cloudflare, AS13335) have <b>no</b> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Peering"><u>adjacency</u></a> with the now-unused AS36429 owned by Charter. This means this was a forged path by the hijacker that included Cloudflare’s ASN as one of the fake upstream networks in advertisements propagated toward Gcore (AS199524). Further, Spamhaus correctly pointed out that all the hijack routes <a target="_blank" rel="external nofollow noopener noreferrer" href="https://x.com/spamhaus/status/2043708367705608605?s=46"><u>led to a network</u></a> behind Gcore peering in Chicago, never actually traversing the Mexican ISPs or Cloudflare’s network in the forwarding path.</p><p>Because of this, we can reasonably conclude these paths are forged up until the <i>leftmost</i> common AS, which in this case is AS199524, as the rest of the path seems implausible. We believe what is happening here is the result of a specific strategy by the hijacker, involving the following steps:</p><ol><li><p>Originate BGP announcements for “parked” prefixes</p></li><li><p>Forge the AS_PATH completely, <b>without including the hijacker’s own local ASN</b></p></li><li><p>Advertise these routes to Gcore, AS199524</p></li></ol><p>In these hijacks it appears Gcore (AS199524) skips the verification and enforcement of the First AS matching the expected customer’s ASN. (We’ll look at why it might skip those steps later in this post.) As a result, the forged path is accepted and the hijacked prefixes are propagated to upstream providers and peers.</p><p>While Autonomous System Provider Authorization (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/aspa-secure-internet/"><u>ASPA</u></a>) will help invalidate these forged paths, attackers may bypass it by only including an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/rpki-updates-data/"><u>RPKI-ROV</u></a>-valid origin AS, or a legitimate ASPA upstream AS. To stop these specific hijacks, we must rely on a different protection mechanism already built into BGP: <b>First AS checking and enforcement</b>.</p>
+<div>
+<h2>The importance of First AS checking</h2>
+<a href="#the-importance-of-first-as-checking">
+</a>
+</div>
+<p>Routing traffic across the Internet is a bit like shipping a package. When the package is shipped, a log is kept of every courier that handles it. In BGP, this is called the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc4271?cf_target_id=92E6615B667307BF24A862703DCAF12F#section-5.1.2"><u>AS_PATH</u></a> (Autonomous System Path) and it tracks each network in the path of that route.</p><p>The AS_PATH attribute in BGP is used for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.juniper.net/documentation/us/en/software/junos/vpn-l2/bgp/topics/concept/routing-protocols-address-representation.html"><u>path selection</u></a>. This selection algorithm determines which route to a destination traverses the best list of hops, where “best” is defined by multiple variables. It is also used for loop prevention, where networks can decide not to accept paths that have already traversed their own network. Aside from keeping a record of the networks a BGP UPDATE, and therefore route, will traverse, the AS_PATH can also be examined by operator-configured routing policies to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/job/peerlock"><u>route around</u></a> or purposely through a given AS – for example to avoid <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/radar/investigate/bgp-anomalies/"><u>BGP anomalies</u></a> having unexpected impact.</p><p>BGP was built on trust, and the AS_PATH can be easily manipulated – whether for seemingly legitimate reasons such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/prepends-considered-harmful/"><u>AS prepending</u></a> to move traffic around, or nefarious reasons such as shortening it to artificially attract traffic or perform origin attacks.</p><p>Let’s look at how these two types of malicious BGP manipulations are carried out. </p>
+<div>
+<h3><b>Example 1: </b>Forged origin attacks</h3>
+<a href="#example-1-forged-origin-attacks">
+</a>
+</div>
+<ul><li><p>AS64506 cryptographically signs their routes with an RPKI ROA (Route Origin Authorization) record, to prevent route origin hijacks.</p></li><li><p>AS64506 also creates an ASPA object, specifying <b>only</b> AS64503 as a valid provider</p></li><li><p>AS64505 manipulates their AS_PATH to strip AS64505 and originate with AS64506</p></li><li><p>AS64502 does not enforce the First AS</p></li></ul>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/xVIAFtmdXnloqo4xn6ZHj/d487ff2260925946987795bf0648d9e6/BLOG-3306_image4.png">
+</figure><p>The route appears RPKI-ROV valid and is the shortest path, effectively hijacking traffic with the route. AS64506 has done everything correctly by specifying a valid ROA for a prefix advertisement, and has even configured an ASPA object consisting of their sole provider AS64503.</p><p>Unfortunately, the hijacker running AS64505 is still able to attract traffic meant for AS64506. Even if AS64501, the customer, and AS64502, their provider, run <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/aspa-secure-internet/"><u>ASPA validation</u></a>, they will not find an invalid path, because there is no valley in the path “64502 64506”. In other words, AS64505 by way of not even including their own ASN in the AS_PATH is able to pretend they are AS64506 with no intermediate AS hop.</p><p>The correct way of preventing this hijack with existing tools is to enforce the First AS in the AS_PATH. Once enforcing this rule, AS64502 would properly drop the route from AS64505.</p>
+<div>
+<h3><b>Example 2:</b> Shortening the AS_PATH to attract traffic</h3>
+<a href="#example-2-shortening-the-as_path-to-attract-traffic">
+</a>
+</div>
+<ul><li><p>AS64506 has two transit providers: AS64503 and AS64505.</p></li><li><p>AS64505 bills their customer AS64506 based on traffic usage ratios.</p></li><li><p>AS64505 strips itself from the path, and their peer AS64504 does not enforce the First AS.</p></li></ul>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5vJhTqme76V9YRuD3lrjJ2/1a511f852b159b245e4bc2f24e9b26b8/BLOG-3306_image1.png">
+</figure><p>The BGP path selection algorithm now chooses the route via AS64504 as the best path from AS64501. AS64506 pays both of their providers, AS64503 and AS64505, to deliver traffic from the Internet. However, now AS64505 provides a shorter BGP path from far-end sources, meaning AS64505 will process all the traffic toward AS64506 and be paid for doing so, and AS64503 will not be paid at all.</p><p>These BGP vulnerabilities can be solved very simply by <b>enforcing the First AS</b> to match the <b>peer AS </b>in a received AS_PATH.</p><p>When an operator configures a BGP neighbor, they must set the remote AS of the network they are interconnecting with. If the First AS in the AS_PATH does not match this value, then the path has been manipulated. The First AS enforcement procedure is outlined in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc4271#section-6.3"><u>Section 6.3</u></a> of RFC 4271 very clearly as:</p><blockquote><p>“If the UPDATE message is received from an external peer, the local</p><p>system MAY check whether the leftmost (with respect to the position</p><p>of octets in the protocol message) AS in the AS_PATH attribute is</p><p>equal to the autonomous system number of the peer that sent the</p><p>message. If the check determines this is not the case, the Error</p><p>Subcode MUST be set to Malformed AS_PATH.”</p></blockquote><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/info/rfc7606/"><u>RFC 7606</u></a> later revises how error-handling should be implemented by vendors, suggesting that routes containing malformed AS_PATHs should be dropped via <i>treat-as-withdraw</i> method. This allows routers to drop specific prefixes with malformed attributes without disrupting the entire BGP session.</p><p>The current ASPA draft <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/draft-ietf-sidrops-aspa-verification-25#section-5-2"><u>clearly calls out</u></a> the importance of First AS enforcement, stating that ASPA <b>cannot</b> handle paths where sufficient AS_PATH information is lacking due to malformed announcements. Enforcing First AS in AS_PATHs is a <b>must</b> for Internet routing security.</p>
+<div>
+<h2>Measurement by breaking the First AS rule on purpose</h2>
+<a href="#measurement-by-breaking-the-first-as-rule-on-purpose">
+</a>
+</div>
+<p>Instead of sticking to theoretical failure cases and past public incidents about violations of the First AS rule, we wanted to measure for ourselves how widely these AS_PATH violations could be accepted on the Internet. To do so, we set up BGP announcements to neighbors where we purposely <b>violated</b> the rule ourselves. Here is what we did:</p><ol><li><p>Allocated two IP prefixes, one for IPv4 and one for IPv6, to advertise to Tier 1 External BGP (EBGP) neighbors </p></li><li><p>Purposely prepended the test prefix advertisements to Tier 1 neighbors with a Cloudflare-owned, non-13335 ASN (AS402542) in front of 13335</p></li></ol><p>For example, we advertised the prefixes to AS1299 from our normal BGP session in Geneva. Our local AS is AS13335, but we include AS402542 clearly as the First AS in the AS_PATH.</p>
+<pre><code>bryton@edge01.gva01&gt; show configuration policy-options policy-statement 4-TELIA-ACCEPT-EXPORT term ADV-FIRST-AS-PROBE-CR-1695522
+from &#123;
+    community ANYCAST-ROUTE;
+    prefix-list fl_first_as_prober;
+    route-type internal;
+&#125;
+then &#123;
+    origin igp;
+    as-path-prepend 402542;
+    next-hop self;
+    accept;
+&#125;
+
+<p><a href="mailto:&#x62;&#114;&#121;&#x74;&#x6f;&#x6e;&#64;&#101;&#x64;&#103;&#x65;&#48;&#x31;&#46;&#x67;&#118;&#x61;&#48;&#49;" rel="external nofollow noopener noreferrer" target="_blank">&#x62;&#114;&#121;&#x74;&#x6f;&#x6e;&#64;&#101;&#x64;&#103;&#x65;&#48;&#x31;&#46;&#x67;&#118;&#x61;&#48;&#49;</a>&gt; show route advertising-protocol bgp &lt;redacted_1299_ip&gt; 162.159.82.0&#x2F;24 detail | grep “AS path: “<br>     AS path: 402542 [13335] I</p></code></pre><p></p>
+<p>With this configuration, our expectation is that: </p><ol><li><p>Networks that <b>do </b>enforce-first-as will quietly drop the route via RFC 7606 withdrawal method </p></li><li><p>Networks that <b>do not </b>enforce-first-as will <i>accept</i> the route and install it for forwarding toward our test prefixes</p></li></ol><p>Either result will be visible in BGP public route views. It was initially our goal to implement a continuous announcement of prefixes toward <b>all </b>peers that would purposely violate the First AS rule in announcements, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://isbgpsafeyet.com/"><u>give everyone a tool</u></a> to check which ISPs validate First AS and those which do not. However, we found there are still networks that have not implemented the guidance published in RFC 7606 when receiving malformed BGP AS_PATHs, and would reset BGP sessions instead of a <i>treat-as-withdraw</i> behavior. This meant we could not safely implement a continuous set of announcements that violate the First AS rule without impacting real traffic to Cloudflare, which we obviously can’t do.</p><p>But we can take a closer look at the networks whose policies make the biggest impact: Tier 1 networks. These networks make up the backbone of the Internet and have the largest AS <a target="_blank" rel="external nofollow noopener noreferrer" href="https://asrank.caida.org/about"><u>customer cones</u></a> of anyone, meaning hijacks or malformed paths by these peers have the broadest significance. Let’s start by examining the <i>normal </i>propagation of an anycast prefix, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/routing/prefix/1.1.1.0/24"><u>1.1.1.0/24</u></a>, across the Tier 1 networks.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5Ip0roG2Wle8A5mFmCsncg/7eed8ff66cfc68786bb59ed6dadd7095/BLOG-3306_image6.png">
+</figure><p>The propagation of 1.1.1.0/24 looks how you would expect – it is directly reachable by every Tier 1 network that Cloudflare has a direct adjacency with currently.</p><p>Now, let’s compare that with our purposely malformed announcement of the prefix 162.159.82.0/24: </p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3uzzCBYR1Zh4IeXwEduPRt/19e8dadea31bb4b21c6ce137d723ff47/BLOG-3306_image3.png">
+</figure><p><sup><i>Note: AS5511 (Orange S.A.) is not pictured above due to its limited presence in public route views, but it was a part of our testing and measurements.</i></sup></p><p>The prefix is propagated very differently from 1.1.1.0/24 – far fewer Tier 1 networks are accepting the announcement directly from Cloudflare (in this case from AS13335 with AS402542 prepended). Based on the criteria of our test mentioned earlier, these are the results we found.</p><p>Tier 1 networks <b>that are</b> enforcing First AS rule (by dropping the invalid announcements): </p><ul><li><p>AS174 (Cogent)</p></li><li><p>AS1299 (Arelion)</p></li><li><p>AS3257 (GTT)</p></li><li><p>AS3491 (PCCW)</p></li><li><p>AS5511 (Orange S.A.)</p></li><li><p>AS6453 (Tata)</p></li><li><p>AS7018 (AT&amp;T)</p></li></ul><p>Tier 1 networks that <b>are</b> <b>not</b> enforcing the First AS rule (by accepting and installing the prefixes): </p><ul><li><p>AS701 (Verizon)</p></li><li><p>AS2914 (NTT)</p></li><li><p>AS3356 (Lumen/Colt/Cirion)</p></li><li><p>AS6461 (Zayo)</p></li><li><p>AS6762 (Sparkle)</p></li><li><p>AS6830 (Liberty Global)</p></li><li><p>AS12956 (Telefonica)</p></li></ul><p>With our testing, we uncovered a troubling reality: <b>Half of the Tier 1 networks are vulnerable to hijacks that violate the First AS rule.</b></p><p>While we only tested Tier 1 networks in this measurement study, there’s no doubt there are many non-Tier 1 networks that also break the First AS rule.</p><p>We noted that the majority of the Tier 1 networks failing the First AS violation test are running Juniper Networks routers, identified by the peers’ MAC addresses.</p><p>This highlights that the default behavior of vendors defines how secure a network is “out of the box” against First AS violation-based attacks. Let’s go over some of the BGP implementations and their defaults to have a better understanding of who is protected by default, and who isn’t.</p>
+<div>
+<h2>BGP implementations and default behaviors</h2>
+<a href="#bgp-implementations-and-default-behaviors">
+</a>
+</div>
+<p>The chart below lists major routing/networking vendors and their BGP policies. Here, “Yes” means the BGP implementation by default enforces First AS, which is good. “No” means the BGP implementation is vulnerable by default. </p><table><tr><td><p><b>BGP implementation</b></p></td><td><p><b>First AS enforced by default</b></p></td><td><p><b>Documentation</b></p></td></tr><tr><td><p>Cisco IOS/XE/XR</p></td><td><p><b>Yes</b> </p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cisco.com/c/en/us/td/docs/ios/iproute_bgp/command/reference/irg_book/irg_bgp1.html#wp1114079"><u>bgp enforce-first-as</u></a></p></td></tr><tr><td><p>Junos OS / Junos OS Evolved</p></td><td><p><b>No</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/enforce-first-as-edit-protocols.html"><u>enforce-first-as</u></a></p></td></tr><tr><td><p>Arista EOS</p></td><td><p><b>Yes</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.arista.com/en/um-eos/eos-border-gateway-protocol-bgp#xx1144440"><u>bgp enforce-first-as</u></a></p></td></tr><tr><td><p>Nokia SR OS</p></td><td><p><b>No</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://infocenter.nokia.com/public/7750SR195R1A/index.jsp?topic=%2Fcom.sr.unicast%2Fhtml%2Fbgp-cli.html"><u>enforce-first-as</u></a></p></td></tr><tr><td><p>Huawei</p></td><td><p><b>Yes</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://support.huawei.com/enterprise/en/doc/EDOC1100096312/15b843f2/check-first-as"><u>check-first-as</u></a></p></td></tr><tr><td><p>Extreme SLX-OS</p></td><td><p><b>No</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://documentation.extremenetworks.com/slxos/sw/20xx/20.3.4/commands/GUID-DB0E9DB7-9B95-4B36-A227-905E2FA21958.shtml"><u>enforce-first-as</u></a></p></td></tr><tr><td><p>RouterOS</p></td><td><p><b>No</b></p></td><td><p><i>Configuration not available</i></p></td></tr><tr><td><p>BIRD</p></td><td><p><b>No</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://bird.network.cz/?get_doc&amp;v=20&amp;f=bird-6.html#:~:text=enforce%20first%20as%20%5Bswitch%5D"><u>enforce first as</u></a></p></td></tr><tr><td><p>OpenBGPD</p></td><td><p><b>Yes</b></p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://man.openbsd.org/bgpd.conf#enforce~2"><u>enforce neighbor-as</u></a></p></td></tr><tr><td><p>FRR</p></td><td><p><b>Yes </b>(since <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/FRRouting/frr/pull/14661"><u>October 2023 patch</u></a>)</p></td><td><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.frrouting.org/en/latest/bgp.html#clicmd-bgp-enforce-first-as"><u>bgp enforce-first-as</u></a></p></td></tr></table><p>The lack of default enforcement from some vendors may stem from the only valid use case where the First AS should not be enforced on External BGP (EBGP) sessions: <i>Internet Exchange (IX) route servers</i>.</p><p>A route server is responsible for transparently (without appending its AS to the AS_PATH) distributing routes between peers on the fabric. This ensures peers do not have to configure new BGP sessions every time a network joins the fabric – instead they can peer with just the route server.</p><p>In reality, most production networks have far more sessions with neighbors who <b>are not </b>transparent IX route servers than neighbors who <b>are</b>. It makes much more sense to configure “no enforce-first-as” on a handful of route-server sessions than to manually enable “enforce-first-as” on every single peer in your network.</p><p>While a “safe by default” approach is best for protecting against First AS violations, it is generally a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc8212"><u>steep hill to climb</u></a> trying to convince vendors to change longstanding defaults. Vendors would also need to introduce a method of doing this gracefully, so as to not impact the IX route server BGP sessions that require “no enforce-first-as” settings to successfully receive routes.</p>
+<div>
+<h2>Safer Internet routing with your help: enforce the First AS</h2>
+<a href="#safer-internet-routing-with-your-help-enforce-the-first-as">
+</a>
+</div>
+<p>Attackers will purposely malform AS_PATHs to slide around BGP security mechanisms. Even RPKI-based ASPA path validation will not be able to protect us from forged-origin hijacks where the path has been totally stripped of everything but the origin AS, leaving nothing for ASPA to invalidate. </p><p>The good news is we <i>already</i> have a mitigation for these cases: we can verify the First AS matches BGP peer AS and always enforce it. Refer to the corresponding “Documentation” column in the above table we have provided. It should be safe to enforce First AS on any External BGP (EBGP) session besides those facing an IX route server neighbor.</p><p><b>If you are a network operator, please enforce First AS on your routers today to protect your network and the wider Internet.</b></p><p>If your router vendor or choice of BGP implementation has a default of enforcing First AS, you’re already safe and should be rejecting any First AS violations.</p><p>By working together, we can make the Internet safer from these kinds of hijacks.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Enforcing the First AS in BGP AS_PATHs" href="https://blog.cloudflare.com/enforce-first-as-bgp/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Enforcing the First AS in BGP AS_PATHs</span><span class="desc fs12">https://blog.cloudflare.com/enforce-first-as-bgp/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/19a9af03.html">5 Ways Google Search Can Level Up Your Thrift and Vintage Shopping<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/9ace637f.html">Designing the Hf CLI as an Agent-Optimized Way to Work With the Hub<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/8dc84d37.html" title="Announcing Claude Compliance API Support With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9310"></div><span class="title">Announcing Claude Compliance API Support With Cloudflare CASB</span></a><a class="item" href="/rss/3cab9852.html" title="Announcing Claude Managed Agents on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6nYyreZYWyaKo6Xf2XjmtM/5cc21576a83e223a2cf67e8ed3fde928/image5.png"></div><span class="title">Announcing Claude Managed Agents on Cloudflare</span></a><a class="item" href="/rss/279709d.html" title="Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3eIJK055QLIl3ay12TIhfQ/9d988169efadb16cb5b18b539b62aa55/image3.png"></div><span class="title">Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable</span></a><a class="item" href="/rss/c31aa58c.html" title="Defend Against Frontier Cyber Models: Cloudflare's Architecture as Customer Zero"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5KSSyocxKzsJsOfG4pxOM7/059a597af1b67a3d5a5ccdeda5ab7ca1/image2.png"></div><span class="title">Defend Against Frontier Cyber Models: Cloudflare's Architecture as Customer Zero</span></a><a class="item" href="/rss/1c6ca327.html" title="How We Built Cloudflare's Data Platform and an AI Agent on Top of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/47E8uC26eDC4XrOibNlGCi/4b1e083bb76de4f09404bdac07e5f03a/image5.png"></div><span class="title">How We Built Cloudflare's Data Platform and an AI Agent on Top of It</span></a><a class="item" href="/rss/afd873e.html" title="How We Reduced Core Unit Boot Time From Hours to Minutes"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6x6QmYn2eTSTq2sncxLGKy/4b7dcbe2ed23feec5382f59ec6e271fc/image__8_.png"></div><span class="title">How We Reduced Core Unit Boot Time From Hours to Minutes</span></a><a class="item" href="/rss/33946149.html" title="Iran's Internet Is Partially Restored, Cloudflare Radar Data Shows"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5otxM2P75Aqb1IDbY8l6Cv/1405b5bb93a80b6c8c860dba014ab8e0/BLOG-3321_image13.png"></div><span class="title">Iran's Internet Is Partially Restored, Cloudflare Radar Data Shows</span></a><a class="item" href="/rss/a92b8f06.html" title="Our Billing Pipeline Was Suddenly Slow. the Culprit Was a Hidden Bottleneck in ClickHouse"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6d3ywoUP3OE2DCRAJtAgF7/5aa62c5702a923e30889ebf787925ae8/BLOG-3299_image4.png"></div><span class="title">Our Billing Pipeline Was Suddenly Slow. the Culprit Was a Hidden Bottleneck in ClickHouse</span></a><a class="item" href="/rss/52b1ce20.html" title="Project Glasswing: What Mythos Showed Us"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5St6rLRq9wkuxwmLHZ88CV/b4eb948c917ef7f7b0028ccc8ec0aefe/image2.png"></div><span class="title">Project Glasswing: What Mythos Showed Us</span></a><a class="item" href="/rss/f567376d.html" title="Route Public Traffic to Private Applications With Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3dPNpYW2ByViLaO237MJf/c535f739bb0949b908d529bf62e9ad54/1-connectivity-models_2x__4_.png"></div><span class="title">Route Public Traffic to Private Applications With Cloudflare</span></a><a class="item" href="/rss/f125268b.html" title="Scaling Security Insights: How We Achieved a 10x Increase in Global Scanning Capacity"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1vJ2DRjdopX1LgymReyped/dbb20abb364acdd4904aba746d7921a6/BLOG-3307_image2.jpg"></div><span class="title">Scaling Security Insights: How We Achieved a 10x Increase in Global Scanning Capacity</span></a><a class="item" href="/rss/a3bc3fe9.html" title="Turning Cloudflare’s Threat Indicators Into Real-Time WAF Rules"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1YQOp7XzNrFIHE1HSNhz6b/06d1565243b2902df5a5b294e3e80709/BLOG-3272_image3.png"></div><span class="title">Turning Cloudflare’s Threat Indicators Into Real-Time WAF Rules</span></a><a class="item" href="/rss/7ef1a611.html" title="VoidZero Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5gfeiRZUa5M8NfzsnMJ4FA/99600ef4053942f890316e9145a5cc72/BLOG-VOID_2.png"></div><span class="title">VoidZero Is Joining Cloudflare</span></a><a class="item" href="/rss/7856a72f.html" title="Your AI Bill Is Out of Control. Cloudflare Can Fix It Now. "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6sH9TwbSEn2Ct9UFuC0SAq/1a1330737879497b0e2511ac28baaed5/BLOG-3331_image1.png"></div><span class="title">Your AI Bill Is Out of Control. Cloudflare Can Fix It Now. </span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Turning Cloudflare’s Threat Indicators Into Real-Time WAF Rules - RSSBOX</title>
+
+  
+    <meta name="description" content="Cloudflare’s Threat Events provides security analysts with a window into the global threat landscape. The platform offers a peek into the immense traffic that Cloudflare processes every day, so you">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Turning Cloudflare’s Threat Indicators Into Real-Time WAF Rules">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/a3bc3fe9.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Cloudflare’s Threat Events provides security analysts with a window into the global threat landscape. The platform offers a peek into the immense traffic that Cloudflare processes every day, so you">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1YQOp7XzNrFIHE1HSNhz6b/06d1565243b2902df5a5b294e3e80709/BLOG-3272_image3.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/eXh1MgDAROkPZpXwvAaXl/0f124fe79995f213b63f6152e9dd8050/BLOG-3272_image1.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2AOxzgPOUpk5gRrL3VfEB/5160a9fe57808483770fdb1e9979e312/BLOG-3272_-2.png">
+<meta property="article:published_time" content="2026-06-08T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-06-08T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1YQOp7XzNrFIHE1HSNhz6b/06d1565243b2902df5a5b294e3e80709/BLOG-3272_image3.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Always-on detection</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">New WAF fields</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Example rule expressions</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How to use Threat Events data in your workflows</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">The WAF rule builder (API &amp; Terraform)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Visibility in Security Analytics</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">One-click rule from the Threat Events dashboard</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Global intelligence across our network</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Ready to get started?</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-08T13:00:00.000Z">2026-06-08</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Turning Cloudflare’s Threat Indicators Into Real-Time WAF Rules</span></h1>
+<div>
+ <p>Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/threat-events-platform/"><u>Threat Events</u></a> provides security analysts with a window into the global threat landscape. The platform <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/api/node/resources/cloudforce_one/subresources/threat_events/"><u>offers a peek</u></a> into the immense traffic that Cloudflare processes every day, so you can see in real time which IPs are attacking specific industries or which threat actors are trending globally. However, translating that visibility into active mitigation has often been a manual, reactive process.</p><p>Security teams have faced a recurring frustration: knowing that certain IP addresses were associated with specific threat actors (like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/threat-intelligence/research/report/tycoon-2fa-takedown/"><b><u>Tycoon 2FA</u></b></a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/threat-intelligence/research/report/cloudflare-participates-in-global-operation-to-disrupt-raccoono365/"><b><u>RaccoonO365</u></b></a>) or had been seen targeting their specific industry in other regions, but they couldn't easily automate the blocking of these high-risk IPs within their own WAF unless they manually configured the rules. </p><p>We are excited to announce a new integration that brings Cloudflare’s vast threat intelligence directly into your WAF engine: <b>you can now write proactive rules using live intelligence data</b>. This means you can add more intelligence context to protect your application against known bad actors — before they even attempt to touch your infrastructure.</p><p>By populating specialized fields during the early stages of a request, the WAF can now screen traffic based on:</p><ul><li><p><i>Who is attacking</i> by matching specific threat actor names</p></li><li><p><i>Who they are targeting</i> via the industry or country filters to see who the IP has targeted in the past</p></li><li><p><i>What type of attack </i>using enriched threat context, filtering by attack type (DDoS, WAF, cybercrime, etc.) and the timeframe it was last seen</p></li></ul>
+<div>
+<h2>Always-on detection</h2>
+<a href="#always-on-detection">
+</a>
+</div>
+<p>This new capability is built on the same<a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/attack-signature-detection/"> <u>always-on detection framework</u></a> we recently introduced for Attack Signature Detection, a system that identifies common attack patterns in real time without requiring pre-configured rules. By separating detection from mitigation, we ensure that threat intelligence is constantly running in the background, enriching your HTTP request analytics with insightful threat metadata before you even decide to take an action.</p><p>The primary advantage of an "always-on" model is the elimination of the traditional "log vs. block" trade-off: visibility in log mode, or protection in block mode. That’s because when a rule blocks a request, you lose visibility into how other signatures would have assessed it — insight that could have helped you strengthen your defenses.</p><p>If you have a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/cloudforce-one/"><u>Cloudforce One subscription</u></a>, these insights appear in your analytics automatically. You can see which threat actors are hitting your site and which industries those IPs usually target, allowing you to verify traffic patterns before "flipping the switch" to block.</p><p>These detections execute with negligible latency, ensuring your performance remains lightning-fast while providing the high-confidence data needed to build robust security policies. While this initial release focuses on IP-based matching, we are already looking toward extending these capabilities to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/bots/additional-configurations/ja3-ja4-fingerprint/"><u>JA3 fingerprints</u></a> and domain-based matching. This will allow you to block malicious traffic even when attackers rotate IPs, by identifying the unique software signatures or malicious destination links they use in their payloads.</p>
+<div>
+<h3>New WAF fields</h3>
+<a href="#new-waf-fields">
+</a>
+</div>
+<p>To make this possible, we've exposed the following specific signals directly to the WAF engine:</p><table><tr><td><p><b>Field</b></p></td><td><p><b>Description</b></p></td></tr><tr><td><p>cf.intel.ip.attacker_names</p></td><td><p>Names of known threat groups (e.g., <code>CRAVENFLEA</code>).</p></td></tr><tr><td><p>cf.intel.ip.target_industries</p></td><td><p>Industries targeted by this IP (e.g., <code>Cryptocurrency</code>, <code>Automotive</code>).</p></td></tr><tr><td><p>cf.intel.ip.attacker_countries</p></td><td><p>The source country of the threat event.</p></td></tr><tr><td><p>cf.intel.ip.target_countries</p></td><td><p>The countries targeted by the threat event.</p></td></tr><tr><td><p>cf.intel.ip.datasets</p></td><td><p>The source feed providing the data (e.g., <code>ddos</code>, <code>waf</code>).</p></td></tr></table>
+<div>
+<h3>Example rule expressions</h3>
+<a href="#example-rule-expressions">
+</a>
+</div>
+<p>Because a single IP address could be associated with multiple threat actors or targeted industries simultaneously, these fields are represented as arrays. We use the <code>any()</code> function and <code>[*]</code> wildcard to check whether any value within that threat profile matches your criteria:</p><ul><li><p><b>Block known DDoS participants targeting your region: </b><code>any(cf.intel.ip.target_countries[*] == "FR") and any(cf.intel.ip.datasets[*] == "ddos")</code></p></li><li><p><b>Protect against specific threat actors targeting the Finance sector: </b><code>any(cf.intel.ip.target_industries[*] == "Banking &amp; Financial Services") and any(cf.intel.ip.attacker_names[*] == "BLACKBASTA")</code></p></li><li><p><b>Broad protection against specific high-risk origin countries: </b><code>any(cf.intel.ip.attacker_countries[*] == "IR")</code></p></li></ul>
+<div>
+<h2>How to use Threat Events data in your workflows</h2>
+<a href="#how-to-use-threat-events-data-in-your-workflows">
+</a>
+</div>
+<p>Whether you prefer a UI-driven approach or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/shift-left-enterprise-scale/"><u>Infrastructure as Code</u></a>, these fields are integrated into your existing workflows.</p>
+<div>
+<h3>The WAF rule builder (API &amp; Terraform)</h3>
+<a href="#the-waf-rule-builder-api-terraform">
+</a>
+</div>
+<p>For teams that prefer Infrastructure as Code, the new <code>cf.intel</code> fields are fully integrated into the WAF rule builder for WAF <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/custom-rules/"><u>custom rules</u></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/rate-limiting-rules/"><u>rate limiting</u></a>. You can write complex expressions using the same syntax you use today. Because these are standard WAF fields, they are fully supported via the Cloudflare API and Terraform, allowing you to automate threat blocking across your selected domains or even on your whole account.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1YQOp7XzNrFIHE1HSNhz6b/06d1565243b2902df5a5b294e3e80709/BLOG-3272_image3.png">
+</figure><p><sup><i>New fields added to the WAF rule builder to allow users to choose the relevant configuration based on the Threat Events indicators. </i></sup></p>
+<div>
+<h3>Visibility in Security Analytics</h3>
+<a href="#visibility-in-security-analytics">
+</a>
+</div>
+<p>Deployment is only half the battle. All matches triggered by these threat intelligence fields are logged in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/analytics/security-analytics/"><u>Security Analytics</u></a>. You can drill down into your traffic to see exactly which rule was triggered and which specific indicator matched. These enriched logs allow for faster auditing and postmortem analysis when a rule triggers.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/eXh1MgDAROkPZpXwvAaXl/0f124fe79995f213b63f6152e9dd8050/BLOG-3272_image1.png">
+</figure><p><sup><i>Threat event matches surface in Security Analytics, with full context and a one-click option to create a custom security rule.</i></sup></p>
+<div>
+<h3>One-click rule from the Threat Events dashboard</h3>
+<a href="#one-click-rule-from-the-threat-events-dashboard">
+</a>
+</div>
+<p>If you are already using the <b>Threat Intelligence Dashboard</b> to investigate trends, you don't have to copy and paste IP lists. You can create <b>Saved Views</b> based on your specific filters, such as <i>"IPs seen attacking the Financial sector in the last seven days."</i> With a single click, you can <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/security-center/changelog/#2026-05-27"><u>export these filters</u></a> directly into a WAF rule.</p>
+<figure>
+<img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/2AOxzgPOUpk5gRrL3VfEB/5160a9fe57808483770fdb1e9979e312/BLOG-3272_-2.png">
+</figure><p><sup><i>Saved Views now allow users to easily create WAF rules to match the saved view configuration. </i></sup></p>
+<div>
+<h2>Global intelligence across our network</h2>
+<a href="#global-intelligence-across-our-network">
+</a>
+</div>
+<p>Visibility and ease of use are only possible if the underlying engine is fast. How do we handle millions of threat indicators without slowing down your traffic?</p><p>These threat intelligence datasets are compressed into a high-performance format and distributed to every single Cloudflare data center globally. When a request hits our network, the Cloudflare WAF performs an <code>O(1)</code> constant-time lookup against these local datasets. This ensures that whether we are checking against ten indicators or ten million, the latency overhead remains effectively zero (measured in microseconds).</p><p>Because an IP can be associated with multiple threat vectors, our engine doesn't stop at the first match. It evaluates the set of all signals associated with that IP simultaneously. This ensures that a rule looking for "Attacker = RU" AND "Target Industry = Banking" will trigger correctly by evaluating the intersection of these attributes in a single pass, providing maximum coverage against multi-vector actors without increasing computational complexity.</p>
+<div>
+<h2>Ready to get started?</h2>
+<a href="#ready-to-get-started">
+</a>
+</div>
+<p>This feature is available today for customers with any active <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/en-gb/cloudforce-one/"><u>Cloudforce One subscription</u></a>:</p><ul><li><p>Cloudforce One Essentials allows customers to access the default datasets in Threat Events, search for indicators, and conduct threat-hunting investigations</p></li><li><p>Cloudforce One Advantage allows customers to access our Threat Intelligence Analyst custom insights via requests for information</p></li><li><p>Cloudforce One Elite — our most complete package — includes brand protection, a high number of requests for information, and access to all Threat Events datasets</p></li></ul><p>Ready to turn global insights into local defense? Head over to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/security-center/cloudforce-one/#analyze-threat-events"><u>Threat Events</u></a> or the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/firewall/cf-dashboard/"><u>WAF</u></a> section of your Cloudflare Dashboard to start building your first Threat Intel rule, or contact your account team to learn more about subscribing to Cloudforce One.</p> 
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Turning Cloudflare’s threat indicators into real-time WAF rules" href="https://blog.cloudflare.com/realtime-threat-intel-waf-rules/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Turning Cloudflare’s threat indicators into real-time WAF rules</span><span class="desc fs12">https://blog.cloudflare.com/realtime-threat-intel-waf-rules/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/34959c1f.html">Comet R3 PanSTARRS Through Time<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ec82fa26.html">Measuring the Impact of Learning With AI in Sierra Leone and Beyond<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/8dc84d37.html" title="Announcing Claude Compliance API Support With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9310"></div><span class="title">Announcing Claude Compliance API Support With Cloudflare CASB</span></a><a class="item" href="/rss/3cab9852.html" title="Announcing Claude Managed Agents on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6nYyreZYWyaKo6Xf2XjmtM/5cc21576a83e223a2cf67e8ed3fde928/image5.png"></div><span class="title">Announcing Claude Managed Agents on Cloudflare</span></a><a class="item" href="/rss/279709d.html" title="Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3eIJK055QLIl3ay12TIhfQ/9d988169efadb16cb5b18b539b62aa55/image3.png"></div><span class="title">Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable</span></a><a class="item" href="/rss/c31aa58c.html" title="Defend Against Frontier Cyber Models: Cloudflare's Architecture as Customer Zero"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5KSSyocxKzsJsOfG4pxOM7/059a597af1b67a3d5a5ccdeda5ab7ca1/image2.png"></div><span class="title">Defend Against Frontier Cyber Models: Cloudflare's Architecture as Customer Zero</span></a><a class="item" href="/rss/7ad0b0f9.html" title="Enforcing the First as in BGP AS_PATHs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/GRO488rbjQjXDht7DyzL0/dc61e2e2cc4029ba4b15c235d1104ac1/BLOG-3306_image5.png"></div><span class="title">Enforcing the First as in BGP AS_PATHs</span></a><a class="item" href="/rss/1c6ca327.html" title="How We Built Cloudflare's Data Platform and an AI Agent on Top of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/47E8uC26eDC4XrOibNlGCi/4b1e083bb76de4f09404bdac07e5f03a/image5.png"></div><span class="title">How We Built Cloudflare's Data Platform and an AI Agent on Top of It</span></a><a class="item" href="/rss/afd873e.html" title="How We Reduced Core Unit Boot Time From Hours to Minutes"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6x6QmYn2eTSTq2sncxLGKy/4b7dcbe2ed23feec5382f59ec6e271fc/image__8_.png"></div><span class="title">How We Reduced Core Unit Boot Time From Hours to Minutes</span></a><a class="item" href="/rss/33946149.html" title="Iran's Internet Is Partially Restored, Cloudflare Radar Data Shows"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5otxM2P75Aqb1IDbY8l6Cv/1405b5bb93a80b6c8c860dba014ab8e0/BLOG-3321_image13.png"></div><span class="title">Iran's Internet Is Partially Restored, Cloudflare Radar Data Shows</span></a><a class="item" href="/rss/a92b8f06.html" title="Our Billing Pipeline Was Suddenly Slow. the Culprit Was a Hidden Bottleneck in ClickHouse"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6d3ywoUP3OE2DCRAJtAgF7/5aa62c5702a923e30889ebf787925ae8/BLOG-3299_image4.png"></div><span class="title">Our Billing Pipeline Was Suddenly Slow. the Culprit Was a Hidden Bottleneck in ClickHouse</span></a><a class="item" href="/rss/52b1ce20.html" title="Project Glasswing: What Mythos Showed Us"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5St6rLRq9wkuxwmLHZ88CV/b4eb948c917ef7f7b0028ccc8ec0aefe/image2.png"></div><span class="title">Project Glasswing: What Mythos Showed Us</span></a><a class="item" href="/rss/f567376d.html" title="Route Public Traffic to Private Applications With Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3dPNpYW2ByViLaO237MJf/c535f739bb0949b908d529bf62e9ad54/1-connectivity-models_2x__4_.png"></div><span class="title">Route Public Traffic to Private Applications With Cloudflare</span></a><a class="item" href="/rss/f125268b.html" title="Scaling Security Insights: How We Achieved a 10x Increase in Global Scanning Capacity"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/1vJ2DRjdopX1LgymReyped/dbb20abb364acdd4904aba746d7921a6/BLOG-3307_image2.jpg"></div><span class="title">Scaling Security Insights: How We Achieved a 10x Increase in Global Scanning Capacity</span></a><a class="item" href="/rss/7ef1a611.html" title="VoidZero Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/5gfeiRZUa5M8NfzsnMJ4FA/99600ef4053942f890316e9145a5cc72/BLOG-VOID_2.png"></div><span class="title">VoidZero Is Joining Cloudflare</span></a><a class="item" href="/rss/7856a72f.html" title="Your AI Bill Is Out of Control. Cloudflare Can Fix It Now. "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6sH9TwbSEn2Ct9UFuC0SAq/1a1330737879497b0e2511ac28baaed5/BLOG-3331_image1.png"></div><span class="title">Your AI Bill Is Out of Control. Cloudflare Can Fix It Now. </span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

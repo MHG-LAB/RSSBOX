@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁 - RSSBOX</title>
+
+  
+    <meta name="description" content="一、背景：Pump.fun 为什么能成功？ 传统 Memecoin 发射的问题很简单：项目方预留大量代币，上线即抛售。社区参与的是一场信息不对称的博弈。 Pump.fun（运行在 Solana 上）的创新在于用机制设计代替了&quot;相信项目方&quot;：  无预售：没有团队预留份额，所有人从同一起点买入 Bonding Curve 定价：价格由链上公式决定，不可操纵 自动毕业：达到市值阈值后，流动性自动迁移到">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/7abc5878.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="一、背景：Pump.fun 为什么能成功？ 传统 Memecoin 发射的问题很简单：项目方预留大量代币，上线即抛售。社区参与的是一场信息不对称的博弈。 Pump.fun（运行在 Solana 上）的创新在于用机制设计代替了&quot;相信项目方&quot;：  无预售：没有团队预留份额，所有人从同一起点买入 Bonding Curve 定价：价格由链上公式决定，不可操纵 自动毕业：达到市值阈值后，流动性自动迁移到">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-10T06:25:07.000Z">
+<meta property="article:modified_time" content="2026-06-10T06:25:07.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、背景：Pump.fun 为什么能成功？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、整体架构：一条 Token 的生命线</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、交易机制：Bonding Curve 如何定价</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">合约就是做市商</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">买入：花 X ETH 能买多少 token？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">卖出：直接计算退款</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、毕业机制：24 ETH 之后发生了什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、架构设计：为什么拆成两个合约</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、安全考量</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">重入攻击防护</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">余额校验兜底</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">approve 顺序</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">七、总结：三个相互支撑的设计决策</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-10T06:25:07.000Z">2026-06-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span></h1>
+<div>
+<h2 data-id="heading-0">一、背景：Pump.fun 为什么能成功？</h2>
+<p>传统 Memecoin 发射的问题很简单：项目方预留大量代币，上线即抛售。社区参与的是一场信息不对称的博弈。</p>
+<p>Pump.fun（运行在 Solana 上）的创新在于用<strong>机制设计</strong>代替了"相信项目方"：</p>
+<ul>
+<li><strong>无预售</strong>：没有团队预留份额，所有人从同一起点买入</li>
+<li><strong>Bonding Curve 定价</strong>：价格由链上公式决定，不可操纵</li>
+<li><strong>自动毕业</strong>：达到市值阈值后，流动性自动迁移到公开 DEX，LP token 永久销毁，任何人无法撤走流动性</li>
+</ul>
+<p>本文用 Solidity + Uniswap V2 复刻这套机制。先看全貌，再逐层拆解。</p>
+<h2 data-id="heading-1">二、整体架构：一条 Token 的生命线</h2>
+<p>一个 Memecoin 从诞生到"毕业"，经过三个阶段：</p>
+<pre><code class="hljs">创建 → 在 Bonding Curve 上交易 → 积累 24 ETH 后自动毕业到 Uniswap V2
+</code></pre>
+<p>系统由两个合约协作完成：</p>
+<table><thead><tr><th>合约</th><th>职责</th></tr></thead><tbody><tr><td><code>TokenFactory</code></td><td>创建 ERC-20 token，铸造总量 10 亿枚，将 80%（8 亿枚）注入交易池</td></tr><tr><td><code>BondingCurve</code></td><td>管理交易池：定价、买卖、收手续费、达到阈值后自动毕业</td></tr></tbody></table>
+<p>资金流向：</p>
+<pre><code class="hljs language-markdown" lang="markdown">用户调用 Factory.createToken()
+<span class="hljs-code">    → 部署新 ERC-20，80% token 转入 BondingCurve 池子
+    → 用户用 ETH 在池子里买卖 token，价格随买入量上涨
+    → 池子积累 ≥ 24 ETH
+    → 自动调用 Uniswap Router，注入流动性，销毁 LP token
+    → Token 正式在 Uniswap 上自由交易
+</span></code></pre>
+<p>接下来的问题是：池子里没有对手方提供流动性，<strong>价格怎么定？</strong></p>
+<h2 data-id="heading-2">三、交易机制：Bonding Curve 如何定价</h2>
+<h3 data-id="heading-3">合约就是做市商</h3>
+<p>传统 DEX（如 Uniswap）需要双边流动性——有人提供 ETH，有人提供 Token，用恒积公式 <code>x * y = k</code> 定价。但在 Memecoin 冷启动场景，Token 刚创建时没有人愿意垫 ETH 流动性——项目方垫付又回到了预售问题。</p>
+<p>这套系统选择了不同的路径：<strong>合约本身充当做市商</strong>，用一条线性公式单边定价，不需要任何外部流动性提供者。</p>
+<p>价格公式：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">price</span>(n) = INITIAL_PRICE + SLOPE × tokensSold
+</code></pre>
+<p>对应合约常量：</p>
+<pre><code class="hljs language-solidity" lang="solidity">uint256 public constant INITIAL_PRICE = 1e10; // 初始价格 0.00000001 ETH
+uint256 public constant SLOPE = 1e4;           // 每卖出 1 token，价格上升的幅度
+</code></pre>
+<p><strong>直觉理解</strong>：一条从左下到右上的直线。每买一批 token，当前位置往右推，下一个买家面对的价格更高。卖出则反向——价格回落。</p>
+<p>这比恒积曲线更可预测：你可以直接计算"再买 X ETH 能得到多少 token，价格会涨到多少"，而不需要模拟 AMM 的非线性变化。</p>
+<h3 data-id="heading-4">买入：花 X ETH 能买多少 token？</h3>
+<p>不能直接用瞬时价格乘以数量——买入过程中价格在持续上涨。正确做法是对价格曲线求积分（计算曲线下的面积）。</p>
+<p>从已卖出 <code>a</code> 个 token 开始，再买 <code>n</code> 个 token 的总花费：</p>
+<pre><code class="hljs language-scss" lang="scss">cost = ∫<span class="hljs-selector-attr">[a to a+n]</span> (INITIAL_PRICE + SLOPE × x) dx
+     = INITIAL_PRICE × n + SLOPE × (<span class="hljs-number">2</span>a×n + n²) / <span class="hljs-number">2</span>
+</code></pre>
+<p>推导：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">F</span>(x) = INITIAL_PRICE·x + SLOPE·x²/<span class="hljs-number">2</span>
+
+<p><span class="hljs-built_in">F</span>(a+n) - <span class="hljs-built_in">F</span>(a)<br>&#x3D; INITIAL_PRICE·n + SLOPE·((a+n)² - <span class="hljs-selector-tag">a</span>²)&#x2F;<span class="hljs-number">2</span><br>&#x3D; INITIAL_PRICE·n + SLOPE·(<span class="hljs-number">2</span>a·n + n²)&#x2F;<span class="hljs-number">2</span><br></p></code></pre><p></p>
+<p>对应合约实现：</p>
+<pre><code class="hljs language-solidity" lang="solidity">function _calculateCost(
+    uint256 currentSold,  // 当前已卖出量 a
+    uint256 tokenAmount   // 想买的数量 n
+) public pure returns (uint256) &#123;
+    uint256 linearCost = (INITIAL_PRICE * tokenAmount) / PRECISION;
+    uint256 quadraticCost = (SLOPE *
+        (2 * currentSold * tokenAmount + tokenAmount * tokenAmount)) /
+        (2 * PRECISION * PRECISION);
+    return linearCost + quadraticCost;
+&#125;
+</code></pre>
+<p><strong>关于精度处理：</strong> <code>PRECISION = 1e18</code>，是 Solidity 用整数模拟小数的标准做法。<code>tokenAmount</code> 以最小单位传入（实际代币数 × 1e18），因此线性项除以一个 PRECISION，二次项（两个 tokenAmount 相乘）除以两个 PRECISION。</p>
+<p><strong>为什么买入要用二分查找？</strong></p>
+<p>用户给出的是 ETH 数量，需要反解出能买多少 token。但二次方程在整数域没有精确解——Solidity 没有浮点数，直接解方程会有截断误差。</p>
+<p>解决方案：在 <code>[0, 十亿 × PRECISION]</code> 范围内二分查找"花费不超过传入 ETH 的最大 token 数量"：</p>
+<pre><code class="hljs language-solidity" lang="solidity">function _calculateBuyTokens(
+    uint256 currentSold,
+    uint256 ethAmount
+) internal pure returns (uint256) &#123;
+    uint256 low = 0;
+    uint256 high = 1_000_000_000 * PRECISION;
+    uint256 mid;
+
+<pre><code>while (low &amp;lt; high) &amp;#123;
+    mid = (low + high + 1) / 2;
+    uint256 cost = _calculateCost(currentSold, mid);
+    if (cost &amp;lt;= ethAmount) &amp;#123;
+        low = mid;
+    &amp;#125; else &amp;#123;
+        high = mid - 1;
+    &amp;#125;
+&amp;#125;
+return low;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<h3 data-id="heading-5">卖出：直接计算退款</h3>
+<p>卖出不需要二分查找——数量已知，直接用"卖出前的累计花费 - 卖出后的累计花费"得到退款：</p>
+<pre><code class="hljs language-solidity" lang="solidity">function _calculateSellReturn(
+    uint256 currentSold,
+    uint256 tokenAmount
+) public pure returns (uint256) &#123;
+    require(tokenAmount &lt;= currentSold, "Cannot sell more than sold");
+    uint256 newSold = currentSold - tokenAmount;
+    uint256 costAtCurrent = _calculateCost(0, currentSold);
+    uint256 costAtNew = _calculateCost(0, newSold);
+    return costAtCurrent - costAtNew;
+&#125;
+</code></pre>
+<p>买卖的数学对称性成立：买入价格曲线的面积等于卖出返还的面积。由于整数截断，实际存在极微小的舍入误差（dust），但不影响机制的公平性。</p>
+<h2 data-id="heading-6">四、毕业机制：24 ETH 之后发生了什么</h2>
+<p>Bonding Curve 是一个"孵化池"，不是终点。当池子积累足够 ETH，Token 自动"毕业"——流动性迁移到 Uniswap V2，成为正式的链上交易对。</p>
+<p><strong>为什么是 24 ETH？</strong></p>
+<p>这是一个工程参数，权衡两件事：太低则流动性不够深、毕业后容易被大单冲击；太高则大多数 Memecoin 永远毕业不了。24 ETH 参考了 Pump.fun 在 Solana 上验证过的市值锚定思路。</p>
+<p><strong>触发条件</strong></p>
+<p>买入时检查：</p>
+<pre><code class="hljs language-solidity" lang="solidity">if (pool.ethBalance &gt;= GRADUATION_THRESHOLD) &#123;
+    _graduate(token);
+&#125;
+</code></pre>
+<p><strong>毕业流程</strong></p>
+<p><code>_graduate</code> 做了三件事——标记状态、清空池子、注入 Uniswap：</p>
+<pre><code class="hljs language-solidity" lang="solidity">function _graduate(address token) internal &#123;
+    Pool storage pool = pools[token];
+    pool.graduated = true;  // 1. 标记已毕业，阻止后续交易
+
+<pre><code>uint256 ethForLiquidity = pool.ethBalance;
+uint256 tokensForLiquidity = pool.tokenBalance;
+
+pool.ethBalance = 0;    // 2. 清空状态（先写状态，防重入）
+pool.tokenBalance = 0;
+
+IERC20(token).approve(address(uniswapRouter), tokensForLiquidity);
+
+uniswapRouter.addLiquidityETH&amp;#123;value: ethForLiquidity&amp;#125;(  // 3. 注入 Uniswap
+    token,
+    tokensForLiquidity,
+    0,              // 接受任意数量的 token
+    0,              // 接受任意数量的 ETH
+    address(0),     // LP token 发给零地址 = 销毁
+    block.timestamp + 300
+);
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><strong>LP 发给 <code>address(0)</code> 是什么意思？</strong></p>
+<p>LP token 是注入流动性后拿到的凭证——凭它可以随时按比例赎回池中的 ETH 和 Token。发给零地址意味着没有任何人能取走这些 LP token，等于销毁了赎回流动性的唯一钥匙。</p>
+<p>这是机制设计的核心承诺：<strong>流动性被永久锁死，没有人能撤走，包括合约开发者</strong>。Rug pull 在机制层面被消除，而不是依赖项目方的道德自律。</p>
+<h2 data-id="heading-7">五、架构设计：为什么拆成两个合约</h2>
+<p>最直接的实现是把所有逻辑塞进一个合约。但这个项目把"创建"和"交易"分离到了 <code>TokenFactory</code> 和 <code>BondingCurve</code> 两个合约。</p>
+<p><strong>拆分的好处：</strong></p>
+<ul>
+<li><code>BondingCurve</code> 可以独立迭代（比如换一种曲线），不影响 TokenFactory 的部署</li>
+<li>每个合约更小，更容易审计</li>
+<li>权限边界清晰：只有 Factory 能创建池子</li>
+</ul>
+<p><strong>权限守卫</strong></p>
+<p><code>onlyFactory</code> modifier 确保只有 Factory 能在 BondingCurve 上注册新池子：</p>
+<pre><code class="hljs language-solidity" lang="solidity">modifier onlyFactory() &#123;
+    require(msg.sender == factory, "Only factory");
+    _;
+&#125;
+
+<p>function createPool(<br>    address token,<br>    address creator,<br>    uint256 tokenAmount<br>) external onlyFactory &amp;#123; … &amp;#125;<br></p></code></pre><p></p>
+<p>没有这个限制，任意外部账户都可以调用 <code>createPool</code>，注入伪造的池子——比如伪装成已有 token 的池子覆盖状态，或注册恶意 token 合约。</p>
+<p><strong>一次性绑定</strong></p>
+<pre><code class="hljs language-solidity" lang="solidity">function setFactory(address _factory) external onlyOwner &#123;
+    require(factory == address(0), "Factory already set");
+    factory = _factory;
+&#125;
+</code></pre>
+<p><code>factory</code> 只能写入一次。部署顺序是：先部署 <code>BondingCurve</code>，再部署 <code>TokenFactory</code>，最后调用 <code>setFactory</code> 绑定。之后无法更改。</p>
+<p>这比构造函数传参更灵活（两个合约互相依赖，构造函数无法同时传入对方地址），同时比可随时修改的 setter 更安全。</p>
+<h2 data-id="heading-8">六、安全考量</h2>
+<h3 data-id="heading-9">重入攻击防护</h3>
+<p><strong>什么是重入？</strong> 合约向外部地址转账时，控制权暂时交给接收方。如果接收方是恶意合约，它可以在状态更新前"回调"原合约，反复提款直到资金耗尽。</p>
+<p>本合约用了两层防护：</p>
+<p><strong>第一层：<code>nonReentrant</code> 锁</strong>（OpenZeppelin ReentrancyGuard），通过状态锁阻止嵌套调用：</p>
+<pre><code class="hljs language-solidity" lang="solidity">function sell(address token, uint256 tokenAmount)
+    external
+    nonReentrant
+    poolExists(token)
+    notGraduated(token)
+&#123; ... &#125;
+</code></pre>
+<p><strong>第二层：Checks-Effects-Interactions 模式（CEI）。</strong> 先更新所有状态变量，再和外部合约交互。以 <code>sell</code> 为例：</p>
+<pre><code class="hljs language-solidity" lang="solidity">// Effects：先更新状态
+pool.tokenBalance += tokenAmount;
+pool.ethBalance -= ethToReturn;
+pool.tokensSold -= tokenAmount;
+
+<p>&#x2F;&#x2F; Interactions：再向外部地址转账<br>(bool success, ) &#x3D; payable(msg.sender).call&amp;#123;value: ethAfterFee&amp;#125;(“”);<br></p></code></pre><p></p>
+<p>如果顺序反过来，攻击者的恶意合约在收到 ETH 时回调 <code>sell</code>，此时余额还没扣减，可以反复提款。</p>
+<h3 data-id="heading-10">余额校验兜底</h3>
+<pre><code class="hljs language-solidity" lang="solidity">require(ethAfterFee &lt;= pool.ethBalance, "Not enough ETH in pool");
+</code></pre>
+<p>理论上 Bonding Curve 的数学保证了退款不会超过池内 ETH。但整数截断、边界情况、或未来代码修改都可能打破这个不变量。显式校验让合约在最坏情况下安全失败。</p>
+<h3 data-id="heading-11">approve 顺序</h3>
+<p><code>_graduate</code> 里必须先 approve 再调用 <code>addLiquidityETH</code>——后者内部会调用 <code>transferFrom</code> 从合约拉取 token，如果 approve 没有提前执行，整个毕业交易会 revert。</p>
+<h2 data-id="heading-12">七、总结：三个相互支撑的设计决策</h2>
+<p><strong>1. 线性 Bonding Curve 而非 AMM</strong></p>
+<p>解决了冷启动问题。合约本身作为做市商，无需对手方流动性即可买卖。价格走势透明可预测，数学上可验证。</p>
+<p><strong>2. TokenFactory 职责分离</strong></p>
+<p><code>TokenFactory</code> 只负责创建，<code>BondingCurve</code> 只负责交易。<code>onlyFactory</code> 守卫边界，<code>setFactory</code> 一次性绑定防止后期修改。小合约更容易审计，也更容易在不影响存量 token 的情况下迭代。</p>
+<p><strong>3. 毕业时销毁 LP</strong></p>
+<p>LP token 发给零地址，流动性永久锁死。这把"不 rug pull"从一个承诺变成了一个链上事实。机制信任取代人工信任，这是 DeFi 设计哲学的精髓。</p>
+<hr>
+<p><strong>可以继续探索的方向：</strong></p>
+<ul>
+<li><strong>二次曲线</strong>：价格随买入加速上涨，早期参与者获得更高回报，但价格波动更剧烈</li>
+<li><strong>动态手续费</strong>：根据市场活跃度调整手续费，平衡协议收入和用户体验</li>
+<li><strong>链上元数据</strong>：将 token 名称/描述/图片存储到 IPFS，减少对中心化存储的依赖</li>
+<li><strong>多链部署</strong>：相同合约逻辑部署到 Base 等低手续费链</li>
+</ul>
+<p>完整代码见 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fquentin-lian%2Fyolo-pump" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/quentin-lian/yolo-pump" rel="external nofollow noopener noreferrer">yolo-pump</a> 项目</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁" href="https://juejin.cn/post/7649271193527746570" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Pump.fun 的核心是什么？用 300 行 Solidity 实现 Bonding Curve 与自动 LP 销毁</span><span class="desc fs12">https://juejin.cn/post/7649271193527746570</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e7b5ff9.html">The Eagle Nebula and Friends<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/17e4b590.html">Quoting Jeremy Howard<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/492defd2.html" title="DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4110"></div><span class="title">DeepSeek V4 Pro + Flash 分工编程：成本骤降 60%+ 的混合模型工作流</span></a><a class="item" href="/rss/8c6deee6.html" title="JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5373"></div><span class="title">JS 单线程为什么不卡？一文吃透同步异步、Event Loop 和 Promise</span></a><a class="item" href="/rss/eefd564d.html" title="LangGraph多Agent踩坑实录：不是每个Agent都需要大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2008"></div><span class="title">LangGraph多Agent踩坑实录：不是每个Agent都需要大模型</span></a><a class="item" href="/rss/4392ea5e.html" title="Linux字符设备驱动的实现与QEMU验证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7198"></div><span class="title">Linux字符设备驱动的实现与QEMU验证</span></a><a class="item" href="/rss/5763d9a2.html" title="Python 里**自定义数据单元**"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2622"></div><span class="title">Python 里**自定义数据单元**</span></a><a class="item" href="/rss/a033d7b9.html" title="R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/463cb63744664c57aac91af7586ebbbc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55Sf5oCB5Y2a5aOr55qEUueslOiusA==:q75.awebp?rk3s=f64ab15b&x-expires=1781707582&x-signature=7gmXnMFJj9rgMfzECptkdc%2Fg5po%3D"></div><span class="title">R语言科研配色：从ggsci到calecopal，一篇掌握三大配色方案</span></a><a class="item" href="/rss/c37d5e7b.html" title="从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5322"></div><span class="title">从零实现一个 Todos 应用：原生 Ajax + Node 服务，顺便吃透 JSON.stringify</span></a><a class="item" href="/rss/1cd92cc.html" title="使用额外ext4磁盘镜像在QEMU中传递与加载内核模块"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4601"></div><span class="title">使用额外ext4磁盘镜像在QEMU中传递与加载内核模块</span></a><a class="item" href="/rss/a578545a.html" title="从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2619"></div><span class="title">从零搞懂 AJAX：手把手带你从 XMLHttpRequest 到 Fetch，彻底理解前后端数据交互</span></a><a class="item" href="/rss/49334bf6.html" title="树与二叉树--JS实例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=667"></div><span class="title">树与二叉树--JS实例</span></a><a class="item" href="/rss/c0185195.html" title="把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/62b018b3d2c54c1e8f5baef99e37c28c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgYmFvemo=:q75.awebp?rk3s=f64ab15b&x-expires=1781742365&x-signature=lQzZ0pADsfYswUjK5eljFVOi0j4%3D"></div><span class="title">把徒步轨迹做成 3D 地形模型：开源工具「印迹 TrailPrint 3D」</span></a><a class="item" href="/rss/4f2ebfb2.html" title="瑞幸 Skill 引发的一些思考"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e2b1f55130294b209ad84b98183ddf84~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgWnpU:q75.awebp?rk3s=f64ab15b&x-expires=1781850596&x-signature=9DXyj0xG%2BVXXKFU0SzKr6BhB4EE%3D"></div><span class="title">瑞幸 Skill 引发的一些思考</span></a><a class="item" href="/rss/d544d93c.html" title="网络问题导致 Pod Pending"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3667"></div><span class="title">网络问题导致 Pod Pending</span></a><a class="item" href="/rss/d9a73487.html" title="网络编程代码实例：IO复用版"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/24b5e491165445a087be34be92fa6083~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSc5oKK:q75.awebp?rk3s=f64ab15b&x-expires=1781668751&x-signature=stzDeIi42vUrG00w7cT724t%2B8AU%3D"></div><span class="title">网络编程代码实例：IO复用版</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

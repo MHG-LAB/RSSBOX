@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Give GitHub Copilot CLI Real Code Intelligence With Language Servers - RSSBOX</title>
+
+  
+    <meta name="description" content="Ever watched GitHub Copilot CLI extract a JAR file to a temporary directory, grep through .class files, and piece together an API signature from raw bytecode? The agent is resourceful, but without">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Give GitHub Copilot CLI Real Code Intelligence With Language Servers">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/133bfc8d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Ever watched GitHub Copilot CLI extract a JAR file to a temporary directory, grep through .class files, and piece together an API signature from raw bytecode? The agent is resourceful, but without">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-05T15:33:30.000Z">
+<meta property="article:modified_time" content="2026-06-05T15:33:30.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-the-problem-heuristic-code-understanding"><span class="toc-text">The problem: heuristic code understanding</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-what-is-an-agent-skill"><span class="toc-text">What is an agent skill?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#how-the-lsp-setup-skill-works"><span class="toc-text">How the LSP Setup skill works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-language-selection"><span class="toc-text">1. Language selection</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-operating-system-detection"><span class="toc-text">2. Operating system detection</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-lsp-server-lookup"><span class="toc-text">3. LSP server lookup</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-configuration-scope"><span class="toc-text">4. Configuration scope</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-installation"><span class="toc-text">5. Installation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-configuration"><span class="toc-text">6. Configuration</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-verification"><span class="toc-text">7. Verification</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#supported-languages"><span class="toc-text">Supported languages</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#what-changes-after-setup"><span class="toc-text">What changes after setup</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#get-started"><span class="toc-text">Get started</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-06-05T15:33:30.000Z">2026-06-05</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Give GitHub Copilot CLI Real Code Intelligence With Language Servers</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p>Ever watched GitHub Copilot CLI extract a JAR file to a temporary directory, grep through <code>.class</code> files, and piece together an API signature from raw bytecode? The agent is resourceful, but without a language server, that’s the best it can do.</p>
+<p>The Language Server Protocol (LSP) is the standard that powers go to definition, find references, and type resolution in editors like VS Code. It works just as well in the terminal. The <strong>LSP Setup</strong> skill automates the installation and configuration of LSP servers for Copilot CLI, so the agent gets precise, structured answers about your code instead of relying on text search heuristics.</p>
+<p>In this post, you’ll learn how the skill works under the hood, see the configuration format it generates, and get set up for any of the 14 languages it supports today.</p>
+<h2 class="wp-block-heading" id="h-the-problem-heuristic-code-understanding">The problem: heuristic code understanding</h2>
+<p>Without an LSP server, the agent in GitHub Copilot CLI reverse-engineers API information through text search and binary extraction. For a Java project, that might look like:</p>
+<div class="wp-block-code-wrapper">
+<pre class="wp-block-code"><code># Find the dependency JAR 
+find ~/.m2/repository -name "*httpclient*.jar" 
+ 
+<h1 id="Extract-it-to-a-temp-directory"><a href="#Extract-it-to-a-temp-directory" class="headerlink" title="Extract it to a temp directory"></a>Extract it to a temp directory</h1><p>mkdir &#x2F;tmp&#x2F;httpclient &amp;&amp; cd &#x2F;tmp&#x2F;httpclient<br>jar xf ~&#x2F;.m2&#x2F;repository&#x2F;org&#x2F;apache&#x2F;httpcomponents&#x2F;httpclient&#x2F;4.5.14&#x2F;httpclient-4.5.14.jar </p>
+<h1 id="Search-extracted-class-files-for-a-method"><a href="#Search-extracted-class-files-for-a-method" class="headerlink" title="Search extracted class files for a method"></a>Search extracted class files for a method</h1><p>grep -r “execute” –include&#x3D;”*.class” .</p></code></pre><br>&lt;clipboard-copy aria-label&#x3D;”Copy” class&#x3D;”code-copy-btn” data-copy-feedback&#x3D;”Copied!” role&#x3D;”button” tabindex&#x3D;”0” value&#x3D;’# Find the dependency JAR<br>find ~&#x2F;.m2&#x2F;repository -name “<em>httpclient</em>.jar” <p></p>
+<h1 id="Extract-it-to-a-temp-directory-1"><a href="#Extract-it-to-a-temp-directory-1" class="headerlink" title="Extract it to a temp directory"></a>Extract it to a temp directory</h1><p>mkdir &#x2F;tmp&#x2F;httpclient &amp;&amp; cd &#x2F;tmp&#x2F;httpclient<br>jar xf ~&#x2F;.m2&#x2F;repository&#x2F;org&#x2F;apache&#x2F;httpcomponents&#x2F;httpclient&#x2F;4.5.14&#x2F;httpclient-4.5.14.jar </p>
+<h1 id="Search-extracted-class-files-for-a-method-1"><a href="#Search-extracted-class-files-for-a-method-1" class="headerlink" title="Search extracted class files for a method"></a>Search extracted class files for a method</h1><p>grep -r “execute” –include&#x3D;”*.class” .’&gt;<svg aria-hidden="true" class="octicon octicon-copy js-clipboard-copy-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg><svg aria-hidden="true" class="octicon octicon-check js-clipboard-check-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></p></div><p></p>
+<p>For Python, the agent might <code>cat</code> files inside <code>site-packages</code>. For TypeScript, it walks <code>node_modules</code>. These text-based approaches work for simple cases, but they’re doing pattern-matching over raw text rather than true semantic analysis, so they miss generics, overloads, and transitive types, and can’t see compiled bytecode at all. That’s exactly the gap a language server close.</p>
+<p>An LSP server solves this structurally. When the agent sends a <code>textDocument/definition</code> request for a symbol, the language server returns the exact source location, fully resolved type, and signature.</p>
+<aside class="wp-block-group post-aside--large p-4 p-md-6 is-style-light-dimmed has-global-padding is-layout-constrained wp-block-group-is-layout-constrained is-style-light-dimmed--1" data-color-mode="light" data-dark-theme="dark" data-light-theme="light_dimmed" style="border-top-width:4px">
+<h2 class="wp-block-heading h5-mktg gh-aside-title is-typography-preset-h5" id="h-what-is-an-agent-skill" style="margin-top:0">What is an agent skill?</h2>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://agentskills.io/">Agent skill</a> is a reusable instruction set that extends what an AI coding agent can do. Skills are defined in Markdown files with YAML frontmatter and follow a standard structure: trigger descriptions, step-by-step workflows, reference data, and behavioral constraints.</p>
+<p>The LSP Setup skill uses this structure to guide the agent through a multi-step installation process, detecting the operating system, choosing the right package manager, writing valid configuration, and verifying the result.</p>
+</aside>
+<h2 class="wp-block-heading" id="how-the-lsp-setup-skill-works">How the LSP Setup skill works</h2>
+<p>When triggered, the skill executes a seven-step workflow:</p>
+<h3 class="wp-block-heading" id="1-language-selection">1. Language selection</h3>
+<p>The agent uses <code>ask_user</code> with a set of choices to determine which language the user needs LSP support for. This drives all subsequent steps.</p>
+<h3 class="wp-block-heading" id="2-operating-system-detection">2. Operating system detection</h3>
+<p>The agent runs <code>uname -s</code> (or checks <code>$env:OS</code> / <code>%OS%</code> on Windows) to determine the target platform. Install commands vary by operating system. For example, <code>brew install jdtls</code> on macOS versus downloading from eclipse.org on Linux.</p>
+<h3 class="wp-block-heading" id="3-lsp-server-lookup">3. LSP server lookup</h3>
+<p>The skill includes a reference file (<code>references/lsp-servers.md</code>) with curated data for 14 languages: install commands per operating system, binary names, and ready-to-use config snippets. The agent reads this file and selects the matching entry.</p>
+<h3 class="wp-block-heading" id="4-configuration-scope">4. Configuration scope</h3>
+<p>The agent asks whether the config should be:</p>
+<ul class="wp-block-list">
+<li><strong>User-level</strong>: <code>~/.copilot/lsp-config.json</code>—applies to all repositories</li>
+<li><strong>Repository-level</strong>: <code>lsp.json</code> at the repository root or <code>.github/lsp.json</code>—scoped to a single project</li>
+</ul>
+<p>Repository-level configuration takes precedence when both exist.</p>
+<h3 class="wp-block-heading" id="5-installation">5. Installation</h3>
+<p>The agent runs the appropriate install command. For example:</p>
+<div class="wp-block-code-wrapper">
+<pre class="wp-block-code"><code># TypeScript on any OS 
+npm install -g typescript typescript-language-server 
+ 
+<h1 id="Java-on-macOS"><a href="#Java-on-macOS" class="headerlink" title="Java on macOS"></a>Java on macOS</h1><p>brew install jdtls </p>
+<h1 id="Rust-on-any-OS"><a href="#Rust-on-any-OS" class="headerlink" title="Rust on any OS"></a>Rust on any OS</h1><p>rustup component add rust-analyzer</p></code></pre><br>&lt;clipboard-copy aria-label&#x3D;”Copy” class&#x3D;”code-copy-btn” data-copy-feedback&#x3D;”Copied!” role&#x3D;”button” tabindex&#x3D;”0” value&#x3D;”# TypeScript on any OS<br>npm install -g typescript typescript-language-server <p></p>
+<h1 id="Java-on-macOS-1"><a href="#Java-on-macOS-1" class="headerlink" title="Java on macOS"></a>Java on macOS</h1><p>brew install jdtls </p>
+<h1 id="Rust-on-any-OS-1"><a href="#Rust-on-any-OS-1" class="headerlink" title="Rust on any OS"></a>Rust on any OS</h1><p>rustup component add rust-analyzer”&gt;<svg aria-hidden="true" class="octicon octicon-copy js-clipboard-copy-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg><svg aria-hidden="true" class="octicon octicon-check js-clipboard-check-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></p></div><p></p>
+<h3 class="wp-block-heading" id="6-configuration">6. Configuration</h3>
+<p>The agent writes or merges an entry into the chosen config file. The format uses a <code>lspServers</code> object where each key is a server identifier:</p>
+<div class="wp-block-code-wrapper">
+<pre class="wp-block-code"><code>&#123; 
+  "lspServers": &#123; 
+    "java": &#123; 
+      "command": "jdtls", 
+      "args": [], 
+      "fileExtensions": &#123; 
+        ".java": "java" 
+      &#125; 
+    &#125; 
+  &#125; 
+&#125; </code></pre>
+<clipboard-copy aria-label="Copy" class="code-copy-btn" data-copy-feedback="Copied!" role="button" tabindex="0" value="&#123; 
+  "lspServers": &#123; 
+    "java": &#123; 
+      "command": "jdtls", 
+      "args": [], 
+      "fileExtensions": &#123; 
+        ".java": "java" 
+      &#125; 
+    &#125; 
+  &#125; 
+&#125;"><svg aria-hidden="true" class="octicon octicon-copy js-clipboard-copy-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg><svg aria-hidden="true" class="octicon octicon-check js-clipboard-check-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></clipboard-copy></div>
+<p>Key rules the skill enforces:</p>
+<ul class="wp-block-list">
+<li><code>command</code> must be on <code>$PATH</code> or an absolute path</li>
+<li><code>args</code> typically includes <code>"--stdio"</code> for standard I/O transport (some servers like <code>jdtls</code> handle this internally)</li>
+<li><code>fileExtensions</code> maps each extension (with leading dot) to a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://code.visualstudio.com/docs/languages/identifiers#_known-language-identifiers">language identifier</a></li>
+<li>Existing entries in the config file are preserved — the agent merges, never overwrites</li>
+</ul>
+<h3 class="wp-block-heading" id="7-verification">7. Verification</h3>
+<p>The agent runs <code>which &lt;binary&gt;</code> (or <code>where.exe</code> on Windows) to confirm the server is accessible, then validates the config file is well-formed JSON.</p>
+<h2 class="wp-block-heading" id="supported-languages">Supported languages</h2>
+<p>The skill comes with a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/github/awesome-copilot/blob/main/skills/lsp-setup/references/lsp-servers.md">set of predefined language servers</a> for several programming languages. If the coding agent faces one that it is not mapped out already, it will search for an appropriate server and walk you through manual configuration.</p>
+<h2 class="wp-block-heading" id="what-changes-after-setup">What changes after setup</h2>
+<p>Once an LSP server is configured, the CLI agent can:</p>
+<ul class="wp-block-list">
+<li><strong>Resolve types across dependencies</strong> — no more grepping through JAR files or <code>node_modules</code></li>
+<li><strong>Jump to definitions</strong> in third-party libraries, even when source isn’t checked into the repository</li>
+<li><strong>Find all references</strong> to a symbol across the project</li>
+<li><strong>Read hover documentation</strong> for any function, class, or type</li>
+</ul>
+<p>This means the agent spends less time on tool calls and produces more accurate code on the first pass. For you, that’s less time waiting while the agent decompiles a JAR file or greps through node_modules to answer a question your IDE already knows, and fewer wrong turns built on a misread signature. The agent reasons about your code with the same structured understanding you get from go-to-definition in your editor, so you can hand it bigger, gnarlier tasks and trust the result.</p>
+<h2 class="wp-block-heading" id="get-started">Get started</h2>
+<ol class="wp-block-list">
+<li><strong>Download the skill</strong>: visit the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://awesome-copilot.github.com/skills/#file=skills%2Flsp-setup%2FSKILL.md">Awesome Copilot LSP Setup skill page</a> and click the <strong>Download</strong> button to get a ZIP file.</li>
+<li><strong>Extract the ZIP</strong> to <code>~/.copilot/skills/</code> by running:</li>
+</ol>
+<div class="wp-block-code-wrapper">
+<pre class="wp-block-code"><code>unzip lsp-setup.zip -d ~/.copilot/skills/</code></pre>
+<clipboard-copy aria-label="Copy" class="code-copy-btn" data-copy-feedback="Copied!" role="button" tabindex="0" value="unzip lsp-setup.zip -d ~/.copilot/skills/"><svg aria-hidden="true" class="octicon octicon-copy js-clipboard-copy-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg><svg aria-hidden="true" class="octicon octicon-check js-clipboard-check-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></clipboard-copy></div>
+<ol class="wp-block-list" start="3">
+<li><strong>Restart GitHub Copilot CLI</strong>: if Copilot CLI is already running, type <code>/exit</code> first. Then relaunch <code>copilot</code> so it picks up the new skill.</li>
+<li><strong>Ask the agent</strong> to set up a language server: for example, <em>“set up LSP for Java”</em> or <em>“enable code intelligence for Python”</em>.</li>
+<li><strong>Verify</strong>: after the skill installs and configures the LSP server, restart Copilot CLI one more time (<code>/exit</code>, then relaunch), run <code>/lsp</code> to check the server status, and try go-to-definition on a symbol from one of your dependencies.</li>
+</ol>
+<p>The skill is part of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://awesome-copilot.github.com/">Awesome Copilot</a> project. It’s open source, so contributions and feedback are welcome!</p>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/ai-and-ml/github-copilot/give-github-copilot-cli-real-code-intelligence-with-language-servers/">Give GitHub Copilot CLI real code intelligence with language servers</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Give GitHub Copilot CLI real code intelligence with language servers" href="https://github.blog/ai-and-ml/github-copilot/give-github-copilot-cli-real-code-intelligence-with-language-servers/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Give GitHub Copilot CLI real code intelligence with language servers</span><span class="desc fs12">https://github.blog/ai-and-ml/github-copilot/give-github-copilot-cli-real-code-intelligence-with-language-servers/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5f344a78.html">The Latest AI News We Announced in May 2026<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/5a8867a9.html">Making Secret Scanning More Trustworthy: Reducing False Positives at Scale<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/39abf162.html" title="GitHub Copilot App: The Agent-Native Desktop Experience"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/06/CCRPlatform_BlogImage_01.jpg?resize=1024%2C637"></div><span class="title">GitHub Copilot App: The Agent-Native Desktop Experience</span></a><a class="item" href="/rss/dc5ea0e4.html" title="GitHub Universe Is Back: All Together Now, in the Agentic Era"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6982"></div><span class="title">GitHub Universe Is Back: All Together Now, in the Agentic Era</span></a><a class="item" href="/rss/751e8b33.html" title="GitHub Availability Report: May 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4488"></div><span class="title">GitHub Availability Report: May 2026</span></a><a class="item" href="/rss/7d0cd841.html" title="From One-Off Prompts to Workflows: How to Use Custom Agents in GitHub Copilot CLI"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/05/screenshot.png?resize=1024%2C296"></div><span class="title">From One-Off Prompts to Workflows: How to Use Custom Agents in GitHub Copilot CLI</span></a><a class="item" href="/rss/70fe651d.html" title="GitHub for Beginners: Answers to Some Common Questions"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=248"></div><span class="title">GitHub for Beginners: Answers to Some Common Questions</span></a><a class="item" href="/rss/79979191.html" title="GitHub for Beginners: Getting Started With Git and GitHub in vs Code"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2884"></div><span class="title">GitHub for Beginners: Getting Started With Git and GitHub in vs Code</span></a><a class="item" href="/rss/4b78245e.html" title="How We Made GitHub Copilot CLI More Selective About Delegation"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/06/fig1-tool-failures.gif?resize=768%2C432"></div><span class="title">How We Made GitHub Copilot CLI More Selective About Delegation</span></a><a class="item" href="/rss/4bbb4d75.html" title="Still a Developer. Just Outside. Our Latest GitHub Shop Collection Is Here."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/05/Blog_Image_02.png?resize=1024%2C576"></div><span class="title">Still a Developer. Just Outside. Our Latest GitHub Shop Collection Is Here.</span></a><a class="item" href="/rss/5a8867a9.html" title="Making Secret Scanning More Trustworthy: Reducing False Positives at Scale"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/06/blog-post-1.png?resize=1024%2C576"></div><span class="title">Making Secret Scanning More Trustworthy: Reducing False Positives at Scale</span></a><a class="item" href="/rss/8dc84d37.html" title="Announcing Claude Compliance API Support With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9310"></div><span class="title">Announcing Claude Compliance API Support With Cloudflare CASB</span></a><a class="item" href="/rss/3cab9852.html" title="Announcing Claude Managed Agents on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/6nYyreZYWyaKo6Xf2XjmtM/5cc21576a83e223a2cf67e8ed3fde928/image5.png"></div><span class="title">Announcing Claude Managed Agents on Cloudflare</span></a><a class="item" href="/rss/279709d.html" title="Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.cloudflare.com&url=https://cf-assets.www.cloudflare.com/zkvhlag99gkb/3eIJK055QLIl3ay12TIhfQ/9d988169efadb16cb5b18b539b62aa55/image3.png"></div><span class="title">Browser Run: Now Running on Cloudflare Containers, It’s Faster and More Scalable</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://api.mhuig.top/">API</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
