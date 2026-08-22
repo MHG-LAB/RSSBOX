@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>一个生产事件，怎样被 Agent 组织真正“看见”？ - RSSBOX</title>
+
+  
+    <meta name="description" content="islaohu: 一个生产事件，怎样被 Agent 组织真正“看见”？  TapNow 招聘｜ Agent 平台工程师（ SRE 方向）｜深圳  不久前，我们遇到过一个很典型的问题。 一个超高分辨率视频任务消耗了远超预期的资源，worker 失败后，任务又被队列重新投递。表面上看，它只是某个节点在不断报错；真正的问题却横跨任务设计、资源调度、重试策略、运行时状态和用户影响。 有经验的工程师会把这">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一个生产事件，怎样被 Agent 组织真正“看见”？">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/a31dcd48.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="islaohu: 一个生产事件，怎样被 Agent 组织真正“看见”？  TapNow 招聘｜ Agent 平台工程师（ SRE 方向）｜深圳  不久前，我们遇到过一个很典型的问题。 一个超高分辨率视频任务消耗了远超预期的资源，worker 失败后，任务又被队列重新投递。表面上看，它只是某个节点在不断报错；真正的问题却横跨任务设计、资源调度、重试策略、运行时状态和用户影响。 有经验的工程师会把这">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-22T16:21:29.000Z">
+<meta property="article:modified_time" content="2026-08-22T16:21:29.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="V2EX">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">这不是一个告警数量的问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">TapNow 提供的是一块足够真实的试验场</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">我们正在搭一条“知—觉—行”的神经回路</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">你会从真实生产出发，而不是从一张架构图出发</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">我们会用一些很具体的事实判断彼此是否合适</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">如果这件事让你兴奋</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/v2ex/">V2EX</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-22T16:21:29.000Z">2026-08-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>一个生产事件，怎样被 Agent 组织真正“看见”？</span></h1>
+<div>
+islaohu: <h1>一个生产事件，怎样被 Agent 组织真正“看见”？</h1>
+<blockquote>
+<p>TapNow 招聘｜ Agent 平台工程师（ SRE 方向）｜深圳</p>
+</blockquote>
+<p>不久前，我们遇到过一个很典型的问题。</p>
+<p>一个超高分辨率视频任务消耗了远超预期的资源，worker 失败后，任务又被队列重新投递。表面上看，它只是某个节点在不断报错；真正的问题却横跨任务设计、资源调度、重试策略、运行时状态和用户影响。</p>
+<p>有经验的工程师会把这些碎片接起来：记得刚刚发生过什么，知道该去哪里补证据，也能意识到一条单独的告警没有讲出完整故事。</p>
+<p>但 Agent 不会自然拥有这些“余光”。</p>
+<p>解决完具体故障以后，我们更想回答的是：如果下一次首先抵达现场的是 Agent ，它怎样知道发生了什么？怎样区分症状与原因？怎样获得足够的权限行动，又不会因为执行得太快而放大风险？</p>
+<p>我们在寻找一位工程师，和我们一起把答案做成平台。</p>
+<h2>这不是一个告警数量的问题</h2>
+<p>Agent 不会顺便扫一眼大盘，不会无意中听到同事谈论上游波动，也不会自动把刚完成的发布和突然出现的 5xx 联系起来。它知道的一切，都必须被系统明确提供。</p>
+<p>所以，我们所说的“信号”并不等于再发一条通知。</p>
+<p>一个完整的生产信号需要说明：发生了什么事实，它与哪些对象有关，谁应该关注，谁负有行动责任，当前处于什么阶段，最终是被处理、忽略还是升级。对人而言，它可能是一条提醒；对诊断 Agent 而言，它可能是一项工作；即使系统决定不投递，也应该留下可追溯的裁决。</p>
+<p>这也是为什么我们把 SRE 看作 Agent 组织的平台角色，而不只是基础设施的维护者。</p>
+<h2>TapNow 提供的是一块足够真实的试验场</h2>
+<p>TapNow 正在构建 Creative OS ，让用户带着想法而来，带着完整作品离开。Agent 贯穿创作全过程，把人的意图逐步转化为策略、任务、图像、视频和粗剪成片；画布、节点、3D 节点与 Playlist ，是人和 Agent 共同工作的 Workspace 。</p>
+<p>它背后不是一个封闭的 Demo 环境，而是一套服务全球用户的生产系统：多云、托管服务、serverless 、异步生成任务、模型供应商、边缘网络和持续发布相互交织。</p>
+<p>在这里，一次负载均衡异常可能同时表现为健康检查抖动、upstream timeout 和 5xx ；一个认证接口的响应差异，也可能被自动化攻击放大成安全事件。生产链路足够长、变化足够快，靠少数人记住一切既不现实，也不应该成为组织长期运行的方式。</p>
+<h2>我们正在搭一条“知—觉—行”的神经回路</h2>
+<p>“知”，是让 Agent 获得可靠的生产 context：系统拓扑、依赖关系、发布契约、历史事故、权限边界和当前事实。</p>
+<p>“觉”，是让它知道此刻应该注意什么：指标、日志、trace 、发布和平台事件如何形成有语义的信号，而不是一片通知噪声。</p>
+<p>“行”，是把诊断、变更、回滚和恢复放进明确的授权与安全闸门中，并留下证据、结果和反馈。</p>
+<p>我们已经在把 CI/CD 和平台事件从散落的通知，整理成拥有生命周期、路由、权限和投递结果的信号。接下来的工作，是让这条回路继续进入可观测性、发布、事故响应和日常生产操作，并在真实环境中不断校准。</p>
+<h2>你会从真实生产出发，而不是从一张架构图出发</h2>
+<p>你仍然会写 Shell 、Python 、Terraform ，排查 DNS/TLS 、LB/CDN 、数据库、缓存、队列、GKE 和 serverless ，也会参与发布和真实事故。</p>
+<p>但“问题恢复了”只代表第一层工作完成。接下来还要继续追问：</p>
+<ul>
+<li>哪些信号本该更早出现，哪些通知其实只是噪声？</li>
+<li>刚才的判断依赖了哪些隐性知识，怎样把它变成 Agent 可使用的 context ？</li>
+<li>哪些步骤可以先由 Agent 完成只读调查，哪些动作能够最小写入、随时回滚并做 postcheck ？</li>
+<li>这次失败应该留下怎样的 eval ，才能证明系统下一次真的做得更好？</li>
+</ul>
+<p>最终的产物可能是一条新的信号路由、一份可执行的变更契约、一个故障签名、一组权限护栏，或者一套基于真实事故的评测。脚本和 runbook 都会存在，但它们只是能力的载体。</p>
+<h2>我们会用一些很具体的事实判断彼此是否合适</h2>
+<p>你需要在公有云的托管服务或 serverless 架构上扛过真实流量，并且能够对跨领域的生产问题独立闭环。只熟悉自建机房、自建 Kubernetes 或私有化交付，很难直接覆盖 TapNow 当前的生产形态。</p>
+<p>你也需要真正深度使用 Agent 。不是让它偶尔补几行 YAML ，而是已经用 Coding Agent 完成过复杂、跨步骤、涉及真实系统的工作。做过 harness 、tool use 、memory 、multi-agent 、failure recovery 或 eval ，会帮助你更快进入这里的工作。</p>
+<p>我们同样在意你的生产习惯：默认先只读、最小 diff 、可回滚、做 postcheck ；能把判断写成结论、证据和风险；愿意把一次个人经验提炼为组织可以复用的机制。</p>
+<p>你的 title 可以是 SRE ，也可以来自后端、平台、DevOps 或基础设施。我们不机械看工龄和工具清单，但会认真验证三件事：你是否真正处理过复杂生产问题，是否理解 Agent 的能力边界，以及是否能把二者连接成长期运行的平台。</p>
+<p>如果你最享受的是依靠个人经验反复救火，或者认为装好 Terraform 、Kubernetes 和告警规则就已经完成工作，这里大概不会适合你。我们更希望系统能够记住经验，让英雄主义逐步变得不再必要。</p>
+<h2>如果这件事让你兴奋</h2>
+<p>工作地点在深圳。请将简历、GitHub 、个人项目或其他能够证明你的材料发至 <strong>builders@tapnow.ai</strong>，邮件标题注明：<strong>Agent Platform Engineer + 姓名</strong>。</p>
+<p>比简历更有帮助的是一份可验证的证据：一个仍在运行的项目、一篇公开事故复盘、一个合入开源项目的 PR ，或者你自己的 harness 、skill 、eval 仓库。</p>
+<p>来信时，也请简单回答三个问题：</p>
+<ol>
+<li>选一个你真正独立闭环过的生产问题：最初的表象是什么，哪个证据改变了你的判断？</li>
+<li>如果把其中一部分工作交给 Agent ，你会先交出哪一步，又会保留哪一道人工边界？</li>
+<li>面对一个陌生的生产系统，你会如何判断它最先缺少的是 context 、signal ，还是安全的 action ？</li>
+</ol>
+<p>我们不是在寻找下一位替团队守夜的人。我们想一起建设的，是一套即使人没有一直盯着，组织也依然能够感知、判断、行动并从结果中学习的生产系统。</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="一个生产事件，怎样被 Agent 组织真正“看见”？" href="https://www.v2ex.com/t/1236485" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">一个生产事件，怎样被 Agent 组织真正“看见”？</span><span class="desc fs12">https://www.v2ex.com/t/1236485</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/ce249607.html">ANTE：原生支持本地 GGUF 的 Coding Agent， Qwen3.6 27B 在 TB 2.1 跑到 56.2%<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/5e7b86d3.html">有用不惯垂直标签、OneTab 那一套的可以试试这个扩展<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/ce249607.html" title="ANTE：原生支持本地 GGUF 的 Coding Agent， Qwen3.6 27B 在 TB 2.1 跑到 56.2%"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=231"></div><span class="title">ANTE：原生支持本地 GGUF 的 Coding Agent， Qwen3.6 27B 在 TB 2.1 跑到 56.2%</span></a><a class="item" href="/rss/46a6bdf8.html" title="BYBIT 欧洲版(EU)的注册及使用指南,25U 注册返现+我额外返现 20U 需消费达标，卡消费首月返现 10%."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://fgvbt.com/wp-content/uploads/2026/05/photo_2026-08-22_22-54-45.jpg"></div><span class="title">BYBIT 欧洲版(EU)的注册及使用指南,25U 注册返现+我额外返现 20U 需消费达标，卡消费首月返现 10%.</span></a><a class="item" href="/rss/a09ac4bb.html" title="Windows 下 Agents 并行开发的环境配置建议"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=217"></div><span class="title">Windows 下 Agents 并行开发的环境配置建议</span></a><a class="item" href="/rss/bc6c32b1.html" title="Apipeek：一个基于 Mitmproxy、解压即用的接口抓包工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2159"></div><span class="title">Apipeek：一个基于 Mitmproxy、解压即用的接口抓包工具</span></a><a class="item" href="/rss/e84c0ae5.html" title="V 站签到系统好像有点问题，凌晨有时候不能自动签到，不知道什么原因。"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3114"></div><span class="title">V 站签到系统好像有点问题，凌晨有时候不能自动签到，不知道什么原因。</span></a><a class="item" href="/rss/da0e38f6.html" title="Vivo 手机会改动 Motion Photo 的元信息，导致 Google Photos 无法播放"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1463"></div><span class="title">Vivo 手机会改动 Motion Photo 的元信息，导致 Google Photos 无法播放</span></a><a class="item" href="/rss/b34fbc49.html" title="Xixu-Me/xget 404 了？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7253"></div><span class="title">Xixu-Me/xget 404 了？</span></a><a class="item" href="/rss/be5e6c33.html" title="发现了一个输入法加上了实时背单词的功能，很激动😂"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=409"></div><span class="title">发现了一个输入法加上了实时背单词的功能，很激动😂</span></a><a class="item" href="/rss/4a04a335.html" title="客户托管 2696v4 128g V100 32g*2 跑生图模型 性能咋样？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2640"></div><span class="title">客户托管 2696v4 128g V100 32g*2 跑生图模型 性能咋样？</span></a><a class="item" href="/rss/b0605132.html" title="有外国 Tin 和中国、香港和第三国汇丰卓越理财账户，如何投资美股而尽可能避免 Crs 交换？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=879"></div><span class="title">有外国 Tin 和中国、香港和第三国汇丰卓越理财账户，如何投资美股而尽可能避免 Crs 交换？</span></a><a class="item" href="/rss/5e7b86d3.html" title="有用不惯垂直标签、OneTab 那一套的可以试试这个扩展"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://iili.io/CZt8Cvf.png"></div><span class="title">有用不惯垂直标签、OneTab 那一套的可以试试这个扩展</span></a><a class="item" href="/rss/8934e20c.html" title="DeepSeek 调整 API 周末计费：周六日全天统一按低谷价收费"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.ithome.com&url=https://img.ithome.com/newsuploadfiles/2026/8/84ef6f59-f806-404d-b171-c5ec67bb8133.jpg@s_2,w_820,h_787"></div><span class="title">DeepSeek 调整 API 周末计费：周六日全天统一按低谷价收费</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

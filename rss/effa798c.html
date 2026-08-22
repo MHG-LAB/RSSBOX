@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>二、Codex Memories 源码解析：记忆的生成、整理与存储 - RSSBOX</title>
+
+  
+    <meta name="description" content="第一章回答了什么信息值得长期保存。接下来，我们沿着一段历史任务的处理过程，看看 Codex 如何把它转化为能够在未来使用的记忆。 Codex 不会在任务结束时直接改写长期记忆。后台管线启动后，系统先从历史记录中找出符合条件的任务，再逐个提取其中值得保留的信息。提取结果不会立即写入最终文件，而是先进入状态数据库，等待全局整理。 整理阶段会把多项候选记忆放在一起，处理重复、冲突和已经发生变化的信息，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="二、Codex Memories 源码解析：记忆的生成、整理与存储">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/effa798c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="第一章回答了什么信息值得长期保存。接下来，我们沿着一段历史任务的处理过程，看看 Codex 如何把它转化为能够在未来使用的记忆。 Codex 不会在任务结束时直接改写长期记忆。后台管线启动后，系统先从历史记录中找出符合条件的任务，再逐个提取其中值得保留的信息。提取结果不会立即写入最终文件，而是先进入状态数据库，等待全局整理。 整理阶段会把多项候选记忆放在一起，处理重复、冲突和已经发生变化的信息，">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&amp;x-expires=1787988753&amp;x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D">
+<meta property="article:published_time" content="2026-08-21T09:36:49.000Z">
+<meta property="article:modified_time" content="2026-08-21T09:36:49.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&amp;x-expires=1787988753&amp;x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、后台管线的启动与历史任务筛选</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">thread 与 rollout 分别记录什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">哪些历史任务会进入提取流程</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、单任务记忆的提取与候选结果入库</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">提取 Agent 会看到哪些内容</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一次提取会产生什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">状态数据库保存的不是最终记忆</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、候选记忆的选择与整理输入生成</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、全局记忆的整合与本地文件更新</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么这一阶段只能有一个写入者</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Git 基线如何支持增量整理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">模型调用和失败如何受到控制</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">本地 Memory 目录保存什么</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-21T09:36:49.000Z">2026-08-21</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>二、Codex Memories 源码解析：记忆的生成、整理与存储</span></h1>
+<div>
+<p>第一章回答了什么信息值得长期保存。接下来，我们沿着一段历史任务的处理过程，看看 Codex 如何把它转化为能够在未来使用的记忆。</p>
+<p>Codex 不会在任务结束时直接改写长期记忆。后台管线启动后，系统先从历史记录中找出符合条件的任务，再逐个提取其中值得保留的信息。提取结果不会立即写入最终文件，而是先进入状态数据库，等待全局整理。</p>
+<p>整理阶段会把多项候选记忆放在一起，处理重复、冲突和已经发生变化的信息，最后更新本地记忆文件（Memory）。单项提取彼此独立，可以有限并发；全局整理会修改同一组文件，因此同一时刻只能有一个整合任务执行。状态数据库负责保存候选结果和管线进度，本地 Memory 目录负责保存整理后的长期产物。</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&amp;x-expires=1787988753&amp;x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D"></p>
+<h2 data-id="heading-0">一、后台管线的启动与历史任务筛选</h2>
+<p>Memory 生成不是等当前任务关闭以后才进行的一次总结。根任务提交一轮包含用户输入的消息后，Codex 会尝试在后台启动记忆管线。当前回答继续生成，记忆处理不会阻塞这次交互。</p>
+<p>这条管线并非每次都能启动。Memory 生成功能必须处于启用状态，当前任务不能是临时任务或子 Agent，并且系统需要能够访问状态数据库。当前正在执行的根任务只负责唤醒后台工作，它本身会被排除在本轮候选之外。因此，用户刚刚输入的内容不会在同一轮里立刻成为长期记忆。</p>
+<p><code>/memories</code> 提供了两个相互独立的控制项。「生成记忆」决定任务能否在以后参与记忆提取，最终记录为任务的记忆模式（<code>memory_mode</code>）；「使用记忆」决定新任务是否读取已经存在的 Memory。关闭使用不会停止后台生成，关闭生成也不会删除已有的长期记忆。</p>
+<p>后台管线在发起模型请求以前还会检查 Codex 的 rate limit。剩余额度低于配置门槛时，本轮提取和整理都会停止。清理过期记录不需要调用模型，可以先执行。若额度查询失败，管线仍会继续运行，避免一次监测故障长期阻断记忆生成。</p>
+<h3 data-id="heading-1">thread 与 rollout 分别记录什么</h3>
+<p>系统扫描历史任务时会遇到两个容易混淆的概念。</p>
+<p>任务线程（thread）表示一项逻辑上的 Codex 任务。它有稳定标识，并关联更新时间、工作目录、来源、模型和当前状态等信息。用户在界面中看到的一项任务，通常对应一个 thread。</p>
+<p>任务运行记录（rollout）是该 thread 在磁盘上持续追加的执行记录。它包含用户消息、Agent 回复、工具调用与结果、会话元数据和执行事件，更接近一份按时间写入的运行日志，而不是整理好的对话稿。后续的记忆提取 Agent 真正读取的是 rollout。</p>
+<p>状态数据库保存 thread 的元数据以及 rollout 的文件位置，但不复制完整运行记录。原始 rollout 仍保存在会话存储目录，也不属于 <code>~/.codex/memories/</code>。这形成了第一道边界：rollout 保存历史证据，状态数据库负责寻找和调度任务，本地 Memory 文件保存整理后的长期知识。</p>
+<h3 data-id="heading-2">哪些历史任务会进入提取流程</h3>
+<p>后台管线不会读取全部历史任务。只有同时满足以下条件的任务，才会进入记忆提取流程：</p>
+<ul>
+<li>由用户直接发起，尚未归档且不是空任务。</li>
+<li>记忆模式处于启用状态。</li>
+<li>不是当前任务，且已达到最短空闲时间，未超过最长回溯期限。</li>
+<li>尚未完成过提取，或在上次成功提取后产生了新内容。</li>
+</ul>
+<p>记忆模式也可能在任务执行过程中改变。如果启用了外部上下文保护，使用 Web Search、工具搜索或特定外部工具的任务会被标记为「受外部上下文影响（polluted）」，从而失去记忆提取资格。这个标记只表示任务混入了外部来源，并不表示其中的内容错误。</p>
+<p>通过上述筛选后，符合条件的历史 rollout 才会交给记忆提取 Agent。</p>
+<h2 data-id="heading-3">二、单任务记忆的提取与候选结果入库</h2>
+<p>单任务记忆提取（Phase 1）每次分析一份 rollout，并为这项历史任务生成候选记忆。不同 rollout 之间互不依赖，因此可以同时提取。具体的并发限制和重复处理保护，将在后文的后台运行保障中统一说明。</p>
+<h3 data-id="heading-4">提取 Agent 会看到哪些内容</h3>
+<p>rollout 保存了一项任务的完整运行记录，但记忆提取 Agent 只会看到其中与任务过程有关的部分。</p>
+<p>系统会保留用户真正输入的任务内容、Agent 对任务的回复、工具调用与结果，以及 Agent 之间的通信。这些记录可以还原任务目标、执行过程和实际结果。</p>
+<p>由 Codex 运行环境注入的开发者指令（developer message）不会进入提取请求。这类消息用于规定 Agent 应当怎样工作，并不是当前任务产生的事实或用户偏好。模型推理、上下文压缩记录和内部运行信息也会被排除。<code>AGENTS.md</code> 与 Skill 说明即使出现在用户上下文中，也会被单独删除，因为它们是系统已有的规则，不是当前任务产生的新信息。</p>
+<p>工具结果仍会保留。测试结果、命令反馈和错误信息可以证明任务实际发生了什么；其中夹带的外部指令只能作为数据处理，不能被当成用户要求。</p>
+<p>发送给模型以前，系统会遮盖记录中的密钥、令牌等秘密信息。rollout 过长时，内容还会根据模型的上下文容量进行裁剪，同时保留记录的开头和结尾。</p>
+<p>这些程序规则只限定记忆提取 Agent 能够参考哪些历史记录。记录中的内容是否值得成为长期记忆，仍由提取 Agent 判断。</p>
+<h3 data-id="heading-5">一次提取会产生什么</h3>
+<p>记忆提取 Agent 根据处理后的 rollout 生成 3 项结构化结果。</p>
+<ul>
+<li>候选记忆正文（<code>raw_memory</code>）记录从这项任务中提炼出的偏好、事实、操作经验和判断依据，等待全局整理。</li>
+<li>任务运行摘要（<code>rollout_summary</code>）概括任务目标、实际结果、验证证据和可复用结论。以后需要核对细节时，可以先读取这份摘要，不必重新打开完整 rollout。</li>
+<li>任务摘要文件标识（<code>rollout_slug</code>）为摘要文件提供简短的主题名称。存储层会把它与时间和短哈希组合成文件名，方便读者从文件名辨认任务内容；它本身不保存记忆。</li>
+</ul>
+<p>如果这份 rollout 没有达到记忆提取门槛，Agent 可以把 3 项结果都留空。程序会检查候选记忆正文和任务运行摘要，其中任何一项为空，这次作业就记为「成功但无输出（succeeded no output）」，不会保存空的候选记忆。任务摘要文件标识不参与有效性判断；它缺失时，存储层会生成备用文件名。</p>
+<p>模型完成提取后，系统会再次遮盖 3 项输出中的秘密信息。这样做不能证明模型从未接触敏感内容，却能降低秘密被写进持久化候选结果和本地文件的风险。</p>
+<h3 data-id="heading-6">状态数据库保存的不是最终记忆</h3>
+<p>有效结果不会直接进入 <code>MEMORY.md</code>，而是先写入状态数据库中的候选结果表（<code>stage1_outputs</code>）。每个 thread 保存一份当前有效的提取结果，同时记录来源更新时间和生成时间。</p>
+<p>这里的「候选」表示内容尚未经过跨任务整理，并不意味着数据库是一块随时可以丢弃的临时缓存。状态数据库是持久化的中间层。除了候选正文和任务摘要，它还记录使用次数（<code>usage_count</code>）、最近使用时间（<code>last_usage</code>）、作业状态、租约、重试次数、最近错误以及处理水位。</p>
+<p>这些状态让后台工作能够跨越应用重启继续运行。worker 中途失去响应后，租约到期可以由其他 worker 接管；一次提取失败也不会被误记为完成。如果同一个 thread 过去存在候选结果，而最新提取变成空结果，旧结果会被删除，并触发后续的全局整理。</p>
+<p>经过 Phase 1，一份 rollout 已经转化成数据库中的候选记忆，但它还不是未来任务会直接读取的长期记忆。</p>
+<h2 data-id="heading-7">三、候选记忆的选择与整理输入生成</h2>
+<p>状态数据库可能保存多项尚待整理的候选记忆。Codex 不会把它们全部交给整合 Agent，而是先确定本轮真正需要处理的内容。</p>
+<p>系统会排除长期未使用或来源过旧的记录，再按照使用次数、最近使用或更新的时间以及来源的新近程度排序，只选择配置允许的前 N 项。使用次数更高的候选会获得更高优先级，因此 Memory 是否在后续任务中被使用，确实会影响它以后参与全局整理的机会。</p>
+<p>如果一项任务此前已经参与过全局整理，后来又被标记为「受外部上下文影响」，系统会安排新一轮整理。下一轮选择会排除这项任务，再由整合 Agent 根据输入变化更新长期记忆文件。</p>
+<p>数据库中的候选记忆是持久化状态。经过规则筛选后得到的「本轮需要整理的候选记忆」，只表示一次全局整理的输入范围。</p>
+<p>选择顺序与文件写入顺序也不相同。系统先按相关字段确定哪些候选入选，再按照稳定的 thread 标识顺序生成文件。即使使用次数发生变化，只要入选内容没有改变，文件也不会因为排序波动而反复重排。</p>
+<p>本轮选中的内容会被同步成两类输入文件：</p>
+<ul>
+<li>原始候选记忆合集（<code>raw_memories.md</code>）汇总入选记录的 <code>raw_memory</code>，供整合 Agent 查看本轮有哪些内容需要处理。</li>
+<li>任务运行摘要目录（<code>rollout_summaries/</code>）为每项入选任务保存一份 <code>rollout_summary</code>，并附带 thread 标识、原始 rollout 路径、工作目录、更新时间和 Git 分支等回溯信息。</li>
+</ul>
+<p>这两类文件不是最终长期记忆。它们只是把数据库中的结构化结果转换成整合 Agent 能够读取和比较的本地输入。某项候选不再入选时，对应摘要会从目录中移除，<code>raw_memories.md</code> 也会重新生成。新增、修改和删除都会成为下一阶段需要处理的变化。</p>
+<h2 data-id="heading-8">四、全局记忆的整合与本地文件更新</h2>
+<p>全局记忆整合（Phase 2）同时查看多项候选结果。整合 Agent 需要识别重复内容，处理相互冲突或已经变化的事实，并把仍然有效的信息组织进同一套本地文件。</p>
+<h3 data-id="heading-9">为什么这一阶段只能有一个写入者</h3>
+<p>Phase 1 可以并发，因为不同请求处理不同的 rollout，结果写入不同的数据库记录。Phase 2 修改的是同一个 Memory 目录。如果两个整合 Agent 同时更新 <code>MEMORY.md</code>，其中一个可能覆盖另一个刚完成的合并、删除或冲突处理。</p>
+<p>因此，系统会在读取本轮候选和修改目录以前领取全局租约。同一时刻只有一个整合任务能够取得写入权。运行时间较长时，整合任务会通过心跳续租；一旦失去所有权，它就不能把自己的结果登记为成功。</p>
+<p>整合 Agent 可以读取候选记忆、任务摘要和已有 Memory，并在 Memory 根目录内更新产物。它不能修改原始 rollout，也不会把自己的内部任务再次送进记忆生成流程。实现还关闭了 Memory、协作 Agent、Apps、Plugins 和 MCP 等能力，减少递归调用及外部状态进入整理过程的机会。</p>
+<p>在 Codex 管理的沙箱中，整合 Agent 只能写入 Memory 根目录，并且不能访问网络。如果父任务明确使用外部权限配置，或者关闭了 Codex 管理的沙箱，实现会保留父任务的选择。因此，「整合 Agent 在任何运行模式下都绝对不能联网」并不成立。</p>
+<h3 data-id="heading-10">Git 基线如何支持增量整理</h3>
+<p>状态数据库能够判断候选来源是否更新，却不能仅凭时间水位判断本地输入文件是否真的发生了变化。Codex 因此在 Memory 目录中维护一份内部 Git 基线，记录上一次成功整合后的文件状态。</p>
+<p>系统取得全局租约后，先把本轮候选同步到 <code>raw_memories.md</code> 和 <code>rollout_summaries/</code>，再与 Git 基线比较。若文件没有变化且现有核心产物仍然有效，本轮可以直接完成，不调用整合模型。若出现新增、修改或删除，系统会把有大小上限的差异写入临时文件 <code>phase2_workspace_diff.md</code>，让整合 Agent 先了解这次发生了什么变化。</p>
+<p>数据库水位和 Git 基线解决不同问题。水位负责记录后台管线处理到了哪个来源版本，Git 基线负责判断本地整理输入发生了哪些实际变化。候选来源时间发生变化时，生成的内容可能完全相同；某项候选被撤回时，Git 差异又能直接呈现相应文件的删除。</p>
+<p>整合 Agent 退出后，系统还要检查 <code>MEMORY.md</code> 是否存在，并确认 <code>memory_summary.md</code> 符合规定格式。只有产物有效、Agent 已经关闭，而且全局租约仍属于当前 worker，系统才会更新 Git 基线和数据库中的完成状态。失败运行不会推进成功基线，后续重试仍能看到未处理的变化。</p>
+<h3 data-id="heading-11">模型调用和失败如何受到控制</h3>
+<p>Codex 没有为 Memory 维护一笔精确的货币预算，它主要限制模型调用数量和单次输入规模。</p>
+<p>Phase 1 每轮只领取有限数量的 rollout。一条后台管线最多同时执行 8 个提取请求，状态数据库还会限制所有后台管线正在执行的提取任务总数。前者限制一次启动产生的并发，后者防止多次启动叠加后突破全局上限。rollout 过长时，系统最多使用提取模型有效输入窗口的 70%，为系统指令和模型输出预留空间。</p>
+<p>Phase 2 只整理有限数量的候选记忆。长期未使用的记录会失去资格，本地输入文件没有变化时则跳过整合模型。两个阶段也可以分别选择不同模型和推理强度。</p>
+<p>为了避免重复提取，系统领取一份 rollout 时，会在状态数据库中登记由哪条后台管线处理，并设置到期时间。这就是处理租约（lease）。租约有效期内，其他后台管线不能重复领取；处理过程意外中断后，租约到期，这份 rollout 可以重新进入处理流程。</p>
+<p>Phase 1 和 Phase 2 都有延迟重试和重试次数限制。新的 rollout 内容可以刷新单任务提取的处理机会。整合 Agent 异常退出、产物缺失、Git 基线更新失败或租约丢失，都会留下失败状态，不会被当成一次成功整理。</p>
+<p>这些措施无法消除模型成本，也不保证每轮后台工作都能完成。它们限制了单轮调用规模，并避免部分失败污染已经确认的长期产物。</p>
+<h3 data-id="heading-12">本地 Memory 目录保存什么</h3>
+<p>状态数据库负责协调后台管线，整理后的长期内容则保存在 <code>~/.codex/memories/</code>。下面的目录树同时列出了整理输入、长期产物和运行设施：</p>
+<pre><code class="hljs language-ruby" lang="ruby">~<span class="hljs-regexp">/.codex/memories</span><span class="hljs-regexp">/
+├── .git/</span>                                  <span class="hljs-comment"># 上一次成功整合后的内部文件基线</span>
+├── raw_memories.md                        <span class="hljs-comment"># 本轮选中的候选记忆合集</span>
+├── rollout_summaries/                     <span class="hljs-comment"># 本轮入选任务的运行摘要</span>
+│   └── &lt;时间&gt;-&lt;短哈希&gt;-&lt;主题&gt;.md           <span class="hljs-comment"># 单项任务摘要及回溯信息</span>
+├── <span class="hljs-variable constant_">MEMORY</span>.md                              <span class="hljs-comment"># 整理后的详细长期记忆和检索入口</span>
+├── memory_summary.md                      <span class="hljs-comment"># 新任务优先读取的紧凑记忆摘要</span>
+├── skills/                                <span class="hljs-comment"># 从长期经验中整理出的可复用流程</span>
+│   └── &lt;skill-name&gt;<span class="hljs-regexp">/
+│       ├── SKILL.md                       # 流程入口与使用说明
+│       ├── scripts/</span>                       <span class="hljs-comment"># 可选的辅助脚本</span>
+│       ├── templates/                     <span class="hljs-comment"># 可选的模板</span>
+│       └── examples/                      <span class="hljs-comment"># 可选的示例</span>
+├── extensions/                            <span class="hljs-comment"># 手动笔记或其他记忆来源的扩展入口</span>
+│   ├── ad_hoc/
+│   │   ├── instructions.md                <span class="hljs-comment"># 解释如何处理手动补充内容</span>
+│   │   └── notes/                         <span class="hljs-comment"># 等待整合的补充记录</span>
+│   └── &lt;other-extension&gt;<span class="hljs-regexp">/
+│       ├── instructions.md                # 扩展来源的处理说明
+│       └── resources/</span>                     <span class="hljs-comment"># 可选的扩展资源</span>
+└── phase2_workspace_diff.md               <span class="hljs-comment"># 整理期间使用的临时文件，成功后删除</span>
+</code></pre>
+<p>这些文件不能一概视为「记忆正文」。<code>raw_memories.md</code> 和 <code>rollout_summaries/</code> 是从状态数据库同步出来的整理输入；<code>MEMORY.md</code> 是详细的长期记忆，并在需要时指向任务摘要；<code>memory_summary.md</code> 更短，用来告诉新任务记忆中有哪些主题以及应当继续查找什么；<code>skills/</code> 保存已经稳定到可以复用的操作流程。</p>
+<p><code>.git/</code> 和 <code>phase2_workspace_diff.md</code> 属于运行设施，不会作为用户记忆注入模型。<code>extensions/</code> 为手动笔记或其他记忆来源提供入口，是否出现以及包含什么内容取决于实际启用的扩展。</p>
+<p>至此，一项历史任务已经经过筛选、单任务提取和全局整理，转化为保存在本地的长期记忆。下一章关注相反的方向：新的任务启动后，系统会读取哪些文件，又会以什么顺序把这些记忆带入模型上下文。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="二、Codex Memories 源码解析：记忆的生成、整理与存储" href="https://juejin.cn/post/7676298757315264531" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">二、Codex Memories 源码解析：记忆的生成、整理与存储</span><span class="desc fs12">https://juejin.cn/post/7676298757315264531</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/bc2b8871.html">Llm 0.32.1<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/692620f2.html">Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f5e4b7ad.html" title="AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1cbb9c09db74469ea61dfada14b32305~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZGo5LiA5ZCM5a2mWmVsaW5h:q75.awebp?rk3s=f64ab15b&x-expires=1787792303&x-signature=fxi3Ju7v2qkuujJeua0ninu9Mmg%3D"></div><span class="title">AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？</span></a><a class="item" href="/rss/48d525c0.html" title="AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/543acfa53344011a6c371dc51faf2d7d9331103d-1485x885.png"></div><span class="title">AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？</span></a><a class="item" href="/rss/77574e.html" title="Token生产之后，合肥开始研究怎么“运营”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5842"></div><span class="title">Token生产之后，合肥开始研究怎么“运营”</span></a><a class="item" href="/rss/306a3f45.html" title="TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9378"></div><span class="title">TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破</span></a><a class="item" href="/rss/1d8e8b4a.html" title="Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=561"></div><span class="title">Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时</span></a><a class="item" href="/rss/692620f2.html" title="Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5709"></div><span class="title">Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)</span></a><a class="item" href="/rss/9740a231.html" title="RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5898"></div><span class="title">RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771</span></a><a class="item" href="/rss/5bad3d37.html" title="免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/0706105f7975c6bc5e4d5462974f8cc34c3ee133-1476x966.png"></div><span class="title">免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相</span></a><a class="item" href="/rss/4d2c640.html" title="分享一下最近做的AI记账 App | 欢迎体验"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/780faac40fb54a60b1dfd23c2c1508f9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1787917129&x-signature=WhwtwVYZ01YuTLlXQH1z0yOL2eo%3D"></div><span class="title">分享一下最近做的AI记账 App | 欢迎体验</span></a><a class="item" href="/rss/50655e78.html" title="告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=884"></div><span class="title">告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式</span></a><a class="item" href="/rss/d7ce172e.html" title="我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/6ee3ac2fc36e7f6018789b8e1796bc794d9e6d9b-1500x900.png"></div><span class="title">我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告</span></a><a class="item" href="/rss/129e3442.html" title="知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cd7f8ab1f6ff4d82abf73f024a32e5ea~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3OTA5MjczMDk5NTQ1NA==:q75.awebp?rk3s=f64ab15b&x-expires=1787823586&x-signature=KFxcmvWA2Pb46F274ZH0ci3VMN0%3D"></div><span class="title">知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”</span></a><a class="item" href="/rss/825e57ab.html" title="独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/f6faf9c4fcf6d6ac6bcef06999eb20b4261b61bb-1475x921.png"></div><span class="title">独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起</span></a><a class="item" href="/rss/d4e5967f.html" title="一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=621"></div><span class="title">一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

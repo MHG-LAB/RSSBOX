@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破 - RSSBOX</title>
+
+  
+    <meta name="description" content="&quot;接口字段要挑几个、删几个、全部改可选……我一开始全是手写新 interface，累到怀疑人生。直到学会了这几个工具类型，原来 TS 早就把活给你准备好了。&quot;  前言 刚学 TypeScript 那会儿，我有个 User 接口到处用：列表页要展示 id + name，编辑页要提交 id + name + age，而登录后返回的接口数据又不能把 email 暴露给前端。 于是我很老实地写了三四个">
+<meta property="og:type" content="article">
+<meta property="og:title" content="TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/306a3f45.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="&quot;接口字段要挑几个、删几个、全部改可选……我一开始全是手写新 interface，累到怀疑人生。直到学会了这几个工具类型，原来 TS 早就把活给你准备好了。&quot;  前言 刚学 TypeScript 那会儿，我有个 User 接口到处用：列表页要展示 id + name，编辑页要提交 id + name + age，而登录后返回的接口数据又不能把 email 暴露给前端。 于是我很老实地写了三四个">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-19T04:44:01.000Z">
+<meta property="article:modified_time" content="2026-08-19T04:44:01.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">目录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、工具类型到底解决什么问题？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话解释</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、keyof：拿到所有键的联合类型（地基）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">类比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、Pick：从类型里挑字段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">逐行讲解</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么需要它？—— 复杂项目的&quot;区分度&quot;</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、Omit：从类型里删字段</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Pick vs Omit 怎么选？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、核心：Omit 其实等于 Pick + Exclude</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">分三步走</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一张图看懂数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">TS 内部 Omit 的等价实现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、Partial：所有字段变成可选</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">实战意义：patch 更新</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">七、Record：键值对的字典映射</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">实战：HTTP 状态码 → 错误提示</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">对比</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">八、ReturnType：拿到函数返回值类型</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么传 typeof fn？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">九、Exclude：联合类型的差集</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">大白话</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Exclude 和 Omit 别搞混（高频考点）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">十、终极速查表 + 面试高频 N 问</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">工具类型速查表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">底层实现速查</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">面试高频 N 问</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">结尾</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-19T04:44:01.000Z">2026-08-19</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破</span></h1>
+<div>
+<blockquote>
+<p>"接口字段要挑几个、删几个、全部改可选……我一开始全是手写新 interface，累到怀疑人生。直到学会了这几个工具类型，原来 TS 早就把活给你准备好了。"</p>
+</blockquote>
+<h2 data-id="heading-0">前言</h2>
+<p>刚学 TypeScript 那会儿，我有个 <code>User</code> 接口到处用：列表页要展示 <code>id + name</code>，编辑页要提交 <code>id + name + age</code>，而登录后返回的接口数据又不能把 <code>email</code> 暴露给前端。</p>
+<p>于是我很老实地写了三四个长得几乎一样的 interface，字段删删减减，改一个地方要同步改一堆。</p>
+<p>后来才知道，这些"从已有的类型里挑挑拣拣、生成一个新类型"的操作，TS 官方早就内置了一套<strong>工具类型（Utility Types）</strong>，一句话就能搞定。这篇文章我把我踩过的坑和最终搞懂的思路整理出来，每个类型都配可运行代码 + 大白话 + 对比表。</p>
+<p><strong>你将会收获</strong>：</p>
+<ul>
+<li>🎯 搞懂 8 个高频工具类型：<code>Pick</code>、<code>Omit</code>、<code>Partial</code>、<code>Exclude</code>、<code>keyof</code>、<code>ReturnType</code>、<code>Record</code></li>
+<li>🔑 彻底理解那句绕口的 <code>Omit&lt;T, K&gt;</code> 等价于 <code>Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;</code></li>
+<li>🔧 每个类型配完整可运行代码，粘贴即用</li>
+<li>📊 HTTP 状态码实战 + 面试速查表 + 口诀，考前扫一眼就够</li>
+</ul>
+<p>技术栈：TypeScript。</p>
+<blockquote>
+<p>📌 <strong>阅读提示</strong>：全文围绕一个 <code>User</code> 接口展开，先记住这个"主角"，后面每个类型都是对它的改造。</p>
+</blockquote>
+<h2 data-id="heading-1">目录</h2>
+<ul>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%B8%80%E5%B7%A5%E5%85%B7%E7%B1%BB%E5%9E%8B%E5%88%B0%E5%BA%95%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98" title="#%E4%B8%80%E5%B7%A5%E5%85%B7%E7%B1%BB%E5%9E%8B%E5%88%B0%E5%BA%95%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98">一、工具类型到底解决什么问题？</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%BA%8Ckeyof%E6%8B%BF%E5%88%B0%E6%89%80%E6%9C%89%E9%94%AE%E7%9A%84%E8%81%94%E5%90%88%E7%B1%BB%E5%9E%8B" title="#%E4%BA%8Ckeyof%E6%8B%BF%E5%88%B0%E6%89%80%E6%9C%89%E9%94%AE%E7%9A%84%E8%81%94%E5%90%88%E7%B1%BB%E5%9E%8B">二、keyof：拿到所有键的联合类型（地基）</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%B8%89pick%E4%BB%8E%E7%B1%BB%E5%9E%8B%E9%87%8C%E6%8C%91%E5%AD%97%E6%AE%B5" title="#%E4%B8%89pick%E4%BB%8E%E7%B1%BB%E5%9E%8B%E9%87%8C%E6%8C%91%E5%AD%97%E6%AE%B5">三、Pick：从类型里挑字段</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E5%9B%9Bomit%E4%BB%8E%E7%B1%BB%E5%9E%8B%E9%87%8C%E5%88%A0%E5%AD%97%E6%AE%B5" title="#%E5%9B%9Bomit%E4%BB%8E%E7%B1%BB%E5%9E%8B%E9%87%8C%E5%88%A0%E5%AD%97%E6%AE%B5">四、Omit：从类型里删字段</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%BA%94%E6%A0%B8%E5%BF%83omit-%E5%85%B6%E5%AE%9E%E7%AD%89%E4%BA%8E-pick--exclude" title="#%E4%BA%94%E6%A0%B8%E5%BF%83omit-%E5%85%B6%E5%AE%9E%E7%AD%89%E4%BA%8E-pick--exclude">五、核心：Omit 其实等于 Pick + Exclude</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E5%85%ADpartial%E6%89%80%E6%9C%89%E5%AD%97%E6%AE%B5%E5%8F%98%E6%88%90%E5%8F%AF%E9%80%89" title="#%E5%85%ADpartial%E6%89%80%E6%9C%89%E5%AD%97%E6%AE%B5%E5%8F%98%E6%88%90%E5%8F%AF%E9%80%89">六、Partial：所有字段变成可选</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%B8%83record%E9%94%AE%E5%80%BC%E5%AF%B9%E7%9A%84%E5%AD%97%E5%85%B8%E6%98%A0%E5%B0%84" title="#%E4%B8%83record%E9%94%AE%E5%80%BC%E5%AF%B9%E7%9A%84%E5%AD%97%E5%85%B8%E6%98%A0%E5%B0%84">七、Record：键值对的字典映射</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E5%85%ABreturntype%E6%8B%BF%E5%88%B0%E5%87%BD%E6%95%B0%E8%BF%94%E5%9B%9E%E5%80%BC%E7%B1%BB%E5%9E%8B" title="#%E5%85%ABreturntype%E6%8B%BF%E5%88%B0%E5%87%BD%E6%95%B0%E8%BF%94%E5%9B%9E%E5%80%BC%E7%B1%BB%E5%9E%8B">八、ReturnType：拿到函数返回值类型</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E4%B9%9Dexclude%E8%81%94%E5%90%88%E7%B1%BB%E5%9E%8B%E7%9A%84%E5%B7%AE%E9%9B%86" title="#%E4%B9%9Dexclude%E8%81%94%E5%90%88%E7%B1%BB%E5%9E%8B%E7%9A%84%E5%B7%AE%E9%9B%86">九、Exclude：联合类型的差集</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675302968470323227#%E5%8D%81%E7%BB%88%E6%9E%81%E9%80%9F%E6%9F%A5%E8%A1%A8--%E9%9D%A2%E8%AF%95%E9%AB%98%E9%A2%91-n-%E9%97%AE" title="#%E5%8D%81%E7%BB%88%E6%9E%81%E9%80%9F%E6%9F%A5%E8%A1%A8--%E9%9D%A2%E8%AF%95%E9%AB%98%E9%A2%91-n-%E9%97%AE">十、终极速查表 + 面试高频 N 问</a></li>
+</ul>
+<h2 data-id="heading-2">一、工具类型到底解决什么问题？</h2>
+<p>先用大白话讲清楚痛点，再讲它是什么。</p>
+<p>假设我们有一个用户接口：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+  <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>;
+&#125;
+</code></pre>
+<p>现在有个需求：<strong>列表页只需要 <code>id</code> 和 <code>name</code>，其他字段都不想要</strong>。</p>
+<p>"笨办法"是重新写一个 interface：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// ❌ 笨办法：手写一个精简版，字段和 User 是复制粘贴的关系</span>
+<span class="hljs-keyword">interface</span> <span class="hljs-title class_">UserPreview</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+&#125;
+</code></pre>
+<p>字段一多、接口一变，你就得人肉同步好几份，改漏一个就出 bug。</p>
+<p><strong>工具类型</strong>要解决的，就是这个"从已有类型派生新类型"的活儿：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// ✅ 一句话：从 User 里挑出 id 和 name，生成新类型</span>
+<span class="hljs-keyword">type</span> <span class="hljs-title class_">UserPreview</span> = <span class="hljs-title class_">Pick</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-string">'id'</span> | <span class="hljs-string">'name'</span>&gt;;
+</code></pre>
+<h3 data-id="heading-3">大白话解释</h3>
+<table><thead><tr><th>概念</th><th>一句人话</th><th>类比</th></tr></thead><tbody><tr><td>工具类型</td><td>拿来一个旧类型，加工出一个新类型</td><td>一个"类型加工厂"</td></tr><tr><td>`Pick&lt;User, 'id'</td><td>'name'&gt;`</td><td>从 User 里挑出 id、name 两个字段</td><td>菜单点菜：勾选几个菜</td></tr></tbody></table>
+<blockquote>
+<p>💡 <strong>核心思想</strong>：工具类型不会凭空造类型，它一定是<strong>基于一个已有类型做变换</strong>。这个"已有类型"就是下文反复出现的 <code>User</code>。</p>
+</blockquote>
+<p>下面按"地基 → 正向挑 → 反向删 → 原理 → 其他几个"的顺序，逐个击破。</p>
+<h2 data-id="heading-4">二、keyof：拿到所有键的联合类型（地基）</h2>
+<p>学其他工具类型之前，必须先搞懂 <code>keyof</code>——它是后面所有人的地基。</p>
+<h3 data-id="heading-5">大白话</h3>
+<p><code>keyof T</code> 会把类型 <code>T</code> 的所有<strong>键名</strong>抽出来，拼成一个<strong>联合类型</strong>（<code>|</code> 连接的字符串）。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+  <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>;
+&#125;
+
+<p><span class="hljs-keyword">type</span> <span class="hljs-title class_">UserKeys</span> &#x3D; keyof <span class="hljs-title class_">User</span>;<br><span class="hljs-comment">&#x2F;&#x2F; UserKeys &#x3D; ‘id’ | ‘name’ | ‘age’ | ‘email’</span><br></p></code></pre><p></p>
+<p><code>keyof User</code> 翻译成人话就是：<strong>"User 身上所有字段名的集合"</strong>。</p>
+<h3 data-id="heading-6">类比</h3>
+<p><code>keyof</code> 像一份<strong>员工花名册</strong>——它不关心每个字段的值是什么类型，只把"名字"列出来。</p>
+<table><thead><tr><th>概念</th><th>输出</th><th>类比</th></tr></thead><tbody><tr><td><code>keyof User</code></td><td><code>'id' | 'name' | 'age' | 'email'</code></td><td>花名册上的名字清单</td></tr></tbody></table>
+<blockquote>
+<p>💡 <strong>一句话记住</strong>：<code>keyof T</code> = 拿到 T 的所有键，拼成一个 <code>|</code> 联合类型。后面 <code>Pick</code>、<code>Omit</code>、<code>Exclude</code> 全靠它。</p>
+</blockquote>
+<h2 data-id="heading-7">三、Pick：从类型里挑字段</h2>
+<p><code>Pick&lt;T, K&gt;</code> 从类型 <code>T</code> 里<strong>挑出</strong> <code>K</code> 指定的那些字段，组成新类型。<code>K</code> 就是要挑的键的联合字符串。</p>
+<h3 data-id="heading-8">大白话</h3>
+<p>Pick = <strong>点菜</strong>。菜单就是 <code>User</code>，你勾选哪几个字段，最后端上桌的就只有那几样。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+  <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>;
+&#125;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 从 User 里挑出 id 和 name，形成一个”精简版用户”类型</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">UserPreview</span> &#x3D; <span class="hljs-title class_">Pick</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-string">‘id’</span> | <span class="hljs-string">‘name’</span>&gt;;</p>
+<p><span class="hljs-keyword">const</span> <span class="hljs-attr">u</span>: <span class="hljs-title class_">UserPreview</span> &#x3D; &amp;#123;<br>  <span class="hljs-attr">id</span>: <span class="hljs-number">1</span>,<br>  <span class="hljs-attr">name</span>: <span class="hljs-string">‘敬峰’</span>,<br>&amp;#125;;<br><span class="hljs-comment">&#x2F;&#x2F; ✅ 只有 id、name 两个字段，写多了报错，写少了也报错</span><br></p></code></pre><p></p>
+<h3 data-id="heading-9">逐行讲解</h3>
+<table><thead><tr><th>代码</th><th>含义</th></tr></thead><tbody><tr><td><code>Pick&lt;User, 'id' | 'name'&gt;</code></td><td>从 User 里挑 <code>id</code>、<code>name</code> 两个字段</td></tr><tr><td><code>type UserPreview = ...</code></td><td>给新类型起个名字</td></tr><tr><td><code>const u: UserPreview = &#123;...&#125;</code></td><td>变量 u 只能有 id、name</td></tr></tbody></table>
+<h3 data-id="heading-10">为什么需要它？—— 复杂项目的"区分度"</h3>
+<blockquote>
+<p>🎯 <strong>实战意义</strong>：大型项目里类型消费特别多——同一个 <code>User</code>，列表页、详情页、编辑页、接口返回各自需要的字段都不一样。用 <code>Pick</code> 就能按场景派生出精确的类型，<strong>该暴露几个字段就暴露几个</strong>，类型边界清晰，别人一看 <code>UserPreview</code> 就知道这是"只给看 id 和 name 的轻量版"。</p>
+</blockquote>
+<h2 data-id="heading-11">四、Omit：从类型里删字段</h2>
+<p><code>Omit&lt;T, K&gt;</code> 和 <code>Pick</code> 正好相反：从类型 <code>T</code> 里<strong>删掉</strong> <code>K</code> 指定的字段，留下其余的全部。</p>
+<h3 data-id="heading-12">大白话</h3>
+<p>Omit = <strong>拉黑</strong>。你说"不要 email"，剩下的全给你。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+  <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>;
+&#125;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 去掉 email 字段，剩下的 id、name、age 组成新类型</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">UserSafe</span> &#x3D; <span class="hljs-title class_">Omit</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-string">‘email’</span>&gt;;</p>
+<p><span class="hljs-keyword">const</span> <span class="hljs-attr">safeUser</span>: <span class="hljs-title class_">UserSafe</span> &#x3D; &amp;#123;<br>  <span class="hljs-attr">id</span>: <span class="hljs-number">1</span>,<br>  <span class="hljs-attr">name</span>: <span class="hljs-string">‘敬峰’</span>,<br>  <span class="hljs-attr">age</span>: <span class="hljs-number">20</span>,<br>&amp;#125;;<br><span class="hljs-comment">&#x2F;&#x2F; ✅ 没有 email 字段了，适合”不能把邮箱暴露给前端”的场景</span><br></p></code></pre><p></p>
+<h3 data-id="heading-13">Pick vs Omit 怎么选？</h3>
+<table><thead><tr><th>场景</th><th align="center">用哪个</th><th>例子</th></tr></thead><tbody><tr><td>要的字段少（挑少数几个）</td><td align="center"><code>Pick</code></td><td>列表页只要 <code>id</code>、<code>name</code></td></tr><tr><td>不要的字段少（删少数几个）</td><td align="center"><code>Omit</code></td><td>只不想要 <code>email</code></td></tr></tbody></table>
+<blockquote>
+<p>💡 <strong>经验</strong>：要留的多就 <code>Omit</code>，要留的少就 <code>Pick</code>，哪个写起来字段少用哪个。</p>
+</blockquote>
+<h2 data-id="heading-14">五、核心：Omit 其实等于 Pick + Exclude</h2>
+<p>这是全文的重点，也是面试最爱追问的一句绕口令：</p>
+<blockquote>
+<p><code>Omit&lt;T, K&gt;</code> 等价于 <code>Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;</code></p>
+</blockquote>
+<p>我第一次看到这句话的时候是懵的，拆开一步步走就通了：</p>
+<h3 data-id="heading-15">分三步走</h3>
+<p><strong>第一步：<code>keyof T</code> 拿到所有键的联合类型</strong></p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">type</span> <span class="hljs-title class_">UserKeys</span> = keyof <span class="hljs-title class_">User</span>;
+<span class="hljs-comment">// 'id' | 'name' | 'age' | 'email'</span>
+</code></pre>
+<p><strong>第二步：<code>Exclude</code> 把要剔除的 <code>K</code> 键删掉，剩下需要保留的键</strong></p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">type</span> <span class="hljs-title class_">KeepKeys</span> = <span class="hljs-title class_">Exclude</span>&lt;<span class="hljs-title class_">UserKeys</span>, <span class="hljs-string">'email'</span>&gt;;
+<span class="hljs-comment">// 'id' | 'name' | 'age'   —— email 被从联合类型里删掉了</span>
+</code></pre>
+<p><strong>第三步：再用 <code>Pick</code> 把剩下的键从类型 <code>T</code> 里挑出来，就实现了 Omit 的效果</strong></p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">type</span> <span class="hljs-title class_">MyOmitUser</span> = <span class="hljs-title class_">Pick</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-title class_">KeepKeys</span>&gt;;
+<span class="hljs-comment">// 等价于 Omit&lt;User, 'email'&gt;</span>
+</code></pre>
+<h3 data-id="heading-16">一张图看懂数据流</h3>
+<pre><code class="hljs language-bash" lang="bash">   keyof User                 Exclude&lt;..., <span class="hljs-string">'email'</span>&gt;          Pick&lt;User, 剩下的键&gt;
+┌──────────────┐   删掉 email   ┌──────────────┐   挑出来   ┌────────────────┐
+│  <span class="hljs-built_in">id</span>  name    │ ─────────────→ │  <span class="hljs-built_in">id</span>  name    │ ─────────→ │  只含 <span class="hljs-built_in">id</span> name age │
+│  age email   │                │  age         │            │  的 User 新类型   │
+└──────────────┘                └──────────────┘            └────────────────┘
+     ① 拿键                       ② 剔除                       ③ 挑选
+</code></pre>
+<h3 data-id="heading-17">TS 内部 Omit 的等价实现</h3>
+<p>TypeScript 源码里，<code>Omit</code> 就是这么定义的（<code>lib.d.ts</code> 里能找到）：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// Omit 的官方实现：先把 K 从 keyof T 里排除，再用 Pick 挑回来</span>
+<span class="hljs-keyword">type</span> <span class="hljs-title class_">Omit</span>&lt;T, K <span class="hljs-keyword">extends</span> keyof <span class="hljs-built_in">any</span>&gt; = <span class="hljs-title class_">Pick</span>&lt;T, <span class="hljs-title class_">Exclude</span>&lt;keyof T, K&gt;&gt;;
+</code></pre>
+<p>也就是说，<strong><code>Omit</code> 并不是一个"原生"能力，而是 <code>Pick</code> + <code>Exclude</code> 这两个更底层能力的组合</strong>——它就是一层语法糖，图省事而已。</p>
+<blockquote>
+<p>⚠️ <strong>面试考点</strong>："Omit 的底层原理是什么？" —— 答：<code>Omit&lt;T, K&gt;</code> 等于 <code>Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;</code>，先 <code>keyof</code> 拿键 → <code>Exclude</code> 剔除 K → <code>Pick</code> 挑剩余，本质是 <code>Pick</code> 和 <code>Exclude</code> 的组合语法糖。</p>
+</blockquote>
+<h2 data-id="heading-18">六、Partial：所有字段变成可选</h2>
+<p><code>Partial&lt;T&gt;</code> 把类型 <code>T</code> 的所有字段<strong>全部变成可选</strong>（每个字段后自动加 <code>?</code>）。</p>
+<h3 data-id="heading-19">大白话</h3>
+<p>Partial = 把必答的填空题，<strong>全部改成选做题</strong>——你可以一个都不填。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>;
+  <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>;
+  <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>;
+&#125;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 所有字段都变成可选了</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">PartialUser</span> &#x3D; <span class="hljs-title class_">Partial</span>&lt;<span class="hljs-title class_">User</span>&gt;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; patch 修改场景：对象属性很多，只想改其中一两个</span><br><span class="hljs-keyword">const</span> <span class="hljs-attr">patchUser</span>: <span class="hljs-title class_">PartialUser</span> &#x3D; &amp;#123;<br>  <span class="hljs-attr">id</span>: <span class="hljs-number">1</span>,<br>  <span class="hljs-attr">name</span>: <span class="hljs-string">‘敬峰’</span>,<br>  <span class="hljs-attr">age</span>: <span class="hljs-number">20</span>,<br>&amp;#125;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 甚至可以传空对象（所有字段都可选）</span><br><span class="hljs-keyword">const</span> <span class="hljs-attr">emptyObj</span>: <span class="hljs-title class_">PartialUser</span> &#x3D; &amp;#123;&amp;#125;;<br></p></code></pre><p></p>
+<h3 data-id="heading-20">实战意义：patch 更新</h3>
+<blockquote>
+<p>🎯 <strong>典型场景</strong>：做一个"修改用户信息"的接口，前端可能只改邮箱、只改年龄，也可能全改。用 <code>Partial&lt;User&gt;</code> 当参数类型，就允许只传部分字段，不用每改一个字段就重新写一个接口。</p>
+</blockquote>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// 只改邮箱，其他字段都不用传</span>
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">updateUser</span>(<span class="hljs-params">id: <span class="hljs-built_in">number</span>, patch: Partial&lt;User&gt;</span>) &#123;
+  <span class="hljs-comment">// ... 把 patch 里有的字段更新到数据库</span>
+&#125;
+
+<p><span class="hljs-title function_">updateUser</span>(<span class="hljs-number">1</span>, &amp;#123; <span class="hljs-attr">email</span>: <span class="hljs-string">‘<a href="mailto:&#110;&#x65;&#119;&#x40;&#x65;&#120;&#x61;&#x6d;&#x70;&#x6c;&#101;&#46;&#99;&#111;&#109;" rel="external nofollow noopener noreferrer" target="_blank">&#110;&#x65;&#119;&#x40;&#x65;&#120;&#x61;&#x6d;&#x70;&#x6c;&#101;&#46;&#99;&#111;&#109;</a>‘</span> &amp;#125;); <span class="hljs-comment">&#x2F;&#x2F; ✅ 只传 email</span><br></p></code></pre><p></p>
+<h3 data-id="heading-21">对比</h3>
+<table><thead><tr><th>写法</th><th align="center">字段是否必填</th><th>场景</th></tr></thead><tbody><tr><td><code>User</code></td><td align="center">全部必填</td><td>创建新用户</td></tr><tr><td><code>Partial&lt;User&gt;</code></td><td align="center">全部可选</td><td>部分更新（patch）</td></tr></tbody></table>
+<h2 data-id="heading-22">七、Record：键值对的字典映射</h2>
+<p><code>Record&lt;K, V&gt;</code> 快速声明一个"键值对"类型：键的类型是 <code>K</code>，值的类型是 <code>V</code>。</p>
+<h3 data-id="heading-23">大白话</h3>
+<p>Record = <strong>电话簿 / 字典</strong>。<code>Record&lt;键类型, 值类型&gt;</code> 就是"所有 key 是某类型、所有 value 是某类型"的一张表。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// 一个字符串到数字的字典：key 是 string，value 是 number</span>
+<span class="hljs-keyword">type</span> <span class="hljs-title class_">Dict</span> = <span class="hljs-title class_">Record</span>&lt;<span class="hljs-built_in">string</span>, <span class="hljs-built_in">number</span>&gt;;
+<span class="hljs-keyword">const</span> <span class="hljs-attr">obj</span>: <span class="hljs-title class_">Dict</span> = &#123; <span class="hljs-attr">a</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">b</span>: <span class="hljs-number">2</span> &#125;;
+<span class="hljs-comment">// ✅ 键是字符串，值是数字</span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 数字到字符串的映射：key 是 number，value 是 string</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">ErrorMsgMap</span> &#x3D; <span class="hljs-title class_">Record</span>&lt;<span class="hljs-built_in">number</span>, <span class="hljs-built_in">string</span>&gt;;<br></p></code></pre><p></p>
+<h3 data-id="heading-24">实战：HTTP 状态码 → 错误提示</h3>
+<p>这是 <code>Record</code> 最经典的用法，把状态码映射成一句人话：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">type</span> <span class="hljs-title class_">ErrorMsgMap</span> = <span class="hljs-title class_">Record</span>&lt;<span class="hljs-built_in">number</span>, <span class="hljs-built_in">string</span>&gt;;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; HTTP 状态码的语义：</span><br><span class="hljs-comment">&#x2F;&#x2F; 1xx 执行中 &#x2F; 2xx 成功 &#x2F; 3xx 要跳转 &#x2F; 4xx 用户错误 &#x2F; 5xx 服务端错误</span><br><span class="hljs-keyword">const</span> <span class="hljs-attr">errorMessage</span>: <span class="hljs-title class_">ErrorMsgMap</span> &#x3D; &amp;#123;<br>  <span class="hljs-number">400</span>: <span class="hljs-string">‘请求参数错误’</span>,<br>  <span class="hljs-number">401</span>: <span class="hljs-string">‘未登录，请重新登录’</span>,<br>  <span class="hljs-number">403</span>: <span class="hljs-string">‘权限不足，禁止访问’</span>,<br>  <span class="hljs-number">404</span>: <span class="hljs-string">‘资源找不到’</span>,<br>  <span class="hljs-number">500</span>: <span class="hljs-string">‘服务器内部错误’</span>,<br>&amp;#125;;</p>
+<p><span class="hljs-keyword">function</span> <span class="hljs-title function_">getErrMsg</span>(<span class="hljs-params">code: <span class="hljs-built_in">number</span></span>) &amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; ?? 是空值合并：查得到就返回对应文案，查不到兜底”未知错误”</span><br>  <span class="hljs-keyword">return</span> errorMessage[code] ?? <span class="hljs-string">‘未知错误’</span>;<br>&amp;#125;</p>
+<p><span class="hljs-title function_">getErrMsg</span>(<span class="hljs-number">404</span>); <span class="hljs-comment">&#x2F;&#x2F; ‘资源找不到’</span><br><span class="hljs-title function_">getErrMsg</span>(<span class="hljs-number">999</span>); <span class="hljs-comment">&#x2F;&#x2F; ‘未知错误’</span><br></p></code></pre><p></p>
+<h3 data-id="heading-25">对比</h3>
+<table><thead><tr><th>写法</th><th>含义</th><th>类比</th></tr></thead><tbody><tr><td><code>Record&lt;string, number&gt;</code></td><td>key 是 string，value 是 number</td><td>通讯录：名字 → 电话</td></tr><tr><td><code>Record&lt;number, string&gt;</code></td><td>key 是 number，value 是 string</td><td>状态码 → 错误文案</td></tr></tbody></table>
+<blockquote>
+<p>💡 <strong>一句话记住</strong>：<code>Record&lt;K, V&gt;</code> 就是"键类型 + 值类型"，键值对字典专用。</p>
+</blockquote>
+<h2 data-id="heading-26">八、ReturnType：拿到函数返回值类型</h2>
+<p><code>ReturnType&lt;T&gt;</code> 拿到一个<strong>函数的返回类型</strong>。注意传的是 <code>typeof 函数名</code>，不是函数本身。</p>
+<h3 data-id="heading-27">大白话</h3>
+<p>ReturnType = 让函数"<strong>自己交代</strong>"它返回了什么，不用你人肉去看。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">function</span> <span class="hljs-title function_">fn</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">return</span> &#123; <span class="hljs-attr">x</span>: <span class="hljs-number">1</span>, <span class="hljs-attr">y</span>: <span class="hljs-number">2</span> &#125;;
+&#125;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 拿到 fn 的返回类型 &#x3D; &amp;#123; x: number, y: number &amp;#125;</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">FnReturn</span> &#x3D; <span class="hljs-title class_">ReturnType</span>&lt;<span class="hljs-keyword">typeof</span> fn&gt;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; FnReturn 现在就是个普通对象类型，可以这样用</span><br><span class="hljs-keyword">const</span> <span class="hljs-attr">result</span>: <span class="hljs-title class_">FnReturn</span> &#x3D; &amp;#123; <span class="hljs-attr">x</span>: <span class="hljs-number">10</span>, <span class="hljs-attr">y</span>: <span class="hljs-number">20</span> &amp;#125;; <span class="hljs-comment">&#x2F;&#x2F; ✅</span><br></p></code></pre><p></p>
+<h3 data-id="heading-28">为什么传 <code>typeof fn</code>？</h3>
+<p><code>ReturnType</code> 要的是<strong>函数的类型</strong>，而 <code>fn</code> 是函数的值，所以要用 <code>typeof fn</code> 把"值"转成"类型"。这是个小坑，很多人第一次写漏 <code>typeof</code> 直接报错：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-comment">// ❌ 错误：ReturnType&lt;fn&gt; —— fn 是值不是类型，报错</span>
+<span class="hljs-comment">// type Wrong = ReturnType&lt;fn&gt;;</span>
+
+<p><span class="hljs-comment">&#x2F;&#x2F; ✅ 正确：用 typeof 拿到函数的类型</span><br><span class="hljs-keyword">type</span> <span class="hljs-title class_">Right</span> &#x3D; <span class="hljs-title class_">ReturnType</span>&lt;<span class="hljs-keyword">typeof</span> fn&gt;;<br></p></code></pre><p></p>
+<blockquote>
+<p>💡 <strong>一句话记住</strong>：<code>ReturnType&lt;typeof fn&gt;</code>，<code>typeof</code> 千万别漏。</p>
+</blockquote>
+<h2 data-id="heading-29">九、Exclude：联合类型的差集</h2>
+<p><code>Exclude&lt;T, U&gt;</code> 从联合类型 <code>T</code> 里<strong>剔除</strong>掉 <code>U</code> 里出现的成员。</p>
+<h3 data-id="heading-30">大白话</h3>
+<p>Exclude = 从名单里<strong>划掉</strong>几个人。注意它处理的是<strong>联合类型</strong>，不是对象。</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">type</span> <span class="hljs-title class_">All</span> = <span class="hljs-string">'id'</span> | <span class="hljs-string">'name'</span> | <span class="hljs-string">'age'</span> | <span class="hljs-string">'email'</span>;
+<span class="hljs-keyword">type</span> <span class="hljs-title class_">After</span> = <span class="hljs-title class_">Exclude</span>&lt;<span class="hljs-title class_">All</span>, <span class="hljs-string">'email'</span>&gt;;
+<span class="hljs-comment">// After = 'id' | 'name' | 'age'  —— email 被划掉了</span>
+</code></pre>
+<h3 data-id="heading-31">Exclude 和 Omit 别搞混（高频考点）</h3>
+<blockquote>
+<p>⚠️ <strong>面试考点</strong>：<code>Exclude</code> 和 <code>Omit</code> 都是"剔除"，但作用对象完全不同。</p>
+</blockquote>
+<table><thead><tr><th>维度</th><th><code>Exclude</code></th><th><code>Omit</code></th></tr></thead><tbody><tr><td>作用对象</td><td><strong>联合类型</strong>（<code>'a' | 'b' | 'c'</code>）</td><td><strong>对象接口</strong>（<code>interface</code>）</td></tr><tr><td>剔除什么</td><td>联合类型里的某个成员</td><td>对象里的某个字段</td></tr><tr><td>例子</td><td><code>Exclude&lt;'a'|'b'|'c', 'b'&gt;</code></td><td><code>Omit&lt;User, 'email'&gt;</code></td></tr><tr><td>类比</td><td>名单里划掉名字</td><td>删掉对象的一个属性</td></tr></tbody></table>
+<blockquote>
+<p>💡 <strong>一句话记住</strong>：<code>Exclude</code> 处理<strong>联合类型</strong>，<code>Omit</code> 处理<strong>对象接口</strong>。二者一个删"成员"，一个删"字段"。</p>
+</blockquote>
+<h2 data-id="heading-32">十、终极速查表 + 面试高频 N 问</h2>
+<h3 data-id="heading-33">工具类型速查表</h3>
+<table><thead><tr><th>工具类型</th><th>语法</th><th>作用</th><th>一句话</th></tr></thead><tbody><tr><td><code>keyof</code></td><td><code>keyof T</code></td><td>拿所有键的联合类型</td><td>花名册</td></tr><tr><td><code>Pick</code></td><td><code>Pick&lt;T, K&gt;</code></td><td>挑出 K 指定的字段</td><td>点菜</td></tr><tr><td><code>Omit</code></td><td><code>Omit&lt;T, K&gt;</code></td><td>删掉 K 指定的字段</td><td>拉黑</td></tr><tr><td><code>Partial</code></td><td><code>Partial&lt;T&gt;</code></td><td>所有字段变可选</td><td>选做题</td></tr><tr><td><code>Record</code></td><td><code>Record&lt;K, V&gt;</code></td><td>键值对字典</td><td>电话簿</td></tr><tr><td><code>ReturnType</code></td><td><code>ReturnType&lt;typeof fn&gt;</code></td><td>拿函数返回类型</td><td>让它自己交代</td></tr><tr><td><code>Exclude</code></td><td><code>Exclude&lt;T, U&gt;</code></td><td>联合类型差集</td><td>名单划名字</td></tr></tbody></table>
+<h3 data-id="heading-34">底层实现速查</h3>
+<p>这些工具类型其实都是 TS 官方"拼"出来的，看懂它们能帮你理解整个类型系统：</p>
+<table><thead><tr><th>工具类型</th><th>底层实现</th></tr></thead><tbody><tr><td><code>Pick&lt;T, K&gt;</code></td><td><code>&#123; [P in K]: T[P] &#125;</code></td></tr><tr><td><code>Omit&lt;T, K&gt;</code></td><td><code>Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;</code></td></tr><tr><td><code>Partial&lt;T&gt;</code></td><td><code>&#123; [P in keyof T]?: T[P] &#125;</code></td></tr><tr><td><code>Exclude&lt;T, U&gt;</code></td><td><code>T extends U ? never : T</code></td></tr><tr><td><code>Record&lt;K, V&gt;</code></td><td><code>&#123; [P in K]: V &#125;</code></td></tr></tbody></table>
+<blockquote>
+<p>📌 里面的 <code>[P in K]</code> 是<strong>映射类型</strong>语法，属于更进阶的一块，感兴趣可以先把这张表存着，后面单独开一篇讲。</p>
+</blockquote>
+<h3 data-id="heading-35">面试高频 N 问</h3>
+<details>
+<summary>1. Omit 和 Exclude 有什么区别？</summary>
+<p><code>Omit</code> 作用于<strong>对象接口</strong>，删除的是字段；<code>Exclude</code> 作用于<strong>联合类型</strong>，删除的是成员。<code>Omit&lt;User, 'email'&gt;</code> 删掉 User 的 email 字段，<code>Exclude&lt;'a'|'b'|'c', 'b'&gt;</code> 从联合类型里划掉 'b'。</p>
+</details>
+<details>
+<summary>2. Omit 的底层原理是什么？</summary>
+<p><code>Omit&lt;T, K&gt;</code> 等价于 <code>Pick&lt;T, Exclude&lt;keyof T, K&gt;&gt;</code>：先 <code>keyof</code> 拿键 → <code>Exclude</code> 剔除 K → <code>Pick</code> 挑剩余。它是 <code>Pick</code> + <code>Exclude</code> 的组合语法糖。</p>
+</details>
+<details>
+<summary>3. Partial 有什么用？</summary>
+<p>把所有字段变可选，常用于"部分更新（patch）"场景——允许只传需要修改的字段，而不是必须传全量。</p>
+</details>
+<details>
+<summary>4. ReturnType 为什么要写 typeof？</summary>
+<p><code>ReturnType</code> 需要的是函数的<strong>类型</strong>，而函数名是<strong>值</strong>，<code>typeof fn</code> 把值转成类型后才能传进去。</p>
+</details>
+<details>
+<summary>5. Record 一般用在哪？</summary>
+<p>键值对字典映射，最典型的是 HTTP 状态码 → 错误文案、配置项映射等"用一个 key 查一个 value"的场景。</p>
+</details>
+<h2 data-id="heading-36">总结</h2>
+<p>一句话串起全文：</p>
+<blockquote>
+<p><strong><code>keyof</code> 拿键，<code>Pick</code> 挑字段，<code>Omit</code> 删字段，<code>Partial</code> 变可选，<code>Record</code> 做字典，<code>ReturnType</code> 取返回，<code>Exclude</code> 删联合成员——而 <code>Omit</code> 本质就是 <code>Pick</code> + <code>Exclude</code> 的语法糖。</strong></p>
+</blockquote>
+<p>核心代码骨架（5 行记住全部）：</p>
+<pre><code class="hljs language-ts" lang="ts"><span class="hljs-keyword">interface</span> <span class="hljs-title class_">User</span> &#123; <span class="hljs-attr">id</span>: <span class="hljs-built_in">number</span>; <span class="hljs-attr">name</span>: <span class="hljs-built_in">string</span>; <span class="hljs-attr">age</span>: <span class="hljs-built_in">number</span>; <span class="hljs-attr">email</span>: <span class="hljs-built_in">string</span>; &#125;
+
+<p><span class="hljs-keyword">type</span> A &#x3D; <span class="hljs-title class_">Pick</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-string">‘id’</span> | <span class="hljs-string">‘name’</span>&gt;;                 <span class="hljs-comment">&#x2F;&#x2F; 挑字段</span><br><span class="hljs-keyword">type</span> B &#x3D; <span class="hljs-title class_">Omit</span>&lt;<span class="hljs-title class_">User</span>, <span class="hljs-string">‘email’</span>&gt;;                        <span class="hljs-comment">&#x2F;&#x2F; 删字段 &#x3D; Pick + Exclude</span><br><span class="hljs-keyword">type</span> C &#x3D; <span class="hljs-title class_">Partial</span>&lt;<span class="hljs-title class_">User</span>&gt;;                              <span class="hljs-comment">&#x2F;&#x2F; 全可选</span><br><span class="hljs-keyword">type</span> D &#x3D; <span class="hljs-title class_">Record</span>&lt;<span class="hljs-built_in">number</span>, <span class="hljs-built_in">string</span>&gt;;                     <span class="hljs-comment">&#x2F;&#x2F; 字典</span><br><span class="hljs-keyword">type</span> E &#x3D; <span class="hljs-title class_">Exclude</span>&lt;keyof <span class="hljs-title class_">User</span>, <span class="hljs-string">‘email’</span>&gt;;               <span class="hljs-comment">&#x2F;&#x2F; 联合类型差集</span><br></p></code></pre><p></p>
+<hr>
+<h2 data-id="heading-37">结尾</h2>
+<p>这套工具类型刚接触可能觉得"不如手写来得直接"，但一旦项目里类型多起来，你就知道它们能省多少复制粘贴。希望这篇文章帮你把这 8 个类型一次捋清楚。</p>
+<p>源码在 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com" rel="external nofollow noopener noreferrer">hjf-ai/interview/ts/pick_partial/</a> 目录下。有问题欢迎在评论区交流，如果觉得有用，求个点赞收藏 🔥</p>
+<p><em>写于 2026 年 8 月 · TypeScript 面试备战</em></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破" href="https://juejin.cn/post/7675302968470323227" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破</span><span class="desc fs12">https://juejin.cn/post/7675302968470323227</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a8e62a3f.html">ChatGPT Ads Expands Across Europe<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e363a494.html">The Case of the Mysterious Maybe Meteor<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f5e4b7ad.html" title="AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1cbb9c09db74469ea61dfada14b32305~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZGo5LiA5ZCM5a2mWmVsaW5h:q75.awebp?rk3s=f64ab15b&x-expires=1787792303&x-signature=fxi3Ju7v2qkuujJeua0ninu9Mmg%3D"></div><span class="title">AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？</span></a><a class="item" href="/rss/48d525c0.html" title="AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/543acfa53344011a6c371dc51faf2d7d9331103d-1485x885.png"></div><span class="title">AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？</span></a><a class="item" href="/rss/77574e.html" title="Token生产之后，合肥开始研究怎么“运营”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5842"></div><span class="title">Token生产之后，合肥开始研究怎么“运营”</span></a><a class="item" href="/rss/1d8e8b4a.html" title="Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=561"></div><span class="title">Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时</span></a><a class="item" href="/rss/692620f2.html" title="Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5709"></div><span class="title">Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)</span></a><a class="item" href="/rss/9740a231.html" title="RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5898"></div><span class="title">RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771</span></a><a class="item" href="/rss/5bad3d37.html" title="免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/0706105f7975c6bc5e4d5462974f8cc34c3ee133-1476x966.png"></div><span class="title">免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相</span></a><a class="item" href="/rss/effa798c.html" title="二、Codex Memories 源码解析：记忆的生成、整理与存储"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&x-expires=1787988753&x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D"></div><span class="title">二、Codex Memories 源码解析：记忆的生成、整理与存储</span></a><a class="item" href="/rss/4d2c640.html" title="分享一下最近做的AI记账 App | 欢迎体验"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/780faac40fb54a60b1dfd23c2c1508f9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1787917129&x-signature=WhwtwVYZ01YuTLlXQH1z0yOL2eo%3D"></div><span class="title">分享一下最近做的AI记账 App | 欢迎体验</span></a><a class="item" href="/rss/50655e78.html" title="告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=884"></div><span class="title">告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式</span></a><a class="item" href="/rss/d7ce172e.html" title="我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/6ee3ac2fc36e7f6018789b8e1796bc794d9e6d9b-1500x900.png"></div><span class="title">我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告</span></a><a class="item" href="/rss/129e3442.html" title="知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cd7f8ab1f6ff4d82abf73f024a32e5ea~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3OTA5MjczMDk5NTQ1NA==:q75.awebp?rk3s=f64ab15b&x-expires=1787823586&x-signature=KFxcmvWA2Pb46F274ZH0ci3VMN0%3D"></div><span class="title">知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”</span></a><a class="item" href="/rss/825e57ab.html" title="独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/f6faf9c4fcf6d6ac6bcef06999eb20b4261b61bb-1475x921.png"></div><span class="title">独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起</span></a><a class="item" href="/rss/d4e5967f.html" title="一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=621"></div><span class="title">一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环 - RSSBOX</title>
+
+  
+    <meta name="description" content="登录之后，那个长长的 token 到底是怎么&quot;活&quot;起来的？这篇文章不背概念，带着你跟着 token 从出生到校验，把每一个文件、每一次跳转、每一次自动加在请求头里的 Authorization 都走一遍。  前言 最近在做一个小项目，卡在&quot;登录之后怎么让后端认识我&quot;这个问题上折腾了很久。市面上讲 JWT 的文章很多，但大多数是各讲各的：这篇讲 jsonwebtoken 怎么 sign，那篇讲">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/d4e5967f.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="登录之后，那个长长的 token 到底是怎么&quot;活&quot;起来的？这篇文章不背概念，带着你跟着 token 从出生到校验，把每一个文件、每一次跳转、每一次自动加在请求头里的 Authorization 都走一遍。  前言 最近在做一个小项目，卡在&quot;登录之后怎么让后端认识我&quot;这个问题上折腾了很久。市面上讲 JWT 的文章很多，但大多数是各讲各的：这篇讲 jsonwebtoken 怎么 sign，那篇讲">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-20T04:20:04.000Z">
+<meta property="article:modified_time" content="2026-08-20T04:20:04.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">目录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、先搞懂：HTTP 是无状态的，那&quot;你是谁&quot;怎么办</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.1 痛点：服务器是个&quot;脸盲&quot;</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.2 最经典的方案：cookie + session</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.3 JWT 的思路：把身份&quot;刻&quot;在 token 里</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、全景图：token 的一生和它走过的文件</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 目录结构（每个文件一句职责）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 文件依赖关系图</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 一个 token 的完整旅程（先剧透，后面逐帧拆解）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、jsonwebtoken：sign 和 verify 两个动作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、用 mock 把后端&quot;假&quot;出来</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.1 为什么要 mock</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2 先注册插件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.3 mock&#x2F;user.js：假后端的两个接口</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、axios 拦截器：token 的隐身携带者</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.1 config.js：axios 实例 + 两个拦截器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.2 两个&quot;使用 config 实例&quot;的文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.3 一个大坑：instance 未定义</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、zustand：登录状态的中央仓库</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.1 为什么登录状态要全局管</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.2 store&#x2F;user.js：仓库长这样</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.3 组件怎么&quot;去仓库拿东西&quot;</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">七、路由守卫 RequireAuth：把门的保安</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7.1 什么是路由守卫</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7.2 在路由表里怎么用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">八、把完整流程串起来（重点！）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.1 流程一：登录（token 的诞生）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.2 流程二：鉴权（token 的携带与校验）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.3 流程三：登出（token 的销毁）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.4 一张表看透&quot;每个文件在流程里的角色&quot;</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">九、我踩过的坑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">坑 1：instance is not defined</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">坑 2：jsonwebtoken 忘了装</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">坑 3：pnpm 忽略 esbuild 构建脚本</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">坑 4：token 存 localStorage 的安全隐患</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">十、面试高频 N 问</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">核心概念速查表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一句口诀</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">核心骨架（精简版）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">结尾</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-20T04:20:04.000Z">2026-08-20</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环</span></h1>
+<div>
+<blockquote>
+<p>登录之后，那个长长的 token 到底是怎么"活"起来的？这篇文章不背概念，带着你跟着 token 从出生到校验，把每一个文件、每一次跳转、每一次自动加在请求头里的 <code>Authorization</code> 都走一遍。</p>
+</blockquote>
+<h2 data-id="heading-0">前言</h2>
+<p>最近在做一个小项目，卡在"登录之后怎么让后端认识我"这个问题上折腾了很久。市面上讲 JWT 的文章很多，但大多数是<strong>各讲各的</strong>：这篇讲 <code>jsonwebtoken</code> 怎么 sign，那篇讲 axios 拦截器怎么写，还有讲 zustand 的、讲路由守卫的……单看都懂，合在一起就不知道<strong>这些文件是怎么串起来的</strong>了。</p>
+<p>所以这篇文章我想换一种讲法：<strong>以 token 的一生为主线</strong>，把 React + react-router-dom + zustand + axios + vite-plugin-mock + jsonwebtoken 这堆东西，用"文件之间的联系"串成一条完整的线。</p>
+<p>你将会收获：</p>
+<ul>
+<li>🎯 搞清楚 JWT 到底解决了什么问题，和 cookie/session 有啥区别</li>
+<li>🔑 理解 <code>jsonwebtoken</code> 里 <code>sign</code>（签发）和 <code>verify</code>（校验）两个动作的本质</li>
+<li>🚀 用 <code>vite-plugin-mock</code> 在前端就把"后端服务器"假出来，不用等真后端</li>
+<li>🕵️ 看懂 axios 拦截器怎么"隐身"地给每个请求自动加上 token</li>
+<li>🏪 理解为什么登录状态要用 zustand 全局管，而不是在组件里传</li>
+<li>🛡️ 学会写路由守卫，没登录就滚去登录页</li>
+<li>📌 走一遍完整的登录 → 鉴权 → 登出流程，知道每个文件在哪个环节出场</li>
+</ul>
+<p>技术栈：<code>React 19</code> + <code>react-router-dom 7</code> + <code>zustand 5</code> + <code>axios</code> + <code>vite-plugin-mock</code> + <code>jsonwebtoken</code></p>
+<hr>
+<h2 data-id="heading-1">目录</h2>
+<ul>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%B8%80" title="#%E4%B8%80">一、先搞懂：HTTP 是无状态的，那"你是谁"怎么办</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%BA%8C" title="#%E4%BA%8C">二、全景图：token 的一生和它走过的文件</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%B8%89" title="#%E4%B8%89">三、jsonwebtoken：sign 和 verify 两个动作</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E5%9B%9B" title="#%E5%9B%9B">四、用 mock 把后端"假"出来</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%BA%94" title="#%E4%BA%94">五、axios 拦截器：token 的隐身携带者</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E5%85%AD" title="#%E5%85%AD">六、zustand：登录状态的中央仓库</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%B8%83" title="#%E4%B8%83">七、路由守卫 RequireAuth：把门的保安</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E5%85%AB" title="#%E5%85%AB">八、把完整流程串起来</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E4%B9%9D" title="#%E4%B9%9D">九、我踩过的坑</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E5%8D%81" title="#%E5%8D%81">十、面试高频 N 问</a></li>
+<li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://juejin.cn/post/7675747735869931563#%E6%80%BB%E7%BB%93" title="#%E6%80%BB%E7%BB%93">总结</a></li>
+</ul>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-一" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-2">一、先搞懂：HTTP 是无状态的，那"你是谁"怎么办</h2>
+<h3 data-id="heading-3">1.1 痛点：服务器是个"脸盲"</h3>
+<p>HTTP 协议有个特性叫 <strong>无状态（Stateless）</strong>。什么意思呢？</p>
+<p>打个比方：你去一家会员制餐厅，<strong>服务员不记人脸</strong>。你点一次菜，他给你上；你下次再来点菜，他完全不记得你是谁、上次充了多少钱、是不是会员。你每次都得重新自我介绍一遍。</p>
+<p>Web 也是一样。浏览器发一个请求，服务器处理完就<strong>把这事忘了</strong>。你刚登录过，再发第二个请求，服务器还是不认识你。那问题就来了：</p>
+<blockquote>
+<p>我已经登录了，凭什么每次请求都要重新证明"我是我"？</p>
+</blockquote>
+<p>这就是**鉴权（Authentication）**要解决的问题：<strong>让服务器在每一次"无状态"的请求里，认出你是有身份的人。</strong></p>
+<h3 data-id="heading-4">1.2 最经典的方案：cookie + session</h3>
+<p>老办法是这样的：</p>
+<pre><code class="hljs language-markdown" lang="markdown">┌────────┐  1.登录  ┌────────┐
+│ 浏览器  │ ──────► │  服务器  │  服务器记下你是谁，生成一个 sessionId
+└────────┘         └────────┘
+<span class="hljs-code">    │                 ┌──────┴──────┐
+    │ 2.把 sessionId │ 内存/Redis   │
+    │   存进 cookie  │  存 session  │
+    │◄───────────────┴─────────────┘
+    │
+    │ 3.之后每次请求，cookie 自动带上 sessionId
+    │ ───────────────────────────► 服务器拿 sessionId 去查：哦，是你！
+</span></code></pre>
+<p>好处是服务器能"记住"你，坏处也很明显：<strong>服务器得维护一份 session 数据</strong>。你登录的这台服务器记下了 session，换一台服务器它就不知道了。</p>
+<blockquote>
+<p>⚠️ 面试考点：<strong>为什么 cookie/session 不适合分布式？</strong>
+因为 session 存在<strong>某台服务器</strong>的内存里，用户的 sessionId 在这台机器上能查到，换到另一台机器就查不到了。要么做 session 共享（增加复杂度），要么用别的方案。</p>
+</blockquote>
+<h3 data-id="heading-5">1.3 JWT 的思路：把身份"刻"在 token 里</h3>
+<p>JWT 的思路完全不同：<strong>服务器不记你，而是把你是谁"打包"成一个加密的字符串，塞给你自己保管。</strong></p>
+<table><thead><tr><th align="center"></th><th align="left">cookie + session</th><th align="left">JWT</th></tr></thead><tbody><tr><td align="center">服务器存不存状态</td><td align="left">存（session）</td><td align="left">不存（无状态）</td></tr><tr><td align="center">身份信息放哪</td><td align="left">服务器内存/Redis</td><td align="left">编码在 token 里</td></tr><tr><td align="center">换台服务器还能认吗</td><td align="left">认不了（要共享 session）</td><td align="left">能（任何机器都能解）</td></tr><tr><td align="center">类比</td><td align="left">餐厅记本子上你是谁</td><td align="left">给你发一张带防伪的会员卡</td></tr></tbody></table>
+<blockquote>
+<p>一句话类比：<strong>cookie/session 像"网吧登记本"（老板记着你是谁），JWT 像"游乐园手环"（手环就是凭证，验手环就行，不查你是谁）。</strong></p>
+</blockquote>
+<p>JWT 的核心流程就四步：</p>
+<pre><code class="hljs language-markdown" lang="markdown"><span class="hljs-bullet">1.</span> 登录   →  服务器校验账号密码，用 jwt.sign 把 &#123;username, role&#125; 签成一个 token 发给你
+<span class="hljs-bullet">2.</span> 存储   →  前端把 token 存起来（localStorage）
+<span class="hljs-bullet">3.</span> 携带   →  之后每个请求，拦截器自动把 token 塞进请求头 Authorization: Bearer xxx
+<span class="hljs-bullet">4.</span> 校验   →  服务器用 jwt.verify 解开 token，还原出 JSON 身份对象
+</code></pre>
+<p>这四步，就是贯穿全文的主线。下面我们看看它们分别发生在哪个文件里。</p>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-二" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-6">二、全景图：token 的一生和它走过的文件</h2>
+<p>在讲代码之前，先给你一张"地图"。这个项目不算大，但文件之间的<strong>依赖关系</strong>特别值得看清楚——很多人卡住，就是因为不知道"这个变量从哪来、这个函数去哪了"。</p>
+<h3 data-id="heading-7">2.1 目录结构（每个文件一句职责）</h3>
+<pre><code class="hljs language-lua" lang="lua">login-demo/
+├── mock/
+│   └── user.js              ← 假后端：处理 /api/login 和 /api/repo，签发和校验 token
+├── src/
+│   ├── api/
+│   │   ├── <span class="hljs-built_in">config</span>.js        ← axios 实例 + 拦截器（核心！token 的隐身携带者）
+│   │   ├── user.js          ← 登录接口封装（调用 <span class="hljs-built_in">config</span> 的实例）
+│   │   └── repo.js          ← 受保护接口封装（调用 <span class="hljs-built_in">config</span> 的实例）
+│   ├── store/
+│   │   └── user.js          ← zustand 全局仓库：token / user 状态 + setAuth / logout
+│   ├── components/
+│   │   ├── Nav.jsx          ← 导航栏：根据 token 显示 Login / Logout 按钮
+│   │   └── RequireAuth.jsx  ← 路由守卫：没 token 就 Navigate 到 /login
+│   ├── pages/
+│   │   ├── Login.jsx        ← 登录页：表单 → 调 login → setAuth → 跳转
+│   │   ├── Home.jsx         ← 首页（公开）
+│   │   └── Pay.jsx          ← 付费页（受保护）
+│   ├── App.jsx              ← 路由表 + 懒加载
+│   └── main.jsx             ← 入口
+├── vite.<span class="hljs-built_in">config</span>.js           ← 注册 vite-plugin-mock 插件
+└── <span class="hljs-built_in">package</span>.json
+</code></pre>
+<h3 data-id="heading-8">2.2 文件依赖关系图</h3>
+<p>这张图是全文最重要的一张，先印在脑子里：</p>
+<pre><code class="hljs language-bash" lang="bash">                    ┌────────────────────────────────────────┐
+                    │             vite.config.js             │
+                    │  注册 viteMockServe(mockPath:<span class="hljs-string">'mock'</span>)    │
+                    └──────────────┬─────────────────────────┘
+                                   │ 加载
+                                   ▼
+                    ┌────────────────────────────────────────┐
+                    │            mock/user.js                │
+                    │  /api/login → jwt.sign 签发 token      │
+                    │  /api/repo  → jwt.verify 校验 token    │
+                    └──────────────▲─────────────────────────┘
+                                   │ 拦截请求，返回假数据
+                                   │
+┌─────────────┐  useNavigate   ┌────────────────────────────────────────┐
+│ pages/      │  useLocation   │                src/api/               │
+│ Login.jsx ──┼──────────────► │  user.js  ──┐                        │
+│             │   login()      │  repo.js  ──┼──► config.js (拦截器)    │
+└──────┬──────┘                └─────────────┘    baseURL:<span class="hljs-string">'/api'</span>        │
+       │                                           自动加 Authorization  │
+       │ setAuth(token,user)                       └─────────────────────┘
+       ▼
+┌─────────────────────┐        useAuthStore         ┌─────────────────────┐
+│    store/user.js    │◄───────────────────────────►│  components/        │
+│  token / user       │                             │  Nav.jsx (读token)  │
+│  setAuth / <span class="hljs-built_in">logout</span>   │                             │  RequireAuth.jsx    │
+└─────────────────────┘                             │  (读token做守卫)    │
+        │                                           └─────────────────────┘
+        │ localStorage 持久化
+        ▼
+   localStorage: token / user
+</code></pre>
+<p>看懂这张图，后面的每一节都是给某个小方块"补细节"。</p>
+<h3 data-id="heading-9">2.3 一个 token 的完整旅程（先剧透，后面逐帧拆解）</h3>
+<pre><code class="hljs language-scss" lang="scss">① 你在 /login 页输入 admin / <span class="hljs-number">123456</span>，点登录
+   ↓
+② Login<span class="hljs-selector-class">.jsx</span> 调 user<span class="hljs-selector-class">.js</span> 的 <span class="hljs-built_in">login</span>()  →  config<span class="hljs-selector-class">.js</span> 的 axios<span class="hljs-selector-class">.post</span>('/login', ...)
+   ↓
+③ config<span class="hljs-selector-class">.js</span> 的 request 拦截器拦下请求（此时没 token，不带 Authorization）
+   ↓
+④ 请求发到 /api/login，被 vite-plugin-mock 拦下，交给 mock/user<span class="hljs-selector-class">.js</span>
+   ↓
+⑤ mock 校验账号密码，通过后用 jwt<span class="hljs-selector-class">.sign</span> 签出一个 token，返回 &#123;<span class="hljs-selector-tag">code</span>:<span class="hljs-number">0</span>, user, token&#125;
+   ↓
+⑥ config<span class="hljs-selector-class">.js</span> 的 response 拦截器把 res<span class="hljs-selector-class">.data</span> 返回，<span class="hljs-built_in">login</span>() 拿到 &#123;<span class="hljs-selector-tag">code</span>:<span class="hljs-number">0</span>, user, token&#125;
+   ↓
+⑦ Login<span class="hljs-selector-class">.jsx</span> 调 <span class="hljs-built_in">setAuth</span>(&#123;token, user&#125;) → store/user<span class="hljs-selector-class">.js</span> 写 localStorage + 更新全局状态
+   ↓
+⑧ navigate 跳转回你原来想去的页面
+   ↓
+⑨ 之后你访问 /pay 或调 <span class="hljs-built_in">getRepo</span>()，config<span class="hljs-selector-class">.js</span> 拦截器自动从 localStorage 读 token
+   ↓
+⑩ 请求头自动带上 Authorization: Bearer xxx → mock 用 jwt.verify 校验 → 通过！
+</code></pre>
+<p>有了这条主线，下面我们逐个文件拆开讲。</p>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-三" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-10">三、jsonwebtoken：sign 和 verify 两个动作</h2>
+<p>JWT 全称 <strong>JSON Web Token</strong>，本质就是把一个 <strong>JSON 身份对象</strong>，用<strong>加密算法 + 密钥</strong>转换成一个<strong>长字符串</strong>（token）。</p>
+<p>这个库就两个核心动作，记住这两个词就够了：</p>
+<table><thead><tr><th align="left">动作</th><th align="left">作用</th><th align="left">类比</th></tr></thead><tbody><tr><td align="left"><code>jwt.sign()</code></td><td align="left">把 JSON 对象"签发"成一个 token</td><td align="left">盖章：在身份卡上盖上防伪章</td></tr><tr><td align="left"><code>jwt.verify()</code></td><td align="left">把 token"校验"还原成 JSON 对象</td><td align="left">验章：检查防伪章是不是真的</td></tr></tbody></table>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">import</span> jwt <span class="hljs-keyword">from</span> <span class="hljs-string">'jsonwebtoken'</span>;
+
+<p><span class="hljs-keyword">const</span> secret &#x3D; <span class="hljs-string">‘secret819!$’</span>; <span class="hljs-comment">&#x2F;&#x2F; 密钥，相当于”防伪章”，只有你自己知道</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; sign：签发 —— 把身份对象变成 token</span><br><span class="hljs-keyword">const</span> token &#x3D; jwt.<span class="hljs-title function_">sign</span>(<br>  &amp;#123; <span class="hljs-attr">user</span>: <span class="hljs-string">‘admin’</span>, <span class="hljs-attr">role</span>: <span class="hljs-string">‘admin’</span> &amp;#125;,  <span class="hljs-comment">&#x2F;&#x2F; ① 要装进 token 的 JSON 身份对象</span><br>  secret,                              <span class="hljs-comment">&#x2F;&#x2F; ② 密钥（加盐）</span><br>  &amp;#123; <span class="hljs-attr">expiresIn</span>: <span class="hljs-number">86400</span> &amp;#125;                 <span class="hljs-comment">&#x2F;&#x2F; ③ 过期时间，单位秒（86400 &#x3D; 1 天）</span><br>);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; verify：校验 —— 把 token 还原成身份对象</span><br><span class="hljs-keyword">const</span> decoded &#x3D; jwt.<span class="hljs-title function_">verify</span>(token, secret); <span class="hljs-comment">&#x2F;&#x2F; &amp;#123; user: ‘admin’, role: ‘admin’, iat: …, exp: … &amp;#125;</span><br></p></code></pre><p></p>
+<p><strong>逐行拆解：</strong></p>
+<ul>
+<li><code>jwt.sign(payload, secret, options)</code>：三个参数分别是<strong>要签发的数据</strong>、<strong>密钥</strong>、<strong>配置</strong>（比如过期时间）。</li>
+<li><code>expiresIn: 86400</code> 表示 token <strong>1 天后过期</strong>，过期了 verify 就会抛错。</li>
+<li><code>jwt.verify(token, secret)</code>：用<strong>同一个密钥</strong>解，解出来的就是你当初塞进去的那个 JSON 对象。</li>
+</ul>
+<blockquote>
+<p>一句话记住：<strong>sign 是"把身份锁进保险箱"，verify 是"用钥匙开箱验货"。密钥（secret）就是那把钥匙，谁有钥匙谁就能签、能验。</strong></p>
+</blockquote>
+<p>这里有个关键点要理解：<strong>JWT 是"单向"的</strong>。你不能从 token 反向推导出密钥，但只要有密钥，任何一台服务器都能解这个 token。这正是它适合分布式的原因——<strong>签发的机器和解的机器不需要是同一台</strong>。</p>
+<blockquote>
+<p>⚠️ 面试考点：<strong>为什么说 JWT 无状态、适合分布式？</strong>
+因为身份信息就编码在 token 里，服务器不需要存任何东西。任何一台持有密钥的服务器都能 <code>verify</code> 出同样的 JSON 对象，不存在"这台机器认识你、那台不认识"的问题。</p>
+</blockquote>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-四" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-11">四、用 mock 把后端"假"出来</h2>
+<h3 data-id="heading-12">4.1 为什么要 mock</h3>
+<p>讲 JWT 必然要有"后端"配合——谁来签发 token？谁来校验？但你很可能<strong>还没有后端</strong>（或者后端同学还没写好接口）。这时候 <code>vite-plugin-mock</code> 就派上用场了：<strong>在前端开发环境里，伪造一个假后端。</strong></p>
+<p>它的原理是：<strong>拦截浏览器的请求，如果 URL 匹配你定义的规则，就直接返回假数据，请求根本不会发到真实服务器。</strong></p>
+<h3 data-id="heading-13">4.2 先注册插件</h3>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// vite.config.js</span>
+<span class="hljs-keyword">import</span> &#123; defineConfig &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'vite'</span>
+<span class="hljs-keyword">import</span> react <span class="hljs-keyword">from</span> <span class="hljs-string">'@vitejs/plugin-react'</span>
+<span class="hljs-keyword">import</span> &#123; viteMockServe &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'vite-plugin-mock'</span>
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-title function_">defineConfig</span>(&amp;#123;<br>  <span class="hljs-attr">plugins</span>: [<span class="hljs-title function_">react</span>(), <span class="hljs-title function_">viteMockServe</span>(&amp;#123;<br>    <span class="hljs-attr">mockPath</span>: <span class="hljs-string">‘mock’</span>,      <span class="hljs-comment">&#x2F;&#x2F; mock 文件所在的目录</span><br>    <span class="hljs-attr">localEnabled</span>: <span class="hljs-literal">true</span>     <span class="hljs-comment">&#x2F;&#x2F; 本地开发环境启用</span><br>  &amp;#125;)],<br>&amp;#125;)<br></p></code></pre><p></p>
+<p><code>mockPath: 'mock'</code> 告诉插件"我的假接口写在 <code>mock/</code> 目录下"，<code>localEnabled: true</code> 表示开发时开启。</p>
+<h3 data-id="heading-14">4.3 mock/user.js：假后端的两个接口</h3>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// mock/user.js</span>
+<span class="hljs-keyword">import</span> jwt <span class="hljs-keyword">from</span> <span class="hljs-string">'jsonwebtoken'</span>;
+<span class="hljs-keyword">const</span> secret = <span class="hljs-string">'secret819!$'</span>
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> [<br>  &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 受保护接口：校验 token</span><br>    <span class="hljs-attr">url</span>: <span class="hljs-string">‘&#x2F;api&#x2F;repo’</span>,<br>    <span class="hljs-attr">method</span>: <span class="hljs-string">‘get’</span>,<br>    <span class="hljs-attr">response</span>: <span class="hljs-function"><span class="hljs-params">req</span> &#x3D;&gt;</span> &amp;#123;<br>      <span class="hljs-keyword">const</span> token &#x3D; req.<span class="hljs-property">headers</span>[<span class="hljs-string">‘authorization’</span>].<span class="hljs-title function_">split</span>(<span class="hljs-string">‘ ‘</span>)[<span class="hljs-number">1</span>]; <span class="hljs-comment">&#x2F;&#x2F; ① 从请求头取 token</span><br>      <span class="hljs-keyword">try</span> &amp;#123;<br>        <span class="hljs-keyword">let</span> decoded &#x3D; jwt.<span class="hljs-title function_">verify</span>(token, secret); <span class="hljs-comment">&#x2F;&#x2F; ② 校验</span><br>        <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">code</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">data</span>: decoded.<span class="hljs-property">user</span> &amp;#125;;   <span class="hljs-comment">&#x2F;&#x2F; ③ 通过，返回身份</span><br>      &amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>        <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">code</span>: <span class="hljs-number">401</span>, <span class="hljs-attr">msg</span>: <span class="hljs-string">‘Invalid token’</span> &amp;#125;; <span class="hljs-comment">&#x2F;&#x2F; ④ 失败，返回 401</span><br>      &amp;#125;<br>    &amp;#125;<br>  &amp;#125;,<br>  &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 登录接口：签发 token</span><br>    <span class="hljs-attr">url</span>: <span class="hljs-string">‘&#x2F;api&#x2F;login’</span>,<br>    <span class="hljs-attr">method</span>: <span class="hljs-string">‘post’</span>,<br>    <span class="hljs-attr">response</span>: <span class="hljs-function">(<span class="hljs-params">req</span>) &#x3D;&gt;</span> &amp;#123;<br>      <span class="hljs-keyword">const</span> body &#x3D; req.<span class="hljs-property">body</span>;<br>      <span class="hljs-keyword">if</span> (body.<span class="hljs-property">username</span> !&#x3D;&#x3D; <span class="hljs-string">‘admin’</span> || body.<span class="hljs-property">password</span> !&#x3D;&#x3D; <span class="hljs-string">‘123456’</span>) &amp;#123;<br>        <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">code</span>: -<span class="hljs-number">1</span>, <span class="hljs-attr">message</span>: <span class="hljs-string">‘username or password 错误’</span> &amp;#125;;<br>      &amp;#125;<br>      <span class="hljs-comment">&#x2F;&#x2F; 服务器端给用户颁发 token</span><br>      <span class="hljs-keyword">const</span> token &#x3D; jwt.<span class="hljs-title function_">sign</span>(<br>        &amp;#123; <span class="hljs-attr">user</span>: body.<span class="hljs-property">username</span>, <span class="hljs-attr">role</span>: <span class="hljs-string">‘admin’</span> &amp;#125;, <span class="hljs-comment">&#x2F;&#x2F; 身份对象</span><br>        secret,                                  <span class="hljs-comment">&#x2F;&#x2F; 密钥</span><br>        &amp;#123; <span class="hljs-attr">expiresIn</span>: <span class="hljs-number">86400</span> &amp;#125;                     <span class="hljs-comment">&#x2F;&#x2F; 1 天过期</span><br>      );<br>      <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">code</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">user</span>: &amp;#123; <span class="hljs-attr">username</span>: body.<span class="hljs-property">username</span> &amp;#125;, token &amp;#125;;<br>    &amp;#125;<br>  &amp;#125;<br>]<br></p></code></pre><p></p>
+<p><strong>逐行拆解（重点看两个接口的对称关系）：</strong></p>
+<ul>
+<li><strong><code>/api/login</code> 用 <code>sign</code></strong>：用户密码正确 → 把身份签成 token → 返回给前端。这是 token 的<strong>出生地</strong>。</li>
+<li><strong><code>/api/repo</code> 用 <code>verify</code></strong>：从请求头里抠出 token → 校验 → 通过就返回身份。这是 token 的<strong>验票口</strong>。</li>
+<li><code>req.headers['authorization']</code> 里的值是 <code>"Bearer xxx"</code> 这种格式，所以 <code>.split(' ')[1]</code> 是去掉前缀 <code>Bearer</code> 拿到纯 token。</li>
+</ul>
+<blockquote>
+<p>一句话记住：<strong>login 是"发手环"，repo 是"验手环"——sign 发、verify 验，一个闭环。</strong></p>
+</blockquote>
+<p>这里先记住：<strong>前端 <code>config.js</code> 的 <code>baseURL</code> 是 <code>/api</code>，mock 里接口 URL 也是 <code>/api/login</code>、<code>/api/repo</code></strong>，两边对上了，请求才会被 mock 拦到。这个"对上"很关键，后面还会提到。</p>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-五" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-15">五、axios 拦截器：token 的隐身携带者</h2>
+<p>这是整个项目里<strong>最关键、也最容易被忽略</strong>的一个文件。它的作用是：<strong>让你每次发请求，不用手动写 token，axios 偷偷帮你带上。</strong></p>
+<h3 data-id="heading-16">5.1 config.js：axios 实例 + 两个拦截器</h3>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// src/api/config.js</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'axios'</span>;
+
+<p><span class="hljs-keyword">const</span> instance &#x3D; axios.<span class="hljs-title function_">create</span>(&amp;#123;<br>  <span class="hljs-attr">baseURL</span>: <span class="hljs-string">‘&#x2F;api’</span>,   <span class="hljs-comment">&#x2F;&#x2F; 所有请求自动拼上 &#x2F;api 前缀</span><br>  <span class="hljs-attr">timeout</span>: <span class="hljs-number">5000</span>      <span class="hljs-comment">&#x2F;&#x2F; 超时 5 秒</span><br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; ① request 拦截器：每个请求发出去之前，先被这里拦一下</span><br>instance.<span class="hljs-property">interceptors</span>.<span class="hljs-property">request</span>.<span class="hljs-title function_">use</span>(<span class="hljs-function"><span class="hljs-params">config</span> &#x3D;&gt;</span> &amp;#123;<br>  <span class="hljs-keyword">const</span> token &#x3D; <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">‘token’</span>);<br>  <span class="hljs-keyword">if</span> (token) &amp;#123;<br>    config.<span class="hljs-property">headers</span>[<span class="hljs-string">‘Authorization’</span>] &#x3D; <span class="hljs-string"><code>Bearer &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;token&amp;#125;&lt;/span&gt;</code></span>; <span class="hljs-comment">&#x2F;&#x2F; 自动塞进请求头</span><br>  &amp;#125;<br>  <span class="hljs-keyword">return</span> config; <span class="hljs-comment">&#x2F;&#x2F; 必须 return，否则请求发不出去</span><br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; ② response 拦截器：每个响应回来之后，先被这里拦一下</span><br>instance.<span class="hljs-property">interceptors</span>.<span class="hljs-property">response</span>.<span class="hljs-title function_">use</span>(<span class="hljs-function"><span class="hljs-params">res</span> &#x3D;&gt;</span> &amp;#123;<br>  <span class="hljs-keyword">return</span> res.<span class="hljs-property">data</span>; <span class="hljs-comment">&#x2F;&#x2F; 直接把 data 层剥出来，省得每次 .data</span><br>&amp;#125;);</p>
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> instance;<br></p></code></pre><p></p>
+<p><strong>逐行拆解：</strong></p>
+<ul>
+<li><code>axios.create(&#123; baseURL: '/api' &#125;)</code>：创建一个"定制版 axios"。之后写 <code>axios.get('/repo')</code>，实际请求的是 <code>/api/repo</code>。</li>
+<li><strong>request 拦截器</strong>：在<strong>请求发出去之前</strong>执行。它从 <code>localStorage</code> 读 token，如果有就塞进 <code>config.headers['Authorization']</code>。这就是 token 的<strong>隐身携带</strong>——你在业务代码里根本不用写。</li>
+<li><strong>response 拦截器</strong>：在<strong>响应回来之后</strong>执行。它 <code>return res.data</code>，把 axios 包的那层 <code>data</code> 剥掉，业务代码拿到的直接就是后端返回的 JSON。</li>
+</ul>
+<blockquote>
+<p>一句话记住：<strong>request 拦截器管"出发前带东西"，response 拦截器管"到站后卸货"。</strong></p>
+</blockquote>
+<h3 data-id="heading-17">5.2 两个"使用 config 实例"的文件</h3>
+<p>有了 config.js 这个定制实例，业务接口就都来用它：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// src/api/repo.js —— 受保护的接口</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'./config'</span>;  <span class="hljs-comment">// ✅ 引入的是 config.js 的实例，不是 axios 本尊</span>
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-title function_">getRepo</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params"></span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> res &#x3D; <span class="hljs-keyword">await</span> axios.<span class="hljs-title function_">get</span>(<span class="hljs-string">‘&#x2F;repo’</span>);<br>  <span class="hljs-keyword">return</span> res.<span class="hljs-property">data</span>;<br>&amp;#125;;<br></p></code></pre><p></p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// src/api/user.js —— 登录接口</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'./config'</span>;  <span class="hljs-comment">// ✅ 正确写法：从 ./config 引入实例</span>
+
+<span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-title function_">login</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">data</span>) =&gt; &#123;
+  <span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> axios.<span class="hljs-title function_">post</span>(<span class="hljs-string">'/login'</span>, data);
+  <span class="hljs-keyword">return</span> res.<span class="hljs-property">data</span>;
+&#125;;
+</code></pre>
+<p>注意看这两行 <code>import</code>：<strong>它们 import 的都是 <code>./config</code>，不是 <code>'axios'</code></strong>。这是个特别容易踩的坑，下面专门说。</p>
+<h3 data-id="heading-18">5.3 一个大坑：instance 未定义</h3>
+<p>我一开始 <code>user.js</code> 是这么写的：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// ❌ 错误：import 了 axios 本尊，却用了 instance 变量</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'axios'</span>;
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-title function_">login</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">data</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> res &#x3D; <span class="hljs-keyword">await</span> instance.<span class="hljs-title function_">post</span>(<span class="hljs-string">‘&#x2F;login’</span>, data); <span class="hljs-comment">&#x2F;&#x2F; instance 哪来的？undefined！</span><br>  <span class="hljs-keyword">return</span> res.<span class="hljs-property">data</span>;<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>报错是 <code>instance is not defined</code>（或者运行时报错）。<strong>根因</strong>：这个文件里根本没有 <code>instance</code> 这个变量——它定义在 <code>config.js</code> 里，而且 <code>config.js</code> 导出的是 <strong>default</strong> 导出。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// ✅ 正确：从 ./config 引入定制实例，用它来发请求</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'./config'</span>;
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> <span class="hljs-title function_">login</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">data</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> res &#x3D; <span class="hljs-keyword">await</span> axios.<span class="hljs-title function_">post</span>(<span class="hljs-string">‘&#x2F;login’</span>, data);<br>  <span class="hljs-keyword">return</span> res.<span class="hljs-property">data</span>;<br>&amp;#125;;<br></p></code></pre><p></p>
+<blockquote>
+<p>一句话记住：<strong><code>import axios from './config'</code> 拿到的才是"带拦截器"的定制实例；<code>import axios from 'axios'</code> 拿到的只是裸 axios，啥都没带。</strong></p>
+</blockquote>
+<p>这个坑的根源，其实就是<strong>文件之间的联系没理清</strong>：<code>config.js</code> 是"工厂"，<code>repo.js</code>/<code>user.js</code> 是"下单的客户"，客户必须从工厂提货，而不是自己造一个。</p>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-六" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-19">六、zustand：登录状态的中央仓库</h2>
+<h3 data-id="heading-20">6.1 为什么登录状态要全局管</h3>
+<p>登录成功后，token 和用户信息要被<strong>很多地方</strong>用到：</p>
+<ul>
+<li><code>Nav.jsx</code> 要看有没有 token，决定显示"登录"还是"登出"按钮</li>
+<li><code>RequireAuth.jsx</code> 要看有没有 token，决定放行还是拦截</li>
+<li>其它业务页面可能要看用户信息</li>
+</ul>
+<p>如果靠 React 的 <code>useState</code> + 父子传参，token 得从最顶层一路 prop 传下去，传到 <code>Nav</code>、传到 <code>RequireAuth</code>……这就是传说中的 <strong>prop drilling（逐层传递地狱）</strong>。</p>
+<p>zustand 就是来解决这个的：<strong>把登录状态集中到一个"中央仓库"，任何组件直接去仓库拿，不用一层层传。</strong></p>
+<blockquote>
+<p>类比：<strong>不用 zustand 像"传话游戏"（一层传一层，传到后面都变了）；用 zustand 像"公告栏"（谁要谁自己抬头看）。</strong></p>
+</blockquote>
+<h3 data-id="heading-21">6.2 store/user.js：仓库长这样</h3>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// src/store/user.js</span>
+<span class="hljs-keyword">import</span> &#123; create &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zustand'</span>;
+
+<p><span class="hljs-keyword">export</span> <span class="hljs-keyword">const</span> useAuthStore &#x3D; <span class="hljs-title function_">create</span>(<span class="hljs-function"><span class="hljs-params">set</span> &#x3D;&gt;</span> (&amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; ① 初始状态：从 localStorage 读，刷新页面也不丢</span><br>  <span class="hljs-attr">token</span>: <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">‘token’</span>) || <span class="hljs-string">‘’</span>,<br>  <span class="hljs-attr">user</span>: <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">parse</span>(<span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">‘user’</span>)) || <span class="hljs-literal">null</span>,</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; ② action：登录后存状态</span><br>  <span class="hljs-attr">setAuth</span>: <span class="hljs-function">(<span class="hljs-params">&amp;#123; token, user &amp;#125;</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">‘token’</span>, token);<br>    <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">‘user’</span>, <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(user));<br>    <span class="hljs-title function_">set</span>(&amp;#123; token, user &amp;#125;);  <span class="hljs-comment">&#x2F;&#x2F; 更新仓库，通知所有订阅的组件重新渲染</span><br>  &amp;#125;,</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; ③ action：登出清状态</span><br>  <span class="hljs-attr">logout</span>: <span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">removeItem</span>(<span class="hljs-string">‘token’</span>);<br>    <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">removeItem</span>(<span class="hljs-string">‘user’</span>);<br>    <span class="hljs-title function_">set</span>(&amp;#123; <span class="hljs-attr">token</span>: <span class="hljs-string">‘’</span>, <span class="hljs-attr">user</span>: <span class="hljs-literal">null</span> &amp;#125;);<br>  &amp;#125;<br>&amp;#125;));<br></p></code></pre><p></p>
+<p><strong>逐行拆解：</strong></p>
+<ul>
+<li><code>create(set =&gt; (&#123;...&#125;))</code>：zustand 的核心 API。<code>create</code> 是个高阶函数，接收一个函数，返回一个 <strong>hook</strong>（<code>useAuthStore</code>）。</li>
+<li><strong>状态</strong>（<code>token</code>、<code>user</code>）和 <strong>action</strong>（<code>setAuth</code>、<code>logout</code>）写在一起，这是 zustand 的风格——<strong>一个仓库，状态和改状态的方法全在里面</strong>。</li>
+<li><code>set(&#123;...&#125;)</code> 是改状态的方法，它会让所有用了 <code>useAuthStore</code> 的组件自动重新渲染。</li>
+<li><strong>关键细节</strong>：<code>token</code> 的初始值从 <code>localStorage.getItem('token')</code> 读。这样<strong>刷新页面，登录状态还在</strong>（因为 token 持久化在 localStorage 里了）。</li>
+</ul>
+<h3 data-id="heading-22">6.3 组件怎么"去仓库拿东西"</h3>
+<p>zustand 的用法是<strong>按需订阅</strong>，用选择器 <code>state =&gt; state.xxx</code> 精确拿：</p>
+<pre><code class="hljs language-jsx" lang="jsx"><span class="hljs-comment">// Nav.jsx 里，只拿自己需要的 token 和 logout</span>
+<span class="hljs-keyword">const</span> token = <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">state</span> =&gt;</span> state.<span class="hljs-property">token</span>);
+<span class="hljs-keyword">const</span> logout = <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">state</span> =&gt;</span> state.<span class="hljs-property">logout</span>);
+</code></pre>
+<pre><code class="hljs language-jsx" lang="jsx"><span class="hljs-comment">// RequireAuth.jsx 里，只拿 token</span>
+<span class="hljs-keyword">const</span> token = <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">state</span> =&gt;</span> state.<span class="hljs-property">token</span>);
+</code></pre>
+<pre><code class="hljs language-jsx" lang="jsx"><span class="hljs-comment">// Login.jsx 里，只拿 setAuth 这个 action</span>
+<span class="hljs-keyword">const</span> setAuth = <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">state</span> =&gt;</span> state.<span class="hljs-property">setAuth</span>);
+</code></pre>
+<blockquote>
+<p>一句话记住：<strong><code>useAuthStore(state =&gt; state.xxx)</code> 这个选择器语法，就是"去仓库拿指定的那件货"，只订阅自己需要的，避免无谓重渲染。</strong></p>
+</blockquote>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-七" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-23">七、路由守卫 RequireAuth：把门的保安</h2>
+<p>现在 token 有了、也存进仓库了，但怎么<strong>拦住没登录的人访问受保护页面</strong>呢？答案是路由守卫。</p>
+<h3 data-id="heading-24">7.1 什么是路由守卫</h3>
+<p><strong>路由守卫 = 一个组件，包在受保护的页面上，进去之前先检查你有没有 token，没有就把你踢去登录页。</strong></p>
+<pre><code class="hljs language-jsx" lang="jsx"><span class="hljs-comment">// src/components/RequireAuth.jsx</span>
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">Navigate</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'react-router-dom'</span>;
+<span class="hljs-keyword">import</span> &#123; useAuthStore &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'../store/user'</span>;
+
+<p><span class="hljs-keyword">function</span> <span class="hljs-title function_">RequireAuth</span>(<span class="hljs-params">&amp;#123; children &amp;#125;</span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> token &#x3D; <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">state</span> &#x3D;&gt;</span> state.<span class="hljs-property">token</span>);</p>
+<p>  <span class="hljs-keyword">if</span> (!token) &amp;#123;<br>    <span class="hljs-keyword">return</span> <span class="xml"><span class="hljs-tag">&lt;<span class="hljs-name">Navigate</span> <span class="hljs-attr">to</span>&#x3D;<span class="hljs-string">“&#x2F;login”</span> <span class="hljs-attr">replace</span> &#x2F;&gt;</span></span>; <span class="hljs-comment">&#x2F;&#x2F; 没登录 → 踢去登录页</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-keyword">return</span> children; <span class="hljs-comment">&#x2F;&#x2F; 登录了 → 正常渲染子页面</span><br>&amp;#125;<br><span class="hljs-keyword">export</span> <span class="hljs-keyword">default</span> <span class="hljs-title class_">RequireAuth</span>;<br></p></code></pre><p></p>
+<p><strong>逐行拆解：</strong></p>
+<ul>
+<li><code>useAuthStore(state =&gt; state.token)</code>：从仓库读 token。</li>
+<li><code>if (!token)</code>：没有 token，说明没登录，返回 <code>&lt;Navigate to="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/login" replace /&gt;</code>。</li>
+<li><code>&lt;Navigate&gt;</code> 是 react-router 的<strong>声明式跳转组件</strong>，渲染它就会触发跳转。</li>
+<li><code>replace</code> 参数：跳转时<strong>替换当前历史记录</strong>，而不是新增一条。这样用户按"后退"键不会退回到被拦截的页面，体验更好。</li>
+<li>有 token 就 <code>return children</code>，把包裹的子页面正常渲染出来。</li>
+</ul>
+<h3 data-id="heading-25">7.2 在路由表里怎么用</h3>
+<pre><code class="hljs language-jsx" lang="jsx"><span class="hljs-comment">// src/App.jsx（节选）</span>
+&lt;<span class="hljs-title class_">Routes</span>&gt;
+  <span class="xml"><span class="hljs-tag">&lt;<span class="hljs-name">Route</span> <span class="hljs-attr">path</span>=<span class="hljs-string">"/"</span> <span class="hljs-attr">element</span>=<span class="hljs-string">&#123;</span>&lt;<span class="hljs-attr">Home</span> /&gt;</span>&#125; /&gt;</span>
+  <span class="xml"><span class="hljs-tag">&lt;<span class="hljs-name">Route</span> <span class="hljs-attr">path</span>=<span class="hljs-string">"/login"</span> <span class="hljs-attr">element</span>=<span class="hljs-string">&#123;</span>&lt;<span class="hljs-attr">Login</span> /&gt;</span>&#125; /&gt;</span>
+  <span class="xml"><span class="hljs-tag">&lt;<span class="hljs-name">Route</span> <span class="hljs-attr">path</span>=<span class="hljs-string">"/pay"</span> <span class="hljs-attr">element</span>=<span class="hljs-string">&#123;</span>
+    &lt;<span class="hljs-attr">RequireAuth</span>&gt;</span>
+      <span class="hljs-tag">&lt;<span class="hljs-name">Pay</span> /&gt;</span>
+    <span class="hljs-tag">&lt;/<span class="hljs-name">RequireAuth</span>&gt;</span>
+  &#125;/&gt;</span>
+&lt;/<span class="hljs-title class_">Routes</span>&gt;
+</code></pre>
+<p>看到没？<code>/pay</code> 这个受保护的页面，外面<strong>包了一层 <code>&lt;RequireAuth&gt;</code></strong>。访问 <code>/pay</code> 时，React 先渲染 <code>RequireAuth</code>，它检查 token：</p>
+<ul>
+<li>有 token → 渲染 <code>&lt;Pay /&gt;</code>，放行</li>
+<li>没 token → 渲染 <code>&lt;Navigate to="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/login" /&gt;</code>，滚去登录</li>
+</ul>
+<blockquote>
+<p>一句话记住：<strong>路由守卫就是"把门保安"，<code>children</code> 是你要保护的房间，<code>Navigate</code> 是把你送回"登记处"（登录页）。</strong></p>
+</blockquote>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-八" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-26">八、把完整流程串起来（重点！）</h2>
+<p>前面都是"零件"，这一节把零件<strong>装成整机</strong>，带你走三遍完整流程。请配合第二章的图一起看。</p>
+<h3 data-id="heading-27">8.1 流程一：登录（token 的诞生）</h3>
+<pre><code class="hljs language-bash" lang="bash">① 用户访问 /pay
+   → App.jsx 渲染 &lt;RequireAuth&gt;&lt;Pay/&gt;&lt;/RequireAuth&gt;
+   → RequireAuth.jsx 读 token → 没有 → &lt;Navigate to=<span class="hljs-string">"/login"</span> replace/&gt;
+   → 浏览器跳到登录页 Login.jsx
+
+<p>② 用户输入 admin &#x2F; 123456，点登录<br>   → Login.jsx 的 handleLogin 触发 → 调 user.js 的 login(formData)</p>
+<p>③ user.js 的 login() → axios.post(<span class="hljs-string">‘&#x2F;login’</span>, data)<br>   → 这里的 axios 是 config.js 的实例</p>
+<p>④ config.js 的 request 拦截器先执行：<br>   → 从 localStorage 读 token → 第一次没有 → 不带 Authorization<br>   → 请求继续，发往 &#x2F;api&#x2F;login（baseURL &#x2F;api + &#x2F;login）</p>
+<p>⑤ vite-plugin-mock 拦下 &#x2F;api&#x2F;login → 交给 mock&#x2F;user.js<br>   → 校验 username &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘admin’</span> &amp;&amp; password &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘123456’</span><br>   → 通过 → jwt.sign(&amp;#123;user, role&amp;#125;, secret, &amp;#123;expiresIn:86400&amp;#125;) 签出 token<br>   → 返回 &amp;#123; code: 0, user: &amp;#123;username:<span class="hljs-string">‘admin’</span>&amp;#125;, token &amp;#125;</p>
+<p>⑥ config.js 的 response 拦截器执行 → <span class="hljs-built_in">return</span> res.data<br>   → login() 拿到 &amp;#123; code:0, user, token &amp;#125; → <span class="hljs-built_in">return</span> 出去</p>
+<p>⑦ Login.jsx 里：res.code &#x3D;&#x3D;&#x3D; 0<br>   → setAuth(&amp;#123; token: res.token, user: res.user &amp;#125;)<br>   → store&#x2F;user.js 里：写 localStorage + <span class="hljs-built_in">set</span>() 更新全局状态<br>   → 此时 Nav.jsx 看到 token 有值，自动从<span class="hljs-string">“登录”</span>按钮变成<span class="hljs-string">“登出”</span>按钮</p>
+<p>⑧ navigate(from, &amp;#123; replace: <span class="hljs-literal">true</span> &amp;#125;) → 跳回原来想去的 &#x2F;pay<br>   → 这次 RequireAuth 再读 token → 有了 → 放行，渲染 &lt;Pay&#x2F;&gt;<br></p></code></pre><p></p>
+<p><strong>登录流程一句话总结：</strong> 表单 → 接口 → 拦截器（空手）→ mock 签发 → 拦截器（剥壳）→ setAuth 存储 → 跳转放行。</p>
+<h3 data-id="heading-28">8.2 流程二：鉴权（token 的携带与校验）</h3>
+<p>登录成功后，token 存在 localStorage 里。之后再访问受保护的接口，就是<strong>自动携带 + 校验</strong>的过程：</p>
+<pre><code class="hljs language-scss" lang="scss">① 用户访问受保护接口，比如 App<span class="hljs-selector-class">.jsx</span> 挂载时调 <span class="hljs-built_in">getRepo</span>()
+   → repo<span class="hljs-selector-class">.js</span> 的 <span class="hljs-built_in">getRepo</span>() → axios<span class="hljs-selector-class">.get</span>('/repo')
+
+<p>② config<span class="hljs-selector-class">.js</span> 的 request 拦截器执行：<br>   → 这次 localStorage 里有 token 了！<br>   → config<span class="hljs-selector-class">.headers</span><span class="hljs-selector-attr">[<span class="hljs-string">‘Authorization’</span>]</span> &#x3D; ‘Bearer ‘ + token<br>   → 请求头自动带上令牌，发往 &#x2F;api&#x2F;repo</p>
+<p>③ vite-plugin-mock 拦下 &#x2F;api&#x2F;repo → 交给 mock&#x2F;user<span class="hljs-selector-class">.js</span><br>   → req<span class="hljs-selector-class">.headers</span><span class="hljs-selector-attr">[<span class="hljs-string">‘authorization’</span>]</span><span class="hljs-selector-class">.split</span>(‘ ‘)<span class="hljs-selector-attr">[1]</span> 抠出纯 token<br>   → jwt<span class="hljs-selector-class">.verify</span>(token, secret) 校验<br>   → 通过 → return &amp;#123; <span class="hljs-selector-tag">code</span>:<span class="hljs-number">0</span>, data: decoded.user &amp;#125;</p>
+<p>④ response 拦截器 return res<span class="hljs-selector-class">.data</span><br>   → <span class="hljs-built_in">getRepo</span>() 拿到 &amp;#123; <span class="hljs-selector-tag">code</span>:<span class="hljs-number">0</span>, data: <span class="hljs-string">‘admin’</span> &amp;#125;<br></p></code></pre><p></p>
+<p><strong>鉴权流程一句话总结：</strong> 接口 → 拦截器（自动带头）→ mock 校验 → 通过返回。</p>
+<h3 data-id="heading-29">8.3 流程三：登出（token 的销毁）</h3>
+<pre><code class="hljs language-bash" lang="bash">① 用户在 Nav.jsx 点 <span class="hljs-string">"Logout"</span> 按钮
+   → handleLogout → <span class="hljs-built_in">logout</span>()（来自 store/user.js）
+
+<p>② store&#x2F;user.js 的 <span class="hljs-built_in">logout</span>()：<br>   → localStorage.removeItem(<span class="hljs-string">‘token’</span>)<br>   → localStorage.removeItem(<span class="hljs-string">‘user’</span>)<br>   → <span class="hljs-built_in">set</span>(&amp;#123; token:<span class="hljs-string">‘’</span>, user:null &amp;#125;)</p>
+<p>③ token 变成 <span class="hljs-string">‘’</span>，全局状态更新<br>   → Nav.jsx 看到 token 为空 → 按钮从<span class="hljs-string">“登出”</span>变回<span class="hljs-string">“登录”</span><br>   → 此时再访问 &#x2F;pay，RequireAuth 发现没 token → 踢回登录页<br></p></code></pre><p></p>
+<p><strong>登出流程一句话总结：</strong> 点登出 → 清 localStorage + 清仓库 → 全局瞬间"失忆"。</p>
+<h3 data-id="heading-30">8.4 一张表看透"每个文件在流程里的角色"</h3>
+<table><thead><tr><th align="left">文件</th><th align="left">角色</th><th align="left">在流程里的关键时刻</th></tr></thead><tbody><tr><td align="left"><code>Login.jsx</code></td><td align="left">发起登录</td><td align="left">流程一 ②⑦⑧</td></tr><tr><td align="left"><code>api/user.js</code></td><td align="left">登录接口</td><td align="left">流程一 ③</td></tr><tr><td align="left"><code>api/repo.js</code></td><td align="left">受保护接口</td><td align="left">流程二 ①</td></tr><tr><td align="left"><code>api/config.js</code></td><td align="left">拦截器（带 token / 剥 data）</td><td align="left">流程一 ④⑥、流程二 ②④</td></tr><tr><td align="left"><code>mock/user.js</code></td><td align="left">假后端（sign / verify）</td><td align="left">流程一 ⑤、流程二 ③</td></tr><tr><td align="left"><code>store/user.js</code></td><td align="left">中央仓库（存 / 清）</td><td align="left">流程一 ⑦、流程三 ②</td></tr><tr><td align="left"><code>RequireAuth.jsx</code></td><td align="left">路由守卫（拦截 / 放行）</td><td align="left">流程一 ①⑧</td></tr><tr><td align="left"><code>Nav.jsx</code></td><td align="left">状态展示 + 登出入口</td><td align="left">流程一 ⑦、流程三 ③</td></tr><tr><td align="left"><code>App.jsx</code></td><td align="left">路由表 + 装配</td><td align="left">流程一 ①</td></tr></tbody></table>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-九" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-31">九、我踩过的坑</h2>
+<h3 data-id="heading-32">坑 1：<code>instance is not defined</code></h3>
+<p>前面第五节讲过。<code>user.js</code> 里 <code>import axios from 'axios'</code> 却用了 <code>instance</code>，变量根本不存在。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// ❌ instance 从哪来？</span>
+<span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">'axios'</span>;
+<span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> instance.<span class="hljs-title function_">post</span>(<span class="hljs-string">'/login'</span>, data);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; ✅ 从 .&#x2F;config 引入定制实例</span><br><span class="hljs-keyword">import</span> axios <span class="hljs-keyword">from</span> <span class="hljs-string">‘.&#x2F;config’</span>;<br><span class="hljs-keyword">const</span> res &#x3D; <span class="hljs-keyword">await</span> axios.<span class="hljs-title function_">post</span>(<span class="hljs-string">‘&#x2F;login’</span>, data);<br></p></code></pre><p></p>
+<h3 data-id="heading-33">坑 2：<code>jsonwebtoken</code> 忘了装</h3>
+<p><code>mock/user.js</code> 里 <code>import jwt from 'jsonwebtoken'</code>，但这个包<strong>不在依赖里</strong>。一启动 vite 就 500，报 <code>Failed to fetch dynamically imported module</code>，非常迷惑——它表面看是 <code>Login.jsx</code> 加载失败，实际是 mock 文件解析不到 <code>jsonwebtoken</code>。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 解决方案：装上它</span>
+pnpm add jsonwebtoken
+</code></pre>
+<p><strong>教训</strong>：vite 报 500 时，别只看报错的那个文件，它很可能是<strong>被间接依赖的某个 import 解析失败</strong>拖累的。</p>
+<h3 data-id="heading-34">坑 3：pnpm 忽略 esbuild 构建脚本</h3>
+<p>用 pnpm 装依赖时看到：</p>
+<pre><code class="hljs language-csharp" lang="csharp">[<span class="hljs-meta">ERR_PNPM_IGNORED_BUILDS</span>] Ignored build scripts: esbuild@<span class="hljs-number">0.28</span>
+</code></pre>
+<p>pnpm 10+ 默认不执行依赖的 <code>postinstall</code> 脚本（安全考虑），但 esbuild 需要它来装原生二进制。忽略后 vite 可能启动失败。解决：</p>
+<pre><code class="hljs language-bash" lang="bash">pnpm approve-builds esbuild
+</code></pre>
+<p>然后 <code>pnpm install</code> 重新装一遍。注意 pnpm 11 里这个配置写在 <code>pnpm-workspace.yaml</code>，不是 <code>package.json</code> 的 <code>pnpm</code> 字段。</p>
+<h3 data-id="heading-35">坑 4：token 存 localStorage 的安全隐患</h3>
+<p>⚠️ 注意：<strong>把 token 放在 localStorage 是有 XSS 风险的</strong>（脚本能读到 localStorage）。更安全的做法是 httpOnly cookie。这个小 demo 为了方便直接用 localStorage，但面试被问到"token 放哪安全"，要能答出区别。</p>
+<table><thead><tr><th align="left">方案</th><th align="left">优点</th><th align="left">缺点</th></tr></thead><tbody><tr><td align="left">localStorage</td><td align="left">简单，前端好操作</td><td align="left">易被 XSS 窃取</td></tr><tr><td align="left">httpOnly cookie</td><td align="left">JS 读不到，防 XSS</td><td align="left">要防 CSRF</td></tr></tbody></table>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-十" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-36">十、面试高频 N 问</h2>
+<details>
+<summary>Q1：JWT 是什么？结构是什么？</summary>
+<p>JWT（JSON Web Token）是一种<strong>无状态的鉴权令牌</strong>，把用户身份信息编码进一个加密字符串里。结构是三段，用 <code>.</code> 分隔：<code>Header.Payload.Signature</code>。</p>
+<ul>
+<li><strong>Header</strong>：声明算法（如 HS256）和类型（JWT）</li>
+<li><strong>Payload</strong>：真正的身份数据（如 <code>&#123;username, role&#125;</code>）+ 过期时间</li>
+<li><strong>Signature</strong>：用密钥对前两段做的签名，用于防篡改</li>
+</ul>
+</details>
+<details>
+<summary>Q2：cookie/session 和 JWT 的区别？</summary>
+<ul>
+<li><strong>cookie/session</strong>：服务器<strong>存状态</strong>，sessionId 存在服务器内存/Redis，客户端 cookie 只存个 id。缺点：分布式下要共享 session。</li>
+<li><strong>JWT</strong>：服务器<strong>不存状态</strong>，身份信息编码在 token 里，客户端自己保管。任何持有密钥的服务器都能 verify。缺点：token 一旦签发，在过期前无法主动作废（除非加黑名单）。</li>
+</ul>
+<p>一句话：<strong>session 是"服务器记"，JWT 是"token 自带"。</strong></p>
+</details>
+<details>
+<summary>Q3：为什么说 JWT 适合分布式/微服务？</summary>
+<p>因为身份信息就在 token 里，服务器无需查库、无需共享 session。任何一台机器拿到同一个密钥就能 <code>verify</code> 出身份，天然无状态、可水平扩展。</p>
+</details>
+<details>
+<summary>Q4：axios 拦截器的作用？</summary>
+<ul>
+<li><strong>request 拦截器</strong>：请求发出前统一处理，最典型的就是<strong>自动给请求头加 token</strong>、统一加前缀等。</li>
+<li><strong>response 拦截器</strong>：响应返回后统一处理，如<strong>统一剥 data、统一错误处理、401 跳登录</strong>等。</li>
+</ul>
+<p>好处是<strong>把重复逻辑收口到一处</strong>，业务代码不用每个请求都写一遍。</p>
+</details>
+<details>
+<summary>Q5：路由守卫是怎么实现的？</summary>
+<p>用一个包装组件（如 <code>RequireAuth</code>）包裹受保护路由，组件内部读全局登录状态（如 zustand 的 token），没登录就 <code>&lt;Navigate to="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/login" replace /&gt;</code> 重定向，登录了就渲染 <code>children</code>。本质是<strong>条件渲染 + 声明式跳转</strong>。</p>
+</details>
+<hr>
+<p><a href="https://link.juejin.cn/?target=" id="user-content-总结" ref="nofollow noopener noreferrer" title rel="external nofollow noopener noreferrer" target="_blank"></a></p>
+<h2 data-id="heading-37">总结</h2>
+<h3 data-id="heading-38">核心概念速查表</h3>
+<table><thead><tr><th align="left">概念</th><th align="left">一句话</th></tr></thead><tbody><tr><td align="left">JWT</td><td align="left">把身份"刻"进加密字符串的无状态令牌</td></tr><tr><td align="left">sign / verify</td><td align="left">签发 / 校验，一对"盖章/验章"动作</td></tr><tr><td align="left">无状态</td><td align="left">服务器不记你，每次请求都自报家门</td></tr><tr><td align="left">baseURL</td><td align="left">axios 实例统一加的请求前缀</td></tr><tr><td align="left">request 拦截器</td><td align="left">请求出发前自动塞 token</td></tr><tr><td align="left">response 拦截器</td><td align="left">响应到站后统一剥 data</td></tr><tr><td align="left">zustand store</td><td align="left">全局状态的"公告栏"，按需订阅</td></tr><tr><td align="left">路由守卫</td><td align="left">把门保安，没 token 踢去登录页</td></tr><tr><td align="left">localStorage 持久化</td><td align="left">让刷新后登录状态不丢</td></tr></tbody></table>
+<h3 data-id="heading-39">一句口诀</h3>
+<blockquote>
+<p><strong>登录签 token，仓库存 token，拦截器带 token，守卫查 token，登出清 token。</strong></p>
+</blockquote>
+<h3 data-id="heading-40">核心骨架（精简版）</h3>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// 1. 登录 → sign 签发 token（mock 后端）</span>
+<span class="hljs-keyword">const</span> token = jwt.<span class="hljs-title function_">sign</span>(&#123; user, role &#125;, secret, &#123; <span class="hljs-attr">expiresIn</span>: <span class="hljs-number">86400</span> &#125;);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 2. 拦截器 → 自动携带 token</span><br>instance.<span class="hljs-property">interceptors</span>.<span class="hljs-property">request</span>.<span class="hljs-title function_">use</span>(<span class="hljs-function"><span class="hljs-params">config</span> &#x3D;&gt;</span> &amp;#123;<br>  <span class="hljs-keyword">const</span> token &#x3D; <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">‘token’</span>);<br>  <span class="hljs-keyword">if</span> (token) config.<span class="hljs-property">headers</span>[<span class="hljs-string">‘Authorization’</span>] &#x3D; <span class="hljs-string"><code>Bearer &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;token&amp;#125;&lt;/span&gt;</code></span>;<br>  <span class="hljs-keyword">return</span> config;<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 3. 仓库 → 存 &#x2F; 清 token</span><br><span class="hljs-keyword">const</span> useAuthStore &#x3D; <span class="hljs-title function_">create</span>(<span class="hljs-function"><span class="hljs-params">set</span> &#x3D;&gt;</span> (&amp;#123;<br>  <span class="hljs-attr">token</span>: <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">getItem</span>(<span class="hljs-string">‘token’</span>) || <span class="hljs-string">‘’</span>,<br>  <span class="hljs-attr">setAuth</span>: <span class="hljs-function">(<span class="hljs-params">&amp;#123; token &amp;#125;</span>) &#x3D;&gt;</span> &amp;#123; <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">setItem</span>(<span class="hljs-string">‘token’</span>, token); <span class="hljs-title function_">set</span>(&amp;#123; token &amp;#125;); &amp;#125;,<br>  <span class="hljs-attr">logout</span>: <span class="hljs-function">() &#x3D;&gt;</span> &amp;#123; <span class="hljs-variable language_">localStorage</span>.<span class="hljs-title function_">removeItem</span>(<span class="hljs-string">‘token’</span>); <span class="hljs-title function_">set</span>(&amp;#123; <span class="hljs-attr">token</span>: <span class="hljs-string">‘’</span> &amp;#125;); &amp;#125;<br>&amp;#125;));</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 4. 守卫 → 查 token 放行 &#x2F; 拦截</span><br><span class="hljs-keyword">const</span> token &#x3D; <span class="hljs-title function_">useAuthStore</span>(<span class="hljs-function"><span class="hljs-params">s</span> &#x3D;&gt;</span> s.<span class="hljs-property">token</span>);<br><span class="hljs-keyword">if</span> (!token) <span class="hljs-keyword">return</span> <span class="xml"><span class="hljs-tag">&lt;<span class="hljs-name">Navigate</span> <span class="hljs-attr">to</span>&#x3D;<span class="hljs-string">“&#x2F;login”</span> <span class="hljs-attr">replace</span> &#x2F;&gt;</span></span>;<br></p></code></pre><p></p>
+<hr>
+<h2 data-id="heading-41">结尾</h2>
+<p>这篇文章没有把所有概念面面俱到地讲一遍，而是想帮你把 <strong>token 从出生到销毁的这条线</strong>捋顺——搞懂了文件之间的联系，剩下的细节就都是往骨架上填肉了。</p>
+<p>完整代码可以直接照着上面的文件一个个建，跑通之后，你会对"前端登录鉴权"这件事有全新的整体感。</p>
+<p>希望这篇文章对你有帮助！有问题欢迎在评论区交流，如果觉得有用，求个点赞收藏 🔥</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="一文讲透 JWT 登录鉴权：token 的「颁发 → 存储 → 携带 → 校验」完整闭环" href="https://juejin.cn/post/7675747735869931563" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">一文讲透 JWT 登录鉴权：token 的「颁发 → 存储 → 携带 → 校验」完整闭环</span><span class="desc fs12">https://juejin.cn/post/7675747735869931563</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/12e5e75.html">「务实且高效」的日系次旗舰：夏普 AQUOS R9 评测<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e669efe5.html">The Elephant S Trunk in Cepheus<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f5e4b7ad.html" title="AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1cbb9c09db74469ea61dfada14b32305~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZGo5LiA5ZCM5a2mWmVsaW5h:q75.awebp?rk3s=f64ab15b&x-expires=1787792303&x-signature=fxi3Ju7v2qkuujJeua0ninu9Mmg%3D"></div><span class="title">AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？</span></a><a class="item" href="/rss/48d525c0.html" title="AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/543acfa53344011a6c371dc51faf2d7d9331103d-1485x885.png"></div><span class="title">AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？</span></a><a class="item" href="/rss/77574e.html" title="Token生产之后，合肥开始研究怎么“运营”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5842"></div><span class="title">Token生产之后，合肥开始研究怎么“运营”</span></a><a class="item" href="/rss/306a3f45.html" title="TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9378"></div><span class="title">TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破</span></a><a class="item" href="/rss/1d8e8b4a.html" title="Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=561"></div><span class="title">Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时</span></a><a class="item" href="/rss/692620f2.html" title="Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5709"></div><span class="title">Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)</span></a><a class="item" href="/rss/9740a231.html" title="RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5898"></div><span class="title">RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771</span></a><a class="item" href="/rss/5bad3d37.html" title="免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/0706105f7975c6bc5e4d5462974f8cc34c3ee133-1476x966.png"></div><span class="title">免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相</span></a><a class="item" href="/rss/effa798c.html" title="二、Codex Memories 源码解析：记忆的生成、整理与存储"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&x-expires=1787988753&x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D"></div><span class="title">二、Codex Memories 源码解析：记忆的生成、整理与存储</span></a><a class="item" href="/rss/4d2c640.html" title="分享一下最近做的AI记账 App | 欢迎体验"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/780faac40fb54a60b1dfd23c2c1508f9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1787917129&x-signature=WhwtwVYZ01YuTLlXQH1z0yOL2eo%3D"></div><span class="title">分享一下最近做的AI记账 App | 欢迎体验</span></a><a class="item" href="/rss/50655e78.html" title="告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=884"></div><span class="title">告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式</span></a><a class="item" href="/rss/d7ce172e.html" title="我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/6ee3ac2fc36e7f6018789b8e1796bc794d9e6d9b-1500x900.png"></div><span class="title">我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告</span></a><a class="item" href="/rss/129e3442.html" title="知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cd7f8ab1f6ff4d82abf73f024a32e5ea~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3OTA5MjczMDk5NTQ1NA==:q75.awebp?rk3s=f64ab15b&x-expires=1787823586&x-signature=KFxcmvWA2Pb46F274ZH0ci3VMN0%3D"></div><span class="title">知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”</span></a><a class="item" href="/rss/825e57ab.html" title="独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/f6faf9c4fcf6d6ac6bcef06999eb20b4261b61bb-1475x921.png"></div><span class="title">独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

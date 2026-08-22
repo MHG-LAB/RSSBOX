@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>A Revisit of Remote Spectre Attacks on Cloudflare Workers - RSSBOX</title>
+
+  
+    <meta name="description" content="In 2021, we assessed remote Spectre attacks against Cloudflare Workers. Based on the results, we shipped a production defense called Dynamic Process Isolation (DyPrIs), which identifies maliciously l">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A Revisit of Remote Spectre Attacks on Cloudflare Workers">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/9a2f188a.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="In 2021, we assessed remote Spectre attacks against Cloudflare Workers. Based on the results, we shipped a production defense called Dynamic Process Isolation (DyPrIs), which identifies maliciously l">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-19T16:00:28.000Z">
+<meta property="article:modified_time" content="2026-08-19T16:00:28.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Cloudflare Workers security model</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Spectre</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Attack primitives</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Spectre gadget</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Signal amplification</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Remote timer</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Repeatable measurements  </span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Co-locating the attacker and victim isolate</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Defeating isolate resource limits</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Putting everything together</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Robustness</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why was this not detected?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What we changed</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">V8 sandbox</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Hardware-assisted in-process isolation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Improved DyPrIs</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Acknowledgments</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Call for participation</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-19T16:00:28.000Z">2026-08-20</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>A Revisit of Remote Spectre Attacks on Cloudflare Workers</span></h1>
+<div>
+<p>In 2021, we assessed <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/spectre-research-with-tu-graz/"><span style="text-decoration:underline">remote Spectre attacks</span></a> against Cloudflare Workers. Based on the results, we shipped a production defense called <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/spectre-research-with-tu-graz/"><span style="text-decoration:underline">Dynamic Process Isolation</span></a> (DyPrIs), which identifies maliciously looking scripts and isolates them into separate processes. Since then, newer techniques in the area of stabilizing Spectre attacks have been discovered. To understand if these techniques posed a threat to our Workers production environment, we decided to internally reassess the remote Spectre attack. Building an updated proof-of-concept on the production environment allowed us to empirically assess the risk of Spectre attacks under production workloads. </p><p>To mount a successful side-channel attack in production, an external attacker has to overcome additional obstacles such as activity on shared hardware resources, interrupts, context switches, and coarse-grained timers. Our research uncovered a limitation in the implementation of DyPrIs and we managed to demonstrate a remote Spectre attack reliably leaking up to 12 bit/s with a 99% accuracy in the production environment of Cloudflare Workers. As a consequence of this research, we improved DyPrIs, integrated the V8 Sandbox and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/safe-in-the-sandbox-security-hardening-for-cloudflare-workers/"><span style="text-decoration:underline">an in-process isolation mechanism</span></a> to further reduce the risk of memory disclosure attacks. </p><p>Today we are <a target="_blank" rel="external nofollow noopener noreferrer" href="https://arxiv.org/pdf/2608.17043">publishing a paper</a> describing our findings, co-authored by Albert Pedersen, Haocheng Xiao, Sam Ainsworth, Nigel Topham, and Martin Schwarzl. This paper covers research done in 2024 and early 2025.</p><p>Note that the presented attack is mitigated already in the production system due to countermeasures applied by Cloudflare Workers Runtime team. We did not find any indicators of active exploitation over the last three years.</p><h2>Cloudflare Workers security model</h2><p>Cloudflare Workers runs untrusted JavaScript on the edge. Leveraging language-level isolation, in the form of V8 isolates, tens of thousands of tenants can share the same operating-system process. Each Worker has its own separate JavaScript heap. This design keeps startup latency low and lets us run many tenants very efficiently compared to full process isolation. Around the runtime we have multiple layers of defense such as automated V8 patch pipelines, a two-layered sandbox consisting of Linux namespaces and seccomp filters, Cap’n Proto RPC, and the possibility to schedule certain scripts in separate process sandboxes. Still, a single arbitrary read vulnerability within a Worker process can lead to cross-tenant leakage. One vulnerability that is very hard to mitigate exploits the nature of speculative execution, namely in-process <strong>Spectre</strong>.</p><h2>Spectre</h2><!-- unsupported block: image --><p>You can think of speculative execution in terms of hiking. At some point you arrive at a branch and have to predict where to go. If the prediction was correct, you saved some time and could enjoy the sun and a refreshing drink at a mountain hut. However, if you speculate in the wrong direction, you have to turn back. The trail looks untouched, but your footsteps remain in the mud. </p><p>Speculative execution in CPUs works similarly. The branch prediction performs an educated guess about a branch’s outcome ahead of time and the CPU speculatively executes it. If the prediction was correct, speculative execution saved some time. However, if the prediction is incorrect, the CPU has to discard the results, roll back and execute the other branch. Because these speculatively executed instructions only exist temporarily in the CPU pipeline and are never permanently retired or committed, the literature refers to them as transient instructions and generalizes the concept as transient execution.</p><p>However, due to the transient execution, there are still some traces left in the microarchitectural state for instance in CPU caches. Thus, an attacker can use Spectre to transiently access memory out of bounds, encode a single bit of information into the cache state and exploit the latency of reaccessing data to infer whether the bit was set or not. </p><p>To <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/spectre-research-with-tu-graz/"><span style="text-decoration:underline">mitigate against in-process Spectre attacks</span></a>, Cloudflare Workers freezes local timers, disallows multithreading and shared memory and actively detects, periodically shuffles memory and isolates malicious-looking scripts into separate processes.</p><h2>Attack primitives</h2><!-- unsupported block: image --><p>The Cloudflare Workers platform deliberately <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/mitigating-spectre-and-other-security-threats-the-cloudflare-workers-security-model/"><span style="text-decoration:underline">restricts timers</span></a>. During CPU-only execution, time is effectively frozen. <code>Date.now()</code> and <code>performance.now()</code> do not provide a continuously advancing high-resolution clock. There is no shared memory and no multithreading, so the classic counter-thread timer via a <code>SharedArrayBuffer</code> is not available. </p><p>To successfully mount an attack, several challenges have to be solved. First, Workers runtime is limited and co-location between an attacker and victim has to be guaranteed. Second, a reliable, ideally co-located, remote timer has to be discovered, which allows stable timing measurements.<br>Third, the attack runs under production conditions, meaning it requires additional stability measures such as a reliable Spectre gadget enabling transient 64-bit out-of-bounds accesses, robust signal amplification to deal with systems and networking noise, and a primitive to reliably evict data out of the cache. </p><h3>Spectre gadget</h3><!-- unsupported block: code --><p><em>Speculative type confusion Spectre gadget</em></p><p>With the right Spectre gadget (snippet above), an attacker can transiently access out-of-bounds memory and encode a single bit into the cache (<code>probeArray</code>). The attacker then measures the memory access latency to confirm whether data has been cached or not. A faster access means the line was cached and the bit was 1. Conversely, a slower access means it was uncached and the bit was 0. In our attack, we use two different Spectre gadget types. The first one leaks compressed heap pointers, e.g., the isolate’s heap base address (root), and the other one leverages a speculative type confusion to leak from an arbitrary, attacker-crafted userspace 64-bit pointer. At the time of performing the research, the V8 Sandbox was not yet implemented at Cloudflare Workers. Under pointer compression, most objects use 32-bit compressed pointers. <code>TypedArray</code> was one of the few exceptions that still stored a raw 64-bit pointer to its backing store, which is exactly what our gadget abuses. </p><p>The branch <code>obj instanceof ObjP</code> performs a type check, i.e., a branch. To mistrain the branch prediction, we call the gadget many times on real <code>ObjP</code> instances, then call it on a different object with an attacker-controlled memory layout <code>ObjI</code>. The CPU speculates on the taken branches and follows <code>obj.ptr[0]</code>, even though the object has a different type. To leak a single bit, we mask out one bit and use it to select one of two <code>probeArray</code> lines. Whether that line is cached encodes the bit. </p><p>Exploiting the heap leakage gadget, we map neighboring objects and locate an attacker-controlled array. Our second gadget confuses two large objects that span several cache lines, so the type field lands on a different cache line than the field we read. Evicting the type field opens the speculation window while the target field stays cached, and the transient read follows an attacker-controlled 64-bit value. That turns the leak into an arbitrary-address read. A more thorough description of this technique can be found in the paper.</p><p><strong>Local demo of leaking an arbitrary 64-bit address.</strong></p><!-- unsupported block: htmlBlock --><!-- unsupported block: image --><h3>Signal amplification</h3><p>A cache hit and a cache miss differ by a few nanoseconds. Moreover, a remote timer is noisy at the scale of a few microseconds up to a few milliseconds. Therefore, some form of signal amplification is required to differentiate a cache hit from a miss. Stephen Röttger and Artur Janc discovered a way to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://security.googleblog.com/2021/03/a-spectre-proof-of-concept-for-spectre.html"><span style="text-decoration:underline">amplify a single memory access</span></a>, by exploiting the tree-based pseudo least recently used (PLRU) cache-replacement policy in L1 caches. Tree-based PLRU organizes each cache set as a binary tree whose nodes point to the side used least recently, so the CPU evicts by following those pointers. With the right access pattern, an attacker can keep a target line cached indefinitely by touching its tree neighbor whenever the pointers turn toward the target. Quite elegant, right? Leveraging that behavior, the timing of a single cache event can be arbitrarily amplified such that it leads to a lot of L1 hits (faster) compared to lots of L1 misses in the opposite case. <br><br>The figure below illustrates whether a memory address X is cached or not. If it’s not cached, the access pattern leads to a lot of cache hits. If it is present, it occupies one node in the tree, and subsequently four cache lines try to fit into three nodes, which results in a lot of L1 misses.</p><!-- unsupported block: image --><h3>Remote timer</h3><p>As long as the signal can be amplified, a noisy remote timer is sufficient to differentiate an encoded bit. For instance, a WebSocket connection to an external server serving high-resolution timestamps is enough. The timer could be hosted at Cloudflare or at a co-located data center to the target data center running the Worker. The Worker asks the remote timer to mark a timestamp for a certain event and compute the delta for another request once the event has stopped. </p><p>In the paper, we evaluated several different timer setups and were able to reliably achieve sub-ms resolutions on the Median with only a handful of samples even over larger topological distances. The figure below shows an amplified cache event using the tree-based PLRU amplification.</p><!-- unsupported block: image --><h3>Repeatable measurements  </h3><p>A single measurement is not enough to differentiate timing-encoded data reliably. Production machines are noisy, thus an attacker has to repeat each measurement at least a few times and use some statistical discriminator. Repeating a measurement in our case means resetting the cache state. Two things have to be uncached before each round. The value the speculative branch depends on has to be evicted, so branch resolution stalls long enough to open a speculation window. The probe line that encodes the leaked bit has to be evicted, so the next transient access can re-cache it.</p><p>Since there is no direct instruction available in JavaScript, the classic way to do this is to build an eviction set. An eviction set is a group of addresses that map to the same cache set as the target. Accessing them in the right pattern pushes the target out of the cache. In their attack, Stephen Röttger and Artur Janc used an eviction list to reliably evict at least into the L2 cache. This works, but it is expensive. Constructing a precise eviction set requires many timed measurements, and our timer is a noisy remote timer. The previous remote attack against Workers sidestepped the search by traversing an array larger than the L1 and L2 caches on every round. That is an option, but even slower.</p><p>Dougall Johnson described a more elegant way in his really cool blog post on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dougallj.wordpress.com/2021/03/16/another-approach-to-portable-javascript-spectre-exploitation/"><span style="text-decoration:underline">portable JavaScript Spectre exploitation</span></a>. The idea follows directly from the pigeonhole principle. If you allocate far more data than the cache can hold, a randomly chosen cache line is almost certainly not cached. For a 256 KB L2 cache, allocating 64 MB leaves at most a <strong>1/256</strong> chance that a random cache line is still in L2. So instead of evicting a specific line, you never evict at all. You pick a fresh random location that is already evicted with overwhelming probability. The cool side effect of looping frequently over that array of objects is that this will lead to an auto-eviction effect. </p><p>To leverage this in JavaScript, we allocate a large pool of attacker and victim object pairs that exceeds the last-level cache. Each measurement round selects a fresh random pair. The object's map pointer, the hidden-class descriptor that the speculative type check reads, is therefore almost certainly already evicted.</p><h3>Co-locating the attacker and victim isolate</h3><p>For the attack to work, both the attacker and victim isolate must be scheduled in the same process on the same edge server. One might intuitively think this would be difficult, considering Cloudflare operates tens of thousands of edge servers, but this is in fact quite trivial on Cloudflare Workers. Because Cloudflare Workers are designed to execute on any Cloudflare edge server, invoking the victim script from the attacker script with a <code>fetch(“https://victim.example”)</code> will in most cases cause the scheduler to spin up an instance of the victim worker in the exact same process. The victim isolate can be kept alive by repeatedly making subrequests to it at a certain interval.</p><p>What is more, because the attack stability is highly dependent on the CPU load of the edge server running the worker script, this allows an attacker to strategically run the attack in an off-peak colo (e.g. in an Australian colo during European business hours) where the traffic levels are comparatively low.</p><h3>Defeating isolate resource limits</h3><p>The Cloudflare Workers runtime <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/platform/limits/"><span style="text-decoration:underline">enforces a set of limits</span></a> on all isolates to protect the platform and prevent abuse. For the purposes of conducting this attack, the relevant limits were 30 seconds of CPU time and 1,000 subrequests per invocation. These limits have since been <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/platform/limits/#account-plan-limits"><span style="text-decoration:underline">increased</span></a>, but the following principles are still relevant.</p><p>For a regular Worker, each HTTP request, a fetch event, is a new invocation that resets these limits. The catch is landing sequential requests on the same edge server. Load balancing and shifting network conditions make that unreliable. Durable Objects solve it for us.</p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/durable-objects/"><span style="text-decoration:underline">Durable Objects</span></a> are built for real-time coordination between clients, so the runtime treats every incoming WebSocket message as an invocation that resets the CPU time and request limits. The attacker opens a persistent WebSocket to a Durable Object worker and sends regular keep-alive messages. This keeps a single isolate alive and gives us a persistent, bi-directional channel to run the attack over.</p><p>One quirk cost us some time. An isolate is single-threaded, so incoming WebSocket messages are only processed when the script hands control back to the event loop. During synchronous code the runtime never sees the keep-alive, so it never resets the CPU time. If the thread stays blocked for more than 30 seconds, the runtime kills the isolate. This puts an upper bound on how much we can amplify in a single synchronous burst. Yielding regularly between bursts lets us keep an isolate alive from five to more than 20 hours.</p><h3>Putting everything together</h3><p>The previous attack relied mostly on repetition to amplify a single cache access, and therefore, was slowly leaking 120 bit/h. We combined tree-based PLRU amplification with measurement loops. Each iteration re-creates the cache state and thereby adds more timing difference. If an interrupt destroys the cache state in one iteration, it doesn’t matter, since later iterations cancel it out. This made the signal strong enough to classify bits with a remote WebSocket timer. The overall idea is now to combine.</p><!-- unsupported block: code --><p>We demonstrated the full end-to-end attack in the Cloudflare Workers production environment, against Workers we controlled. We first leaked memory from the attacker Worker. From there, we leaked data from a co-located victim Worker where we had intentionally placed a secret.</p><p>First, we established co-location between an attacker Worker, a victim Worker we owned, and a remote timer. Durable Objects gave us a long-lived execution context. WebSocket messages gave us a repeatable timing source. The <code>/cdn-cgi/trace</code> endpoint helped us confirm machine placement by looking at the <em>fl</em> value.</p><p>Second, we added a calibration step to probe the timer with speculatively reachable values. This step matters because production machines are noisy. Per-invocation calibration lets us classify bits from the relative difference between the zero and one distribution. This last test should lead to two clearly separable distributions.</p><!-- unsupported block: image --><p>As a first step, we leaked the isolate root from one Worker and in another Worker we used the speculative type confusion with 64-bit pointers to read from the isolate root. </p><!-- unsupported block: image --><p>As an intermediate step, we confirmed 64-bit leakage with the second gadget by reading memory from the vDSO region. The vDSO is a convenient target because it contains human-readable strings such as <code>gettimeofday</code>. </p><!-- unsupported block: image --><p><strong>Demo Video leaking data from the JavaScript heap</strong></p><!-- unsupported block: htmlBlock --><p>Finally, we placed a JWT token in the victim Worker and leaked it bitwise. The first byte was the character e, represented as 0b01100101. The figure below shows the per-bit classification for that byte. To classify we use a two-sided test to test for both outcomes. Using a majority vote and a percentile-based threshold, we infer the bit. In production, we achieved a leakage rate of up to 12 bit/s with an accuracy of more than 99%. Note that higher leakage rates are possible with the cost of losing accuracy.</p><!-- unsupported block: image --><!-- unsupported block: image --><!-- unsupported block: image --><h3>Robustness</h3><p>Depending on the time of the day, the utilization of a machine increases strongly. This slows down the attack since more data has to be sampled. Still, even with high CPU utilization, the attack is still feasible.</p><!-- unsupported block: image --><h2>Why was this not detected?</h2><p>DyPrIs watches hardware performance counters and isolates a script into its own process once it looks like a Spectre attack. Two things kept the attack under the radar. First, DyPrIs isolates a script only after its invocation finishes, and the Durable Object keep-alive trick we used in the attack can run for a few hours up to a day. WebSocket keep-alive messages hold a single invocation open for hours, so the leak completes long before isolation would kick in. Second, DyPrIs normalizes branch mispredictions by the number of iTLB accesses. Our remote timer is one large I/O loop, and that WebSocket traffic inflates iTLB activity. The normalized ratio drops below the detection threshold, so the attack looks like an ordinary I/O-heavy Worker.</p><h2>What we changed</h2><p>We focus on the three areas of continued V8 hardening, providing stronger in-process isolation, and improving detection.</p><h3>V8 sandbox</h3><p>The V8 memory sandbox's final goal is to remove raw 64-bit pointers from large parts of the JavaScript heap, which reduces the usefulness of many memory-corruption primitives. It also makes the specific speculative type-confusion gadgets in this work harder to reuse, because typed-array backing stores no longer expose the same raw pointer structure. </p><p>The V8 sandbox is not a complete Spectre mitigation. While the presented 64-bit leak gadget does not work anymore, there might be other Spectre variants or gadgets exploitable to achieve arbitrary out-of-bounds memory accesses.</p><h3>Hardware-assisted in-process isolation</h3><p>In September 2025, we deployed <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/safe-in-the-sandbox-security-hardening-for-cloudflare-workers/"><span style="text-decoration:underline">in-process isolation</span></a> for Workers using Memory Protection Keys (MPK). MPK lets a process divide memory into protection domains and switch access rights cheaply. Workers use it to protect each heap from being accessible to the other isolates within the same process.</p><p>This changes the Spectre risk model. Each isolate heap now sits behind a hardware-enforced access boundary. A memory access to a page protected with the wrong key is denied by hardware. This blocks the straightforward cross-isolate heap read that this work relied on.</p><p>Unfortunately, MPK is not a complete answer to remediate Spectre, but it strictly reduces the leakage surface. It has limits, including a finite number of hardware domains and the need to manage protection-key state carefully.</p><h3>Improved DyPrIs</h3><p>We improved DyPrIs so that long-lived executions and I/O-heavy workloads are handled as first-class security cases. Detection cannot happen only after a script finishes. A Durable Object or a WebSocket-heavy Worker can run long enough that post-execution isolation arrives too late.</p><p>We are currently investigating whether remote timing behavior could be added as an additional dimension to DyPrIs. While we cannot eliminate remote communication with attacker-controlled infrastructure, the timing data reveals very interesting exfiltration bit patterns. The better approach is to treat repeated timer-like I/O around compute-heavy sections as part of the behavioral signal, not as background noise.</p><h2>Acknowledgments</h2><p>We especially thank Haocheng Xiao from University of Edinburgh and his supervisors, Sam Ainsworth and Nigel Topham, for their contributions to the reliability of Spectre in JavaScript.</p><h2>Call for participation</h2><p>We are always looking for high-quality submissions through our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare"><span style="text-decoration:underline">Bug Bounty program</span></a>. Memory safety bugs in the runtime are high-value targets. You can find the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd/pull/4917"><span style="text-decoration:underline">Fuzzilli integration for workerd</span></a> and the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd"><span style="text-decoration:underline">workerd source code</span></a> on GitHub.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="A revisit of remote Spectre attacks on Cloudflare Workers" href="https://blog.cloudflare.com/revisiting-spectre-attacks-on-workers/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">A revisit of remote Spectre attacks on Cloudflare Workers</span><span class="desc fs12">https://blog.cloudflare.com/revisiting-spectre-attacks-on-workers/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/493e1ec8.html">Smolmachines / Smolvm as a Sandbox for Untrusted Python & JavaScript<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/86dae432.html">Offering Zero Data Retention for Frontier Models<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f0458ccc.html" title="Announcing Cloudflare Ambassadors, Community Engineers, and Another $1M in Open-Source Funding"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2437"></div><span class="title">Announcing Cloudflare Ambassadors, Community Engineers, and Another $1M in Open-Source Funding</span></a><a class="item" href="/rss/e45f2220.html" title="BGP Role Model: Tracking the Adoption of RFC 9234"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2197"></div><span class="title">BGP Role Model: Tracking the Adoption of RFC 9234</span></a><a class="item" href="/rss/1a9310ca.html" title="Certificate Transparency Monitoring Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3936"></div><span class="title">Certificate Transparency Monitoring Is Now Generally Available</span></a><a class="item" href="/rss/cb735ee1.html" title="Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=998"></div><span class="title">Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave</span></a><a class="item" href="/rss/8e7490fd.html" title="Everything We Launched During Agents Week"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=464"></div><span class="title">Everything We Launched During Agents Week</span></a><a class="item" href="/rss/331e5ee6.html" title="From All-or-Nothing to Task-Based OAuth Consent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7638"></div><span class="title">From All-or-Nothing to Task-Based OAuth Consent</span></a><a class="item" href="/rss/7f6297c8.html" title="Introducing Radar Researcher: An AI Tool for Exploring Internet Data in Plain Language"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4660"></div><span class="title">Introducing Radar Researcher: An AI Tool for Exploring Internet Data in Plain Language</span></a><a class="item" href="/rss/e8604db3.html" title="How Cloudflare Detects MCP Traffic and Helps Secure It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3724"></div><span class="title">How Cloudflare Detects MCP Traffic and Helps Secure It</span></a><a class="item" href="/rss/8fe56bde.html" title="Say It Once: Introducing Bot Preference Sync"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6593"></div><span class="title">Say It Once: Introducing Bot Preference Sync</span></a><a class="item" href="/rss/94ada8f9.html" title="Secure All Your Internal Vibe-Coded Applications — in One Click"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6401"></div><span class="title">Secure All Your Internal Vibe-Coded Applications — in One Click</span></a><a class="item" href="/rss/87dca2e6.html" title="Serving the Most Critical Missions: Cloudflare for Government Achieves FedRAMP Class D (High) Certified Status"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4807"></div><span class="title">Serving the Most Critical Missions: Cloudflare for Government Achieves FedRAMP Class D (High) Certified Status</span></a><a class="item" href="/rss/5f9cf594.html" title="Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1935"></div><span class="title">Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal</span></a><a class="item" href="/rss/d1b87983.html" title="Unifying Workers AI and AI Gateway Into a Single AI Control Plane"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8668"></div><span class="title">Unifying Workers AI and AI Gateway Into a Single AI Control Plane</span></a><a class="item" href="/rss/17f84895.html" title="Unveiling Good and Bad Behaviors on the Agentic Internet"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4748"></div><span class="title">Unveiling Good and Bad Behaviors on the Agentic Internet</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

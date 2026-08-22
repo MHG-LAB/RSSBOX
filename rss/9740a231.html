@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771 - RSSBOX</title>
+
+  
+    <meta name="description" content="RTOS漏洞分析：从两个&quot;内核验证层&quot;漏洞出发（三） 前两篇讲的都是协议解析：一篇是蓝牙 host&#x2F;controller 的上行解析（CVE-2026-10641、CVE-2026-9263），一篇是 OTA&#x2F;充电协议的下行响应解析（CVE-2026-10849、CVE-2026-10848）。四个洞的共性都是&quot;解析器信任了远端输入的格式&#x2F;长度约束&quot;。 这一篇换个完全不同的边界：讲讲我在user">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/9740a231.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="RTOS漏洞分析：从两个&quot;内核验证层&quot;漏洞出发（三） 前两篇讲的都是协议解析：一篇是蓝牙 host&#x2F;controller 的上行解析（CVE-2026-10641、CVE-2026-9263），一篇是 OTA&#x2F;充电协议的下行响应解析（CVE-2026-10849、CVE-2026-10848）。四个洞的共性都是&quot;解析器信任了远端输入的格式&#x2F;长度约束&quot;。 这一篇换个完全不同的边界：讲讲我在user">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-21T04:06:38.000Z">
+<meta property="article:modified_time" content="2026-08-21T04:06:38.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">RTOS漏洞分析：从两个&quot;内核验证层&quot;漏洞出发（三）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、CVE-2026-9771：flash_copy() 缺少设备指针校验</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.1 漏洞位置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.2 一个&quot;半成品&quot;的验证函数</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.3 为什么伪造 struct device 就能 LPE</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.4 两级利用</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">第一级：混淆代理 &#x2F; 权限绕过（有真实复现）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">第二级：伪造设备指针 -&gt; 内核态任意函数调用（CVE 标题）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.5 真实 Zephyr 复现</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.6 修复：把漏掉的那两行补回去</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、CVE-2026-8718：TLS_DTLS_PEER_CID_VALUE getter 越界写</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 漏洞位置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 三段契约的错位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 两个形态：内核态写越界 vs 用户态内核堆越界写</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">内核态调用者</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">用户态调用者（CONFIG_USERSPACE&#x3D;y）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.4 未初始化 optlen_local 的角色</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.5 复现：baseline 和 trigger 只差一个 optlen</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">baseline：optlen &#x3D; 32（缓冲刚好够）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">trigger：optlen &#x3D; 1（缓冲只有 1 字节）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.6 修复：用固定本地缓冲承接，再按容量截断</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、两个洞放在一起：验证层契约的两种断裂</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 验证不全 vs 验证与实现脱节</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 与前两篇的对照：解析器信任 -&gt; 验证层信任</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 为什么这两个洞都是 Scope&#x3D;Changed</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、从利用角度看，这两个洞的实际价值</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.1 CVE-2026-9771（flash_copy）：本地权限提升</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2 CVE-2026-8718（DTLS CID）：内核堆越界写</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">POC说明</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-21T04:06:38.000Z">2026-08-21</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771</span></h1>
+<div>
+<h2 data-id="heading-0">RTOS漏洞分析：从两个"内核验证层"漏洞出发（三）</h2>
+<p>前两篇讲的都是<strong>协议解析</strong>：一篇是蓝牙 host/controller 的上行解析（CVE-2026-10641、CVE-2026-9263），一篇是 OTA/充电协议的下行响应解析（CVE-2026-10849、CVE-2026-10848）。四个洞的共性都是"<strong>解析器信任了远端输入的格式/长度约束</strong>"。</p>
+<p>这一篇换个完全不同的边界：讲讲我在<strong>userspace -&gt; kernel</strong>拿到的两个CVE。也就是用户线程通过系统调用进入内核时，内核侧那层**验证函数（<code>z_vrfy_*</code> / getsockopt 的 syscall verifier）**到底验证了什么。</p>
+<ul>
+<li><strong>CVE-2026-9771 / GHSA-68cj-3hg4-5vpm</strong>：<code>flash_copy()</code> 系统调用缺少设备指针校验，允许用户态权限提升（CVSS 8.8 - High）</li>
+<li><strong>CVE-2026-8718 / GHSA-p3r6-mx6c-33gq</strong>：<code>TLS_DTLS_PEER_CID_VALUE</code> 的 getsockopt getter 忽略调用者缓冲区大小，越界写（CVSS 8.4 - High）</li>
+</ul>
+<p>这两个洞可以归纳成同一句话：</p>
+<blockquote>
+<p><strong>内核验证层（syscall verifier）是 userspace 和 kernel 之间的"契约"：验证函数负责把"用户传进来的参数"翻译成"内核可以信任的东西"。而这里存在的洞要么是验证函数忘了验证某些参数，要么是验证函数验证了、但后端实现根本没遵守。</strong></p>
+</blockquote>
+<p>前两篇的漏洞是"解析器信任"，这一篇的漏洞是"<strong>验证层信任</strong>"。展开讲，这两个洞正好是验证层契约的<strong>两种不同断裂方式</strong>：</p>
+<ol>
+<li><strong>验证不全</strong>（flash_copy）：<code>z_vrfy_flash_copy()</code> 只验证了输出缓冲，<strong>漏掉了对设备指针的校验</strong>，把未经 <code>k_object_validate</code> 的对象指针直接交给实现层去解引用函数指针；</li>
+<li><strong>验证与实现脱节</strong>（DTLS CID）：verifier 严格按 <code>optlen</code> 分配了内核 bounce buffer，<strong>后端 getter 却无视 <code>optlen</code></strong>，把完整的 32 字节 CID 直接写进去。</li>
+</ol>
+<p>下面分开看。</p>
+<hr>
+<h2 data-id="heading-1">一、CVE-2026-9771：flash_copy() 缺少设备指针校验</h2>
+<h3 data-id="heading-2">1.1 漏洞位置</h3>
+<p><code>drivers/flash/flash_util.c</code>，两个函数：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">/* 内核验证函数：userspace 的信任边界 */</span>
+<span class="hljs-type">int</span> <span class="hljs-title function_">z_vrfy_flash_copy</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *src_dev, <span class="hljs-type">off_t</span> src_offset,
+      <span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *dst_dev, <span class="hljs-type">off_t</span> dst_offset,
+      <span class="hljs-type">off_t</span> size, <span class="hljs-type">uint8_t</span> *buf, <span class="hljs-type">size_t</span> buf_size)</span>
+&#123;
+K_OOPS(K_SYSCALL_MEMORY_WRITE(buf, buf_size));
+<span class="hljs-keyword">return</span> z_impl_flash_copy(src_dev, src_offset, dst_dev, dst_offset,
+ size, buf, buf_size);
+&#125;
+</code></pre>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">/* 实现函数：在超级用户模式下真正执行 flash 操作 */</span>
+<span class="hljs-type">int</span> <span class="hljs-title function_">z_impl_flash_copy</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *src_dev, <span class="hljs-type">off_t</span> src_offset,
+      <span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *dst_dev, <span class="hljs-type">off_t</span> dst_offset,
+      <span class="hljs-type">off_t</span> size, <span class="hljs-type">uint8_t</span> *buf, <span class="hljs-type">size_t</span> buf_size)</span>
+&#123;
+...
+<span class="hljs-keyword">if</span> (!device_is_ready(src_dev)) &#123;
+<span class="hljs-keyword">return</span> -ENODEV;
+&#125;
+<span class="hljs-keyword">if</span> (!device_is_ready(dst_dev)) &#123;
+<span class="hljs-keyword">return</span> -ENODEV;
+&#125;
+
+<p>write_size &#x3D; flash_get_write_block_size(dst_dev);<br>…<br><span class="hljs-keyword">for</span> (<span class="hljs-type">uint32_t</span> offs &#x3D; <span class="hljs-number">0</span>, …; offs &lt; N; …) &amp;#123;<br><span class="hljs-keyword">if</span> (bytes_left &lt; write_size) &amp;#123;<br><span class="hljs-type">const</span> <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">flash_driver_api</span> *<span class="hljs-title">api</span> &#x3D;</span><br>(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> flash_driver_api *)dst_dev-&gt;api;<br><span class="hljs-type">const</span> <span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">flash_parameters</span> *<span class="hljs-title">params</span> &#x3D;</span> api-&gt;get_parameters(dst_dev);<br>…<br>&amp;#125;<br>…<br>ret &#x3D; flash_read(src_dev, src_offset + offs, buf, bytes_read);<br>…<br>ret &#x3D; flash_write(dst_dev, dst_offset + offs, buf, bytes_read);<br>…<br>&amp;#125;<br><span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>&amp;#125;<br></p></code></pre><p></p>
+<p><code>flash_copy()</code> 是 Zephyr 在 4.2 引入的"闪存片间拷贝"系统调用：把 <code>src_dev</code> 上的一段 flash 拷到 <code>dst_dev</code> 上，用一个用户提供的 <code>buf</code> 做中间缓冲。在 <code>CONFIG_USERSPACE</code> 构建里，<code>z_vrfy_flash_copy()</code> 就是它面向用户态的信任边界。</p>
+<hr>
+<h3 data-id="heading-3">1.2 一个"半成品"的验证函数</h3>
+<p>看 <code>z_vrfy_flash_copy()</code> 的完整验证逻辑，非常简洁就一行：</p>
+<pre><code class="hljs language-c" lang="c">K_OOPS(K_SYSCALL_MEMORY_WRITE(buf, buf_size));
+</code></pre>
+<p>它只检查了<strong>输出缓冲</strong> <code>buf</code>——确认用户传入的缓冲确实是用户内存且可写。而两个最关键的参数，<code>src_dev</code> 和 <code>dst_dev</code>，<strong>一行校验都没有</strong>。</p>
+<p>对比同文件里它的每一个"兄弟"系统调用（<code>flash_read</code> / <code>flash_write</code> / <code>flash_erase</code> / <code>flash_get_parameters</code>……），它们的 verifier 无一例外都先校验设备指针：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">/* drivers/flash/flash_handlers.c */</span>
+<span class="hljs-type">static</span> <span class="hljs-keyword">inline</span> <span class="hljs-type">int</span> <span class="hljs-title function_">z_vrfy_flash_read</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *dev, <span class="hljs-type">off_t</span> offset,
+    <span class="hljs-type">void</span> *data, <span class="hljs-type">size_t</span> len)</span>
+&#123;
+K_OOPS(K_SYSCALL_DRIVER_FLASH(dev, read));       <span class="hljs-comment">/* &lt;-- 有 */</span>
+K_OOPS(K_SYSCALL_MEMORY_WRITE(data, len));
+<span class="hljs-keyword">return</span> z_impl_flash_read((<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *)dev, offset,
+ (<span class="hljs-type">void</span> *)data, len);
+&#125;
+
+<p><span class="hljs-type">static</span> <span class="hljs-keyword">inline</span> <span class="hljs-type">int</span> <span class="hljs-title function_">z_vrfy_flash_erase</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device <em>dev, <span class="hljs-type">off_t</span> offset,<br>     <span class="hljs-type">size_t</span> size)</em></span><br>&amp;#123;<br>K_OOPS(K_SYSCALL_OBJ(dev, K_OBJ_DRIVER_FLASH));   <span class="hljs-comment">&#x2F; &lt;– 有 *&#x2F;</span><br><span class="hljs-keyword">return</span> z_impl_flash_erase((<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *)dev, offset, size);<br>&amp;#125;<br></p></code></pre><p></p>
+<p><code>K_SYSCALL_DRIVER_FLASH(dev, op)</code> 会展开成 <code>K_SYSCALL_DRIVER_OP</code> + <code>K_SYSCALL_OBJ</code> 的组合，作用有两个：</p>
+<ol>
+<li><code>K_SYSCALL_OBJ(dev, K_OBJ_DRIVER_FLASH)</code>：调用 <code>k_object_validate()</code>，确认这个指针<strong>是一个合法的 flash 内核对象</strong>，而且<strong>调用线程对该对象有权限</strong>；</li>
+<li><code>K_SYSCALL_DRIVER_OP</code>：确认 <code>dev-&gt;api</code> 指向的 driver API 表里，对应的操作（<code>read</code>/<code>write</code>）<strong>确实存在</strong>。</li>
+</ol>
+<p><code>flash_copy</code> 偏偏跳过了这整个校验。</p>
+<blockquote>
+<p>一个验证函数，把"缓冲"和"对象"两类参数分开了：缓冲验证了，对象一个都没验证。这就是"验证不全"。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-4">1.3 为什么伪造 struct device 就能 LPE</h3>
+<p>要理解这个洞的严重性，先看 <code>flash_read</code> / <code>flash_write</code> 到底怎么调用驱动：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">static</span> <span class="hljs-keyword">inline</span> <span class="hljs-type">int</span> <span class="hljs-title function_">z_impl_flash_read</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *dev, <span class="hljs-type">off_t</span> offset,
+    <span class="hljs-type">void</span> *data, <span class="hljs-type">size_t</span> len)</span>
+&#123;
+<span class="hljs-keyword">return</span> DEVICE_API_GET(flash, dev)-&gt;read(dev, offset, data, len);
+&#125;
+
+<p><span class="hljs-meta">#<span class="hljs-keyword">define</span> DEVICE_API_GET(_class, _dev) <br>((const struct Z_DEVICE_API_TYPE(_class) *)_dev-&gt;api)</span><br></p></code></pre><p></p>
+<p>也就是说，<code>flash_read(dev, ...)</code> 展开后是：</p>
+<pre><code class="hljs language-c" lang="c">((<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> flash_driver_api *)dev-&gt;api)-&gt;read(dev, offset, data, len);
+</code></pre>
+<p>这是一次<strong>通过 <code>dev-&gt;api</code> 的函数指针间接调用</strong>。在正常情况下，<code>dev-&gt;api</code> 指向内核里静态注册的 <code>flash_driver_api</code> 表，没问题。但在 <code>z_impl_flash_copy</code> 里，<code>src_dev</code> 和 <code>dst_dev</code> 是<strong>用户传进来的、未经任何校验的裸指针</strong>。</p>
+<p><code>struct device</code> 的布局（<code>include/zephyr/device.h</code>）：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">device</span> &#123;</span>
+<span class="hljs-type">const</span> <span class="hljs-type">char</span> *name;
+<span class="hljs-type">const</span> <span class="hljs-type">void</span> *config;
+<span class="hljs-comment">/** Address of the API structure exposed by the device instance */</span>
+<span class="hljs-type">const</span> <span class="hljs-type">void</span> *api;      <span class="hljs-comment">/* &lt;-- 函数指针表 */</span>
+<span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">device_state</span> *<span class="hljs-title">state</span>;</span>
+...
+&#125;;
+</code></pre>
+<p>在 <code>CONFIG_USERSPACE</code> 下，用户线程<strong>完全可以</strong>在自己的内存里伪造一个 <code>struct device</code>：自己分配一个对象，填上伪造的 <code>api</code> 指针，指向一块同样由用户控制的 <code>flash_driver_api</code> 结构体——里面的 <code>read</code>、<code>write</code>、<code>get_parameters</code> 全部是指向攻击者选定地址的函数指针。</p>
+<p>然后把这两个伪造指针传给 <code>flash_copy()</code>。内核在超级用户模式下执行：</p>
+<pre><code class="hljs language-c" lang="c">device_is_ready(src_dev);                    <span class="hljs-comment">/* 读伪造的 state-&gt;initialized，用户可控 */</span>
+api-&gt;get_parameters(dst_dev);                <span class="hljs-comment">/* 用户可控函数指针 */</span>
+flash_read(src_dev, ...);                    <span class="hljs-comment">/* ((flash_api*)src_dev-&gt;api)-&gt;read(...) —— 用户可控 */</span>
+flash_write(dst_dev, ...);                   <span class="hljs-comment">/* 用户可控函数指针 */</span>
+</code></pre>
+<p>这就是标准的 <strong>userspace 逃逸原语</strong>：</p>
+<blockquote>
+<p>非特权线程让内核在超级用户模式下，用基本可控的参数，调用一个攻击者选定的函数指针。</p>
+</blockquote>
+<p>而且参数也不是完全不可控的：<code>read</code>/<code>write</code> 收到的 <code>(dev, offset, data, len)</code> 里，<code>data</code> 指向已校验的用户缓冲（内核 bounce），<code>offset</code>/<code>len</code> 由攻击者的 <code>src_offset</code>/<code>size</code> 控制。攻击者可以选一个"把内存写到任意地址"之类的现有内核函数（gadget），或者直接指向一个能改写权限状态的位置。</p>
+<p>这就是 CVE-2026-9771 的标题所在：<strong>本地权限提升（LPE）</strong>。CVSS 8.8（<code>AV:L/AC:L/PR:L/UI:N/S:C/C:H/I:H/A:H</code>，Scope=Changed），因为一个"flash 驱动子系统"里的洞可以越过组件边界，把内核完全拿下来。</p>
+<hr>
+<h3 data-id="heading-5">1.4 两级利用</h3>
+<p>这个洞其实有两个利用级别，值得分开说。</p>
+<h4 data-id="heading-6">第一级：混淆代理 / 权限绕过（有真实复现）</h4>
+<p><code>flash_copy()</code> 的目的就是"copy between devices"。既然 verifier 不校验设备指针，那么<strong>任何用户线程都可以拿任何 flash 设备对象来做 read/write——即使它从未被授予该设备的访问权限</strong>。攻击者不需要伪造任何东西，只要知道（或能读到）一个 flash 设备对象的内核地址，把它传进去就能用。</p>
+<p>这是一个标准的 <strong>Confused Deputy</strong>：受信任的内核，被一个权限不足的调用者指挥着去操作它没权限碰的设备。</p>
+<h4 data-id="heading-7">第二级：伪造设备指针 -&gt; 内核态任意函数调用（CVE 标题）</h4>
+<p>更进一步，用户可以不传真实设备，而是<strong>传一个伪造的 <code>struct device</code></strong>，把 <code>api-&gt;read</code> / <code>api-&gt;write</code> / <code>api-&gt;get_parameters</code> 指向攻击者选定的地址。因为第一级已经证明"指针未校验"，第二级是它的直接推论——把"合法的指针"换成"伪造的指针"，同一个漏洞就升级成<strong>任意内核函数指针调用 / LPE</strong>。</p>
+<blockquote>
+<p>第一级证明"验证确实缺失"，第二级把缺失变成代码执行。同一个缺失，两个后果。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-8">1.5 真实 Zephyr 复现</h3>
+<p>复现跑在 <strong>Zephyr qemu_x86_64</strong>，<code>CONFIG_USERSPACE=y</code>（<code>drivers/flash/flash_util.c</code> 的同路径）。PoC 的流程：</p>
+<ol>
+<li>内核线程（supervisor）初始化 flash 模拟器，在 <code>SRC_OFF</code> 写入已知 pattern，<code>DST_OFF</code> 初始为全 <code>0xff</code>；</li>
+<li>创建用户线程，<strong>故意不把 flash 设备对象加入它的权限集</strong>；</li>
+<li>用户线程调用 <code>flash_copy(flash_dev, SRC_OFF, flash_dev, DST_OFF, ...)</code>；</li>
+<li>观察返回值和目标区域内容。</li>
+</ol>
+<p>真实输出（<code>flash-copy-device-perm-bypass-exp-zephyr</code>，<code>v4.4.0-373-g4f2e63556a0f</code>）：</p>
+<pre><code class="hljs language-text" lang="text">*** Booting Zephyr OS build v4.4.0-373-g4f2e63556a0f ***
+PoC: flash_copy() missing flash device permission checks
+PREP_ERASE rc=0
+PREP_WRITE rc=0
+BASELINE_READ rc=0
+BEFORE_DST ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff ff
+user: start
+USER_FLASH_COPY rc=0
+POST_READ rc=0
+AFTER_DST a0 a1 a2 a3 a4 a5 a6 a7 b0 b1 b2 b3 b4 b5 b6 b7
+EXP_SUCCESS user copied flash data without flash device permission
+</code></pre>
+<p>这四行证据链：</p>
+<ol>
+<li><code>BEFORE_DST ff ff ff</code>：目标区域初始是全 <code>0xff</code>（已擦除）；</li>
+<li><code>USER_FLASH_COPY rc=0</code>：一个<strong>没有 flash 设备权限的用户线程</strong>调用 <code>flash_copy()</code> 返回成功；</li>
+<li><code>AFTER_DST a0 a1 ... b7</code>：目标区域变成了 supervisor 预先写入的 pattern；</li>
+<li><code>EXP_SUCCESS</code>：判断条件 <code>user_rc == 0 &amp;&amp; memcmp(check, pattern) == 0</code> 成立。</li>
+</ol>
+<p>也就是说，<strong>未授权用户线程通过官方 <code>flash_copy()</code> 系统调用，真的把一个 flash 区域的数据拷贝到了另一个区域</strong>——权限模型被绕过了。这是第一级（混淆代理）在真实 Zephyr 里的铁证；第二级（伪造设备指针）是同一个缺失的直接升级。</p>
+<hr>
+<h3 data-id="heading-9">1.6 修复：把漏掉的那两行补回去</h3>
+<p>修复（advisory 建议的形态）非常朴素——把兄弟 syscall 都在做的那两行校验补进 verifier：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">int</span> <span class="hljs-title function_">z_vrfy_flash_copy</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *src_dev, <span class="hljs-type">off_t</span> src_offset,
+      <span class="hljs-type">const</span> <span class="hljs-keyword">struct</span> device *dst_dev, <span class="hljs-type">off_t</span> dst_offset,
+      <span class="hljs-type">off_t</span> size, <span class="hljs-type">uint8_t</span> *buf, <span class="hljs-type">size_t</span> buf_size)</span>
+&#123;
+K_OOPS(K_SYSCALL_DRIVER_FLASH(src_dev, read));
+K_OOPS(K_SYSCALL_DRIVER_FLASH(dst_dev, write));
+K_OOPS(K_SYSCALL_MEMORY_WRITE(buf, buf_size));
+<span class="hljs-keyword">return</span> z_impl_flash_copy(src_dev, src_offset, dst_dev, dst_offset,
+ size, buf, buf_size);
+&#125;
+</code></pre>
+<p><code>K_SYSCALL_DRIVER_FLASH(src_dev, read)</code> 一步完成两件事：<code>k_object_validate</code> 校验对象合法性 + 调用者权限，同时确认 driver API 里 <code>read</code> 存在。这样伪造指针在<strong>任何解引用之前</strong>就被拦下。</p>
+<p>这个洞之所以值得记一笔，是它的"对照"价值：<strong>同文件的每一个兄弟 syscall 都做了校验，唯独新增的 <code>flash_copy</code> 漏了</strong>。这种"复制粘贴模板时少贴一行校验"的错误，在系统调用密集的边界上特别常见。</p>
+<hr>
+<h2 data-id="heading-10">二、CVE-2026-8718：TLS_DTLS_PEER_CID_VALUE getter 越界写</h2>
+<h3 data-id="heading-11">2.1 漏洞位置</h3>
+<p><code>subsys/net/lib/sockets/sockets_tls.c</code>，getsockopt 的 DTLS 对端 CID 取值函数：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">static</span> <span class="hljs-type">int</span> <span class="hljs-title function_">tls_opt_dtls_peer_connection_id_value_get</span><span class="hljs-params">(<span class="hljs-keyword">struct</span> tls_context *context,
+     <span class="hljs-type">void</span> *optval,
+     <span class="hljs-type">net_socklen_t</span> *optlen)</span>
+&#123;
+<span class="hljs-meta">#<span class="hljs-keyword">if</span> defined(CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID)</span>
+<span class="hljs-class"><span class="hljs-keyword">struct</span> <span class="hljs-title">tls_session_context</span> *<span class="hljs-title">session_ctx</span>;</span>
+<span class="hljs-type">int</span> enabled = <span class="hljs-literal">false</span>;
+<span class="hljs-type">int</span> ret;
+<span class="hljs-type">size_t</span> optlen_local;                 <span class="hljs-comment">/* &lt;-- 未初始化 */</span>
+
+<p><span class="hljs-keyword">if</span> (!context-&gt;is_initialized) &amp;#123;<br><span class="hljs-keyword">return</span> -ENOTCONN;<br>&amp;#125;</p>
+<p>session_ctx &#x3D; get_latest_session(context);<br><span class="hljs-keyword">if</span> (session_ctx &#x3D;&#x3D; <span class="hljs-literal">NULL</span>) &amp;#123;<br><span class="hljs-keyword">return</span> -ENOTCONN;<br>&amp;#125;</p>
+<p>ret &#x3D; mbedtls_ssl_get_peer_cid(&amp;session_ctx-&gt;ssl, &amp;enabled,<br>       optval, &amp;optlen_local);<br><span class="hljs-keyword">if</span> (enabled) &amp;#123;<br>*optlen &#x3D; optlen_local;<br>&amp;#125; <span class="hljs-keyword">else</span> &amp;#123;<br>*optlen &#x3D; <span class="hljs-number">0</span>;<br>&amp;#125;<br><span class="hljs-keyword">return</span> ret;<br><span class="hljs-meta">#<span class="hljs-keyword">else</span></span><br><span class="hljs-keyword">return</span> -ENOPROTOOPT;<br><span class="hljs-meta">#<span class="hljs-keyword">endif</span></span><br>&amp;#125;<br></p></code></pre><p></p>
+<p>再看它调的 mbedtls（<code>modules/crypto/mbedtls/library/ssl_tls.c</code>）：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">int</span> <span class="hljs-title function_">mbedtls_ssl_get_peer_cid</span><span class="hljs-params">(mbedtls_ssl_context *ssl, <span class="hljs-type">int</span> *enabled,
+                             <span class="hljs-type">unsigned</span> <span class="hljs-type">char</span> peer_cid[MBEDTLS_SSL_CID_OUT_LEN_MAX],
+                             <span class="hljs-type">size_t</span> *peer_cid_len)</span>
+&#123;
+    *enabled = MBEDTLS_SSL_CID_DISABLED;
+    ...
+    <span class="hljs-keyword">if</span> (ssl-&gt;transform_in-&gt;in_cid_len == <span class="hljs-number">0</span> &amp;&amp;
+        ssl-&gt;transform_in-&gt;out_cid_len == <span class="hljs-number">0</span>) &#123;
+        <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;
+    &#125;
+
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (peer_cid_len != &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;) &amp;#123;
+    *peer_cid_len = ssl-&amp;gt;transform_in-&amp;gt;out_cid_len;   &lt;span class=&quot;hljs-comment&quot;&gt;/* 只写、不读入 */&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (peer_cid != &lt;span class=&quot;hljs-literal&quot;&gt;NULL&lt;/span&gt;) &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;memcpy&lt;/span&gt;(peer_cid, ssl-&amp;gt;transform_in-&amp;gt;out_cid,
+               ssl-&amp;gt;transform_in-&amp;gt;out_cid_len);        &lt;span class=&quot;hljs-comment&quot;&gt;/* 无条件 memcpy 满 32 字节 */&lt;/span&gt;
+    &amp;#125;
+&amp;#125;
+
+*enabled = MBEDTLS_SSL_CID_ENABLED;
+&lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>以及 getsockopt 的 syscall verifier（<code>subsys/net/lib/sockets/sockets.c</code>，<code>CONFIG_USERSPACE</code> 时）：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">int</span> <span class="hljs-title function_">z_vrfy_zsock_getsockopt</span><span class="hljs-params">(<span class="hljs-type">int</span> sock, <span class="hljs-type">int</span> level, <span class="hljs-type">int</span> optname,
+    <span class="hljs-type">void</span> *optval, <span class="hljs-type">net_socklen_t</span> *optlen)</span>
+&#123;
+<span class="hljs-type">net_socklen_t</span> kernel_optlen = *(<span class="hljs-type">net_socklen_t</span> *)optlen;
+<span class="hljs-type">void</span> *kernel_optval;
+
+<p><span class="hljs-keyword">if</span> (K_SYSCALL_MEMORY_WRITE(optval, kernel_optlen)) &amp;#123;<br>errno &#x3D; -EPERM;<br><span class="hljs-keyword">return</span> <span class="hljs-number">-1</span>;<br>&amp;#125;</p>
+<p>kernel_optval &#x3D; k_usermode_alloc_from_copy((<span class="hljs-type">const</span> <span class="hljs-type">void</span> <em>)optval,<br>   kernel_optlen);   <span class="hljs-comment">&#x2F;</span></em> 分配恰好 kernel_optlen 字节 *&#x2F;<br>K_OOPS(!kernel_optval);</p>
+<p>ret &#x3D; z_impl_zsock_getsockopt(sock, level, optname,<br>      kernel_optval, &amp;kernel_optlen);<br>…<br>&amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-12">2.2 三段契约的错位</h3>
+<p>这个洞最好从"<strong>三段代码各自以为的契约</strong>"来看：</p>
+<table><thead><tr><th></th><th>它以为的契约</th></tr></thead><tbody><tr><td><strong>getsockopt 协议</strong>（libc/POSIX）</td><td>调用者传 <code>optval</code>（缓冲）+ <code>optlen</code>（<strong>缓冲大小</strong>），getter 必须写不超过 <code>optlen</code> 字节，并把实际写入长度写回 <code>*optlen</code></td></tr><tr><td><strong>syscall verifier</strong>（<code>z_vrfy_zsock_getsockopt</code>）</td><td>按 <code>*optlen</code> 分配了恰好这么多字节的内核 bounce buffer，<strong>信任后端不会越界写</strong></td></tr><tr><td><strong>mbedtls <code>get_peer_cid</code></strong></td><td><code>peer_cid_len</code> 参数是 <strong>out-only</strong>（只写长度、不读入当容量），<code>memcpy</code> 无条件写满 <code>out_cid_len</code>（最多 <code>MBEDTLS_SSL_CID_OUT_LEN_MAX</code>，默认 32 字节）</td></tr></tbody></table>
+<p>Zephyr 的 getter 坐在中间，<strong>同时违反了三张契约</strong>：</p>
+<ol>
+<li>它没有把调用者的 <code>*optlen</code>（缓冲容量）作为容量传给 mbedtls——它传的是一个<strong>未初始化的局部变量 <code>optlen_local</code></strong>；</li>
+<li>更关键的是，即使传了也没用，因为 mbedtls 的 <code>get_peer_cid</code> <strong>根本不读这个参数当容量</strong>，它无条件 <code>memcpy</code> 满 <code>out_cid_len</code> 字节；</li>
+<li>于是调用者的缓冲（或内核 bounce buffer）被<strong>完整写满 32 字节</strong>，而调用者只声明了 <code>optlen</code> 字节。</li>
+</ol>
+<p>一句话：<strong>verifier 按 <code>optlen</code> 建立了"缓冲只有这么大"的契约，后端却无视它直接写满。</strong> 这就是"验证与实现脱节"。</p>
+<hr>
+<h3 data-id="heading-13">2.3 两个形态：内核态写越界 vs 用户态内核堆越界写</h3>
+<p>漏洞落成什么后果，取决于调用者是内核态还是用户态。</p>
+<h4 data-id="heading-14">内核态调用者</h4>
+<p>直接 <code>getsockopt(SOL_TLS, TLS_DTLS_PEER_CID_VALUE, optval, &amp;optlen)</code>。<code>optval</code> 是内核调用者的缓冲，实际只有 <code>optlen</code> 字节，但 mbedtls 写满 <code>out_cid_len</code>（peer 协商的 CID，最大 32 字节）→ <strong>越过调用者缓冲写 <code>31</code> 字节</strong>。OOB write 进相邻内存。</p>
+<h4 data-id="heading-15">用户态调用者（<code>CONFIG_USERSPACE=y</code>）</h4>
+<p>这里更有意思。看 verifier 的三行关键代码：</p>
+<pre><code class="hljs language-c" lang="c">kernel_optlen = *(<span class="hljs-type">net_socklen_t</span> *)optlen;                       <span class="hljs-comment">/* 用户传的"缓冲大小" */</span>
+kernel_optval = k_usermode_alloc_from_copy(optval, kernel_optlen); <span class="hljs-comment">/* 内核分配恰好 kernel_optlen 字节 */</span>
+ret = z_impl_zsock_getsockopt(..., kernel_optval, &amp;kernel_optlen);  <span class="hljs-comment">/* 后端写满 32 字节 */</span>
+</code></pre>
+<p>用户传入的 <code>optlen</code> 是几，内核就分配几字节的 bounce buffer。用户传 <strong>1 字节</strong>，内核就分配 1 字节——然后后端 getter 让 mbedtls 往里写满 32 字节。</p>
+<blockquote>
+<p><strong>非特权用户线程可以制造内核堆越界写</strong>：溢出的是 <code>k_usermode_alloc_from_copy</code> -&gt; <code>z_thread_malloc</code> 分配的内核线程堆（恰好 <code>optlen</code> 字节），溢出的数据是对端协商的 DTLS CID（最多 32 字节，攻击者可控制溢出条件——<code>optlen</code> 传多小——但不能完全控制字节内容）。</p>
+</blockquote>
+<p>这正好解释了 CVSS 为什么给 <strong>8.4 且 Scope=Changed</strong>（<code>AV:L/AC:L/PR:L/UI:N/S:C/C:N/I:H/A:H</code>）：一个"TLS 套接字选项"的洞，能越过组件边界去破坏内核堆。虽然溢出的字节内容由对端 CID 决定（不能完全自由选字节），但<strong>溢出本身是确定性的、可被任何本地低权限线程触发</strong>，落在完整性（I:H）和可用性（A:H）上。</p>
+<hr>
+<h3 data-id="heading-16">2.4 未初始化 <code>optlen_local</code> 的角色</h3>
+<p>这里还有个细节值得单独说：getter 里</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">size_t</span> optlen_local;                 <span class="hljs-comment">/* 未初始化 */</span>
+...
+mbedtls_ssl_get_peer_cid(..., optval, &amp;optlen_local);
+</code></pre>
+<p><code>optlen_local</code> 没初始化就传给 mbedtls 当 out 参数。对 mbedtls 而言无所谓（它根本不读入），但对<strong>审计者</strong>而言这是个强烈的信号：</p>
+<ul>
+<li>一个"长度"变量从声明到使用，<strong>没有任何赋值路径</strong>；</li>
+<li>唯一的赋值发生在 mbedtls 内部（<code>*peer_cid_len = out_cid_len</code>）；</li>
+<li>Zephyr getter 从来没有用 <code>*optlen</code>（调用者给的容量）初始化过它。</li>
+</ul>
+<p>正常写法应该是 <code>optlen_local = *optlen;</code> 先把手上的容量给 mbedtls，再用本地固定缓冲承接、最后按实际长度截断拷回。而这里的实现把"容量"这一信息<strong>整个丢掉了</strong>。<code>uninitialized</code> 只是表象，<strong>真正的问题是容量信息根本没进入这条调用链</strong>。</p>
+<hr>
+<h3 data-id="heading-17">2.5 复现：baseline 和 trigger 只差一个 optlen</h3>
+<p>这个洞的复现设计得特别干净：<strong>同一个 DTLS 会话、同一个 getsockopt，只改调用者的 <code>optlen</code></strong>。</p>
+<p>复现跑在 <strong>Zephyr qemu_x86_64</strong>，<code>CONFIG_NET_LOOPBACK</code> 上起一对 DTLS client/server，两端都开 <code>TLS_DTLS_CID</code>，完成握手后服务端调用 <code>getsockopt(TLS_DTLS_PEER_CID_VALUE)</code>。</p>
+<h4 data-id="heading-18">baseline：<code>optlen = 32</code>（缓冲刚好够）</h4>
+<pre><code class="hljs language-text" lang="text">baseline ret=0 errno=0 optlen=32 expected_peer_len=32
+baseline buffer:
+0000: 2c ee 66 6b 30 a3 60 df 2f 13 99 dd ad f6 d2 1d
+0016: f2 db 73 82 3b 8d 0e 22 b9 78 eb 56 82 45 fe 92
+0032: 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41 41
+BASELINE_OK full-size buffer preserved canary
+</code></pre>
+<p>前 32 字节是 peer CID，<strong>第 32~47 字节的 canary（<code>0x41</code>）完好</strong>。</p>
+<h4 data-id="heading-19">trigger：<code>optlen = 1</code>（缓冲只有 1 字节）</h4>
+<pre><code class="hljs language-text" lang="text">trigger ret=0 errno=0 optlen=32 expected_peer_len=32
+trigger buffer:
+0000: d7 b3 61 81 13 d3 69 2b c1 5d 7c b3 d3 ad d4 8f
+0016: a6
+EXP_SUCCESS trigger canary corrupted past 1-byte user buffer
+</code></pre>
+<p>关键读数：</p>
+<ol>
+<li><code>trigger ret=0</code>：getsockopt <strong>返回成功</strong>——即使缓冲只有 1 字节，后端也没报错；</li>
+<li><code>optlen=32</code>：写回的长度是 32——后端确实写了 32 字节；</li>
+<li>缓冲区 dump 显示 17 个字节（<code>cid[1]</code> + <code>canary[16]</code>）全部被 CID 数据覆盖，canary 的 <code>0x41</code> 一个都不剩；</li>
+<li><code>EXP_SUCCESS</code>：断言 <code>optlen &gt; sizeof(cid)</code> 且 canary 被破坏，成立。</li>
+</ol>
+<p>两个构建只差 <code>optlen</code> 这一个变量：<code>32</code> 时 canary 完好，<code>1</code> 时 canary 被 31 字节 CID 冲掉。这把这个洞压缩成一句话：</p>
+<blockquote>
+<p><strong>getter 完全无视调用者声明的缓冲大小；<code>optlen</code> 只是"写回"的载体，不是"写入"的限制。</strong></p>
+</blockquote>
+<p>在 qemu_x86_64 上，这是用户进程内的 1 字节缓冲被 32 字节 CID 覆盖（内核态形态）；在 <code>CONFIG_USERSPACE</code> 构建里，同一个 getsockopt 走 verifier 时，变成<strong>内核 bounce buffer（恰好 <code>optlen</code> 字节）被 32 字节 CID 覆盖</strong>——内核堆越界写。</p>
+<hr>
+<h3 data-id="heading-20">2.6 修复：用固定本地缓冲承接，再按容量截断</h3>
+<p>advisory 给的修复方向很标准：<strong>getter 不能把调用者的缓冲直接交给 mbedtls</strong>，必须先写进一个固定大小的本地缓冲，再按 <code>*optlen</code> 截断拷回，同时拒绝过小的 <code>optlen</code>：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">unsigned</span> <span class="hljs-type">char</span> cid[MBEDTLS_SSL_CID_OUT_LEN_MAX];
+<span class="hljs-type">size_t</span> cid_len = <span class="hljs-keyword">sizeof</span>(cid);
+
+<p>ret &#x3D; mbedtls_ssl_get_peer_cid(&amp;session_ctx-&gt;ssl, &amp;enabled, cid, &amp;cid_len);<br><span class="hljs-keyword">if</span> (ret !&#x3D; <span class="hljs-number">0</span>) &amp;#123;<br><span class="hljs-keyword">return</span> -EINVAL;<br>&amp;#125;</p>
+<p><span class="hljs-keyword">if</span> (*optlen &lt; cid_len) &amp;#123;<br><em>optlen &#x3D; <span class="hljs-number">0</span>;                 <span class="hljs-comment">&#x2F;</span></em> 或返回 -EINVAL：缓冲不够 <em>&#x2F;<br><span class="hljs-keyword">return</span> -EINVAL;<br>&amp;#125;<br><span class="hljs-built_in">memcpy</span>(optval, cid, cid_len);      <span class="hljs-comment">&#x2F;</span></em> 现在拷贝被 *optlen 约束 *&#x2F;<br>*optlen &#x3D; cid_len;<br></p></code></pre><p></p>
+<p>关键改动是两点：<strong>本地固定缓冲承接 mbedtls 的"写满"</strong>，以及<strong>回拷时以 <code>*optlen</code> 为上限</strong>。这样无论 mbedtls 写多少，落到调用者内存里的都不会超过它声明的大小。（修复在 4.4.1 及之后，涉及 <code>main</code>/<code>v4.4</code>/<code>v4.3</code>/<code>v3.7</code> 多个分支的 backport。）</p>
+<p>这个洞的教训是：<strong>当你的代码把一个带"容量"语义的参数交给一个"只写不读容量"的库函数时，容量信息必须在你自己这一层被强制成边界。</strong> 库函数的签名不会替你兜底。</p>
+<hr>
+<h2 data-id="heading-21">三、两个洞放在一起：验证层契约的两种断裂</h2>
+<h3 data-id="heading-22">3.1 验证不全 vs 验证与实现脱节</h3>
+<table><thead><tr><th></th><th>CVE-2026-9771（flash_copy）</th><th>CVE-2026-8718（DTLS CID）</th></tr></thead><tbody><tr><td>边界</td><td>syscall verifier（<code>z_vrfy_*</code>）</td><td>getsockopt verifier（<code>z_vrfy_zsock_getsockopt</code>）</td></tr><tr><td>断裂方式</td><td><strong>验证不全</strong>：verifier 漏校验设备指针</td><td><strong>验证与实现脱节</strong>：verifier 校验/分配了，后端没遵守</td></tr><tr><td>用户可控的"量"</td><td>伪造 <code>struct device</code> + 函数指针</td><td>把 <code>optlen</code> 传得多小</td></tr><tr><td>后果</td><td>内核态任意函数调用 -&gt; LPE</td><td>内核 bounce buffer 越界写 -&gt; 内存破坏</td></tr><tr><td>触发前提</td><td><code>CONFIG_USERSPACE</code></td><td><code>CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID</code>（+ 用户态时还要 <code>CONFIG_USERSPACE</code>）</td></tr></tbody></table>
+<p>两个洞都在回答同一个问题：<strong>验证层建立的"参数契约"，在哪个环节断了？</strong></p>
+<ul>
+<li>flash_copy：契约<strong>根本没建立</strong>——<code>src_dev</code>/<code>dst_dev</code> 这两个"必须校验"的参数，verifier 一行都没写；</li>
+<li>DTLS CID：契约<strong>建立了但没兑现</strong>——verifier 认真按 <code>optlen</code> 分配了 bounce buffer，后端实现直接绕过了它。</li>
+</ul>
+<p>前一种错在"少做了"，后一种错在"做了但不一致"。两种都是审计时最容易被"看起来有验证"骗过去的形态：flash_copy 看起来验证了缓冲（有 <code>K_SYSCALL_MEMORY_WRITE</code>），DTLS 看起来验证了 <code>optlen</code>（有 bounce buffer）——但真正的边界都在更深一层。</p>
+<h3 data-id="heading-23">3.2 与前两篇的对照：解析器信任 -&gt; 验证层信任</h3>
+<p>前两篇的四个洞，攻击面都是"<strong>远端输入</strong>"（蓝牙包 / 服务器响应），信任的是"格式/长度约束的充分性"。这一篇的两个洞，攻击面是"<strong>本地调用者</strong>"，信任的是"验证层把用户参数翻译成了可信任的内核对象/大小"。</p>
+<p>但底层的思维方式完全一致——<strong>找一个"代码以为成立、实际未必成立"的边界假设</strong>：</p>
+<table><thead><tr><th></th><th>前两篇（解析器信任）</th><th>这一篇（验证层信任）</th></tr></thead><tbody><tr><td>信任的对象</td><td>远端消息的格式/长度</td><td>验证函数的完整性/一致性</td></tr><tr><td>典型假设</td><td>"<code>strncpy</code> 会补 NUL"、"分配尺寸够用"</td><td>"设备指针一定校验过"、"后端一定遵守 <code>optlen</code>"</td></tr><tr><td>突破方式</td><td>构造恶意报文</td><td>传伪造指针 / 传小 <code>optlen</code></td></tr><tr><td>触发者</td><td>远端攻击者</td><td>本地低权限线程</td></tr></tbody></table>
+<p>对 RTOS 来说，这篇的两个洞尤其关键：<code>CONFIG_USERSPACE</code> 是 Zephyr 面向安全部署的核心机制，而这两个洞都<strong>在 userspace 逃逸的命门上</strong>（syscall verifier）。它们的共同教训是：</p>
+<blockquote>
+<p>验证层不是"写了 <code>K_SYSCALL_*</code> 宏就算数"，而是"<strong>每个进入内核的指针都必须过 <code>k_object_validate</code>，每个带容量语义的参数都必须被后端真正遵守</strong>"。</p>
+</blockquote>
+<h3 data-id="heading-24">3.3 为什么这两个洞都是 Scope=Changed</h3>
+<p>flash_copy 是 <code>S:C</code>，DTLS 是 <code>S:C</code>——这两个洞都是"<strong>跨组件边界</strong>"的：flash 驱动子系统 / TLS 套接字子系统里的洞，能破坏内核整体。</p>
+<p>这正是"验证层漏洞"和"解析器漏洞"的差异之一：解析器漏洞往往止步于"这个子系统崩了/漏了"，而验证层漏洞天然具有<strong>越权语义</strong>——因为它发生在权限转换的瞬间。审计 RTOS 的 userspace 边界时，<code>z_vrfy_*</code> 里任何一行缺失的校验，都应该按"可能等于 LPE"来对待。</p>
+<hr>
+<h2 data-id="heading-25">四、从利用角度看，这两个洞的实际价值</h2>
+<h3 data-id="heading-26">4.1 CVE-2026-9771（flash_copy）：本地权限提升</h3>
+<ul>
+<li><strong>第一级（混淆代理）</strong>：任何用户线程可对任意 flash 设备做读/写/擦除——绕过设备的权限模型，即使该线程从未被授予设备对象。在真实 <code>qemu_x86_64</code> 上已验证。</li>
+<li><strong>第二级（LPE）</strong>：伪造 <code>struct device</code>，把 <code>dev-&gt;api-&gt;read/write/get_parameters</code> 指向攻击者选定地址，让内核在超级用户模式下调用——<strong>越出 userspace 沙箱</strong>，任意 flash 读写、内核崩溃、潜在代码执行。</li>
+<li><strong>价值</strong>：对暴露本地用户接口的 Zephyr 设备（受管设备、车载/工业设备），一个低权限线程能直接打穿内核。CVSS 8.8，且 advisory 提示已有利用活动迹象。</li>
+</ul>
+<h3 data-id="heading-27">4.2 CVE-2026-8718（DTLS CID）：内核堆越界写</h3>
+<ul>
+<li><strong>内核态形态</strong>：调用者缓冲被 32 字节 CID 覆盖（<code>optlen</code> 小于 CID 长度时）。</li>
+<li><strong>用户态形态</strong>：verifier 的 bounce buffer 只有 <code>optlen</code> 字节，后端写满 32 字节——<strong>内核堆越界写</strong>。溢出字节是 peer 协商的 CID，攻击者可自由控制"溢出多少"（传多小 <code>optlen</code>），但不能完全控制字节内容。</li>
+<li><strong>价值</strong>：本地低权限线程可触发确定性的内核堆破坏。字节内容虽不完全可控，但落在堆元数据/相邻分配上，按堆布局可能升级为代码执行。CVSS 8.4，Scope=Changed。触发前提是 <code>CONFIG_MBEDTLS_SSL_DTLS_CONNECTION_ID</code> + 建立过带 CID 的 DTLS 会话——对启用 DTLS CID 的 IoT/车联网设备是可远程/本地达成的。</li>
+</ul>
+<hr>
+<h2 data-id="heading-28">POC说明</h2>
+<p>本文不贴完整 PoC 代码，需要的话私聊我吧。复现侧的做法提一句：</p>
+<ul>
+<li><strong>flash_copy</strong>：<code>zephyr-vuln-repro/flash-copy-device-perm-bypass-exp-zephyr/</code>（真实 qemu_x86_64，<code>CONFIG_USERSPACE=y</code>；用户线程未授权 flash 设备仍 <code>flash_copy()</code> 成功并改写目标区域）。</li>
+<li><strong>DTLS CID</strong>：<code>zephyr-vuln-repro/dtls-peer-cid-value-smallbuf-oob-exp-zephyr/</code>（真实 qemu_x86_64，loopback 上 DTLS client/server 完成 CID 握手后调 <code>TLS_DTLS_PEER_CID_VALUE</code>；<code>build_qemu_x86_64_baseline.sh</code> 用 32 字节缓冲、<code>..._trigger.sh</code> 用 1 字节缓冲，canary 证明越界）。</li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771" href="https://juejin.cn/post/7676277362523553826" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">RTOS漏洞分析（三）：CVE-2026-8718和CVE-2026-9771</span><span class="desc fs12">https://juejin.cn/post/7676277362523553826</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/76261cb7.html">TDS REVIEW | Nothing Ear (3a) 降噪真无线耳机体验<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/4a231b80.html">Time-Lapse of the Star S301 Orbiting the Black Hole in the Center of the Galaxy<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/f5e4b7ad.html" title="AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1cbb9c09db74469ea61dfada14b32305~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5ZGo5LiA5ZCM5a2mWmVsaW5h:q75.awebp?rk3s=f64ab15b&x-expires=1787792303&x-signature=fxi3Ju7v2qkuujJeua0ninu9Mmg%3D"></div><span class="title">AI 生成一堆素材后，怎么整理成好找又好用的视觉资产库？</span></a><a class="item" href="/rss/48d525c0.html" title="AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/543acfa53344011a6c371dc51faf2d7d9331103d-1485x885.png"></div><span class="title">AI 引荐流量报告：哪些独立产品正在从 ChatGPT 获客？</span></a><a class="item" href="/rss/77574e.html" title="Token生产之后，合肥开始研究怎么“运营”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5842"></div><span class="title">Token生产之后，合肥开始研究怎么“运营”</span></a><a class="item" href="/rss/306a3f45.html" title="TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9378"></div><span class="title">TypeScript 工具类型一次讲透：Pick、Omit、Partial、Record 逐个击破</span></a><a class="item" href="/rss/1d8e8b4a.html" title="Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=561"></div><span class="title">Bun v1.4 更新总结：把浏览器、图片、定时任务和工程工具都装进一个运行时</span></a><a class="item" href="/rss/692620f2.html" title="Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5709"></div><span class="title">Ubuntu 虚拟机编译 WebRTC Android AAR(M140 / Branch-Heads/7339)</span></a><a class="item" href="/rss/5bad3d37.html" title="免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/0706105f7975c6bc5e4d5462974f8cc34c3ee133-1476x966.png"></div><span class="title">免费、免费增值、付费：5900 款独立工具告诉我们的定价与增长真相</span></a><a class="item" href="/rss/effa798c.html" title="二、Codex Memories 源码解析：记忆的生成、整理与存储"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a2bd6d5a0cce4d43b48dc5f486a3d905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqW5Y2B5LiN5oOR:q75.awebp?rk3s=f64ab15b&x-expires=1787988753&x-signature=7MjxeC7o2M4qlYZKJrIkGo5nMj8%3D"></div><span class="title">二、Codex Memories 源码解析：记忆的生成、整理与存储</span></a><a class="item" href="/rss/4d2c640.html" title="分享一下最近做的AI记账 App | 欢迎体验"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/780faac40fb54a60b1dfd23c2c1508f9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1787917129&x-signature=WhwtwVYZ01YuTLlXQH1z0yOL2eo%3D"></div><span class="title">分享一下最近做的AI记账 App | 欢迎体验</span></a><a class="item" href="/rss/50655e78.html" title="告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=884"></div><span class="title">告别 Vibe Coding！SDD 规范驱动开发实战：从文档到代码的 AI 开发新范式</span></a><a class="item" href="/rss/d7ce172e.html" title="我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/6ee3ac2fc36e7f6018789b8e1796bc794d9e6d9b-1500x900.png"></div><span class="title">我们追踪着 6000+ 个独立工具，其中 74 个已确认死亡：一份尸检报告</span></a><a class="item" href="/rss/129e3442.html" title="知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cd7f8ab1f6ff4d82abf73f024a32e5ea~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3OTA5MjczMDk5NTQ1NA==:q75.awebp?rk3s=f64ab15b&x-expires=1787823586&x-signature=KFxcmvWA2Pb46F274ZH0ci3VMN0%3D"></div><span class="title">知识工作者如何用TRAE Work构建个人/团队知识库，让死材料‘活’过来”</span></a><a class="item" href="/rss/825e57ab.html" title="独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://cdn.sanity.io/images/7tbt32ra/production/f6faf9c4fcf6d6ac6bcef06999eb20b4261b61bb-1475x921.png"></div><span class="title">独立工具的流量到底从哪来：Direct、Referral 与 AI 引荐的崛起</span></a><a class="item" href="/rss/d4e5967f.html" title="一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=621"></div><span class="title">一文讲透 JWT 登录鉴权：Token 的「颁发 → 存储 → 携带 → 校验」完整闭环</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
