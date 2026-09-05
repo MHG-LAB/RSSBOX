@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How We Could Save Petabytes of Cache Storage With Zstandard and Pingora - RSSBOX</title>
+
+  
+    <meta name="description" content="Memory costs are increasing dramatically. Both RAM and hard disk drive prices have exploded over the past year. At Cloudflare, we run several massively distributed storage products (including our fam">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/4d916bc9.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Memory costs are increasing dramatically. Both RAM and hard disk drive prices have exploded over the past year. At Cloudflare, we run several massively distributed storage products (including our fam">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-01T12:59:00.000Z">
+<meta property="article:modified_time" content="2026-09-01T12:59:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What is Zstandard?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Not everything is worth compressing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Paying the compression cost once</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Cache Transcoding works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why we only transcode certain text</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Testing over one million requests through the cache</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Compress once, benefit many times</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-01T12:59:00.000Z">2026-09-01</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></h1>
+<div>
+<p>Memory costs are increasing dramatically. Both RAM and hard disk drive prices have exploded over the past year. At Cloudflare, we run several massively distributed storage products (including our famous CDN) that rely on making efficient use of the memory we have deployed so we can continue to serve all of our customers.</p><p>With this in mind, we prototyped a way to expand effective cache capacity. By encoding eligible assets with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/facebook/zstd"><span style="text-decoration:underline">Zstandard</span></a> inside <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/how-we-built-pingora-the-proxy-that-connects-cloudflare-to-the-internet/"><span style="text-decoration:underline">Pingora</span></a>, the architecture trades a minor CPU increase for significant storage and cross-data center bandwidth savings.</p><p>We have been prototyping a system called Cache Transcoding, which I built during my internship at Cloudflare as part of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-1111-intern-program/"><span style="text-decoration:underline">1.1.1.1 Intern Program</span></a>. When an eligible response enters the cache, we encode it using Zstandard, or zstd, before writing it to disk. We keep that compressed form while the asset lives in the cache and moves between data centers via <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/tiered-cache-smart-topology/#tiered-cache"><span style="text-decoration:underline">Tiered Cache</span></a>, then decode it before serving the response to the client.</p><p>In our initial testing, this encoding shrunk eligible assets to ⅓ of their original on-disk size on average. The estimated extra CPU cost in our origin-facing proxy was small, but that is the trade. A small increase in CPU gives Cloudflare petabytes of effective cache capacity and reduces the data transferred between our data centers. The encoding cost is paid once when an asset enters the cache. The storage and bandwidth savings continue every single time that asset is reused.</p><h2>What is Zstandard?</h2><p>Zstandard, or zstd, is a lossless compression algorithm developed by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://engineering.fb.com/2018/12/19/core-infra/zstandard/"><span style="text-decoration:underline">Yann Collet at Facebook</span></a> and open sourced in 2016. Lossless means that after compressed data is decoded, every byte is identical to the original. We can change how an asset is represented on disk without changing the asset itself.</p><p>Zstd is designed to balance compression ratio with speed. In our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/new-standards/"><span style="text-decoration:underline">earlier browser compression testing</span></a>, it compressed data 42% faster than <a target="_blank" rel="external nofollow noopener noreferrer" href="https://research.google/pubs/brotli-a-general-purpose-data-compressor/"><span style="text-decoration:underline">Brotli</span></a> while producing nearly the same file size, and produced files 11.3% smaller than gzip at a comparable speed. That balance matters because Cache Transcoding would touch a large amount of traffic, so both encoding and decoding need to stay fast. </p><p>The prototype uses zstd level 3, giving us most of the compression benefit without turning cache fills into a CPU bottleneck.</p><p>Cloudflare traditionally stores an asset using the content encoding supplied by its origin. If an origin sends an uncompressed response, we store those uncompressed bytes on disk and transfer them between data centers in the same form. Cache Transcoding adds compression inside the cache itself.</p><h2>Not everything is worth compressing</h2><p>Transcoding does not mean compressing everything. Images, video, and fonts are usually compressed already. In our traffic sample, this media slice represented 21.4% of requests but 63.3% of bytes. Compressing it again would burn CPU for nothing.</p><p>Compressible text is different. HTML, JSON, CSS, and JavaScript represented 67.3% of requests and 22.3% of bytes. Within that text slice, approximately 71% arrived uncompressed with <code>Content-Encoding</code> unset and it compresses well. </p><p>In our controlled test corpus, the eligible assets compressed by roughly 2.8 times.</p><!-- unsupported block: table --><p>Encoding is more expensive per byte, but assets are served far more often than they are filled. </p><p>By changing how assets are represented, existing hardware could store more customer content.</p><p>Fewer bytes on disk mean each server can retain more objects. This increases cache density and reduces the likelihood that useful content is evicted because an uncompressed representation consumed more space than necessary. </p><p>The smaller representation also helps as an asset moves through Tiered Cache because it reduces the data transferred between Cloudflare data centers, making backbone usage more efficient.</p><h2>Paying the compression cost once</h2><p>Compression is never free. Encoding and decoding both use CPU, so the important question is whether the byte savings are worth the processing cost. </p><p>At zstd level 3 (often the default balance of speed and compression size output), our model kept the extra CPU cost to a few percent under the traffic and reuse assumptions we tested. </p><p>We initially considered limiting transcoding to popular content, since hot assets are reused more, but it did not help. Decoding happens every time an asset is served, so limiting the feature to only the hottest content reduced the storage saving without cutting CPU by the same amount. </p><p>The simpler policy performed better. Transcoding all eligible compressible text at or above 4 kibibytes (KiB) captured nearly all of the measured storage benefit, while remaining within the CPU budget.</p><h2>How Cache Transcoding works</h2><p>On a cache miss, our Pingora-based proxy <strong>encodes the body using zstd </strong>before writing it to disk. The cache metadata records that the stored representation is compressed and preserves the original content length. Before the response leaves the proxy, the body is <strong>decoded back to its original identity representation</strong>.</p><p>On a cache hit, the stored zstd object is read from disk and decoded. With Tiered Cache, the compressed representation is transferred from the upper tier to the lower tier in the compressed form. Decoding only happens on the client-facing hop.</p><p>On a full cache miss, the upper tier fetches identity bytes from the origin. Those bytes are encoded once, stored as zstd, and transferred to the lower tier in their compressed form. The lower tier also stores the zstd representation, then decodes it for the request path.</p><!-- unsupported block: image --><p>If the lower tier misses but the upper tier already has the object, the origin is not involved. The compressed object moves directly between the cache tiers. It remains compressed on the wire and on disk, then is decoded once at the lower tier.</p><p>If the lower tier already has the object, no network transfer or encoding is needed. The lower tier reads the zstd bytes from disk, decodes them, and passes the original asset onward.</p><p>The storage encoding marker prevents an object from being encoded more than once. A cache layer receiving an object from another tier can see that it is already stored using zstd, and preserve it in that form.</p><h2>Why we only transcode certain text</h2><p>The fastest compression operation is the one we do not need to perform. Cache Transcoding therefore uses a series of eligibility checks to avoid content that is unlikely to benefit.</p><p>The prototype only transcodes a <code>200 OK</code> response when <code>Content-Encoding</code> is unset, the <code>Content-Type</code> is compressible text, and the response has a known <code>Content-Length</code> of at least 4 KiB. Slice subrequests, responses using active upstream compression, range requests, precompressed responses, unknown length bodies, and binary content remain unchanged.</p><p>The 4 KiB threshold removed a large number of tiny requests while leaving out only about 1% of the otherwise eligible bytes. Lowering it would add per-object overhead without saving much more storage.</p><p>The threshold and zstd level are both parameters rather than permanent limits. We started with zstd level 3 and a 4 KiB minimum because they gave us a conservative way to measure the architecture. With the initial CPU budget understood, we can test whether higher compression levels improve the ratio enough to justify their additional cost.</p><h2>Testing over one million requests through the cache</h2><p>We exercised the prototype against a controlled test zone and correlated each request across request logs, Prometheus metrics, and Jaeger traces.</p><p>The correctness campaign covered cache misses, cache hits, single-hop fills, Tiered Cache fills, and more. We varied cache keys to make each request follow a specific path and used traces to confirm where encoding and decoding occurred.</p><p>One performance campaign sent more than a million requests across 10 cache servers. Half of the campaign ran with Tiered Cache disabled and the other half with it enabled. This allowed us to measure local cache behavior separately from transfers between cache tiers.</p><p>The two assets were approximately 195 KiB and 272 KiB, and both compressed by roughly 2.8 times. This was deliberately a compressible test corpus. It gave us a clear signal for validating the architecture, but it does not represent every text object on the Internet. A broader corpus is required before treating the measured compression ratio as a fleet-wide constant.</p><h2>Compress once, benefit many times</h2><p>What this experiment showed us is that there are significant efficiencies we can still deploy across our caching service that can benefit all of our customers. What we built for Cache Transcoding shows that the trade is favorable under the conditions we tested. The architecture preserved the content and remained within the CPU budget.</p><p>For next steps, we plan to evaluate higher zstd levels, test a broader range of content types and object sizes, tune different parameters from the eligibility criteria and more. Future work can also examine range requests, pre-compressed origin responses, and passing the compressed object directly to downstream components that already support it without decoding.</p><p>Throughout my internship, I’ve had the wonderful opportunity to work alongside Cloudflare's engineering teams on the real infrastructure that stores and serves content across our global network. If you want to start your career by helping build a better Internet, explore our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/careers/early-talent/"><span style="text-decoration:underline">internship opportunities</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/careers/jobs/"><span style="text-decoration:underline">job openings</span></a>.</p><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How we could save petabytes of cache storage with Zstandard and Pingora" href="https://blog.cloudflare.com/cache-transcoding/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How we could save petabytes of cache storage with Zstandard and Pingora</span><span class="desc fs12">https://blog.cloudflare.com/cache-transcoding/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/161952e.html">看完 Karpathy 的分享，我用 AI 重做了一遍 Obsidian 知识库<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ad806dcf.html">Path to Astra: Critical Capabilities and Frontier Safeguards<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/9a2f188a.html" title="A Revisit of Remote Spectre Attacks on Cloudflare Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=345"></div><span class="title">A Revisit of Remote Spectre Attacks on Cloudflare Workers</span></a><a class="item" href="/rss/386c7f91.html" title="BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=906"></div><span class="title">BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents</span></a><a class="item" href="/rss/e45f2220.html" title="BGP Role Model: Tracking the Adoption of RFC 9234"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8352"></div><span class="title">BGP Role Model: Tracking the Adoption of RFC 9234</span></a><a class="item" href="/rss/1a9310ca.html" title="Certificate Transparency Monitoring Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9821"></div><span class="title">Certificate Transparency Monitoring Is Now Generally Available</span></a><a class="item" href="/rss/331e5ee6.html" title="From All-or-Nothing to Task-Based OAuth Consent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9085"></div><span class="title">From All-or-Nothing to Task-Based OAuth Consent</span></a><a class="item" href="/rss/cb735ee1.html" title="Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6504"></div><span class="title">Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave</span></a><a class="item" href="/rss/e8604db3.html" title="How Cloudflare Detects MCP Traffic and Helps Secure It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6343"></div><span class="title">How Cloudflare Detects MCP Traffic and Helps Secure It</span></a><a class="item" href="/rss/e31b3b95.html" title="How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1309"></div><span class="title">How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache</span></a><a class="item" href="/rss/90c4a120.html" title="Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9189"></div><span class="title">Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2354"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/8fe56bde.html" title="Say It Once: Introducing Bot Preference Sync"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9245"></div><span class="title">Say It Once: Introducing Bot Preference Sync</span></a><a class="item" href="/rss/94ada8f9.html" title="Secure All Your Internal Vibe-Coded Applications — in One Click"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1831"></div><span class="title">Secure All Your Internal Vibe-Coded Applications — in One Click</span></a><a class="item" href="/rss/4438b469.html" title="The Cloudflare Blog — Brought to You by EmDash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3280"></div><span class="title">The Cloudflare Blog — Brought to You by EmDash</span></a><a class="item" href="/rss/5f9cf594.html" title="Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2459"></div><span class="title">Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

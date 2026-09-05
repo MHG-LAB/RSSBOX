@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势 - RSSBOX</title>
+
+  
+    <meta name="description" content="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势  ChatGPT 的打字机效果是怎么做的？为什么 AI 回答能一个字一个字蹦出来？答案就是流式输出。但前端实时通信有两条技术路线——SSE（Server-Sent Events）和 LLM Stream API，它们原理相似却场景不同。本文从一个原生 Node.js SSE Demo 出发，到 LangChain 的 LLM 流式调用">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/de72a5d5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势  ChatGPT 的打字机效果是怎么做的？为什么 AI 回答能一个字一个字蹦出来？答案就是流式输出。但前端实时通信有两条技术路线——SSE（Server-Sent Events）和 LLM Stream API，它们原理相似却场景不同。本文从一个原生 Node.js SSE Demo 出发，到 LangChain 的 LLM 流式调用">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-03T13:42:26.000Z">
+<meta property="article:modified_time" content="2026-09-03T13:42:26.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、为什么需要流式输出？</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.1 传统 HTTP 的痛点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.2 流式输出的本质</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.3 两种流式输出场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、SSE：Server-Sent Events</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 SSE 原理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 SSE 的三个响应头</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 SSE 数据格式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.4 完整 SSE 服务端实现</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.5 前端 EventSource 接收</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.6 SSE vs WebSocket</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、LLM 流式输出</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 为什么 LLM 需要流式？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 LangChain 流式调用</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 核心概念解析</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 process.stdout.write vs console.log</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、LLM Stream + SSE：完整链路</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 ChatGPT 的打字机效果原理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 完整链路伪代码</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、关键技术深度</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.1 HTTP 长连接</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.2 AsyncIterator 原理</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.3 res.write vs res.end</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、SSE 进阶用法</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.1 自定义事件</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.2 带重试间隔</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.3 SSE 的 CORS 问题</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、知识速查</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.1 SSE API 速查</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.2 LLM Stream API 速查</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.3 响应头速查</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">八、总结</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.1 知识体系图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.2 一句话总结</span></a></li></ol></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-03T13:42:26.000Z">2026-09-03</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</span></h1>
+<div>
+<h2 data-id="heading-0">从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</h2>
+<blockquote>
+<p>ChatGPT 的打字机效果是怎么做的？为什么 AI 回答能一个字一个字蹦出来？答案就是流式输出。但前端实时通信有两条技术路线——SSE（Server-Sent Events）和 LLM Stream API，它们原理相似却场景不同。本文从一个原生 Node.js SSE Demo 出发，到 LangChain 的 LLM 流式调用，彻底拆解流式输出的全链路。为什么 HTTP 能"边传边显示"？EventSource 为什么只能 GET？chunk 到底是什么？建议收藏后跟着代码实操。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-1">一、为什么需要流式输出？</h3>
+<h4 data-id="heading-2">1.1 传统 HTTP 的痛点</h4>
+<pre><code class="hljs language-arduino" lang="arduino">传统 HTTP 请求-响应模型：
+
+<p>  浏览器                          服务器<br>    │                               │<br>    │──── HTTP 请求 ───────────────→│<br>    │                               │ （服务器处理中…）<br>    │                               │ （<span class="hljs-number">5</span> 秒后…）<br>    │                               │ （<span class="hljs-number">10</span> 秒后…）<br>    │                               │ （终于组装完完整响应）<br>    │←──── 完整 HTTP 响应 ──────────│<br>    │                               │</p>
+<p>  问题：<br>  ① 用户体验差<br>  → 等待 <span class="hljs-number">10</span> 秒才看到任何内容<br>  → 用户以为页面卡死了<br>  → <span class="hljs-string">“白屏”</span>焦虑</p>
+<p>  ② 服务器压力大<br>  → 必须等所有数据准备好才能响应<br>  → 大量数据积压在服务器内存中<br>  → 并发时容易 OOM</p>
+<p>  ③ AI 场景特别需要<br>  → LLM 生成一个完整回答可能需要 <span class="hljs-number">10</span><span class="hljs-number">-30</span> 秒<br>  → 如果等完整回答再返回 → 用户等 <span class="hljs-number">30</span> 秒<br>  → 如果边生成边返回 → 用户 <span class="hljs-number">1</span> 秒就看到第一个字<br>  → 这就是 ChatGPT 打字机效果的原理<br></p></code></pre><p></p>
+<h4 data-id="heading-3">1.2 流式输出的本质</h4>
+<pre><code class="hljs language-ini" lang="ini">流式输出 = 把"一次性返回"拆成"分块返回"
+
+<p>  传统方式（一次性）：<br>  服务器：<span class="hljs-section">[准备完整数据…10秒…准备好了]</span> → 一次性发给浏览器</p>
+<p>  流式方式（分块）：<br>  服务器：<span class="hljs-section">[chunk 1]</span> → <span class="hljs-section">[chunk 2]</span> → <span class="hljs-section">[chunk 3]</span> → … → <span class="hljs-section">[结束]</span><br>  浏览器：逐个接收，实时显示</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  流式输出的核心概念                                       │<br>│                                                          │<br>│  chunk（数据块）                                          │<br>│  → 流式传输的基本单位                                     │<br>│  → 就像水管里的水，一段一段流过来                          │<br>│  → 每个 chunk 是部分数据                                  │<br>│  → 拼接所有 <span class="hljs-attr">chunk</span> &#x3D; 完整数据                              │<br>│                                                          │<br>│  stream（流）                                             │<br>│  → chunk 的有序序列                                       │<br>│  → 水管本身，chunk 是水管里的水                           │<br>│  → 有始有终，有打开有关闭                                  │<br>│                                                          │<br>│  消费者模式                                               │<br>│  → 前端逐个接收 chunk                                     │<br>│  → 每收到一个 chunk 就处理（追加显示）                    │<br>│  → 流结束后做收尾工作                                     │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-4">1.3 两种流式输出场景</h4>
+<pre><code class="hljs language-arduino" lang="arduino">┌──────────────────────────────────────────────────────────────┐
+│              两种流式输出技术路线                              │
+│                                                              │
+│  ① SSE（<span class="hljs-built_in">Server</span>-Sent Events）                                │
+│  → 服务器主动推送                                            │
+│  → 浏览器用 EventSource API 接收                             │
+│  → 基于 HTTP 长连接                                         │
+│  → 本文第一部分：原生 Node.js SSE Demo                       │
+│  → 场景：实时通知、股票行情、ChatGPT 打字机                 │
+│                                                              │
+│  ② LLM <span class="hljs-built_in">Stream</span> API                                           │
+│  → LLM 生成的文本流式返回                                    │
+│  → LangChain 的 model.<span class="hljs-built_in">stream</span>()                              │
+│  → 基于 AsyncIterator                                       │
+│  → 本文第二部分：LangChain 流式调用                          │
+│  → 场景：AI 对话、AI 写作、AI 代码生成                      │
+│                                                              │
+│  两者关系：                                                  │
+│  → LLM <span class="hljs-built_in">Stream</span> 是数据源（AI 生成 chunk）                     │
+│  → SSE 是传输方式（通过 HTTP 推给浏览器）                   │
+│  → 实际应用中通常组合使用                                    │
+│  → 后端用 LLM stream 获取 AI 输出                           │
+│  → 再通过 SSE 推给前端                                       │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h3 data-id="heading-5">二、SSE：Server-Sent Events</h3>
+<h4 data-id="heading-6">2.1 SSE 原理</h4>
+<pre><code class="hljs language-kotlin" lang="kotlin">SSE = Server-Sent Events（服务器发送事件）
+
+<p>  核心原理：<br>  → 基于 HTTP 协议<br>  → 服务器保持连接不断开<br>  → 服务器持续推送数据给浏览器<br>  → 浏览器通过 EventSource 接收</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  SSE 工作流程                                             │<br>│                                                          │<br>│  浏览器                          服务器                   │<br>│    │                               │                      │<br>│    │── GET &#x2F;stream ───────────────→│                      │<br>│    │                               │                      │<br>│    │←── <span class="hljs-keyword">data</span>: 你\n\n ─────────────│  ← 第 <span class="hljs-number">1</span> 秒           │<br>│    │   （浏览器显示<span class="hljs-string">“你”</span>）          │                      │<br>│    │                               │                      │<br>│    │←── <span class="hljs-keyword">data</span>: 好\n\n ─────────────│  ← 第 <span class="hljs-number">2</span> 秒           │<br>│    │   （浏览器显示<span class="hljs-string">“你好”</span>）        │                      │<br>│    │                               │                      │<br>│    │←── <span class="hljs-keyword">data</span>: ,\n\n ──────────────│  ← 第 <span class="hljs-number">3</span> 秒           │<br>│    │   （浏览器显示<span class="hljs-string">“你好,”</span>）       │                      │<br>│    │                               │                      │<br>│    │   … 持续推送 …            │                      │<br>│    │                               │                      │<br>│    │←── 连接关闭 ─────────────────│  ← 数据发完           │<br>│    │                               │                      │<br>│  关键点：                                                 │<br>│  ① HTTP 连接保持不断开                                    │<br>│  ② 服务器可以随时推送数据                                 │<br>│  ③ 每个 <span class="hljs-keyword">data</span>: 块就是一个 chunk                           │<br>│  ④ 浏览器通过 onmessage 事件逐个接收                      │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-7">2.2 SSE 的三个响应头</h4>
+<pre><code class="hljs language-arduino" lang="arduino">SSE 必须设置三个关键响应头：
+
+<p>  res.<span class="hljs-built_in">writeHead</span>(<span class="hljs-number">200</span>, &amp;#123;<br>    <span class="hljs-string">‘Content-Type’</span>: <span class="hljs-string">‘text&#x2F;event-stream’</span>,  <span class="hljs-comment">&#x2F;&#x2F; ① 声明 SSE 协议</span><br>    <span class="hljs-string">‘Cache-Control’</span>: <span class="hljs-string">‘no-cache’</span>,           <span class="hljs-comment">&#x2F;&#x2F; ② 禁止缓存</span><br>    <span class="hljs-string">‘Connection’</span>: <span class="hljs-string">‘keep-alive’</span>,            <span class="hljs-comment">&#x2F;&#x2F; ③ 保持连接</span><br>  &amp;#125;);</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  ① Content-Type: text&#x2F;event-stream                       │<br>│  → 告诉浏览器<span class="hljs-string">“这是 SSE 流”</span>                               │<br>│  → 浏览器切换到流式接收模式                               │<br>│  → 不是普通的 text&#x2F;html 或 application&#x2F;json              │<br>│                                                          │<br>│  ② Cache-Control: no-cache                                │<br>│  → 禁止浏览器缓存流数据                                   │<br>│  → 每个chunk 都是实时的，不能用旧缓存                     │<br>│  → SSE 的数据是<span class="hljs-string">“一次性”</span>的，过时不候                      │<br>│                                                          │<br>│  ③ Connection: keep-alive                                  │<br>│  → 保持 TCP 连接不断开                                    │<br>│  → HTTP 默认是短连接（请求-响应-关闭）                    │<br>│  → SSE 需要长连接（请求-持续推送-最终关闭）              │<br>│  → keep-alive 让连接<span class="hljs-string">“活着”</span>                               │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-8">2.3 SSE 数据格式</h4>
+<pre><code class="hljs language-kotlin" lang="kotlin">SSE 的数据格式非常简单：
+
+<p>  <span class="hljs-keyword">data</span>: 你好\n\n</p>
+<p>  规则：<br>  ① 每条消息以 <span class="hljs-string">“data: “</span> 开头<br>  ② 消息内容跟在后面<br>  ③ 以 <span class="hljs-string">“\n\n”</span>（两个换行）结尾<br>  ④ 两个换行表示<span class="hljs-string">“这条消息发送完毕”</span></p>
+<p>  ┌──────────────────────────────────────────────────────┐<br>│  SSE 消息格式                                         │<br>│                                                      │<br>│  <span class="hljs-keyword">data</span>: 你\n\n                                        │<br>│  → 浏览器收到 onmessage 事件                          │<br>│  → event.<span class="hljs-keyword">data</span> &#x3D; <span class="hljs-string">“你”</span>                                 │<br>│                                                      │<br>│  <span class="hljs-keyword">data</span>: &amp;#123;<span class="hljs-string">“name”</span>:<span class="hljs-string">“张三”</span>,<span class="hljs-string">“age”</span>:<span class="hljs-number">25</span>&amp;#125;\n\n                  │<br>│  → 也可以发 JSON                                     │<br>│  → event.<span class="hljs-keyword">data</span> &#x3D; <span class="hljs-string">‘&amp;#123;”name”:”张三”,”age”:25&amp;#125;’</span>           │<br>│  → 前端 JSON.parse(event.<span class="hljs-keyword">data</span>) 解析                  │<br>│                                                      │<br>│  <span class="hljs-keyword">data</span>: 第一行\n                                       │<br>│  <span class="hljs-keyword">data</span>: 第二行\n\n                                     │<br>│  → 多行数据用多个 <span class="hljs-keyword">data</span>:                               │<br>│  → event.<span class="hljs-keyword">data</span> &#x3D; <span class="hljs-string">“第一行\n第二行”</span>                     │<br>└──────────────────────────────────────────────────────┘</p>
+<p>  为什么用 \n\n 而不是其他分隔符？<br>  → HTTP 是基于文本的协议<br>  → \n\n 是 HTTP 消息分隔的自然方式<br>  → 类似 HTTP 头部和 body 的分隔也是 \n\n<br>  → 简单、可靠、跨平台<br></p></code></pre><p></p>
+<h4 data-id="heading-9">2.4 完整 SSE 服务端实现</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// server.js — 原生 Node.js 实现 SSE</span>
+<span class="hljs-keyword">const</span> http = <span class="hljs-built_in">require</span>(<span class="hljs-string">'http'</span>);
+<span class="hljs-keyword">const</span> fs = <span class="hljs-built_in">require</span>(<span class="hljs-string">'fs'</span>);
+
+<p><span class="hljs-keyword">const</span> server &#x3D; http.<span class="hljs-title function_">createServer</span>(<span class="hljs-function">(<span class="hljs-params">req, res</span>) &#x3D;&gt;</span> &amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; 路由一：返回 HTML 页面</span><br>  <span class="hljs-keyword">if</span> (req.<span class="hljs-property">url</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘&#x2F;‘</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> readStream &#x3D; fs.<span class="hljs-title function_">createReadStream</span>(<span class="hljs-string">‘.&#x2F;sse-demo&#x2F;index.html’</span>);<br>    readStream.<span class="hljs-title function_">on</span>(<span class="hljs-string">‘error’</span>, <span class="hljs-function">(<span class="hljs-params">err</span>) &#x3D;&gt;</span> &amp;#123;<br>      res.<span class="hljs-title function_">writeHead</span>(<span class="hljs-number">500</span>, &amp;#123; <span class="hljs-string">‘Content-Type’</span>: <span class="hljs-string">‘text&#x2F;plain’</span> &amp;#125;);<br>      res.<span class="hljs-title function_">end</span>(<span class="hljs-string">‘Internal Server Error’</span>);<br>    &amp;#125;);<br>    res.<span class="hljs-title function_">writeHead</span>(<span class="hljs-number">200</span>, &amp;#123; <span class="hljs-string">‘Content-Type’</span>: <span class="hljs-string">‘text&#x2F;html’</span> &amp;#125;);<br>    readStream.<span class="hljs-title function_">pipe</span>(res);<br>  &amp;#125;<br>  <span class="hljs-comment">&#x2F;&#x2F; 路由二：SSE 流式接口</span><br>  <span class="hljs-keyword">else</span> <span class="hljs-keyword">if</span> (req.<span class="hljs-property">url</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘&#x2F;stream’</span>) &amp;#123;<br>    res.<span class="hljs-title function_">writeHead</span>(<span class="hljs-number">200</span>, &amp;#123;<br>      <span class="hljs-string">‘Content-Type’</span>: <span class="hljs-string">‘text&#x2F;event-stream’</span>,<br>      <span class="hljs-string">‘Cache-Control’</span>: <span class="hljs-string">‘no-cache’</span>,<br>      <span class="hljs-string">‘Connection’</span>: <span class="hljs-string">‘keep-alive’</span>,<br>    &amp;#125;);</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; words = [&lt;span class=&quot;hljs-string&quot;&gt;&#39;你&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;好&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;, &#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;欢&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;迎&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;了&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;解&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;sse&#39;&lt;/span&gt;];
+&lt;span class=&quot;hljs-keyword&quot;&gt;let&lt;/span&gt; index = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 每秒推送一个字&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; timer = &lt;span class=&quot;hljs-built_in&quot;&gt;setInterval&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;() =&amp;gt;&lt;/span&gt; &amp;#123;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (index &amp;gt;= words.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt;) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;clearInterval&lt;/span&gt;(timer);
+    res.&lt;span class=&quot;hljs-title function_&quot;&gt;end&lt;/span&gt;(); &lt;span class=&quot;hljs-comment&quot;&gt;// 所有数据发完，关闭连接&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+  &amp;#125;
+  &lt;span class=&quot;hljs-comment&quot;&gt;// SSE 格式：data: 内容\n\n&lt;/span&gt;
+  res.&lt;span class=&quot;hljs-title function_&quot;&gt;write&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`data: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;words[index]&amp;#125;&lt;/span&gt;\n\n`&lt;/span&gt;);
+  index++;
+&amp;#125;, &lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;);
+</code></pre>
+<p>  &amp;#125;<br>&amp;#125;);</p>
+<p>server.<span class="hljs-title function_">listen</span>(<span class="hljs-number">3000</span>, <span class="hljs-function">() &#x3D;&gt;</span> &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘server is running on port 3000’</span>);<br>&amp;#125;);<br></p></code></pre><p></p>
+<pre><code class="hljs language-vbnet" lang="vbnet">代码解析：
+
+  路由一：<span class="hljs-keyword">GET</span> /
+  → 返回 HTML 页面
+  → fs.createReadStream 创建可读流
+  → readStream.pipe(res) 管道直接写入响应
+  → 这本身也是一种流式传输（文件流 → HTTP 响应流）
+
+  路由二：<span class="hljs-keyword">GET</span> /stream
+  → SSE 流式接口
+  → 设置三个 SSE 响应头
+  → setInterval 每秒推送一个字
+  → res.write() 发送 SSE 格式数据
+  → 数据发完调用 res.<span class="hljs-keyword">end</span>() 关闭连接
+
+  为什么用 setInterval？
+  → 模拟服务器<span class="hljs-string">"持续产生数据"</span>的过程
+  → 实际场景中可以是：
+    → LLM 生成 token → 推送
+    → 数据库查询结果分批 → 推送
+    → 实时事件发生 → 推送
+</code></pre>
+<h4 data-id="heading-10">2.5 前端 EventSource 接收</h4>
+<pre><code class="hljs language-html" lang="html"><span class="hljs-comment">&lt;!-- index.html --&gt;</span>
+<span class="hljs-meta">&lt;!DOCTYPE <span class="hljs-keyword">html</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">html</span> <span class="hljs-attr">lang</span>=<span class="hljs-string">"en"</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">head</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">charset</span>=<span class="hljs-string">"UTF-8"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">meta</span> <span class="hljs-attr">name</span>=<span class="hljs-string">"viewport"</span> <span class="hljs-attr">content</span>=<span class="hljs-string">"width=device-width, initial-scale=1.0"</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">title</span>&gt;</span>SSE Demo<span class="hljs-tag">&lt;/<span class="hljs-name">title</span>&gt;</span>
+<span class="hljs-tag">&lt;/<span class="hljs-name">head</span>&gt;</span>
+<span class="hljs-tag">&lt;<span class="hljs-name">body</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">h1</span>&gt;</span>Stream SSE Demo<span class="hljs-tag">&lt;/<span class="hljs-name">h1</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">div</span> <span class="hljs-attr">id</span>=<span class="hljs-string">"result"</span>&gt;</span><span class="hljs-tag">&lt;/<span class="hljs-name">div</span>&gt;</span>
+    <span class="hljs-tag">&lt;<span class="hljs-name">script</span>&gt;</span><span class="javascript">
+        <span class="hljs-keyword">const</span> result = <span class="hljs-variable language_">document</span>.<span class="hljs-title function_">getElementById</span>(<span class="hljs-string">'result'</span>);
+
+<pre><code>    &lt;span class=&quot;hljs-comment&quot;&gt;// 创建 EventSource 连接 SSE 端点&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; eventSource = &lt;span class=&quot;hljs-keyword&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;hljs-title class_&quot;&gt;EventSource&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;http://localhost:3000/stream&#39;&lt;/span&gt;);
+
+    &lt;span class=&quot;hljs-comment&quot;&gt;// 每个 chunk 到达时触发&lt;/span&gt;
+    eventSource.&lt;span class=&quot;hljs-property&quot;&gt;onmessage&lt;/span&gt; = &lt;span class=&quot;hljs-function&quot;&gt;(&lt;span class=&quot;hljs-params&quot;&gt;e&lt;/span&gt;) =&amp;gt;&lt;/span&gt; &amp;#123;
+        &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(e.&lt;span class=&quot;hljs-property&quot;&gt;data&lt;/span&gt;);
+        result.&lt;span class=&quot;hljs-property&quot;&gt;innerText&lt;/span&gt; += e.&lt;span class=&quot;hljs-property&quot;&gt;data&lt;/span&gt;;
+    &amp;#125;
+&lt;/span&gt;&lt;span class=&quot;hljs-tag&quot;&gt;&amp;lt;/&lt;span class=&quot;hljs-name&quot;&gt;script&lt;/span&gt;&amp;gt;&lt;/span&gt;
+</code></pre>
+<p><span class="hljs-tag">&lt;&#x2F;<span class="hljs-name">body</span>&gt;</span><br><span class="hljs-tag">&lt;&#x2F;<span class="hljs-name">html</span>&gt;</span><br></p></span></code></pre><p></p>
+<pre><code class="hljs language-sql" lang="sql">EventSource API 解析：
+
+  <span class="hljs-keyword">new</span> EventSource(url)
+  → 浏览器原生 API，无需安装任何库
+  → 自动建立 HTTP 长连接
+  → 自动处理重连（连接断开会自动重连）
+
+  eventSource.onmessage
+  → 每收到一个 data: 消息时触发
+  → e.data 就是 data: 后面的内容
+  → 逐个 chunk 处理
+
+  为什么用 innerText <span class="hljs-operator">+</span><span class="hljs-operator">=</span> 而不是 innerHTML？
+  → 安全：防止 XSS 注入
+  → 如果 AI 输出 <span class="hljs-operator">&lt;</span>script<span class="hljs-operator">&gt;</span> 标签，innerText 会原样显示
+  → innerHTML 会执行它 → XSS 漏洞
+
+  EventSource 的局限：
+  ① 只支持 <span class="hljs-keyword">GET</span> 请求
+  ② 不能自定义请求头（不能带 <span class="hljs-keyword">Authorization</span>）
+  ③ 不能发 POST body
+  ④ 如果需要 POST <span class="hljs-operator">+</span> 自定义头 → 用 <span class="hljs-keyword">fetch</span> <span class="hljs-operator">+</span> ReadableStream
+</code></pre>
+<h4 data-id="heading-11">2.6 SSE vs WebSocket</h4>
+<pre><code class="hljs language-arduino" lang="arduino">┌──────────────────────────────────────────────────────────────┐
+│              SSE vs WebSocket 对比                            │
+│                                                              │
+│              SSE                    WebSocket                 │
+│  ─────────────────────────────────────────────               │
+│  通信方向    服务器→浏览器           双向                    │
+│  协议        基于 HTTP              独立协议（ws:<span class="hljs-comment">//）         │</span>
+│  断线重连    自动重连              需手动实现               │
+│  浏览器API   EventSource            WebSocket               │
+│  HTTP方法    只能 GET               无限制                   │
+│  自定义头    不支持                支持                     │
+│  复杂度      简单                   中等                    │
+│  适合        服务器推送             实时双向通信             │
+│  典型应用    ChatGPT、通知、股票    在线游戏、聊天室、协作   │
+│                                                              │
+│  ChatGPT 用 SSE 而不是 WebSocket？                          │
+│  → AI 回答是<span class="hljs-string">"服务器→浏览器"</span>单向推送                         │
+│  → 不需要双向通信                                           │
+│  → SSE 更简单，基于 HTTP，穿透防火墙好                      │
+│  → 自动重连，开发成本低                                     │
+│  → 足够用了                                                 │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h3 data-id="heading-12">三、LLM 流式输出</h3>
+<h4 data-id="heading-13">3.1 为什么 LLM 需要流式？</h4>
+<pre><code class="hljs language-arduino" lang="arduino">LLM 生成文本的本质：
+
+<p>  → LLM 是<span class="hljs-string">“逐 token 生成”</span>的<br>  → 每个 token 是一个词或字<br>  → 生成 <span class="hljs-number">500</span> 字可能需要 <span class="hljs-number">10</span><span class="hljs-number">-20</span> 秒<br>  → 如果等 <span class="hljs-number">500</span> 字全生成完再返回 → 用户等 <span class="hljs-number">20</span> 秒<br>  → 如果逐 token 返回 → 用户 <span class="hljs-number">1</span> 秒就看到第一个字</p>
+<p>  token vs 字：<br>  → <span class="hljs-string">“你好”</span> 可能是 <span class="hljs-number">2</span> 个 token（中文）<br>  → <span class="hljs-string">“hello”</span> 可能是 <span class="hljs-number">1</span> 个 token（英文）<br>  → token 是 LLM 的最小生成单位</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  LLM 生成流程                                             │<br>│                                                          │<br>│  prompt: <span class="hljs-string">“详细介绍莫扎特的信息”</span>                            │<br>│                                                          │<br>│  传统方式（invoke）：                                     │<br>│  → model.<span class="hljs-built_in">invoke</span>(prompt)                                 │<br>│  → 等模型生成完整回答（<span class="hljs-number">10</span><span class="hljs-number">-20</span> 秒）                          │<br>│  → 返回完整字符串                                         │<br>│  → 用户等 <span class="hljs-number">20</span> 秒才看到任何内容                             │<br>│                                                          │<br>│  流式方式（stream）：                                     │<br>│  → model.<span class="hljs-built_in">stream</span>(prompt)                                 │<br>│  → 模型边生成边返回 token                                 │<br>│  → 第 <span class="hljs-number">1</span> 个 token <span class="hljs-number">0.5</span> 秒返回                              │<br>│  → 用户 <span class="hljs-number">0.5</span> 秒就看到第一个字                             │<br>│  → 打字机效果                                             │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-14">3.2 LangChain 流式调用</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// stream-normal.mjs — LangChain LLM 流式输出</span>
+<span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> prompt &#x3D; <span class="hljs-string">‘详细介绍莫扎特的信息。’</span>;</p>
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">streamDemo</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘流式输出演示：\n’</span>);</p>
+<p>  <span class="hljs-keyword">try</span> &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; stream() 返回一个异步可迭代对象</span><br>    <span class="hljs-keyword">const</span> stream &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(prompt);</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;let&lt;/span&gt; fullContent = &lt;span class=&quot;hljs-string&quot;&gt;&#39;&#39;&lt;/span&gt;;
+&lt;span class=&quot;hljs-keyword&quot;&gt;let&lt;/span&gt; chunkCount = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;;
+
+&lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;接收流式数据：&#39;&lt;/span&gt;);
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// for await...of 消费异步流&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;await&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; chunk &lt;span class=&quot;hljs-keyword&quot;&gt;of&lt;/span&gt; stream) &amp;#123;
+  chunkCount++;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; content = chunk.&lt;span class=&quot;hljs-property&quot;&gt;content&lt;/span&gt;;
+  fullContent += content;
+  &lt;span class=&quot;hljs-comment&quot;&gt;// 实时输出（不换行）&lt;/span&gt;
+  process.&lt;span class=&quot;hljs-property&quot;&gt;stdout&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;write&lt;/span&gt;(content);
+&amp;#125;
+
+&lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`\n\n共接收 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;chunkCount&amp;#125;&lt;/span&gt; 个数据块`&lt;/span&gt;);
+&lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`完整内容长度：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;fullContent.length&amp;#125;&lt;/span&gt; 字符`&lt;/span&gt;);
+</code></pre>
+<p>  &amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘流式输出出错:’</span>, err);<br>  &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-title function_">streamDemo</span>();<br></p></code></pre><p></p>
+<h4 data-id="heading-15">3.3 核心概念解析</h4>
+<pre><code class="hljs language-scss" lang="scss">model<span class="hljs-selector-class">.stream</span>() vs model<span class="hljs-selector-class">.invoke</span>()
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  model<span class="hljs-selector-class">.invoke</span>(prompt)                                    │<br>│  → 同步等待完整响应                                       │<br>│  → 返回一个完整的 AIMessage                               │<br>│  → 适合短回答、不需要流式的场景                           │<br>│  → 缺点：等待时间长                                       │<br>│                                                          │<br>│  model<span class="hljs-selector-class">.stream</span>(prompt)                                    │<br>│  → 返回一个异步可迭代对象（AsyncIterable）               │<br>│  → 不是一次性返回结果，而是一个”流”                       │<br>│  → 需要 for await..<span class="hljs-selector-class">.of</span> 来消费                            │<br>│  → 每个 chunk 是部分内容                                 │<br>│  → 适合长回答、打字机效果                                 │<br>│  → 优点：即时反馈                                         │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<pre><code class="hljs language-csharp" lang="csharp"><span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span>...of：异步迭代
+
+  普通的 <span class="hljs-keyword">for</span>...of：
+  → 遍历同步可迭代对象（数组、字符串等）
+  → <span class="hljs-keyword">const</span> arr = [<span class="hljs-number">1</span>, <span class="hljs-number">2</span>, <span class="hljs-number">3</span>]; <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> item of arr) &#123; ... &#125;
+
+  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span>...of：
+  → 遍历异步可迭代对象
+  → 每个 chunk 可能需要等待（模型生成需要时间）
+  → <span class="hljs-keyword">await</span> 确保前一个 chunk 处理完再取下一个
+
+  ┌──────────────────────────────────────────────────────────┐
+│  流式消费过程                                             │
+│                                                          │
+│  <span class="hljs-keyword">const</span> stream = <span class="hljs-keyword">await</span> model.stream(prompt);               │
+│  <span class="hljs-comment">//  stream 是一个"管子"                                  │</span>
+│                                                          │
+│  <span class="hljs-function"><span class="hljs-keyword">for</span> <span class="hljs-title">await</span> (<span class="hljs-params"><span class="hljs-keyword">const</span> chunk of stream</span>)</span> &#123;                     │
+│    <span class="hljs-comment">// chunk 是管子里流过来的"水"                          │</span>
+│    <span class="hljs-comment">// 每个 chunk 包含部分 AI 生成的文本                    │</span>
+│    process.stdout.write(chunk.content);                  │
+│    <span class="hljs-comment">// 实时输出，不等完整结果                              │</span>
+│  &#125;                                                       │
+│  <span class="hljs-comment">// 流结束                                                │</span>
+└──────────────────────────────────────────────────────────┘
+
+  stream 对象的本质：
+  → 不是数据本身，而是<span class="hljs-string">"数据的管道"</span>
+  → 数据在管道中<span class="hljs-string">"流动"</span>
+  → 你从管道中逐个取出 chunk
+  → 类似 Node.js 的 Readable Stream
+</code></pre>
+<h4 data-id="heading-16">3.4 process.stdout.write vs console.log</h4>
+<pre><code class="hljs language-lua" lang="lua">为什么用 process.<span class="hljs-built_in">stdout</span>.<span class="hljs-built_in">write</span> 而不是 console.<span class="hljs-built_in">log</span>？
+
+<p>  console.<span class="hljs-built_in">log</span>：<br>  → 每次调用会自动在末尾加 \n（换行）<br>  → 流式输出时每个 chunk 后都换行 → 格式混乱<br>  → <span class="hljs-string">“莫\n扎\n特\n”</span> → 不连贯</p>
+<p>  process.<span class="hljs-built_in">stdout</span>.<span class="hljs-built_in">write</span>：<br>  → 原始输出，不加任何额外字符<br>  → chunk 之间无间隔 → 连贯显示<br>  → <span class="hljs-string">“莫扎特”</span> → 打字机效果<br>  → 类似浏览器的 innerText +&#x3D;</p>
+<p>  ┌──────────────────────────────────────────────────────┐<br>│  console.<span class="hljs-built_in">log</span>(chunk.content)                           │<br>│  输出：                                               │<br>│  莫                                                   │<br>│  扎                                                   │<br>│  特                                                   │<br>│  是                                                   │<br>│  …                                                  │<br>│  → 每个 chunk 换行，不像打字机                         │<br>│                                                      │<br>│  process.<span class="hljs-built_in">stdout</span>.<span class="hljs-built_in">write</span>(chunk.content)                 │<br>│  输出：                                               │<br>│  莫扎特是一位伟大的作曲家…                          │<br>│  → chunk 连贯拼接，真正的打字机效果                   │<br>└──────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-17">四、LLM Stream + SSE：完整链路</h3>
+<h4 data-id="heading-18">4.1 ChatGPT 的打字机效果原理</h4>
+<pre><code class="hljs language-kotlin" lang="kotlin">ChatGPT 打字机效果的完整链路：
+
+<p>  浏览器                      后端服务器                 LLM API<br>    │                           │                        │<br>    │── POST &#x2F;chat ────────────→│                        │<br>    │                           │── stream(prompt) ─────→│<br>    │                           │                        │<br>    │                           │←─ chunk <span class="hljs-number">1</span> <span class="hljs-string">“莫”</span> ────────│<br>    │←─ <span class="hljs-keyword">data</span>: 莫\n\n ──────────│                        │<br>    │  （显示<span class="hljs-string">“莫”</span>）             │                        │<br>    │                           │←─ chunk <span class="hljs-number">2</span> <span class="hljs-string">“扎”</span> ────────│<br>    │←─ <span class="hljs-keyword">data</span>: 扎\n\n ──────────│                        │<br>    │  （显示<span class="hljs-string">“莫扎”</span>）           │                        │<br>    │                           │←─ chunk <span class="hljs-number">3</span> <span class="hljs-string">“特”</span> ────────│<br>    │←─ <span class="hljs-keyword">data</span>: 特\n\n ──────────│                        │<br>    │  （显示<span class="hljs-string">“莫扎特”</span>）         │                        │<br>    │                           │   …                  │<br>    │                           │←─ stream 结束 ─────────│<br>    │←─ 连接关闭 ──────────────│                        │<br>    │                           │                        │</p>
+<p>  两个流的衔接：<br>  ① 后端 → LLM：model.stream() 获取 LLM 流式输出<br>  ② 后端 → 前端：SSE 将 chunk 推送给浏览器</p>
+<p>  后端是<span class="hljs-string">“中转站”</span>：<br>  → 从 LLM 接收 chunk<br>  → 转成 SSE 格式<br>  → 推给浏览器<br>  → 逐 chunk 中转，不等待完整响应<br></p></code></pre><p></p>
+<h4 data-id="heading-19">4.2 完整链路伪代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 后端：LLM Stream + SSE 组合</span>
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123; <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span> &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; Express 路由</span><br>app.<span class="hljs-title function_">get</span>(<span class="hljs-string">‘&#x2F;chat’</span>, <span class="hljs-keyword">async</span> (req, res) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; 设置 SSE 响应头</span><br>  res.<span class="hljs-title function_">writeHead</span>(<span class="hljs-number">200</span>, &amp;#123;<br>    <span class="hljs-string">‘Content-Type’</span>: <span class="hljs-string">‘text&#x2F;event-stream’</span>,<br>    <span class="hljs-string">‘Cache-Control’</span>: <span class="hljs-string">‘no-cache’</span>,<br>    <span class="hljs-string">‘Connection’</span>: <span class="hljs-string">‘keep-alive’</span>,<br>  &amp;#125;);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; LLM 流式输出 → SSE 推送</span><br>  <span class="hljs-keyword">const</span> stream &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(<span class="hljs-string">‘详细介绍莫扎特’</span>);</p>
+<p>  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; 每个 LLM chunk → SSE 格式推给前端</span><br>    res.<span class="hljs-title function_">write</span>(<span class="hljs-string"><code>data: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;chunk.content&amp;#125;&lt;/span&gt;\n\n</code></span>);<br>  &amp;#125;</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 流结束，关闭连接</span><br>  res.<span class="hljs-title function_">end</span>();<br>&amp;#125;);<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 前端：EventSource 接收</span>
+<span class="hljs-keyword">const</span> eventSource = <span class="hljs-keyword">new</span> <span class="hljs-title class_">EventSource</span>(<span class="hljs-string">'/chat?prompt=莫扎特'</span>);
+
+eventSource.<span class="hljs-property">onmessage</span> = <span class="hljs-function">(<span class="hljs-params">e</span>) =&gt;</span> &#123;
+  <span class="hljs-comment">// 每个 chunk 到达时追加显示</span>
+  <span class="hljs-variable language_">document</span>.<span class="hljs-title function_">getElementById</span>(<span class="hljs-string">'result'</span>).<span class="hljs-property">innerText</span> += e.<span class="hljs-property">data</span>;
+&#125;;
+
+eventSource.<span class="hljs-property">onerror</span> = <span class="hljs-function">() =&gt;</span> &#123;
+  <span class="hljs-comment">// 连接关闭或出错</span>
+  eventSource.<span class="hljs-title function_">close</span>();
+&#125;;
+</code></pre>
+<pre><code class="hljs language-scss" lang="scss">完整链路总结：
+
+  LLM API  ──<span class="hljs-built_in">stream</span>()──→  后端  ──SSE──→  浏览器
+
+  ① model<span class="hljs-selector-class">.stream</span>(prompt)
+  → 返回 AsyncIterable
+  → 逐个 chunk 产出
+
+  ② for await (const chunk of stream)
+  → 消费 LLM 流
+  → 每个 chunk 即时处理
+
+  ③ res<span class="hljs-selector-class">.write</span>(`data: $&#123;chunk.content&#125;\n\n`)
+  → 转成 SSE 格式
+  → 推给浏览器
+
+  ④ eventSource<span class="hljs-selector-class">.onmessage</span>
+  → 浏览器接收 chunk
+  → 追加显示
+
+  ⑤ res<span class="hljs-selector-class">.end</span>()
+  → LLM 流结束
+  → SSE 连接关闭
+</code></pre>
+<hr>
+<h3 data-id="heading-20">五、关键技术深度</h3>
+<h4 data-id="heading-21">5.1 HTTP 长连接</h4>
+<pre><code class="hljs language-vbnet" lang="vbnet">为什么 HTTP 能<span class="hljs-string">"边传边显示"</span>？
+
+<p>  HTTP&#x2F;<span class="hljs-number">1.1</span> 的 Transfer-Encoding: chunked</p>
+<p>  → HTTP 响应不需要预先知道 Content-Length<br>  → 可以用 chunked 编码，逐块传输<br>  → 每块前标注本块大小，<span class="hljs-number">0</span> 大小块表示结束</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  HTTP 分块传输编码                                        │<br>│                                                          │<br>│  HTTP&#x2F;<span class="hljs-number">1.1</span> <span class="hljs-number">200</span> OK                                        │<br>│  Transfer-Encoding: chunked                              │<br>│  Content-Type: <span class="hljs-keyword">text</span>&#x2F;<span class="hljs-keyword">event</span>-stream                         │<br>│                                                          │<br>│  <span class="hljs-number">5</span>\r\n                                                   │<br>│  data:\r\n                                               │<br>│  <span class="hljs-number">3</span>\r\n                                                   │<br>│  你\r\n                                                  │<br>│  <span class="hljs-number">2</span>\r\n                                                   │<br>│  \n\n                                                    │<br>│  <span class="hljs-number">0</span>\r\n                                                   │<br>│  \r\n                                                    │<br>│  （<span class="hljs-number">0</span> 表示传输结束）                                       │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  SSE 就是利用了这个机制：<br>  → 不设 Content-Length（不知道总共多少数据）<br>  → 设置 Connection: keep-alive（保持连接）<br>  → 服务器持续 res.write()（逐块发送）<br>  → 最终 res.<span class="hljs-keyword">end</span>()（关闭连接）</p>
+<p>  这就是为什么 SSE 基于 HTTP 就能实现流式<br>  → 不需要 WebSocket 的协议升级<br>  → 普通 HTTP 就能做到<br></p></code></pre><p></p>
+<h4 data-id="heading-22">5.2 AsyncIterator 原理</h4>
+<pre><code class="hljs language-javascript" lang="javascript">model.<span class="hljs-title function_">stream</span>() 返回的是 <span class="hljs-title class_">AsyncIterable</span>
+
+<p>  <span class="hljs-title class_">AsyncIterator</span> 的本质：<br>  → 实现了 <a href><span class="hljs-title class_">Symbol</span>.<span class="hljs-property">asyncIterator</span></a> 方法<br>  → 每次 <span class="hljs-title function_">next</span>() 返回一个 <span class="hljs-title class_">Promise</span><br>  → <span class="hljs-title class_">Promise</span> resolve 后得到 &amp;#123; <span class="hljs-attr">value</span>: chunk, <span class="hljs-attr">done</span>: <span class="hljs-literal">false</span> &amp;#125;<br>  → 流结束时 &amp;#123; <span class="hljs-attr">done</span>: <span class="hljs-literal">true</span> &amp;#125;</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span>…<span class="hljs-keyword">of</span> 的内部机制                                │<br>│                                                          │<br>│  <span class="hljs-comment">&#x2F;&#x2F; 这段代码：                                            │</span><br>│  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;                     │<br>│    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(chunk);                                   │<br>│  &amp;#125;                                                       │<br>│                                                          │<br>│  <span class="hljs-comment">&#x2F;&#x2F; 等价于：                                              │</span><br>│  <span class="hljs-keyword">const</span> iterator &#x3D; stream<a href><span class="hljs-title class_">Symbol</span>.<span class="hljs-property">asyncIterator</span></a>;        │<br>│  <span class="hljs-keyword">while</span> (<span class="hljs-literal">true</span>) &amp;#123;                                          │<br>│    <span class="hljs-keyword">const</span> &amp;#123; value, done &amp;#125; &#x3D; <span class="hljs-keyword">await</span> iterator.<span class="hljs-title function_">next</span>();        │<br>│    <span class="hljs-keyword">if</span> (done) <span class="hljs-keyword">break</span>;                                      │<br>│    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(value);                                   │<br>│  &amp;#125;                                                       │<br>│                                                          │<br>│  → 每次 <span class="hljs-keyword">await</span> iterator.<span class="hljs-title function_">next</span>() 等待下一个 chunk            │<br>│  → <span class="hljs-variable constant_">LLM</span> 生成一个 token → <span class="hljs-title function_">next</span>() resolve                   │<br>│  → 循环继续，取下一个 chunk                               │<br>│  → <span class="hljs-variable constant_">LLM</span> 生成完毕 → <span class="hljs-attr">done</span>: <span class="hljs-literal">true</span> → 循环结束                  │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  这就是<span class="hljs-string">“流”</span>的本质：<br>  → 不是一次性拿到所有数据<br>  → 而是数据<span class="hljs-string">“一点一点”</span>地来<br>  → 每来一点就处理一点<br>  → 来完为止<br></p></code></pre><p></p>
+<h4 data-id="heading-23">5.3 res.write vs res.end</h4>
+<pre><code class="hljs language-ruby" lang="ruby"><span class="hljs-title class_">Node</span>.js <span class="hljs-variable constant_">HTTP</span> 响应的两种写入方式：
+
+<p>  res.write(data)<br>  → 向响应中写入一块数据<br>  → 不关闭连接<br>  → 可以继续 write<br>  → 数据被<span class="hljs-string">“推”</span>到 <span class="hljs-variable constant_">TCP</span> 缓冲区<br>  → 浏览器实时收到</p>
+<p>  res.<span class="hljs-keyword">end</span>([data])<br>  → 标记响应结束<br>  → 可以最后再写一块数据<br>  → 关闭 <span class="hljs-variable constant_">HTTP</span> 连接<br>  → 浏览器收到连接关闭信号</p>
+<p>  ┌──────────────────────────────────────────────────────┐<br>│  <span class="hljs-variable constant_">SSE</span> 中的使用                                         │<br>│                                                      │<br>│  res.write(<span class="hljs-string"><code>data: 你\n\n</code></span>);  <span class="hljs-regexp">&#x2F;&#x2F;</span> 推送数据，不断开     │<br>│  res.write(<span class="hljs-string"><code>data: 好\n\n</code></span>);  <span class="hljs-regexp">&#x2F;&#x2F;</span> 继续推送             │<br>│  res.write(<span class="hljs-string"><code>data: !\n\n</code></span>);   <span class="hljs-regexp">&#x2F;&#x2F;</span> 继续推送             │<br>│  res.<span class="hljs-keyword">end</span>();                  <span class="hljs-regexp">&#x2F;&#x2F;</span> 全部发完，关闭连接   │<br>│                                                      │<br>│  如果只 write 不 <span class="hljs-keyword">end</span>？                               │<br>│  → 浏览器会一直等待                                  │<br>│  → 连接不会关闭                                      │<br>│  → <span class="hljs-title class_">EventSource</span> 会一直保持连接                        │<br>│  → 这就是<span class="hljs-string">“长连接”</span>                                    │<br>└──────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-24">六、SSE 进阶用法</h3>
+<h4 data-id="heading-25">6.1 自定义事件</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable constant_">SSE</span> 支持自定义事件类型：
+
+<p>  服务端：<br>  res.<span class="hljs-title function_">write</span>(<span class="hljs-string"><code>event: update\ndata: &amp;#123;&quot;price&quot;: 100&amp;#125;\n\n</code></span>);<br>  res.<span class="hljs-title function_">write</span>(<span class="hljs-string"><code>event: notice\ndata: 系统维护中\n\n</code></span>);</p>
+<p>  前端：<br>  eventSource.<span class="hljs-title function_">addEventListener</span>(<span class="hljs-string">‘update’</span>, <span class="hljs-function">(<span class="hljs-params">e</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘价格更新:’</span>, e.<span class="hljs-property">data</span>);<br>  &amp;#125;);<br>  eventSource.<span class="hljs-title function_">addEventListener</span>(<span class="hljs-string">‘notice’</span>, <span class="hljs-function">(<span class="hljs-params">e</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘通知:’</span>, e.<span class="hljs-property">data</span>);<br>  &amp;#125;);</p>
+<p>  默认 message 事件 vs 自定义事件：<br>  → <span class="hljs-attr">event</span>: xxx → 用 <span class="hljs-title function_">addEventListener</span>(<span class="hljs-string">‘xxx’</span>, …) 接收<br>  → 不写 event → 用 onmessage 接收<br></p></code></pre><p></p>
+<h4 data-id="heading-26">6.2 带重试间隔</h4>
+<pre><code class="hljs language-r" lang="r">SSE 支持指定重连等待时间：
+
+<p>  res.write<span class="hljs-punctuation">(</span><code>retry: 5000\n\n</code><span class="hljs-punctuation">)</span>;  <span class="hljs-operator">&#x2F;</span><span class="hljs-operator">&#x2F;</span> 断线后 <span class="hljs-number">5</span> 秒重连<br>  res.write<span class="hljs-punctuation">(</span><code>data: 你好\n\n</code><span class="hljs-punctuation">)</span>;</p>
+<p>  → retry<span class="hljs-operator">:</span> 毫秒数<br>  → 浏览器断线后等待指定毫秒再重连<br>  → 默认 <span class="hljs-number">3</span> 秒<br></p></code></pre><p></p>
+<h4 data-id="heading-27">6.3 SSE 的 CORS 问题</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-title class_">EventSource</span> 的跨域限制：
+
+<p>  → <span class="hljs-title class_">EventSource</span> 支持 <span class="hljs-variable constant_">CORS</span><br>  → 服务器需要设置 <span class="hljs-title class_">Access</span>-<span class="hljs-title class_">Control</span>-<span class="hljs-title class_">Allow</span>-<span class="hljs-title class_">Origin</span><br>  → 但不能自定义请求头（如 <span class="hljs-title class_">Authorization</span>）</p>
+<p>  如果需要带 <span class="hljs-title class_">Token</span>：<br>  ① 用 <span class="hljs-title class_">Cookie</span> 传递（<span class="hljs-title class_">EventSource</span> 会自动带 <span class="hljs-title class_">Cookie</span>）<br>  ② 用 <span class="hljs-variable constant_">URL</span> 参数传递（?token&#x3D;xxx，不安全）<br>  ③ 放弃 <span class="hljs-title class_">EventSource</span>，用 fetch + <span class="hljs-title class_">ReadableStream</span></p>
+<p>  fetch + <span class="hljs-title class_">ReadableStream</span> 方案（支持 <span class="hljs-variable constant_">POST</span> + 自定义头）：<br>  <span class="hljs-keyword">const</span> response &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(<span class="hljs-string">‘&#x2F;chat’</span>, &amp;#123;<br>    <span class="hljs-attr">method</span>: <span class="hljs-string">‘POST’</span>,<br>    <span class="hljs-attr">headers</span>: &amp;#123; <span class="hljs-string">‘Authorization’</span>: <span class="hljs-string"><code>Bearer &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;token&amp;#125;&lt;/span&gt;</code></span> &amp;#125;,<br>    <span class="hljs-attr">body</span>: <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(&amp;#123; <span class="hljs-attr">prompt</span>: <span class="hljs-string">‘你好’</span> &amp;#125;),<br>  &amp;#125;);</p>
+<p>  <span class="hljs-keyword">const</span> reader &#x3D; response.<span class="hljs-property">body</span>.<span class="hljs-title function_">getReader</span>();<br>  <span class="hljs-keyword">const</span> decoder &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">TextDecoder</span>();</p>
+<p>  <span class="hljs-keyword">while</span> (<span class="hljs-literal">true</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> &amp;#123; done, value &amp;#125; &#x3D; <span class="hljs-keyword">await</span> reader.<span class="hljs-title function_">read</span>();<br>    <span class="hljs-keyword">if</span> (done) <span class="hljs-keyword">break</span>;<br>    <span class="hljs-keyword">const</span> text &#x3D; decoder.<span class="hljs-title function_">decode</span>(value);<br>    <span class="hljs-comment">&#x2F;&#x2F; 解析 SSE 格式数据</span><br>  &amp;#125;<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-28">七、知识速查</h3>
+<h4 data-id="heading-29">7.1 SSE API 速查</h4>
+<table><thead><tr><th>API</th><th>作用</th><th>说明</th></tr></thead><tbody><tr><td><code>new EventSource(url)</code></td><td>创建 SSE 连接</td><td>浏览器原生 API</td></tr><tr><td><code>eventSource.onmessage</code></td><td>默认消息事件</td><td>接收 <code>data:</code> 消息</td></tr><tr><td><code>eventSource.addEventListener</code></td><td>自定义事件</td><td>接收 <code>event:</code> 消息</td></tr><tr><td><code>eventSource.close()</code></td><td>关闭连接</td><td>手动断开</td></tr><tr><td><code>res.write('data: xxx\n\n')</code></td><td>发送 SSE 数据</td><td>服务端推送</td></tr><tr><td><code>res.end()</code></td><td>关闭 SSE 连接</td><td>结束流</td></tr></tbody></table>
+<h4 data-id="heading-30">7.2 LLM Stream API 速查</h4>
+<table><thead><tr><th>API</th><th>作用</th><th>说明</th></tr></thead><tbody><tr><td><code>model.invoke(prompt)</code></td><td>同步调用</td><td>等完整响应</td></tr><tr><td><code>model.stream(prompt)</code></td><td>流式调用</td><td>返回 AsyncIterable</td></tr><tr><td><code>for await (chunk of stream)</code></td><td>消费流</td><td>逐 chunk 处理</td></tr><tr><td><code>chunk.content</code></td><td>chunk 内容</td><td>文本字符串</td></tr><tr><td><code>process.stdout.write()</code></td><td>原始输出</td><td>不加换行</td></tr></tbody></table>
+<h4 data-id="heading-31">7.3 响应头速查</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// SSE 必须的三个响应头</span>
+res.<span class="hljs-title function_">writeHead</span>(<span class="hljs-number">200</span>, &#123;
+  <span class="hljs-string">'Content-Type'</span>: <span class="hljs-string">'text/event-stream'</span>,  <span class="hljs-comment">// 声明 SSE</span>
+  <span class="hljs-string">'Cache-Control'</span>: <span class="hljs-string">'no-cache'</span>,           <span class="hljs-comment">// 禁止缓存</span>
+  <span class="hljs-string">'Connection'</span>: <span class="hljs-string">'keep-alive'</span>,            <span class="hljs-comment">// 保持连接</span>
+&#125;);
+</code></pre>
+<hr>
+<h3 data-id="heading-32">八、总结</h3>
+<h4 data-id="heading-33">8.1 知识体系图</h4>
+<pre><code class="hljs language-ini" lang="ini">前端流式输出
+│
+├── 为什么需要流式
+│   ├── 传统 HTTP 痛点：白屏等待
+│   ├── LLM 场景：20 秒 → 0.5 秒看到第一个字
+│   └── 流式本质：一次性 → 分块（chunk）传输
+│
+├── SSE（Server-Sent Events）
+│   ├── 原理：HTTP 长连接 + 服务器持续推送
+│   ├── 三个响应头
+│   │   ├── Content-Type: text/event-stream
+│   │   ├── Cache-Control: no-cache
+│   │   └── Connection: keep-alive
+│   ├── 数据格式：data: 内容\n\n
+│   ├── 前端 API：EventSource + onmessage
+│   ├── 局限：只能 GET、不能自定义头
+│   ├── vs WebSocket：单向 vs 双向
+│   └── 进阶：自定义事件、retry、fetch+ReadableStream
+│
+├── LLM 流式输出
+│   ├── LLM 逐 token 生成
+│   ├── model.invoke() vs model.stream()
+│   ├── stream 返回 AsyncIterable
+│   ├── for await...of 消费异步流
+│   ├── <span class="hljs-attr">chunk</span> = 部分内容
+│   ├── process.stdout.write() 连贯输出
+│   └── for await 内部机制（Symbol.asyncIterator）
+│
+├── 完整链路（LLM Stream + SSE）
+│   ├── 后端：model.stream() 获取 LLM 流
+│   ├── 后端：for await 消费 chunk
+│   ├── 后端：res.write(SSE 格式) 推给前端
+│   ├── 前端：EventSource.onmessage 接收
+│   ├── 前端：innerText += 追加显示
+│   └── 后端：res.end() 关闭连接
+│
+├── 关键技术深度
+│   ├── HTTP chunked 传输编码（边传边显示原理）
+│   ├── AsyncIterator 原理（next() + done）
+│   ├── res.write vs res.end
+│   └── HTTP 长连接（keep-alive）
+│
+└── 核心认知
+    ├── <span class="hljs-attr">chunk</span> = 流的基本单位
+    ├── <span class="hljs-attr">stream</span> = chunk 的管道
+    ├── <span class="hljs-attr">SSE</span> = 服务器→浏览器的单向流
+    ├── LLM <span class="hljs-attr">stream</span> = AI 生成的流
+    └── 两者组合 = ChatGPT 打字机效果
+</code></pre>
+<h4 data-id="heading-34">8.2 一句话总结</h4>
+<blockquote>
+<p><strong>流式输出的本质是把"一次性返回完整数据"拆成"逐块返回 chunk"。SSE 是服务器到浏览器的单向推送机制——通过 HTTP 长连接和</strong> <strong><code>data: xxx\n\n</code></strong> <strong>格式，服务器可以持续推送 chunk 给浏览器。LLM 流式输出是 AI 的逐 token 生成——<code>model.stream()</code></strong> <strong>返回 AsyncIterable，用</strong> <strong><code>for await...of</code></strong> <strong>逐 chunk 消费。ChatGPT 的打字机效果就是两者的组合：后端用</strong> <strong><code>model.stream()</code></strong> <strong>从 LLM 获取流式输出，再通过 SSE 格式</strong> <strong><code>res.write()</code></strong> <strong>推给前端，前端</strong> <strong><code>EventSource.onmessage</code></strong> <strong>逐个接收并追加显示。核心概念只有一个——chunk 是流的基本单位，stream 是 chunk 的管道，流式输出就是从管道里逐个取 chunk 实时处理。</strong></p>
+</blockquote>
+<hr>
+<blockquote>
+<p>如果这篇文章对你有帮助，欢迎<strong>点赞</strong>和<strong>收藏</strong>！</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势" href="https://juejin.cn/post/7681170932348682278" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</span><span class="desc fs12">https://juejin.cn/post/7681170932348682278</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/2a4dfb64.html">Daybreak for Frontline Defenders: $1B to Protect Essential Services<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/db7ee48f.html">Introducing WeatherNext 3, Our Most Advanced and Accurate Global Weather AI Model<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/888b2748.html" title="中宣部召开党报党刊理论版改进文风经验交流会"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9708"></div><span class="title">中宣部召开党报党刊理论版改进文风经验交流会</span></a><a class="item" href="/rss/784755e.html" title="ASP.NET Core WebAPI 服务在 IM 即时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8187"></div><span class="title">ASP.NET Core WebAPI 服务在 IM 即时</span></a><a class="item" href="/rss/c14c9400.html" title="Agent Memory 进阶：用 LLM 总结压缩上下文，告别" 金鱼记忆""><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6074"></div><span class="title">Agent Memory 进阶：用 LLM 总结压缩上下文，告别"金鱼记忆"</span></a><a class="item" href="/rss/315ea88b.html" title="RHCE通关秘籍:从零基础到高分拿证的5个加速器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6648"></div><span class="title">RHCE通关秘籍:从零基础到高分拿证的5个加速器</span></a><a class="item" href="/rss/9afed97d.html" title="RHCE学习拿证计划：锁定核心考点，实现备考效率最大化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8857"></div><span class="title">RHCE学习拿证计划：锁定核心考点，实现备考效率最大化</span></a><a class="item" href="/rss/d591b321.html" title="SQL Server 2008 SQL注入详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6387"></div><span class="title">SQL Server 2008 SQL注入详解</span></a><a class="item" href="/rss/5596913c.html" title="Travel Planner — 智能旅行行程规划助手"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1678"></div><span class="title">Travel Planner — 智能旅行行程规划助手</span></a><a class="item" href="/rss/cfb3c809.html" title="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8311"></div><span class="title">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</span></a><a class="item" href="/rss/7341fbb7.html" title="《理解道德经》简版第5章：天地不仁，以万物为刍狗"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7766e2afd00d44ee9a08d8bb72ab64d5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiA5rOV5aaC6aOe:q75.awebp?rk3s=f64ab15b&x-expires=1789193299&x-signature=%2F%2BkPLYIzZArl4JnSSOn9aB00qWw%3D"></div><span class="title">《理解道德经》简版第5章：天地不仁，以万物为刍狗</span></a><a class="item" href="/rss/f947ddcd.html" title="【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6582"></div><span class="title">【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔</span></a><a class="item" href="/rss/1f2613f.html" title="告别盲目刷题！RHCE高效备考路线图，助你一次Pass"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6048"></div><span class="title">告别盲目刷题！RHCE高效备考路线图，助你一次Pass</span></a><a class="item" href="/rss/95c5d50c.html" title="从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6984"></div><span class="title">从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析</span></a><a class="item" href="/rss/d1f6d3c2.html" title="【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2325"></div><span class="title">【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股</span></a><a class="item" href="/rss/a5fd193f.html" title="在 Uber 规模下高效运行软件工厂"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/0595327d00674b609ad016cb07157d21~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgODcz:q75.awebp?rk3s=f64ab15b&x-expires=1789024903&x-signature=%2FW238lOVZDjRETzwojtBsUCdqCM%3D"></div><span class="title">在 Uber 规模下高效运行软件工厂</span></a><a class="item" href="/rss/dcf5f583.html" title="斐波那契数列的前 N 项和"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2206"></div><span class="title">斐波那契数列的前 N 项和</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

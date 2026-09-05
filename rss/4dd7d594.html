@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从分屏到放牧 Agent：herdr 终端复用器实践指南 - RSSBOX</title>
+
+  
+    <meta name="description" content="注：本文文字经 AI 辅助校对排版。0. 为什么我们需要一个懂 Agent 的分屏工具？现在很多人接手稍微大一点的重构任务，桌面上往往同时挂着好几个 CLI 编程工具——比如一个窗口跑改业务逻辑，旁边开着补单元测试，偶尔还要调 再调一个做方案对比。窗口一多，最打断思路的不是写需求，而是在各个终端之间来回切屏和确认：任务派出去之后，切去写别的模块，等想起来切回来，才发现 Agent 早在 10 分">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从分屏到放牧 Agent：herdr 终端复用器实践指南">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/4dd7d594.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="注：本文文字经 AI 辅助校对排版。0. 为什么我们需要一个懂 Agent 的分屏工具？现在很多人接手稍微大一点的重构任务，桌面上往往同时挂着好几个 CLI 编程工具——比如一个窗口跑改业务逻辑，旁边开着补单元测试，偶尔还要调 再调一个做方案对比。窗口一多，最打断思路的不是写需求，而是在各个终端之间来回切屏和确认：任务派出去之后，切去写别的模块，等想起来切回来，才发现 Agent 早在 10 分">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/28/11080a045f9c8be569711c99f4209b85.png">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/db91cedd0ce7a84ba15bbc290c8387f4.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/3b730370fd3bebab1779f4b92c66e72a.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/62e9329866ca42dc9e5e7b1b43adb7b9.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/e3579920ee63591a3fb8a93771ebbaad.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/adde84b5ce84e13f266163203a4722d7.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/990c094e94f9f84ad222e8902d928767.gif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/f95b9c15573232e153e9dcbdf8e1e5d5.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp">
+<meta property="article:published_time" content="2026-09-01T01:36:36.000Z">
+<meta property="article:modified_time" content="2026-09-01T01:36:36.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="少数派">
+<meta property="article:tag" content="少数派Matrix">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/28/11080a045f9c8be569711c99f4209b85.png">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">0. 为什么我们需要一个懂 Agent 的分屏工具？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">1. 安装与快速上手</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">2. 日常使用与工作流</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 鼠标与快捷键</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 状态感知与快速跳转</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 让主力 Agent 充当主控调度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.4 移动端与看板：Tailscale + Mosh + herdr-paddock</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">我的移动端配置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">herdr-paddock：竖屏卡片流看板</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3. 和现有工具怎么搭配？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. Ghostty &#x2F; 原生终端</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. tmux &#x2F; Zellij</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 官方桌面客户端（如 Codex App 等）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. 远程桌面（向日葵 &#x2F; ToDesk &#x2F; UU）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4. 避坑与使用边界</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">5. 结语</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/">少数派</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/%E5%B0%91%E6%95%B0%E6%B4%BEmatrix/">少数派Matrix</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-01T01:36:36.000Z">2026-09-01</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从分屏到放牧 Agent：herdr 终端复用器实践指南</span></h1>
+<div>
+<img class="lazy" alt="Article Cover Image" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/28/11080a045f9c8be569711c99f4209b85.png" style="display: block; margin: 0 auto;"><br><p><i>注：本文文字经 AI 辅助校对排版。</i></p><h2>0. 为什么我们需要一个懂 Agent 的分屏工具？</h2><p>现在很多人接手稍微大一点的重构任务，桌面上往往同时挂着好几个 CLI 编程工具——比如一个窗口跑改业务逻辑，旁边开着补单元测试，偶尔还要调 再调一个做方案对比。</p><p>窗口一多，最打断思路的不是写需求，而是<strong>在各个终端之间来回切屏和确认</strong>：</p><p>任务派出去之后，切去写别的模块，等想起来切回来，才发现 Agent 早在 10 分钟前就跑完了，正卡在 <code>[y/N]</code> 确认框前等你敲回车；又或者不小心误关了终端窗口、SSH 临时掉线，跑了一半的会话上下文就全丢了。</p><p><strong>herdr 解决的就是这个问题。</strong></p><p>它是一个 Rust 编写的终端复用器。基础功能和 tmux、Zellij 类似：在一个窗口里自由切分屏幕、保持后台会话常驻。但它针对 AI 编程多做了一件很实用的事：<strong>能自动识别常见的 CLI Agent，并在左侧栏标出每个分屏的当前状态</strong>（目前已原生支持 Claude Code、Codex、Cursor CLI、Grok Build、Antigravity CLI、Pi、OpenCode 等主流工具；普通进程则作为标准终端运行）。</p><p>外层依然是你习惯的终端（如 Ghostty、iTerm2 或手机上的 Moshi），内层依然跑着你的 zsh 或 fish，而夹在中间的 herdr 负责把各个 Agent 的状态整理在同一屏里。</p><hr><h2>1. 安装与快速上手</h2><p>herdr 支持 macOS、Linux 和 Windows，以单二进制分发。官方提供了一行安装脚本：</p><pre class="language-shell"><code>curl -fsSL https://herdr.dev/install.sh | sh</code></pre><p>包管理器用户可以用 Homebrew 或 mise 安装；Windows 平台可以使用官方提供的 PowerShell 脚本（详见 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://herdr.dev/agent-guide.md">官方指南</a>）。</p><p>安装后在项目目录下输入 <code>herdr</code> 即可启动。关掉窗口或断网后，后台会话依然运行，重新打开终端输入 <code>herdr</code> 即可恢复现场。</p><figure class="image ss-img-wrapper"><img class="lazy" alt="一屏里同时开着编辑器和两个 Agent" data-original="https://cdnfile.sspai.com/2026/08/27/db91cedd0ce7a84ba15bbc290c8387f4.png?imageView2/2/format/webp" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/db91cedd0ce7a84ba15bbc290c8387f4.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"><figcaption>一屏里同时开着编辑器和两个 Agent</figcaption></figure><hr><h2>2. 日常使用与工作流</h2><h3>2.1 鼠标与快捷键</h3><p>分屏和窗口操作支持常规的鼠标交互，无需额外配置：</p><ul><li>拖拽分屏边框调整大小；</li><li>滚轮独立滚动各分屏的历史输出；</li><li>右键点击呼出菜单，快速切分或关闭窗格；</li><li>点击任意分屏直接切换输入焦点。</li></ul><p>快捷键默认沿用了 tmux 的 <code>Ctrl+b</code> 前缀（按下 <code>Ctrl+b</code> 松开，再按对应字母）：</p><figure class="table"><table><thead><tr><th>操作</th><th>快捷键</th><th>对应鼠标操作</th></tr></thead><tbody><tr><td><strong>左右垂直分屏</strong></td><td><code>Ctrl+b</code> 然后按 <code>v</code></td><td>右键选择「Split Vertical」</td></tr><tr><td><strong>上下水平分屏</strong></td><td><code>Ctrl+b</code> 然后按 <code>-</code></td><td>右键选择「Split Horizontal」</td></tr><tr><td><strong>新建标签页 (Tab)</strong></td><td><code>Ctrl+b</code> 然后按 <code>c</code></td><td>点击顶部栏 <code>+</code> 号</td></tr><tr><td><strong>后台挂起 (Detach)</strong></td><td><code>Ctrl+b</code> 然后按 <code>q</code></td><td>-</td></tr><tr><td><strong>快捷键帮助</strong></td><td><code>Ctrl+b</code> 然后按 <code>?</code></td><td>-</td></tr></tbody></table></figure><p>左边开着 nvim 写代码，右边随手切一格跑 Agent：</p><figure class="image ss-img-wrapper"><img class="lazy" alt="nvim 再分出一格" data-original="https://cdnfile.sspai.com/2026/08/27/3b730370fd3bebab1779f4b92c66e72a.gif" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/3b730370fd3bebab1779f4b92c66e72a.gif"><figcaption>nvim 再分出一格</figcaption></figure><hr><h3>2.2 状态感知与快速跳转</h3><p>herdr 左侧的状态栏会自动识别各格子里运行的 Agent，并归类为四种状态：</p><ul><li><strong>Blocked</strong>：卡在权限确认框（如 <code>[y/N]</code>）或正在向你提问，等待人工放行；</li><li><strong>Working</strong>：正在执行命令、读写文件或进行模型推理；</li><li><strong>Done</strong>：本轮任务执行完毕，等待验收；</li><li><strong>Idle</strong>：普通 Shell 空闲。</li></ul><p><i>(状态点的颜色会随终端主题自适应)</i></p><p>当右侧 Agent 卡在确认环节时，左侧栏会实时显示哪一个分屏需要处理：</p><figure class="image ss-img-wrapper"><img class="lazy" alt="左边在写，右边卡在确认；侧栏同时能看见 blocked 和正在跑" data-original="https://cdnfile.sspai.com/2026/08/27/62e9329866ca42dc9e5e7b1b43adb7b9.png?imageView2/2/format/webp" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/62e9329866ca42dc9e5e7b1b43adb7b9.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"><figcaption>左边在写，右边卡在确认；侧栏同时能看见 blocked 和正在跑</figcaption></figure><p>当同时跑好几个任务时，按下 <code>Ctrl+b</code> 松开再按 <code>g</code>，可以唤出 <strong>Agent 快速跳转面板</strong>：</p><figure class="image ss-img-wrapper"><img class="lazy" alt="Ctrl+b g 弹出跳转面板" data-original="https://cdnfile.sspai.com/2026/08/27/e3579920ee63591a3fb8a93771ebbaad.gif" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/e3579920ee63591a3fb8a93771ebbaad.gif"><figcaption>Ctrl+b g 弹出跳转面板</figcaption></figure><figure class="table"><table><thead><tr><th>按键</th><th>过滤目标</th><th>使用场景</th></tr></thead><tbody><tr><td><code><strong>b</strong></code></td><td><strong>Blocked</strong></td><td>直达所有卡在确认框的 Agent，敲回车放行</td></tr><tr><td><code><strong>w</strong></code></td><td><strong>Working</strong></td><td>查看哪些 Agent 正在高负载运行</td></tr><tr><td><code><strong>d</strong></code></td><td><strong>Done</strong></td><td>切到已完成的窗口审查修改结果</td></tr><tr><td><code><strong>i</strong></code></td><td><strong>Idle</strong></td><td>寻找空闲窗口分派新任务</td></tr><tr><td><code><strong>a</strong></code></td><td><strong>All</strong></td><td>列出全部 Agent</td></tr></tbody></table></figure><p>实际用下来最顺手的操作是：按下 <code>Ctrl+b g</code> 后按 <code>b</code> 直达卡住的 Agent 敲回车放行；处理完再按 <code>Ctrl+b g</code> + <code>d</code> 切换到跑完的分屏验收。双手不用离开主键盘区，也不用在一堆小分屏里到处找光标。</p><hr><h3>2.3 让主力 Agent 充当主控调度</h3><p>herdr 提供了官方 Skill。只要让你的主力 Agent 读入 <code>herdr --skill</code>，它就能通过命令自己切分屏幕和管理会话。</p><p>例如输入这样一条 Prompt，让它自己切出一套多窗口布局：</p><blockquote><p>read <code>herdr --skill</code> then split 10 other panels that make my computer look like some scifi hacker terminal from the movies</p></blockquote><p>它会自动完成分屏：</p><figure class="image ss-img-wrapper"><img class="lazy" alt="读 herdr --skill 之后自己开格子" data-original="https://cdnfile.sspai.com/2026/08/27/adde84b5ce84e13f266163203a4722d7.gif" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/27/adde84b5ce84e13f266163203a4722d7.gif"><figcaption>读 herdr --skill 之后自己开格子</figcaption></figure><p>更实用的场景是多模型交叉 Code Review。比如给主力 Agent 下发任务：</p><blockquote><p><i>“请针对当前分支开 3 个独立 Tab，分别启动 Codex、Grok Build 和 Antigravity CLI 做交叉代码审计；把大家的意见汇总成一份综合方案呈报给我，待我确认后再关闭这 3 个临时 Review 窗口。”</i></p></blockquote><p>主控会自动开 Tab、拉起不同模型、分发代码差异并等待它们跑完，最后汇总意见给你确认。如果需要多个 Agent 并行修改同一个项目，吩咐它开 <code>git worktree</code> 或独立分支即可，现在的 Agent 基本都能自行做好环境隔离。</p><hr><h3>2.4 移动端与看板：Tailscale + Mosh + herdr-paddock</h3><p>当并发管理的 Agent 较多、或者人离开办公桌后，侧栏状态点虽然看得到，但具体的报错和提问内容依然需要切进分屏查看。</p><p>在手机上通过 SSH 连入开发机时（iOS 推荐 Moshi、Blink，Android 推荐 Termux），竖屏通常只有约 40 列宽，桌面端 80 列以上的布局容易挤压。此时可以先按 <code>Ctrl+b b</code> 临时收起侧边栏。</p><h4>我的移动端配置</h4><ol><li><strong>Tailscale</strong>：异地组网，无需公网 IP 和端口转发；</li><li><strong>Mosh</strong>：在移动端代替传统 SSH，进出地铁或切换 Wi-Fi 断网后会自动重连，几乎无感；</li><li><strong>终端客户端</strong>：iOS 主力用 <strong>Moshi</strong>，Android 推荐 <strong>Termux</strong>。</li></ol><h4>herdr-paddock：竖屏卡片流看板</h4><p>为了在手机和副屏上更直观地查看各 Agent 的状态，我写了一个轻量辅助插件 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/neyham/herdr-paddock">herdr-paddock</a>。它读取 herdr 的状态，把各个 Agent 的最新输出排版成竖屏卡片流：</p><ul><li><strong>桌面副屏</strong>：常驻在副屏角落，不用频繁切窗，余光一扫就能看清所有 Agent 当前在干什么；</li><li><strong>手机通勤</strong>：配合 Tailscale + Mosh 连入，卡在等待审批的任务会自动置顶，通勤路上单手按 <code>y</code> 即可放行。</li></ul><p><i>(下面两张为仓库 </i><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/neyham/herdr-paddock"><i>neyham/herdr-paddock</i></a><i> 的卡片流演示：blocked 任务自动置顶，点进单卡可直接交互)</i></p><figure class="image ss-img-wrapper"><img class="lazy" alt="paddock 卡片墙：blocked 置顶，一眼看完全场" data-original="https://cdnfile.sspai.com/2026/08/26/990c094e94f9f84ad222e8902d928767.gif" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/990c094e94f9f84ad222e8902d928767.gif"><figcaption>paddock 卡片墙：blocked 置顶，一眼看完全场</figcaption></figure><figure class="image ss-img-wrapper"><img class="lazy" alt="手机竖屏上的 paddock 卡片流" data-original="https://cdnfile.sspai.com/2026/08/26/f95b9c15573232e153e9dcbdf8e1e5d5.png?imageView2/2/format/webp" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/f95b9c15573232e153e9dcbdf8e1e5d5.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"><figcaption>手机竖屏上的 paddock 卡片流</figcaption></figure><hr><h2>3. 和现有工具怎么搭配？</h2><p>herdr 和常用工具的结合方式：</p><h3>1. Ghostty / 原生终端</h3><p>直接在 Ghostty 里运行 <code>herdr</code> 即可——Ghostty 的渲染效果不受影响，同时获得了后台会话保活和状态看板。</p><h3>2. tmux / Zellij</h3><p>快捷键完全兼容（默认都是 <code>Ctrl+b</code>），习惯 tmux 的人基本零迁移成本。在并发跑 Agent 时，多出来的状态栏和单键跳转会更省心。</p><h3>3. 官方桌面客户端（如 Codex App 等）</h3><p>单模型的日常对话与本地 Diff 预览用官方 App 很直观；当需要多个不同厂商模型（如 Claude + Codex + Grok）协同、或者把任务挂在无图形界面的 Linux 服务器上时，走终端更灵活。</p><h3>4. 远程桌面（向日葵 / ToDesk / UU）</h3><p>图形化交互留给远程桌面；如果只是跟进终端里 Agent 的写代码进度，走 Tailscale + Mosh + herdr 字符流，在手机弱网环境下更轻快省电。</p><hr><h2>4. 避坑与使用边界</h2><ul><li><strong>会话持久化的范围</strong>：<code>detach</code> 保证的是关掉终端窗口或 SSH 断线时后台 Server 与任务持续运行。如果遇到断电或系统重启，普通进程依然会被操作系统回收。只有安装了官方 <code>herdr integration</code> 的受支持 Agent，在重启后才具备恢复会话上下文的能力，跑了一半的普通命令并不会凭空复活。</li></ul><hr><h2>5. 结语</h2><p>用了这段时间，herdr 真正帮我解决的核心问题，其实就是<strong>在终端里同时奔跑着成群的 Agent 时，帮开发者守住注意力</strong>。</p><p>清晰的状态侧栏、<code>Ctrl+b g</code> 的快速跳转，再加上可以让主力 Agent 调度多个模型协同——如果你也经常在多个终端分屏之间来回找光标、漏看确认框，在终端里敲下 <code>herdr</code> 试试，应该会顺手不少。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从分屏到放牧 Agent：herdr 终端复用器实践指南" href="https://sspai.com/post/113879" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从分屏到放牧 Agent：herdr 终端复用器实践指南</span><span class="desc fs12">https://sspai.com/post/113879</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/d1e6d342.html">How Law Firm Gilbert + Tobin Governs and Scales AI With OpenAI<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ab180eda.html">A Plane Lunar Eclipse<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/41d375e5.html" title="ThinkPad 最后的 4:3，正屏移动工作站 T61p 怀旧手记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/29/a30a8b653ad63162873458588fdf6849.jpg"></div><span class="title">ThinkPad 最后的 4:3，正屏移动工作站 T61p 怀旧手记</span></a><a class="item" href="/rss/f9beefda.html" title="为 Mac 而生：Markdown 编辑器 Lettera 现已开启公测"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/09/02/171cf09876e2cf30b8db7178b2555839.png"></div><span class="title">为 Mac 而生：Markdown 编辑器 Lettera 现已开启公测</span></a><a class="item" href="/rss/728d421e.html" title="为了让Mac上的“便签”回归本质，我制作了Brim"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/09/03/3ae294386f05c98db939c6c8a6996ac1.png"></div><span class="title">为了让Mac上的“便签”回归本质，我制作了Brim</span></a><a class="item" href="/rss/1ff43df4.html" title="做了一个 Tesla 数据 App，Mytess：现在不自建服务器也能用了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/90c7d5dba4762c8af9ef8e2024338bdf.jpg"></div><span class="title">做了一个 Tesla 数据 App，Mytess：现在不自建服务器也能用了</span></a><a class="item" href="/rss/194dce1a.html" title="告别墨水屏的输入延迟：我为 KOReader 开发了原生仓颉输入法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/22/eae4a35d9d725a8b583dfffebc839a49.jfif"></div><span class="title">告别墨水屏的输入延迟：我为 KOReader 开发了原生仓颉输入法</span></a><a class="item" href="/rss/b6d88c51.html" title="华人世界被忽视的游戏主机：扩写中国家用游戏主机的时间线"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/30/aaacdd01a6cc2f9e526df1a5a6cd294d.jpg"></div><span class="title">华人世界被忽视的游戏主机：扩写中国家用游戏主机的时间线</span></a><a class="item" href="/rss/6aa38e03.html" title="在“赛车游戏”中攻略赛道，到底有没有搞错什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/29/55c30437b4ab3036cb5925e524835972.jpg"></div><span class="title">在“赛车游戏”中攻略赛道，到底有没有搞错什么</span></a><a class="item" href="/rss/d7987b06.html" title="告别断层与隐私担忧：一款 100% 离线的 Apple 全平台智能长截图工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/26/b6677fcfb35a2e0e7faf09bdab8aec0f.PNG"></div><span class="title">告别断层与隐私担忧：一款 100% 离线的 Apple 全平台智能长截图工具</span></a><a class="item" href="/rss/93c36eb.html" title="库克正式卸任苹果CEO｜掌舵15年：始于重重质疑，终留功过一身"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/09/01/c693b692471315452208d898449a0226.png"></div><span class="title">库克正式卸任苹果CEO｜掌舵15年：始于重重质疑，终留功过一身</span></a><a class="item" href="/rss/c930faf0.html" title="我知道这是符号消费，但我还是买了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/07/17/7cf233edcdb9c1e3d4847fb9e704a897.jpeg?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"></div><span class="title">我知道这是符号消费，但我还是买了</span></a><a class="item" href="/rss/af7a3e0b.html" title="我为什么一用双拼就回不去了：从小鹤双拼到手机 14 键"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/28/fecc4d0f55f8d22ad82fc30c727ba231.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"></div><span class="title">我为什么一用双拼就回不去了：从小鹤双拼到手机 14 键</span></a><a class="item" href="/rss/161952e.html" title="看完 Karpathy 的分享，我用 AI 重做了一遍 Obsidian 知识库"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/30/345c775db4a133a8c94f7968ece45d9f.jpeg"></div><span class="title">看完 Karpathy 的分享，我用 AI 重做了一遍 Obsidian 知识库</span></a><a class="item" href="/rss/d0062a89.html" title="算法不只是在猜你喜欢：窥探 X「为你推荐」背后的秘密"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/19/fed7410ddcb867f38742804fa4d43a40.png"></div><span class="title">算法不只是在猜你喜欢：窥探 X「为你推荐」背后的秘密</span></a><a class="item" href="/rss/4ed05110.html" title="让 Windows 也能无缝连接 HomePod：全新 AirPlay 2 音频串流工具 WinAirCast"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/08/02/9024742d625421d37ef9d4ce5445d66b.png"></div><span class="title">让 Windows 也能无缝连接 HomePod：全新 AirPlay 2 音频串流工具 WinAirCast</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

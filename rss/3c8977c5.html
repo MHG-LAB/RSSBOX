@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How to Evaluate LLMs Before Production - RSSBOX</title>
+
+  
+    <meta name="description" content="A language model can perform well on a clean benchmark and still struggle with the cases that matter in production. Benchmarks and curated datasets are useful when prototyping an LLM-based system.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Evaluate LLMs Before Production">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/3c8977c5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="A language model can perform well on a clean benchmark and still struggle with the cases that matter in production. Benchmarks and curated datasets are useful when prototyping an LLM-based system.">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633085615-8fa1a231-a731-4c36-b53d-007d212d811d-1.png?resize=1024%2C441">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633087173-78b05bce-4a6d-4730-a35a-968bc56ec8a8.png?resize=1024%2C692">
+<meta property="article:published_time" content="2026-08-25T13:35:14.000Z">
+<meta property="article:modified_time" content="2026-08-25T13:35:14.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633085615-8fa1a231-a731-4c36-b53d-007d212d811d-1.png?resize=1024%2C441">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-1-start-with-the-product-decision-not-the-model"><span class="toc-text">1. Start with the product decision, not the model</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-primary-outcome"><span class="toc-text">Primary outcome</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-safety-constraint"><span class="toc-text">Safety constraint</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-operational-guardrails"><span class="toc-text">Operational guardrails</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-2-treat-offline-evaluation-like-integration-testing"><span class="toc-text">2. Treat offline evaluation like integration testing</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-change-one-major-variable-at-a-time"><span class="toc-text">Change one major variable at a time</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-test-model-upgrades-regularly"><span class="toc-text">Test model upgrades regularly</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-3-keep-offline-evaluation-close-to-production"><span class="toc-text">3. Keep offline evaluation close to production</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-4-treat-production-labels-as-signals-not-unquestionable-truth"><span class="toc-text">4. Treat production labels as signals, not unquestionable truth</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-5-use-synthetic-and-open-datasets-to-fill-coverage-gaps"><span class="toc-text">5. Use synthetic and open datasets to fill coverage gaps</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-6-use-error-analysis-to-find-what-aggregate-metrics-hide"><span class="toc-text">6. Use error analysis to find what aggregate metrics hide</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-7-use-llm-as-judge-to-focus-human-review"><span class="toc-text">7. Use LLM-as-judge to focus human review</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-8-what-secret-scanning-taught-us"><span class="toc-text">8. What secret scanning taught us</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-checklist-before-moving-an-llm-system-toward-production"><span class="toc-text">Checklist: Before moving an LLM system toward production</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-evaluate-before-you-trust"><span class="toc-text">Evaluate before you trust</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-25T13:35:14.000Z">2026-08-25</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How to Evaluate LLMs Before Production</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p class="wp-block-paragraph">A language model can perform well on a clean benchmark and still struggle with the cases that matter in production.</p>
+<p class="wp-block-paragraph">Benchmarks and curated datasets are useful when prototyping an LLM-based system. They help teams compare models, test an initial prompt, and determine whether an idea is technically plausible.</p>
+<p class="wp-block-paragraph">But as a system moves closer to production, the evaluation problem changes.</p>
+<p class="wp-block-paragraph">Real inputs are often ambiguous. Labels may be inconsistent. Important context may be missing or truncated. The evaluation set may not reflect the production distribution. Edge cases that rarely appear in benchmarks can become common sources of failure. Even when offline metrics improve, those results may not translate cleanly into production behavior.</p>
+<p class="wp-block-paragraph">We encountered these challenges while evaluating an LLM-based system designed to reduce false positives in GitHub secret scanning.</p>
+<p class="wp-block-paragraph">Secret scanning identifies credentials such as tokens and keys that may have been committed to a repository. Because some candidate strings resemble secrets, but don’t actually represent real credentials, developers may spend time investigating alerts that don’t require remediation.</p>
+<p class="wp-block-paragraph">Rather than determine whether an LLM could classify a string correctly, we needed to understand whether the system could reduce noisy alerts while preserving enough recall to remain safe for a security workflow.</p>
+<p class="wp-block-paragraph">In this post, we share the practices that helped us move from promising prototype results to production. The lessons apply broadly to LLM-powered systems in code analysis, developer tools, security, data analysis, and other production workflows.</p>
+<figure class="wp-block-image size-large"><img><img alt="Diagram titled “The LLM evaluation lifecycle” showing seven stages connected by arrows: product decision, representative dataset, offline evaluation, error analysis, targeted change, regression evaluation, and online experiment. A dashed feedback loop labeled “Iterate and learn” connects regression evaluation back to the dataset and targeted-change stages." class="wp-image-98319" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="441" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633085615-8fa1a231-a731-4c36-b53d-007d212d811d-1.png?resize=1024%2C441" width="1024"></figure>
+<h2 class="wp-block-heading" id="h-1-start-with-the-product-decision-not-the-model">1. Start with the product decision, not the model</h2>
+<p class="wp-block-paragraph">When an LLM system doesn’t perform as expected, the first instinct is often to adjust its technical components.</p>
+<p class="wp-block-paragraph">Teams may rewrite the prompt, add context, introduce another reasoning step, adjust the surrounding pipeline, or switch models. Before making any of these changes, they should define the decision the evaluation is meant to support.</p>
+<p class="wp-block-paragraph">For our secret-scanning work, we asked:</p>
+<p class="wp-block-paragraph"><em>Can the system reduce false positives while preserving enough recall to be safe in a production security workflow?</em></p>
+<p class="wp-block-paragraph">To answer this question, teams must decide which mistakes are acceptable, which metrics should drive the product decision, and which guardrails must remain within their defined thresholds.</p>
+<p class="wp-block-paragraph">In secret scanning, incorrectly suppressing a real credential can be more consequential than asking a developer to review an additional alert. We therefore did not treat precision and recall as equally interchangeable metrics.</p>
+<p class="wp-block-paragraph">Our primary objective was to reduce false positives and improve precision. Recall served as a safety constraint: an experiment could advance only if any decrease remained within a predefined acceptable range. This gave us a clear way to evaluate tradeoffs. We selected the configuration that achieved the strongest false-positive reduction while satisfying the recall requirement and meeting our operational guardrails.</p>
+<p class="wp-block-paragraph" id="h-">We organized the evaluation criteria into three levels:</p>
+<h3 class="wp-block-heading" id="h-primary-outcome">Primary outcome</h3>
+<p class="wp-block-paragraph">This measured the user benefit we were trying to improve:</p>
+<ul class="wp-block-list">
+<li>False-positive reduction</li>
+<li>Precision</li>
+</ul>
+<h3 class="wp-block-heading" id="h-safety-constraint">Safety constraint</h3>
+<p class="wp-block-paragraph">This prevented an apparent improvement from introducing unacceptable security risk:</p>
+<ul class="wp-block-list">
+<li>Recall</li>
+</ul>
+<h3 class="wp-block-heading" id="h-operational-guardrails">Operational guardrails</h3>
+<p class="wp-block-paragraph">These determined whether the result was practical to deploy:</p>
+<ul class="wp-block-list">
+<li>Latency</li>
+<li>Cost</li>
+<li>Reliability</li>
+<li>Production compatibility</li>
+</ul>
+<p class="wp-block-paragraph">This distinction prevented us from treating every metric as interchangeable. A change that reduced false positives but significantly lowered recall wasn’t automatically an improvement. Neither was a change that improved quality while making the system too slow, expensive, or difficult to integrate.</p>
+<p class="wp-block-paragraph">Consider two hypothetical experiment results:</p>
+<figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th><strong>Experiment</strong> </th><th><strong>Precision</strong> </th><th><strong>Recall</strong> </th><th><strong>Latency</strong> </th><th><strong>Decision</strong> </th></tr></thead><tbody><tr><td>Experiment A </td><td>Large improvement </td><td>Falls below the safety guardrail </td><td>Acceptable </td><td>Don’t advance </td></tr><tr><td>Experiment B </td><td>Moderate improvement </td><td>Remains within the guardrail </td><td>Acceptable </td><td>Continue testing </td></tr></tbody></table></figure>
+<p class="wp-block-paragraph">Experiment A may look stronger if precision is viewed in isolation. Experiment B is more aligned with the product goal because it improves the developer experience without violating the recall guardrail.</p>
+<p class="wp-block-paragraph">Before evaluating an LLM system, decide what success means for the user and which guardrails the system must respect. We want to generate evidence that supports a product decision.</p>
+<h2 class="wp-block-heading" id="h-2-treat-offline-evaluation-like-integration-testing">2. Treat offline evaluation like integration testing</h2>
+<p class="wp-block-paragraph">An LLM-based system continues to change after its first successful evaluation, so evaluation should not be a one-time exercise. Teams revise prompts, adopt new models, change how inputs and context are constructed, and refine the surrounding business logic.</p>
+<p class="wp-block-paragraph">Any of these changes can improve the system, introduce a regression, or shift its behavior in an unexpected way.</p>
+<p class="wp-block-paragraph">For that reason, we treated offline evaluation similarly to an end-to-end integration test. We reran it whenever we made a meaningful change to the prompt, model, input construction, or broader system logic.</p>
+<p class="wp-block-paragraph">The evaluation also needed to be repeatable enough that each new result could be compared against a known baseline. For every run, we recorded the prompt, model, dataset version, and system configuration.</p>
+<p class="wp-block-paragraph">This made it possible to answer questions such as:</p>
+<ul class="wp-block-list">
+<li>Did the new prompt improve precision without reducing recall?</li>
+<li>Did the model upgrade help across the dataset or only within certain categories?</li>
+<li>Did a change to the input or context fix one error pattern while introducing another?</li>
+<li>Did a change to the surrounding logic improve the result consistently, or simply shift where errors appeared?</li>
+</ul>
+<p class="wp-block-paragraph">Without this discipline, teams can easily compare results generated under different conditions and attribute an improvement to the wrong change.</p>
+<h3 class="wp-block-heading" id="h-change-one-major-variable-at-a-time">Change one major variable at a time</h3>
+<p class="wp-block-paragraph">Repeatability alone is not enough. Experiments also need to be designed so that the cause of a result is clear.</p>
+<p class="wp-block-paragraph">We changed one major variable at a time and compared each run against a known baseline. For example, we evaluated a prompt revision separately from a model upgrade before testing the two together.</p>
+<p class="wp-block-paragraph">This mattered because even small prompt changes could shift model behavior, while a model upgrade could affect quality, cost, latency, or output consistency. If both changed in the same experiment, we would not know which one caused the improvement or regression.</p>
+<p class="wp-block-paragraph">We treated prompts and evaluation configurations like code. We versioned them, recorded what changed, kept previous configurations reproducible, and made rollback possible.</p>
+<figure class="wp-block-table"><table class="has-fixed-layout"><thead><tr><th><strong>Run ID</strong> </th><th><strong>Prompt version</strong> </th><th><strong>Model version</strong> </th><th><strong>Precision</strong> </th><th><strong>Recall</strong> </th><th><strong>Latency</strong> </th><th><strong>Notes</strong> </th></tr></thead><tbody><tr><td>R-001 </td><td>v1 </td><td>Model A </td><td>0.71 </td><td>0.78 </td><td>1.2s </td><td>Baseline </td></tr><tr><td>R-002 </td><td>v2 </td><td>Model A </td><td>0.75 </td><td>0.77 </td><td>1.2s </td><td>Prompt-only change </td></tr><tr><td>R-003 </td><td>v1 </td><td>Model B </td><td>0.74 </td><td>0.80 </td><td>1.0s</td><td>Model-only change </td></tr></tbody></table></figure>
+<p class="wp-block-paragraph"><em>The values in the evaluation run tracking table above shown are hypothetical and included only to illustrate how evaluation runs can be tracked and compared.</em></p>
+<h3 class="wp-block-heading" id="h-test-model-upgrades-regularly">Test model upgrades regularly</h3>
+<p class="wp-block-paragraph">When an LLM system underperforms, developers often respond by adding more instructions to the prompt. Sometimes that helps, but not always. For example, the prompt may be carrying complexity that comes from the model itself.</p>
+<p class="wp-block-paragraph">A stronger model may perform better with a simpler prompt than an older model does with extensive tuning. Simpler prompts are also easier to understand, test, and maintain.</p>
+<p class="wp-block-paragraph">Model upgrades still need careful evaluation. A new model may improve performance in one category while introducing regressions elsewhere. It may also affect cost, latency, output formatting, or compatibility with the existing pipeline.</p>
+<p class="wp-block-paragraph">The evaluation process should be inexpensive and repeatable enough that testing a new model becomes routine. Any meaningful change to the prompt, model, or pipeline should go through offline evaluation before reaching production.</p>
+<h2 class="wp-block-heading" id="h-3-keep-offline-evaluation-close-to-production">3. Keep offline evaluation close to production</h2>
+<p class="wp-block-paragraph">An offline evaluation is only useful when it resembles the task the system will perform in production.</p>
+<p class="wp-block-paragraph">In a secret-scanning workflow, the model is rarely evaluating one clean, isolated value. It may need to assess a specific candidate alongside surrounding code and other information that is relevant, incomplete, or potentially distracting. Differences in how that information is presented can materially affect the result.</p>
+<p class="wp-block-paragraph">Our offline evaluation therefore needed to preserve the important characteristics of the production task, including:</p>
+<ul class="wp-block-list">
+<li>The candidate being evaluated</li>
+<li>The surrounding context available to the model</li>
+<li>Relevant supporting information</li>
+<li>The way inputs are formatted and constrained</li>
+<li>The broader system logic around the model</li>
+</ul>
+<p class="wp-block-paragraph">Even small differences can skew the results. A cleaner dataset may exclude ambiguous cases, provide more complete context, or remove nearby values that could distract the model.</p>
+<p class="wp-block-paragraph">Consider a simplified example:</p>
+<div class="wp-block-code-wrapper">
+<pre class="wp-block-code language-plaintext"><code>example_token = "sample_value_for_documentation" 
+production_api_key = get_secret_from_environment() 
+candidate_value = "flagged_value"</code></pre>
+<clipboard-copy aria-label="Copy" class="code-copy-btn" data-copy-feedback="Copied!" role="button" tabindex="0" value="example_token = "sample_value_for_documentation" 
+production_api_key = get_secret_from_environment() 
+candidate_value = "flagged_value""><svg aria-hidden="true" class="octicon octicon-copy js-clipboard-copy-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"/></svg><svg aria-hidden="true" class="octicon octicon-check js-clipboard-check-icon" height="16" version="1.1" viewbox="0 0 16 16" width="16"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></clipboard-copy></div>
+<p class="wp-block-paragraph">Suppose <code>candidate_value</code> is the value the system is expected to assess. The model may instead focus on <code>example_token</code> because its variable name appears more security-relevant, producing a plausible explanation about the wrong value.</p>
+<p class="wp-block-paragraph">This kind of failure is easy to miss when evaluation examples contain only one obvious candidate. It surfaced because the offline evaluation preserved some of the ambiguity and distractions found in real secret-scanning workflows.</p>
+<p class="wp-block-paragraph">The closer the offline pipeline is to the production pipeline, the more useful the evaluation becomes. When the two differ, a strong offline score may simply reflect an easier problem than the one being deployed.</p>
+<h2 class="wp-block-heading" id="h-4-treat-production-labels-as-signals-not-unquestionable-truth">4. Treat production labels as signals, not unquestionable truth</h2>
+<p class="wp-block-paragraph">Production data can make an evaluation more representative, but its labels often capture workflow outcomes rather than reliable ground truth. A dismissed or resolved secret-scanning alert, for example, does not necessarily represent a false positive.</p>
+<p class="wp-block-paragraph">A developer might resolve an alert because:</p>
+<ul class="wp-block-list">
+<li>The credential was rotated</li>
+<li>The risk was accepted</li>
+<li>The alert needed to be cleared to unblock a workflow</li>
+<li>The alert was incorrectly classified</li>
+</ul>
+<p class="wp-block-paragraph">These outcomes may look similar in product data while representing different ground-truth states.</p>
+<p class="wp-block-paragraph">Before using production labels, ask:</p>
+<ul class="wp-block-list">
+<li>How was the label created?</li>
+<li>Does it match the question the evaluation is trying to answer?</li>
+<li>Are different workflow outcomes being grouped into the same category?</li>
+</ul>
+<p class="wp-block-paragraph">For important or ambiguous subsets, you may need to complete a manual review. You’re not trying to eliminate every imperfect label, but you need to make sure the evaluation data is accurate enough to support the decision being made.</p>
+<h2 class="wp-block-heading" id="h-5-use-synthetic-and-open-datasets-to-fill-coverage-gaps">5. Use synthetic and open datasets to fill coverage gaps</h2>
+<p class="wp-block-paragraph">Representative production data may be limited, sensitive, or unavailable early in development. Synthetic examples, academic benchmarks, and open datasets can help developers bootstrap an evaluation and expand coverage, but these examples should supplement rather than stand in for production-like data.</p>
+<p class="wp-block-paragraph">With that in mind, synthetic examples can greatly help fill in the gaps for testing cases that are rare or difficult to collect, such as ambiguous inputs, missing context, unusual formatting, and underrepresented failure patterns. A list of credential strings, for example, can test whether a model recognizes common formats, but it cannot fully evaluate how the model reasons about a candidate within real code.</p>
+<p class="wp-block-paragraph">We adapted external examples to match our task and reviewed labels that did not align with our product definition. We also used realistic failure patterns to create targeted synthetic cases involving nearby credential-like values, test code, placeholders, indirect references, and missing context.</p>
+<h2 class="wp-block-heading" id="h-6-use-error-analysis-to-find-what-aggregate-metrics-hide">6. Use error analysis to find what aggregate metrics hide</h2>
+<p class="wp-block-paragraph">Aggregate metrics tell you whether a system improved overall. Error analysis tells you what to change next.</p>
+<p class="wp-block-paragraph">A higher precision score doesn’t reveal whether the remaining errors come from ambiguous inputs, poor prompt framing, missing context, noisy labels, or a narrow dataset.</p>
+<p class="wp-block-paragraph">To understand those problems, inspect the failures.</p>
+<p class="wp-block-paragraph">We reviewed samples of false positives and false negatives and grouped them by their likely source: the model, prompt, input, pipeline, dataset, or label. The recurring issues included several already discussed, such as reasoning about the wrong candidate, missing context, and labels that did not match the evaluation definition.</p>
+<p class="wp-block-paragraph">Each category suggested a different response. Reasoning about the wrong value pointed to prompt or input framing, missing evidence pointed to context construction, and incorrect labels required data cleanup. Repeated domain-specific ambiguity could indicate the need for a clearer product policy or a dedicated evaluation category.</p>
+<p class="wp-block-paragraph">Manually reviewing dozens or hundreds of examples takes time, but it often leads to faster progress. Once a recurring failure pattern is clear, the team can make a targeted change and measure whether it solved the problem.</p>
+<p class="wp-block-paragraph">A useful question for each error is: <em>Did this failure come from the model, prompt, input, pipeline, dataset, or label?</em></p>
+<p class="wp-block-paragraph">That classification turns a vague quality problem into a concrete engineering task.</p>
+<h2 class="wp-block-heading" id="h-7-use-llm-as-judge-to-focus-human-review">7. Use LLM-as-judge to focus human review</h2>
+<p class="wp-block-paragraph">Reviewing every evaluation example manually may not scale. LLM-as-judge can reduce that burden by classifying clear cases, identifying potentially mislabeled examples, and prioritizing ambiguous cases for human review. Because the judge can also make mistakes or agree with another model for the wrong reason, its output should be treated as another prediction rather than ground truth.</p>
+<p class="wp-block-paragraph">A safer pattern is to use the judge for triage:</p>
+<ol class="wp-block-list">
+<li>Automatically process clear, low-risk cases.</li>
+<li>Route low-confidence, conflicting, or high-impact cases to human reviewers.</li>
+<li>Periodically sample high-confidence cases to check for systematic errors.</li>
+<li>Track disagreement between the judge, the evaluated system, and human reviewers.</li>
+<li>Version and evaluate the judge prompt like any other model component.</li>
+</ol>
+<p class="wp-block-paragraph">Used this way, the judge concentrates human attention on the cases where review is most likely to change the outcome.</p>
+<figure class="wp-block-image size-large"><img><img alt="Diagram titled “Human review triage funnel.” All evaluation examples enter the funnel and are sorted into four groups: clear agreement, low confidence, model and label disagreement, and high-impact cases. Clear-agreement examples move to automated processing, while the other three groups go to human review for outcome decisions and label correction. Reviewed examples, corrected labels, and new test cases feed back into the evaluation dataset." class="wp-image-98320" data-recalc-dims="1" data-src="data:image/gif;base64,R0lGODlhAQABAIAAAP///////yH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" decoding="async" height="692" loading="lazy" sizes="auto, (max-width: 1000px) 100vw, 1000px" src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633087173-78b05bce-4a6d-4730-a35a-968bc56ec8a8.png?resize=1024%2C692" width="1024"></figure>
+<h2 class="wp-block-heading" id="h-8-what-secret-scanning-taught-us">8. What secret scanning taught us</h2>
+<p class="wp-block-paragraph">Our goal was to reduce false positives while preserving recall in a security-sensitive workflow. Offline evaluation gave us a controlled way to compare prompt, model, input, and pipeline changes before beginning online experimentation.</p>
+<p class="wp-block-paragraph">Through repeated evaluation and targeted error analysis, we reached a 95% reduction in false positives on the evaluated offline dataset while keeping recall within our defined guardrail. More importantly, we understood how the result had been produced: the evaluation reflected the production task more closely, changes were measured against reproducible baselines, and the remaining failure patterns were documented.</p>
+<p class="wp-block-paragraph">Offline evaluation did not prove how the system would behave in every production scenario. It provided enough structured evidence to justify moving to online experimentation with clearly understood risks and guardrails.</p>
+<h2 class="wp-block-heading" id="h-checklist-before-moving-an-llm-system-toward-production">Checklist: Before moving an LLM system toward production</h2>
+<p class="wp-block-paragraph">Use this checklist to assess whether your evaluation provides enough evidence to move the system forward. Work through each section to confirm that the goals, data, experiments, and remaining production risks are clearly understood.</p>
+<p class="wp-block-paragraph"><strong>Product Goals</strong></p>
+<ul class="wp-block-list">
+<li>Is the product decision and primary success metric clear?</li>
+<li>Are the safety and operational guardrails defined?</li>
+</ul>
+<p class="wp-block-paragraph"><strong>Data and Labels</strong></p>
+<ul class="wp-block-list">
+<li>Does the evaluation data resemble the production workflow and include difficult cases?</li>
+<li>Do we understand how the labels were created and where human review is needed?</li>
+</ul>
+<p class="wp-block-paragraph"><strong>Evaluation Rigor</strong></p>
+<ul class="wp-block-list">
+<li>Are the prompt, model, dataset, and pipeline versions recorded?</li>
+<li>Are major changes isolated and compared against a known baseline?</li>
+</ul>
+<p class="wp-block-paragraph"><strong>Error Analysis and Production Readiness</strong></p>
+<ul class="wp-block-list">
+<li>Have false positives and false negatives been reviewed by category?</li>
+<li>Can we rerun the evaluation and explain where offline results may differ from production?</li>
+</ul>
+<h2 class="wp-block-heading" id="h-evaluate-before-you-trust">Evaluate before you trust</h2>
+<p class="wp-block-paragraph">As LLM-based systems move into production, evaluation should become part of the regular engineering workflow. A strong offline evaluation can show whether the product goal has been met under representative conditions, where uncertainty remains, and whether the system is ready for a controlled production rollout.</p>
+<p class="wp-block-paragraph">Production uncertainty is unavoidable. Evaluation makes it visible, measurable, and manageable.</p>
+<div class="wp-block-group post-content-cta has-global-padding is-layout-constrained wp-block-group-is-layout-constrained">
+<p class="wp-block-paragraph"><a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.github.com/code-security/concepts/secret-security/secret-scanning">Explore secret scanning documentation &gt;</a></p>
+</div>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/ai-and-ml/llms/how-to-evaluate-llms-before-production/">How to evaluate LLMs before production</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How to evaluate LLMs before production" href="https://github.blog/ai-and-ml/llms/how-to-evaluate-llms-before-production/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How to evaluate LLMs before production</span><span class="desc fs12">https://github.blog/ai-and-ml/llms/how-to-evaluate-llms-before-production/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5ecc8ed8.html">Quantization-Aware Healing: A Compressed, 4-Bit Model That Outperforms Its Full-Precision Original<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/9cba3137.html">Granite 4.2 LLMs: How They're Built<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/9e3fe407.html" title="Decoding the New AI Lingo: Loops, Harnesses, Squads, Hill Climbing&#8230; Oh My!"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7324"></div><span class="title">Decoding the New AI Lingo: Loops, Harnesses, Squads, Hill Climbing&#8230; Oh My!</span></a><a class="item" href="/rss/59247f39.html" title="GitHub Copilot App for Beginners: Automate Dependabot Pull Request Triage"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1313"></div><span class="title">GitHub Copilot App for Beginners: Automate Dependabot Pull Request Triage</span></a><a class="item" href="/rss/600a54a1.html" title="GitHub Copilot App for Beginners: Managing Your Work"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7444"></div><span class="title">GitHub Copilot App for Beginners: Managing Your Work</span></a><a class="item" href="/rss/2cd81528.html" title="GitHub Copilot App for Beginners: Run Several Agents at Once"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5458"></div><span class="title">GitHub Copilot App for Beginners: Run Several Agents at Once</span></a><a class="item" href="/rss/cfb1025f.html" title="OpenClaw Went Viral. Meet the Maintainers Building and Securing It."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/02/header.jpg?resize=1024%2C538"></div><span class="title">OpenClaw Went Viral. Meet the Maintainers Building and Securing It.</span></a><a class="item" href="/rss/79b074ba.html" title="How We Make AI Coding More Cost Efficient Without Sacrificing Task Quality"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/09/Blog-Graphic-01.png?resize=1024%2C329"></div><span class="title">How We Make AI Coding More Cost Efficient Without Sacrificing Task Quality</span></a><a class="item" href="/rss/c3113105.html" title="Your Alt Text Passes Automated Checks. That Doesn&#8217;t Mean It&#8217;s Any Good."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1992"></div><span class="title">Your Alt Text Passes Automated Checks. That Doesn&#8217;t Mean It&#8217;s Any Good.</span></a><a class="item" href="/rss/dfebb08b.html" title="The August 17 Outage, and the Work Ahead"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/blog-post-aug-17-outage-1.png?resize=1024%2C576"></div><span class="title">The August 17 Outage, and the Work Ahead</span></a><a class="item" href="/rss/8acdb75a.html" title="Project HydraFusion: Frontier Quality via Multi-Model Orchestration"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/09/HydraFusion_architecture_02.png?resize=1024%2C334"></div><span class="title">Project HydraFusion: Frontier Quality via Multi-Model Orchestration</span></a><a class="item" href="/rss/9a2f188a.html" title="A Revisit of Remote Spectre Attacks on Cloudflare Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=345"></div><span class="title">A Revisit of Remote Spectre Attacks on Cloudflare Workers</span></a><a class="item" href="/rss/386c7f91.html" title="BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=906"></div><span class="title">BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents</span></a><a class="item" href="/rss/e45f2220.html" title="BGP Role Model: Tracking the Adoption of RFC 9234"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8352"></div><span class="title">BGP Role Model: Tracking the Adoption of RFC 9234</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

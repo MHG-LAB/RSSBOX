@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析 - RSSBOX</title>
+
+  
+    <meta name="description" content="从 renderer.render() 到地面上的阴影：Three.js 阴影渲染全流程源码解析  本文基于 Three.js r129（0.129.0） 源码分析。不同版本的目录或局部实现可能变化，但 Shadow Mapping 的核心流程一致。  一个球体、一个平面、一盏平行光。我们只写了几行配置： renderer.shadowMap.enabled &#x3D; true; light.cast">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 &#96;renderer.render()&#96; 到地面上的阴影：Three.js 阴影渲染全流程源码解析">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/95c5d50c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="从 renderer.render() 到地面上的阴影：Three.js 阴影渲染全流程源码解析  本文基于 Three.js r129（0.129.0） 源码分析。不同版本的目录或局部实现可能变化，但 Shadow Mapping 的核心流程一致。  一个球体、一个平面、一盏平行光。我们只写了几行配置： renderer.shadowMap.enabled &#x3D; true; light.cast">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-02T09:34:56.000Z">
+<meta property="article:modified_time" content="2026-09-02T09:34:56.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">从 renderer.render() 到地面上的阴影：Three.js 阴影渲染全流程源码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、先搭一个最小阴影场景</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、Shadow Mapping 到底在做什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、入口：WebGLRenderer.render() 如何组织一帧</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 更新世界矩阵</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. projectObject() 收集物体和灯光</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、第一遍绘制：从平行光视角生成 Shadow Map</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 为什么平行光使用正交相机</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. LightShadow.updateMatrices() 做了什么</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 哪些物体会写入 Shadow Map</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. 为什么不用物体原来的材质</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、阴影数据如何进入正式材质</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、第二遍绘制：主相机下判断片元是否处在阴影中</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 顶点着色器计算灯光空间坐标</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 片元着色器做深度比较</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 阴影最终乘在哪里</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、PCFSoftShadowMap 为什么让边缘变软</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">八、bias、normalBias 和常见阴影瑕疵</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Shadow acne：表面出现条纹或噪点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">Peter Panning：影子与物体底部脱离</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">九、为什么阴影模糊、消失或完全不出现</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 四个开关少了一个</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 阴影相机没有覆盖目标</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 阴影有明显方块</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. 物体移动了，影子不更新</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">十、阴影的性能成本怎么算</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">十一、把整条源码调用链串起来</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">结语</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">源码索引（Three.js r129）</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-02T09:34:56.000Z">2026-09-02</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析</span></h1>
+<div>
+<h2 data-id="heading-0">从 <code>renderer.render()</code> 到地面上的阴影：Three.js 阴影渲染全流程源码解析</h2>
+<blockquote>
+<p>本文基于 Three.js <strong>r129（0.129.0）</strong> 源码分析。不同版本的目录或局部实现可能变化，但 Shadow Mapping 的核心流程一致。</p>
+</blockquote>
+<p>一个球体、一个平面、一盏平行光。我们只写了几行配置：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">enabled</span> = <span class="hljs-literal">true</span>;
+light.<span class="hljs-property">castShadow</span> = <span class="hljs-literal">true</span>;
+sphere.<span class="hljs-property">castShadow</span> = <span class="hljs-literal">true</span>;
+plane.<span class="hljs-property">receiveShadow</span> = <span class="hljs-literal">true</span>;
+</code></pre>
+<p>然后调用一次：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-title function_">render</span>(scene, camera);
+</code></pre>
+<p>地面上就出现了球的影子。</p>
+<p>这几行代码背后，Three.js 实际上至少从两个视角绘制了场景：先从光源视角生成一张“深度照片”，再从主相机视角正式渲染，并在 Shader 中查询每个片元是否被挡住。本文以“球体 + 平面 + 平行光”为最小场景，沿着 r129 源码把这条链路完整走一遍。</p>
+<h3 data-id="heading-1">一、先搭一个最小阴影场景</h3>
+<p>下面的代码可以直接放进一个 ES Module 页面。为了让光照与阴影都容易观察，球体和平面使用 <code>MeshStandardMaterial</code>。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">import</span> * <span class="hljs-keyword">as</span> <span class="hljs-variable constant_">THREE</span> <span class="hljs-keyword">from</span> <span class="hljs-string">'./build/three.module.js'</span>;
+
+<p><span class="hljs-keyword">const</span> scene &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">Scene</span>();<br>scene.<span class="hljs-property">background</span> &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">Color</span>(<span class="hljs-number">0x20242b</span>);</p>
+<p><span class="hljs-keyword">const</span> camera &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">PerspectiveCamera</span>(<br>  <span class="hljs-number">45</span>,<br>  <span class="hljs-variable language_">window</span>.<span class="hljs-property">innerWidth</span> &#x2F; <span class="hljs-variable language_">window</span>.<span class="hljs-property">innerHeight</span>,<br>  <span class="hljs-number">0.1</span>,<br>  <span class="hljs-number">100</span><br>);<br>camera.<span class="hljs-property">position</span>.<span class="hljs-title function_">set</span>(<span class="hljs-number">7</span>, <span class="hljs-number">6</span>, <span class="hljs-number">9</span>);<br>camera.<span class="hljs-title function_">lookAt</span>(<span class="hljs-number">0</span>, <span class="hljs-number">1</span>, <span class="hljs-number">0</span>);</p>
+<p><span class="hljs-keyword">const</span> renderer &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">WebGLRenderer</span>(&amp;#123; <span class="hljs-attr">antialias</span>: <span class="hljs-literal">true</span> &amp;#125;);<br>renderer.<span class="hljs-title function_">setPixelRatio</span>(<span class="hljs-variable language_">window</span>.<span class="hljs-property">devicePixelRatio</span>);<br>renderer.<span class="hljs-title function_">setSize</span>(<span class="hljs-variable language_">window</span>.<span class="hljs-property">innerWidth</span>, <span class="hljs-variable language_">window</span>.<span class="hljs-property">innerHeight</span>);<br>renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">enabled</span> &#x3D; <span class="hljs-literal">true</span>;<br>renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">type</span> &#x3D; <span class="hljs-variable constant_">THREE</span>.<span class="hljs-property">PCFSoftShadowMap</span>;<br><span class="hljs-variable language_">document</span>.<span class="hljs-property">body</span>.<span class="hljs-title function_">appendChild</span>(renderer.<span class="hljs-property">domElement</span>);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 少量环境光只用于看清未被平行光照亮的区域</span><br>scene.<span class="hljs-title function_">add</span>(<span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">AmbientLight</span>(<span class="hljs-number">0xffffff</span>, <span class="hljs-number">0.18</span>));</p>
+<p><span class="hljs-keyword">const</span> light &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">DirectionalLight</span>(<span class="hljs-number">0xffffff</span>, <span class="hljs-number">1.2</span>);<br>light.<span class="hljs-property">position</span>.<span class="hljs-title function_">set</span>(<span class="hljs-number">5</span>, <span class="hljs-number">8</span>, <span class="hljs-number">4</span>);<br>light.<span class="hljs-property">castShadow</span> &#x3D; <span class="hljs-literal">true</span>;<br>scene.<span class="hljs-title function_">add</span>(light);<br>scene.<span class="hljs-title function_">add</span>(light.<span class="hljs-property">target</span>);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 平行光的阴影相机是正交相机；范围必须覆盖球和平面上的投影区域</span><br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">left</span> &#x3D; -<span class="hljs-number">6</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">right</span> &#x3D; <span class="hljs-number">6</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">top</span> &#x3D; <span class="hljs-number">6</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">bottom</span> &#x3D; -<span class="hljs-number">6</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">near</span> &#x3D; <span class="hljs-number">0.5</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>.<span class="hljs-property">far</span> &#x3D; <span class="hljs-number">30</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">mapSize</span>.<span class="hljs-title function_">set</span>(<span class="hljs-number">1024</span>, <span class="hljs-number">1024</span>);<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">bias</span> &#x3D; -<span class="hljs-number">0.0005</span>;<br>light.<span class="hljs-property">shadow</span>.<span class="hljs-property">normalBias</span> &#x3D; <span class="hljs-number">0.02</span>;</p>
+<p><span class="hljs-keyword">const</span> sphere &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">Mesh</span>(<br>  <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">SphereGeometry</span>(<span class="hljs-number">1.2</span>, <span class="hljs-number">48</span>, <span class="hljs-number">32</span>),<br>  <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">MeshStandardMaterial</span>(&amp;#123; <span class="hljs-attr">color</span>: <span class="hljs-number">0x4f8cff</span>, <span class="hljs-attr">roughness</span>: <span class="hljs-number">0.65</span> &amp;#125;)<br>);<br>sphere.<span class="hljs-property">position</span>.<span class="hljs-property">y</span> &#x3D; <span class="hljs-number">1.2</span>;<br>sphere.<span class="hljs-property">castShadow</span> &#x3D; <span class="hljs-literal">true</span>;<br>scene.<span class="hljs-title function_">add</span>(sphere);</p>
+<p><span class="hljs-keyword">const</span> plane &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">Mesh</span>(<br>  <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">PlaneGeometry</span>(<span class="hljs-number">14</span>, <span class="hljs-number">14</span>),<br>  <span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">MeshStandardMaterial</span>(&amp;#123; <span class="hljs-attr">color</span>: <span class="hljs-number">0xd8d8d8</span>, <span class="hljs-attr">roughness</span>: <span class="hljs-number">0.9</span> &amp;#125;)<br>);<br>plane.<span class="hljs-property">rotation</span>.<span class="hljs-property">x</span> &#x3D; -<span class="hljs-title class_">Math</span>.<span class="hljs-property">PI</span> &#x2F; <span class="hljs-number">2</span>;<br>plane.<span class="hljs-property">receiveShadow</span> &#x3D; <span class="hljs-literal">true</span>;<br>scene.<span class="hljs-title function_">add</span>(plane);</p>
+<p><span class="hljs-keyword">function</span> <span class="hljs-title function_">animate</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-title function_">requestAnimationFrame</span>(animate);<br>  renderer.<span class="hljs-title function_">render</span>(scene, camera);<br>&amp;#125;<br><span class="hljs-title function_">animate</span>();<br></p></code></pre><p></p>
+<p>这里有四个不同层级的开关：</p>
+<table><thead><tr><th>配置</th><th>控制什么</th></tr></thead><tbody><tr><td><code>renderer.shadowMap.enabled</code></td><td>渲染器是否执行阴影贴图阶段</td></tr><tr><td><code>light.castShadow</code></td><td>这盏灯是否进入投影灯光列表</td></tr><tr><td><code>sphere.castShadow</code></td><td>球体是否被绘制进阴影贴图</td></tr><tr><td><code>plane.receiveShadow</code></td><td>正式渲染平面时，是否让直射光乘以阴影系数</td></tr></tbody></table>
+<p>它们并不是同一个开关的四种写法，而是分别作用于流水线的四个位置。</p>
+<h3 data-id="heading-2">二、Shadow Mapping 到底在做什么</h3>
+<p>Three.js 的实时阴影使用 Shadow Mapping。它可以概括为两次渲染：</p>
+<ol>
+<li><strong>阴影阶段</strong>：把灯光当成相机，从灯光视角渲染场景，保存每个像素离灯光最近的深度，得到 Shadow Map。</li>
+<li><strong>主渲染阶段</strong>：从用户相机渲染。把当前片元变换到灯光坐标系，查询 Shadow Map；如果当前深度比图中记录的最近深度更远，说明它与灯光之间存在遮挡物。</li>
+</ol>
+<pre><code class="hljs language-mermaid" lang="mermaid">flowchart LR
+  A[renderer.render] --&gt; B[更新场景矩阵]
+  B --&gt; C[遍历场景并建立渲染列表]
+  C --&gt; D[收集 castShadow 灯光]
+  D --&gt; E[WebGLShadowMap.render]
+  E --&gt; F[从灯光相机绘制深度]
+  F --&gt; G[Shadow Map]
+  G --&gt; H[绑定纹理、矩阵和阴影参数]
+  H --&gt; I[从主相机绘制场景]
+  I --&gt; J[Shader 深度比较与过滤]
+  J --&gt; K[直射光乘以阴影系数]
+</code></pre>
+<p>关键点是：<strong>阴影不是一个贴在地面上的黑色模型</strong>。Shadow Map 保存的是遮挡关系，最终阴影只是光照计算中一个 <code>0～1</code> 的可见性系数。</p>
+<h3 data-id="heading-3">三、入口：<code>WebGLRenderer.render()</code> 如何组织一帧</h3>
+<p>入口位于 <code>src/renderers/WebGLRenderer.js</code>。省略 XR、裁剪和透明物体等旁支后，主干可以简化成：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-variable language_">this</span>.<span class="hljs-property">render</span> = <span class="hljs-keyword">function</span> (<span class="hljs-params"> scene, camera </span>) &#123;
+  <span class="hljs-keyword">if</span> ( scene.<span class="hljs-property">autoUpdate</span> === <span class="hljs-literal">true</span> ) scene.<span class="hljs-title function_">updateMatrixWorld</span>();
+  <span class="hljs-keyword">if</span> ( camera.<span class="hljs-property">parent</span> === <span class="hljs-literal">null</span> ) camera.<span class="hljs-title function_">updateMatrixWorld</span>();
+
+<p>  currentRenderState.<span class="hljs-title function_">init</span>();<br>  currentRenderList.<span class="hljs-title function_">init</span>();</p>
+<p>  <span class="hljs-title function_">projectObject</span>( scene, camera, <span class="hljs-number">0</span>, _this.<span class="hljs-property">sortObjects</span> );<br>  currentRenderList.<span class="hljs-title function_">finish</span>();</p>
+<p>  <span class="hljs-keyword">const</span> shadowsArray &#x3D; currentRenderState.<span class="hljs-property">state</span>.<span class="hljs-property">shadowsArray</span>;<br>  shadowMap.<span class="hljs-title function_">render</span>( shadowsArray, scene, camera );</p>
+<p>  currentRenderState.<span class="hljs-title function_">setupLights</span>();<br>  currentRenderState.<span class="hljs-title function_">setupLightsView</span>( camera );</p>
+<p>  <span class="hljs-title function_">renderObjects</span>( opaqueObjects, scene, camera );<br>  <span class="hljs-title function_">renderObjects</span>( transparentObjects, scene, camera );<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>顺序非常重要：<strong>先生成 Shadow Map，再设置灯光 uniforms，最后正式绘制场景</strong>。</p>
+<h4 data-id="heading-4">1. 更新世界矩阵</h4>
+<p><code>scene.updateMatrixWorld()</code> 会把球体、平面、灯光和 <code>light.target</code> 的局部变换更新为世界矩阵。之后生成灯光相机、计算裁剪体和顶点坐标，都依赖这些矩阵。</p>
+<p>如果手动关闭 <code>scene.autoUpdate</code>，却没有自行更新矩阵，阴影可能会停在旧位置。</p>
+<h4 data-id="heading-5">2. <code>projectObject()</code> 收集物体和灯光</h4>
+<p><code>projectObject()</code> 递归访问场景树。对于 Mesh，它会做层级、可见性和视锥判断，并把物体放进 opaque、transmissive 或 transparent 渲染列表。</p>
+<p>遇到灯光时，渲染状态会收集灯光；如果灯光还满足 <code>castShadow === true</code>，则调用 <code>currentRenderState.pushShadow(object)</code>，进入 <code>shadowsArray</code>。所以：</p>
+<pre><code class="hljs language-js" lang="js">light.<span class="hljs-property">castShadow</span> = <span class="hljs-literal">false</span>;
+</code></pre>
+<p>意味着这盏灯不会传给 <code>WebGLShadowMap.render()</code>，自然也不会生成 Shadow Map。</p>
+<h3 data-id="heading-6">四、第一遍绘制：从平行光视角生成 Shadow Map</h3>
+<p>阴影阶段的核心在 <code>src/renderers/webgl/WebGLShadowMap.js</code>：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-variable language_">this</span>.<span class="hljs-property">render</span> = <span class="hljs-keyword">function</span> (<span class="hljs-params"> lights, scene, camera </span>) &#123;
+  <span class="hljs-keyword">if</span> ( scope.<span class="hljs-property">enabled</span> === <span class="hljs-literal">false</span> ) <span class="hljs-keyword">return</span>;
+  <span class="hljs-keyword">if</span> ( scope.<span class="hljs-property">autoUpdate</span> === <span class="hljs-literal">false</span> &amp;&amp; scope.<span class="hljs-property">needsUpdate</span> === <span class="hljs-literal">false</span> ) <span class="hljs-keyword">return</span>;
+  <span class="hljs-keyword">if</span> ( lights.<span class="hljs-property">length</span> === <span class="hljs-number">0</span> ) <span class="hljs-keyword">return</span>;
+
+<p>  <span class="hljs-keyword">for</span> ( <span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; lights.<span class="hljs-property">length</span>; i ++ ) &amp;#123;<br>    <span class="hljs-keyword">const</span> light &#x3D; lights[ i ];<br>    <span class="hljs-keyword">const</span> shadow &#x3D; light.<span class="hljs-property">shadow</span>;</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 创建或复用 Shadow Map 对应的 RenderTarget&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; ( shadow.&lt;span class=&quot;hljs-property&quot;&gt;map&lt;/span&gt; === &lt;span class=&quot;hljs-literal&quot;&gt;null&lt;/span&gt; ) &amp;#123;
+  shadow.&lt;span class=&quot;hljs-property&quot;&gt;map&lt;/span&gt; = &lt;span class=&quot;hljs-keyword&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;hljs-title class_&quot;&gt;WebGLRenderTarget&lt;/span&gt;(&lt;span class=&quot;hljs-comment&quot;&gt;/* ... */&lt;/span&gt;);
+&amp;#125;
+
+_renderer.&lt;span class=&quot;hljs-title function_&quot;&gt;setRenderTarget&lt;/span&gt;( shadow.&lt;span class=&quot;hljs-property&quot;&gt;map&lt;/span&gt; );
+_renderer.&lt;span class=&quot;hljs-title function_&quot;&gt;clear&lt;/span&gt;();
+
+shadow.&lt;span class=&quot;hljs-title function_&quot;&gt;updateMatrices&lt;/span&gt;( light, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt; );
+&lt;span class=&quot;hljs-title function_&quot;&gt;renderObject&lt;/span&gt;( scene, camera, shadow.&lt;span class=&quot;hljs-property&quot;&gt;camera&lt;/span&gt;, light, &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;type&lt;/span&gt; );
+</code></pre>
+<p>  &amp;#125;<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>注意，此处传给内部 <code>renderObject()</code> 的相机是 <code>shadow.camera</code>，不是页面中创建的 PerspectiveCamera。</p>
+<h4 data-id="heading-7">1. 为什么平行光使用正交相机</h4>
+<p><code>DirectionalLight</code> 构造时会创建 <code>DirectionalLightShadow</code>。源码中它给基类传入的是：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">new</span> <span class="hljs-title class_">OrthographicCamera</span>( -<span class="hljs-number">5</span>, <span class="hljs-number">5</span>, <span class="hljs-number">5</span>, -<span class="hljs-number">5</span>, <span class="hljs-number">0.5</span>, <span class="hljs-number">500</span> )
+</code></pre>
+<p>平行光的光线方向彼此平行，不存在“越远越发散”的透视关系，因此用正交投影表达最自然。<code>light.shadow.camera.left/right/top/bottom</code> 决定阴影相机覆盖的长方体范围；范围之外既不会写入阴影贴图，也不会得到正确阴影。</p>
+<p>这也解释了一个常见误区：增大 <code>mapSize</code> 只会提高纹理分辨率，<strong>不会扩大阴影覆盖范围</strong>；覆盖范围由阴影相机决定。</p>
+<h4 data-id="heading-8">2. <code>LightShadow.updateMatrices()</code> 做了什么</h4>
+<p><code>src/lights/LightShadow.js</code> 中主要做三件事：</p>
+<pre><code class="hljs language-js" lang="js">shadowCamera.<span class="hljs-property">position</span>.<span class="hljs-title function_">copy</span>(lightWorldPosition);
+shadowCamera.<span class="hljs-title function_">lookAt</span>(light.<span class="hljs-property">target</span>的世界坐标);
+shadowCamera.<span class="hljs-title function_">updateMatrixWorld</span>();
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 用于阴影阶段的视锥裁剪</span><br>projScreenMatrix &#x3D; projectionMatrix * matrixWorldInverse;<br>frustum.<span class="hljs-title function_">setFromProjectionMatrix</span>(projScreenMatrix);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 世界坐标 -&gt; 灯光裁剪坐标 -&gt; [0, 1] 纹理坐标</span><br>shadowMatrix &#x3D; biasMatrix<br>             * shadowCamera.<span class="hljs-property">projectionMatrix</span><br>             * shadowCamera.<span class="hljs-property">matrixWorldInverse</span>;<br></p></code></pre><p></p>
+<p>其中源码里的 <code>biasMatrix</code> 是：</p>
+<pre><code class="hljs language-text" lang="text">0.5  0    0    0.5
+0    0.5  0    0.5
+0    0    0.5  0.5
+0    0    0    1
+</code></pre>
+<p>灯光投影后的 NDC 坐标范围是 <code>[-1, 1]</code>，纹理 UV 和深度范围是 <code>[0, 1]</code>。这个矩阵完成缩放和平移：</p>
+<pre><code class="hljs language-text" lang="text">shadowCoord = Bias × LightProjection × LightView × worldPosition
+</code></pre>
+<h4 data-id="heading-9">3. 哪些物体会写入 Shadow Map</h4>
+<p>阴影阶段会递归遍历场景，但 r129 的普通 PCF 阴影只绘制满足以下条件的 Mesh、Line 或 Points：</p>
+<pre><code class="hljs language-js" lang="js">object.<span class="hljs-property">castShadow</span> &amp;&amp;
+(!object.<span class="hljs-property">frustumCulled</span> || shadowFrustum.<span class="hljs-title function_">intersectsObject</span>(object))
+</code></pre>
+<p>因此示例中的球体进入阴影贴图，只有 <code>receiveShadow</code> 的平面不会进入普通 PCF 阴影贴图。VSM 是一个例外：实现还会绘制接收阴影的物体，以支持它的概率分布与模糊处理。</p>
+<h4 data-id="heading-10">4. 为什么不用物体原来的材质</h4>
+<p>生成 Shadow Map 时，我们只关心“离灯光多远”，不需要球体的蓝色、粗糙度或金属度。<code>getDepthMaterial()</code> 会选择 <code>MeshDepthMaterial</code>；点光源因深度定义不同，会选择 <code>MeshDistanceMaterial</code>。</p>
+<p>最后仍然通过底层的：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-title function_">renderBufferDirect</span>(
+  shadowCamera,
+  <span class="hljs-literal">null</span>,
+  geometry,
+  depthMaterial,
+  object,
+  group
+);
+</code></pre>
+<p>提交顶点、索引和阴影材质，执行真正的 WebGL draw call。</p>
+<p>对普通方向光阴影，深度被打包进 RGBA 颜色纹理。后面的 Shader 使用 <code>unpackRGBAToDepth()</code> 还原它。透明裁切、位移贴图、蒙皮或形变等几何效果也必须在深度材质中得到一致处理，否则屏幕里的轮廓和影子轮廓会对不上。复杂自定义顶点变形时，可以使用 <code>customDepthMaterial</code>。</p>
+<h3 data-id="heading-11">五、阴影数据如何进入正式材质</h3>
+<p>Shadow Map 生成后，<code>WebGLRenderer</code> 调用 <code>currentRenderState.setupLights()</code>。<code>WebGLLights.js</code> 把每盏投影平行光的数据整理进数组：</p>
+<pre><code class="hljs language-js" lang="js">state.<span class="hljs-property">directionalShadowMap</span>[i] = light.<span class="hljs-property">shadow</span>.<span class="hljs-property">map</span>.<span class="hljs-property">texture</span>;
+state.<span class="hljs-property">directionalShadowMatrix</span>[i] = light.<span class="hljs-property">shadow</span>.<span class="hljs-property">matrix</span>;
+state.<span class="hljs-property">directionalShadow</span>[i] = &#123;
+  <span class="hljs-attr">shadowBias</span>: shadow.<span class="hljs-property">bias</span>,
+  <span class="hljs-attr">shadowNormalBias</span>: shadow.<span class="hljs-property">normalBias</span>,
+  <span class="hljs-attr">shadowRadius</span>: shadow.<span class="hljs-property">radius</span>,
+  <span class="hljs-attr">shadowMapSize</span>: shadow.<span class="hljs-property">mapSize</span>
+&#125;;
+</code></pre>
+<p>创建或更新材质程序时，<code>WebGLRenderer.js</code> 再把这些数组连接到 Shader uniforms：</p>
+<pre><code class="hljs language-js" lang="js">uniforms.<span class="hljs-property">directionalShadowMap</span>.<span class="hljs-property">value</span> = lights.<span class="hljs-property">state</span>.<span class="hljs-property">directionalShadowMap</span>;
+uniforms.<span class="hljs-property">directionalShadowMatrix</span>.<span class="hljs-property">value</span> = lights.<span class="hljs-property">state</span>.<span class="hljs-property">directionalShadowMatrix</span>;
+uniforms.<span class="hljs-property">directionalLightShadows</span>.<span class="hljs-property">value</span> = lights.<span class="hljs-property">state</span>.<span class="hljs-property">directionalShadow</span>;
+</code></pre>
+<p><code>WebGLPrograms.js</code> 还根据阴影灯数量生成 <code>NUM_DIR_LIGHT_SHADOWS</code>，并根据 <code>renderer.shadowMap.type</code> 生成类似 <code>SHADOWMAP_TYPE_PCF_SOFT</code> 的编译宏。这意味着切换阴影算法或改变投影灯数量，可能触发 Shader 程序变体的重新编译。</p>
+<h3 data-id="heading-12">六、第二遍绘制：主相机下判断片元是否处在阴影中</h3>
+<p>正式阶段按 opaque、transmissive、transparent 的顺序绘制渲染列表。这里仍会执行常规的模型矩阵、视图矩阵、投影矩阵、材质和光照计算；阴影逻辑作为 ShaderChunk 被拼进支持光照的内置材质。</p>
+<h4 data-id="heading-13">1. 顶点着色器计算灯光空间坐标</h4>
+<p><code>shadowmap_vertex.glsl.js</code> 的核心代码是：</p>
+<pre><code class="hljs language-glsl" lang="glsl">shadowWorldPosition = worldPosition
+  + vec4(shadowWorldNormal * shadowNormalBias, 0.0);
+
+<p>vDirectionalShadowCoord[i] &#x3D;<br>  directionalShadowMatrix[i] * shadowWorldPosition;<br></p></code></pre><p></p>
+<p><code>directionalShadowMatrix</code> 就是上一节得到的：</p>
+<pre><code class="hljs language-text" lang="text">Bias × LightProjection × LightView
+</code></pre>
+<p>所以 <code>vDirectionalShadowCoord</code> 同时携带了 Shadow Map 的 UV 和待比较的深度。它经 varying 插值后进入片元着色器。</p>
+<p>这里的 <code>normalBias</code> 会沿表面法线把采样位置稍微推出表面，常用于缓解斜面上的条纹状阴影痤疮（shadow acne）。</p>
+<h4 data-id="heading-14">2. 片元着色器做深度比较</h4>
+<p><code>shadowmap_pars_fragment.glsl.js</code> 中的 <code>getShadow()</code> 可以简化为：</p>
+<pre><code class="hljs language-glsl" lang="glsl">float getShadow(..., vec4 shadowCoord) &#123;
+  shadowCoord.xyz /= shadowCoord.w;
+  shadowCoord.z += shadowBias;
+
+<p>  if (shadowCoord 在阴影相机范围内) &amp;#123;<br>    float closestDepth &#x3D; unpackRGBAToDepth(<br>      texture2D(shadowMap, shadowCoord.xy)<br>    );</p>
+<pre><code>return step(shadowCoord.z, closestDepth);
+</code></pre>
+<p>  &amp;#125;</p>
+<p>  return 1.0;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>设 Shadow Map 中记录的深度为 <code>d_map</code>，当前片元到灯光的深度为 <code>d_fragment</code>：</p>
+<pre><code class="hljs language-text" lang="text">d_fragment &lt;= d_map：片元是灯光看见的最近表面，返回 1（有光）
+d_fragment &gt;  d_map：前面有更近的遮挡物，返回 0（阴影）
+</code></pre>
+<p>示例中，平面上落在球体后方的片元会发现：Shadow Map 对应位置保存的是球表面的更小深度，因此它们被判定为阴影。</p>
+<h4 data-id="heading-15">3. 阴影最终乘在哪里</h4>
+<p>在 <code>lights_fragment_begin.glsl.js</code> 中，平行光先按方向、法线等计算直射辐照度，然后执行：</p>
+<pre><code class="hljs language-glsl" lang="glsl">directLight.color *=
+  receiveShadow
+    ? getShadow(directionalShadowMap[i], ..., vDirectionalShadowCoord[i])
+    : 1.0;
+
+<p>RE_Direct(directLight, geometry, material, reflectedLight);<br></p></code></pre><p></p>
+<p>这段代码揭示两个常被忽略的事实：</p>
+<ul>
+<li><code>receiveShadow</code> 不是决定物体是否进入 Shadow Map，而是决定正式着色时是否使用阴影系数；r129 中它作为 uniform 由 <code>object.receiveShadow</code> 更新。</li>
+<li>阴影主要削弱这盏灯的<strong>直射光</strong>，并不会自动抹掉环境光、半球光、环境贴图或材质自发光。因此阴影区通常不是纯黑色。</li>
+</ul>
+<h3 data-id="heading-16">七、PCFSoftShadowMap 为什么让边缘变软</h3>
+<p>最简单的 <code>BasicShadowMap</code> 只采样一次，结果接近非黑即白，锯齿明显。PCF（Percentage-Closer Filtering）的思路不是先过滤深度值，而是在邻域内多次做“是否被遮挡”的比较，再对比较结果求平均。</p>
+<p>r129 中：</p>
+<ul>
+<li><code>BasicShadowMap</code>：单点深度比较；</li>
+<li><code>PCFShadowMap</code>：对周围多个位置比较并平均；源码中这一分支使用 17 次比较；</li>
+<li><code>PCFSoftShadowMap</code>：结合 texel 网格与双线性混合，得到更平滑的变化；</li>
+<li><code>VSMShadowMap</code>：存储深度分布的矩并进行两遍模糊，再用概率上界估算可见性。</li>
+</ul>
+<p>所以 PCF 的“软”本质上是采样过滤，并不是真实面积光源产生的物理半影。提高 <code>mapSize</code> 会减少像素化，但也可能让相同采样半径在世界空间里显得更窄。</p>
+<h3 data-id="heading-17">八、<code>bias</code>、<code>normalBias</code> 和常见阴影瑕疵</h3>
+<p>Shadow Mapping 比较的是离散纹理中的有限精度深度，因此通常会遇到两类相反的问题。</p>
+<h4 data-id="heading-18">Shadow acne：表面出现条纹或噪点</h4>
+<p>同一个表面在 Shadow Map 与主相机下的采样位置不同，量化误差可能让它错误地认为“自己挡住了自己”。可尝试：</p>
+<pre><code class="hljs language-js" lang="js">light.<span class="hljs-property">shadow</span>.<span class="hljs-property">bias</span> = -<span class="hljs-number">0.0005</span>;
+light.<span class="hljs-property">shadow</span>.<span class="hljs-property">normalBias</span> = <span class="hljs-number">0.02</span>;
+</code></pre>
+<p>在 r129 的 <code>getShadow()</code> 中执行的是 <code>shadowCoord.z += shadowBias</code>，所以合适的正负号应以当前版本和场景实测为准；本文示例使用轻微负值。斜面问题通常优先微调 <code>normalBias</code>。</p>
+<h4 data-id="heading-19">Peter Panning：影子与物体底部脱离</h4>
+<p>偏移过大会把比较位置推得太远，阴影看起来像飘离物体。这不是继续增大偏移能解决的问题，应回调 <code>bias/normalBias</code>，并同时优化阴影相机范围与精度。</p>
+<p>一个更可靠的调参顺序是：</p>
+<ol>
+<li>先让阴影相机刚好包住需要投影的区域；</li>
+<li>再选择合适的 <code>mapSize</code>；</li>
+<li>最后只用尽可能小的 <code>bias</code> 和 <code>normalBias</code> 消除瑕疵。</li>
+</ol>
+<h3 data-id="heading-20">九、为什么阴影模糊、消失或完全不出现</h3>
+<h4 data-id="heading-21">1. 四个开关少了一个</h4>
+<p>检查：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">enabled</span> === <span class="hljs-literal">true</span>
+light.<span class="hljs-property">castShadow</span> === <span class="hljs-literal">true</span>
+sphere.<span class="hljs-property">castShadow</span> === <span class="hljs-literal">true</span>
+plane.<span class="hljs-property">receiveShadow</span> === <span class="hljs-literal">true</span>
+</code></pre>
+<p>此外，接收阴影的材质必须参与光照计算；<code>MeshBasicMaterial</code> 不计算灯光，不适合演示普通灯光阴影。</p>
+<h4 data-id="heading-22">2. 阴影相机没有覆盖目标</h4>
+<p>使用辅助器直接观察：</p>
+<pre><code class="hljs language-js" lang="js">scene.<span class="hljs-title function_">add</span>(<span class="hljs-keyword">new</span> <span class="hljs-variable constant_">THREE</span>.<span class="hljs-title class_">CameraHelper</span>(light.<span class="hljs-property">shadow</span>.<span class="hljs-property">camera</span>));
+</code></pre>
+<p>球体和需要接收影子的地面区域必须同时落在正交阴影相机的盒子内，<code>near/far</code> 也必须覆盖它们。</p>
+<h4 data-id="heading-23">3. 阴影有明显方块</h4>
+<p>阴影世界空间精度大致取决于：</p>
+<pre><code class="hljs language-text" lang="text">单位世界长度对应 texel 数 ≈ mapSize / 阴影相机覆盖宽度
+</code></pre>
+<p>因此，把相机范围从 10 扩成 100，会让同样的 1024 贴图精度下降约 10 倍。优先收紧范围，再考虑从 1024 提升到 2048；盲目堆分辨率会增加显存和渲染成本。</p>
+<h4 data-id="heading-24">4. 物体移动了，影子不更新</h4>
+<p>默认 <code>shadowMap.autoUpdate = true</code>。静态场景可以关闭自动更新来节省性能：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">autoUpdate</span> = <span class="hljs-literal">false</span>;
+</code></pre>
+<p>但场景变化后需要请求一次刷新：</p>
+<pre><code class="hljs language-js" lang="js">renderer.<span class="hljs-property">shadowMap</span>.<span class="hljs-property">needsUpdate</span> = <span class="hljs-literal">true</span>;
+</code></pre>
+<p>灯光的 <code>shadow</code> 对象也有自己的 <code>autoUpdate</code> 与 <code>needsUpdate</code> 检查。</p>
+<h3 data-id="heading-25">十、阴影的性能成本怎么算</h3>
+<p>Shadow Mapping 的代价不是“打开一个 Shader 开关”这么简单。每盏投影灯都要额外渲染可能投影的几何体。</p>
+<p>对于本文的一盏平行光，可以粗略理解为：</p>
+<pre><code class="hljs language-text" lang="text">一遍阴影深度绘制 + 一遍主场景绘制
+</code></pre>
+<p>如果有三盏投影平行光，投影几何体可能额外画三遍。点光源要覆盖六个方向，r129 把六个视口组织进一张二维纹理图集，但仍需要从六个方向绘制，成本更高。</p>
+<p>常用优化策略包括：</p>
+<ul>
+<li>只让真正需要的灯开启 <code>castShadow</code>；</li>
+<li>只让关键模型开启 <code>castShadow</code>；</li>
+<li>收紧阴影相机范围，避免无效绘制并提高单位面积精度；</li>
+<li>静态场景关闭 <code>autoUpdate</code>，变化时再设置 <code>needsUpdate</code>；</li>
+<li>控制 <code>mapSize</code>，不要默认所有灯都使用超高分辨率；</li>
+<li>远景或大量静态物体可考虑烘焙阴影、光照贴图或简单 blob shadow。</li>
+</ul>
+<h3 data-id="heading-26">十一、把整条源码调用链串起来</h3>
+<p>最后用一条调用链收束全文：</p>
+<pre><code class="hljs language-text" lang="text">renderer.render(scene, camera)
+│
+├─ scene.updateMatrixWorld()
+├─ projectObject(scene, camera)
+│  ├─ Mesh → 主渲染列表
+│  └─ Light + castShadow → shadowsArray
+│
+├─ WebGLShadowMap.render(shadowsArray, scene, camera)
+│  ├─ 创建/复用 light.shadow.map
+│  ├─ light.shadow.updateMatrices(light)
+│  │  ├─ 更新灯光相机
+│  │  ├─ 建立灯光视锥
+│  │  └─ 计算 Bias × LightProjection × LightView
+│  └─ 遍历 castShadow 物体
+│     ├─ 选择 MeshDepthMaterial
+│     └─ renderBufferDirect(..., shadow.camera, ...)
+│
+├─ setupLights()
+│  └─ 整理 Shadow Map、shadowMatrix、bias、mapSize 等 uniforms
+│
+└─ renderObjects(..., mainCamera)
+   ├─ 顶点 Shader：世界坐标 → Shadow Map 坐标
+   ├─ 片元 Shader：当前深度与 Shadow Map 深度比较
+   ├─ PCF / PCFSoft / VSM 过滤
+   └─ 直射光颜色 × 阴影可见性系数
+</code></pre>
+<h3 data-id="heading-27">结语</h3>
+<p>现在再看开头的四行配置，它们分别对应了一条清晰的源码链路：渲染器决定是否执行阴影 Pass，灯光决定是否创建灯光视角的 Shadow Map，球体决定是否写入这张深度图，平面决定正式着色时是否读取它。</p>
+<p>Three.js 帮我们隐藏了 RenderTarget、灯光相机、深度材质、矩阵变换、uniform 上传和 Shader 采样，但核心算法仍然是那句朴素的问题：</p>
+<blockquote>
+<p>从灯光看过去，在到达当前片元之前，是否已经看见了更近的东西？</p>
+</blockquote>
+<p>理解这个问题，也就理解了 Three.js 实时阴影的主干。之后无论调阴影范围、解决 acne、选择过滤方式，还是做性能优化，都不再只是试参数，而是在定位流水线中的具体一环。</p>
+<h3 data-id="heading-28">源码索引（Three.js r129）</h3>
+<ul>
+<li><code>package.json</code>：本文所用版本号 <code>0.129.0</code></li>
+<li><code>src/renderers/WebGLRenderer.js</code>：一帧的组织、阴影 Pass 调用、材质 uniform 绑定</li>
+<li><code>src/renderers/webgl/WebGLRenderStates.js</code>：灯光与投影灯列表</li>
+<li><code>src/renderers/webgl/WebGLShadowMap.js</code>：Shadow Map 创建与深度阶段绘制</li>
+<li><code>src/renderers/webgl/WebGLLights.js</code>：阴影纹理、矩阵和参数的整理</li>
+<li><code>src/lights/LightShadow.js</code>：灯光相机与 shadow matrix</li>
+<li><code>src/lights/DirectionalLightShadow.js</code>：平行光的正交阴影相机</li>
+<li><code>src/renderers/shaders/ShaderChunk/shadowmap_vertex.glsl.js</code>：生成阴影坐标</li>
+<li><code>src/renderers/shaders/ShaderChunk/shadowmap_pars_fragment.glsl.js</code>：深度比较与过滤</li>
+<li><code>src/renderers/shaders/ShaderChunk/lights_fragment_begin.glsl.js</code>：把阴影系数作用于直射光</li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析" href="https://juejin.cn/post/7680599831627497478" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析</span><span class="desc fs12">https://juejin.cn/post/7680599831627497478</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/b915f597.html">Llm-Gemini 0.34<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/cfb3c809.html">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/888b2748.html" title="中宣部召开党报党刊理论版改进文风经验交流会"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9708"></div><span class="title">中宣部召开党报党刊理论版改进文风经验交流会</span></a><a class="item" href="/rss/784755e.html" title="ASP.NET Core WebAPI 服务在 IM 即时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8187"></div><span class="title">ASP.NET Core WebAPI 服务在 IM 即时</span></a><a class="item" href="/rss/c14c9400.html" title="Agent Memory 进阶：用 LLM 总结压缩上下文，告别" 金鱼记忆""><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6074"></div><span class="title">Agent Memory 进阶：用 LLM 总结压缩上下文，告别"金鱼记忆"</span></a><a class="item" href="/rss/315ea88b.html" title="RHCE通关秘籍:从零基础到高分拿证的5个加速器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6648"></div><span class="title">RHCE通关秘籍:从零基础到高分拿证的5个加速器</span></a><a class="item" href="/rss/9afed97d.html" title="RHCE学习拿证计划：锁定核心考点，实现备考效率最大化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8857"></div><span class="title">RHCE学习拿证计划：锁定核心考点，实现备考效率最大化</span></a><a class="item" href="/rss/d591b321.html" title="SQL Server 2008 SQL注入详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6387"></div><span class="title">SQL Server 2008 SQL注入详解</span></a><a class="item" href="/rss/5596913c.html" title="Travel Planner — 智能旅行行程规划助手"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1678"></div><span class="title">Travel Planner — 智能旅行行程规划助手</span></a><a class="item" href="/rss/cfb3c809.html" title="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8311"></div><span class="title">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</span></a><a class="item" href="/rss/7341fbb7.html" title="《理解道德经》简版第5章：天地不仁，以万物为刍狗"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7766e2afd00d44ee9a08d8bb72ab64d5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiA5rOV5aaC6aOe:q75.awebp?rk3s=f64ab15b&x-expires=1789193299&x-signature=%2F%2BkPLYIzZArl4JnSSOn9aB00qWw%3D"></div><span class="title">《理解道德经》简版第5章：天地不仁，以万物为刍狗</span></a><a class="item" href="/rss/f947ddcd.html" title="【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6582"></div><span class="title">【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔</span></a><a class="item" href="/rss/de72a5d5.html" title="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8514"></div><span class="title">从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</span></a><a class="item" href="/rss/1f2613f.html" title="告别盲目刷题！RHCE高效备考路线图，助你一次Pass"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6048"></div><span class="title">告别盲目刷题！RHCE高效备考路线图，助你一次Pass</span></a><a class="item" href="/rss/d1f6d3c2.html" title="【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2325"></div><span class="title">【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股</span></a><a class="item" href="/rss/a5fd193f.html" title="在 Uber 规模下高效运行软件工厂"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/0595327d00674b609ad016cb07157d21~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgODcz:q75.awebp?rk3s=f64ab15b&x-expires=1789024903&x-signature=%2FW238lOVZDjRETzwojtBsUCdqCM%3D"></div><span class="title">在 Uber 规模下高效运行软件工厂</span></a><a class="item" href="/rss/dcf5f583.html" title="斐波那契数列的前 N 项和"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2206"></div><span class="title">斐波那契数列的前 N 项和</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

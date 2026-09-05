@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统 - RSSBOX</title>
+
+  
+    <meta name="description" content="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统  大模型是无状态的——每次对话都像第一次见面。要让 AI 记住你说过的话，就需要 Memory 系统。但简单地把所有对话塞进 prompt 会触发两个问题：上下文窗口爆了，Token 账单爆了。本文从 LangChain 的 InMemoryChatMessageHistory 出发，逐级深入三种存储方式（内">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/cfb3c809.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统  大模型是无状态的——每次对话都像第一次见面。要让 AI 记住你说过的话，就需要 Memory 系统。但简单地把所有对话塞进 prompt 会触发两个问题：上下文窗口爆了，Token 账单爆了。本文从 LangChain 的 InMemoryChatMessageHistory 出发，逐级深入三种存储方式（内">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-02T09:37:30.000Z">
+<meta property="article:modified_time" content="2026-09-02T09:37:30.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、为什么需要 Memory？</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.1 大模型是无状态的</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.2 Agent 的完整公式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.3 Memory 的三大挑战</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、短期记忆：InMemoryChatMessageHistory</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 基本用法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 消息类型</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 内存记忆的局限</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、持久化记忆：FileSystemChatMessageHistory</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 文件记忆的优势</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 写入对话</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 恢复对话</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 记忆分层</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、截断策略：只留最近的消息</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 为什么需要截断？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 消息数量截断</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 Token 数量截断</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 截断策略的优缺点</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、总结策略：用 AI 压缩历史</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.1 为什么需要总结？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.2 消息数量触发的总结</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.3 getBufferString 工具</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.4 Token 触发的总结</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.5 总结策略的优缺点</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、检索策略：语义化长期记忆</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.1 为什么需要检索？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.2 检索型 Memory 的架构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.3 三种策略对比</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、分层 Memory 架构实战</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.1 完整架构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.2 触发时机</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.3 与 &#x2F;compact 和 &#x2F;clear 的关系</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">八、核心工具速查</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.1 LangChain Memory API</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.2 消息类型属性</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">九、总结</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">9.1 知识体系图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">9.2 一句话总结</span></a></li></ol></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-02T09:37:30.000Z">2026-09-02</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</span></h1>
+<div>
+<h2 data-id="heading-0">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</h2>
+<blockquote>
+<p>大模型是无状态的——每次对话都像第一次见面。要让 AI 记住你说过的话，就需要 Memory 系统。但简单地把所有对话塞进 prompt 会触发两个问题：上下文窗口爆了，Token 账单爆了。本文从 LangChain 的 InMemoryChatMessageHistory 出发，逐级深入三种存储方式（内存 / 文件 / 向量数据库）和三种管理策略（截断 / 总结 / 检索），附完整代码演示和 token 精确计算。建议收藏后动手实践。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-1">一、为什么需要 Memory？</h3>
+<h4 data-id="heading-2">1.1 大模型是无状态的</h4>
+<pre><code class="hljs language-arduino" lang="arduino">LLM 的本质：无状态
+
+<p>  第一次对话：<br>  用户：我叫李四<br>  模型：你好李四，很高兴认识你！</p>
+<p>  第二次对话（不带历史）：<br>  用户：我叫什么名字？<br>  模型：抱歉，我不知道您的名字。<br>  → 大模型根本不记得刚才说过什么！</p>
+<p>  第二次对话（带上历史）：<br>  输入：[<br>    &amp;#123;role: <span class="hljs-string">“user”</span>, content: <span class="hljs-string">“我叫李四”</span>&amp;#125;,<br>    &amp;#123;role: <span class="hljs-string">“assistant”</span>, content: <span class="hljs-string">“你好李四，很高兴认识你！”</span>&amp;#125;,<br>    &amp;#123;role: <span class="hljs-string">“user”</span>, content: <span class="hljs-string">“我叫什么名字？”</span>&amp;#125;<br>  ]<br>  模型：您叫李四。<br>  → 因为历史消息被塞进了 prompt，模型<span class="hljs-string">“看到了”</span>之前的对话<br></p></code></pre><p></p>
+<pre><code class="hljs language-arduino" lang="arduino">大模型 = 无状态的函数
+
+  每次调用 model.<span class="hljs-built_in">invoke</span>(messages)：
+  → 模型只看 messages 数组里的内容
+  → 模型不记得上次调用了什么
+  → 就像鱼的记忆——每次都是全新的
+
+  所以我们需要 Memory：
+  → 把每次对话保存下来
+  → 下次调用时拼到 prompt 里
+  → 模型就<span class="hljs-string">"记住"</span>了
+</code></pre>
+<h4 data-id="heading-3">1.2 Agent 的完整公式</h4>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-attr">Agent</span> = LLM + Harness(Tool + RAG + Memory + ...)
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│                    Agent 架构图                           │<br>│                                                          │<br>│  ┌──────────────────────────────────────────────────┐     │<br>│  │  LLM（大脑）                                     │     │<br>│  │  → 理解意图                                      │     │<br>│  │  → 生成回答                                      │     │<br>│  │  → 决策是否调用工具                               │     │<br>│  └──────────────────┬───────────────────────────────┘     │<br>│                     │                                    │<br>│  ┌──────────────────▼───────────────────────────┐        │<br>│  │  Harness（框架）                              │        │<br>│  │                                               │        │<br>│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐    │        │<br>│  │  │  Tool    │  │  RAG     │  │  Memory  │    │        │<br>│  │  │  调用工具 │  │  检索知识 │  │  对话记忆 │    │        │<br>│  │  │  干活    │  │  注入prompt│ │  持续对话│    │        │<br>│  │  └──────────┘  └──────────┘  └──────────┘    │        │<br>│  │                                               │        │<br>│  │  → 不只是回答问题，而是真正”干活”              │        │<br>│  └───────────────────────────────────────────────┘        │<br>│                                                          │<br>│  Tool：让模型能调用外部工具（查天气、发邮件、写代码）     │<br>│  RAG：基于 query 从向量数据库检索相关知识，放入 prompt   │<br>│  Memory：保存对话历史，让模型记住上下文                   │<br>│                                                          │<br>│  Tool 和 RAG 都依赖 Memory——没有记忆就无法连续对话       │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-4">1.3 Memory 的三大挑战</h4>
+<pre><code class="hljs language-javascript" lang="javascript">简单的 chatMessage 数组不够，面临三大挑战：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  ① 上下文窗口大小                                          │<br>│  → 模型有 token 上限（如 128k、200k）                     │<br>│  → 对话越多，消息越长，越容易超出窗口                      │<br>│  → 超出窗口模型就处理不了了                                │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  ② <span class="hljs-title class_">Token</span> 开销                                              │<br>│  → 每次调用都要把所有历史消息算进 token                     │<br>│  → 对话越长，每次调用越贵                                  │<br>│  → 200k context <span class="hljs-variable language_">window</span> 的模型 ≠ 每次都传 200k token       │<br>│  → 成本会随着对话长度线性增长                              │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  ③ 持久化                                                  │<br>  → 内存存储 → 程序重启就没了                                │<br>  → 用户换设备、刷新页面 → 对话消失                          │<br>  → 需要文件 &#x2F; 数据库持久化                                  │<br>│  → 多用户场景需要 sessionId 区分不同会话                   │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<pre><code class="hljs language-arduino" lang="arduino">Memory 的两层设计：
+
+  存储逻辑（存在哪里）：
+  → 内存（In-Memory）：临时，重启即失
+  → 文件（<span class="hljs-built_in">File</span> System）：持久化，本地文件
+  → 数据库（Vector DB）：长期记忆，可检索
+
+  管理逻辑（怎么管理）：
+  → 截断（Truncation）：只留最近 N 条 / N 个 token
+  → 总结（Summarization）：旧消息用 AI 压缩成摘要
+  → 检索（Retrieval）：按语义从向量数据库检索相关历史
+
+  ReAct 执行流程：
+  messages 数组 → Memory 管理 → 喂给 LLM → 结果写回 Memory
+</code></pre>
+<hr>
+<h3 data-id="heading-5">二、短期记忆：InMemoryChatMessageHistory</h3>
+<h4 data-id="heading-6">2.1 基本用法</h4>
+<pre><code class="hljs language-arduino" lang="arduino">InMemoryChatMessageHistory = 内存中的消息历史管理器
+
+<p>  它的本质：<br>  → 一个被封装过的数组<br>  → 提供 addMessage &#x2F; getMessages &#x2F; clear 等方法<br>  → 把<span class="hljs-string">“手动维护 messages 数组”</span>的模式抽象成了类<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">InMemoryChatMessageHistory</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/chat_history'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">HumanMessage</span>, <span class="hljs-title class_">SystemMessage</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/messages'</span>;
+
+<span class="hljs-keyword">const</span> model = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&#123;
+  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,
+  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,
+  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,
+  <span class="hljs-attr">configuration</span>: &#123;
+    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,
+  &#125;,
+&#125;);
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">inMemoryDemo</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-comment">// 创建内存记忆实例</span>
+  <span class="hljs-keyword">const</span> history = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InMemoryChatMessageHistory</span>();
+
+  <span class="hljs-keyword">const</span> systemMessage = <span class="hljs-keyword">new</span> <span class="hljs-title class_">SystemMessage</span>(
+    <span class="hljs-string">'你是一个友好、幽默的做菜助手，喜欢分享美食和烹饪技巧'</span>
+  );
+
+  <span class="hljs-comment">// ========== 第一轮对话 ==========</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'[第一轮对话]'</span>);
+  <span class="hljs-keyword">const</span> userMessage1 = <span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(<span class="hljs-string">'你今天吃的什么？'</span>);
+  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(userMessage1);       <span class="hljs-comment">// 加入用户消息</span>
+
+  <span class="hljs-keyword">const</span> messages1 = [systemMessage, ...(<span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>())];
+  <span class="hljs-keyword">const</span> response1 = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(messages1);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`助手：<span class="hljs-subst">$&#123;response1.content&#125;</span>\n`</span>);
+
+  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(response1);          <span class="hljs-comment">// 加入 AI 回复</span>
+
+  <span class="hljs-comment">// ========== 第二轮对话 ==========</span>
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'[第二轮对话 基于历史记录]'</span>);
+  <span class="hljs-keyword">const</span> userMessage2 = <span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(<span class="hljs-string">'好吃吗？'</span>);
+  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(userMessage2);
+
+  <span class="hljs-keyword">const</span> messages2 = [systemMessage, ...(<span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>())];
+  <span class="hljs-keyword">const</span> response2 = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(messages2);
+  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(response2);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`助手：<span class="hljs-subst">$&#123;response2.content&#125;</span>\n`</span>);
+
+  <span class="hljs-comment">// ========== 查看所有消息 ==========</span>
+  <span class="hljs-keyword">const</span> allMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`共保存了 <span class="hljs-subst">$&#123;allMessages.length&#125;</span> 条对话`</span>);
+  allMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">msg, index</span>) =&gt;</span> &#123;
+    <span class="hljs-keyword">const</span> type = msg.<span class="hljs-property">type</span>;
+    <span class="hljs-keyword">const</span> prefix = type === <span class="hljs-string">'human'</span> ? <span class="hljs-string">'用户'</span> : <span class="hljs-string">'助手'</span>;
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">$&#123;index + <span class="hljs-number">1</span>&#125;</span>. [<span class="hljs-subst">$&#123;prefix&#125;</span>]: <span class="hljs-subst">$&#123;msg.content.substring(<span class="hljs-number">0</span>, <span class="hljs-number">50</span>)&#125;</span>...`</span>);
+  &#125;);
+&#125;
+
+<span class="hljs-title function_">inMemoryDemo</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-variable language_">console</span>.<span class="hljs-property">error</span>);
+</code></pre>
+<h4 data-id="heading-7">2.2 消息类型</h4>
+<pre><code class="hljs language-go" lang="go">LangChain 中有三种核心消息类型：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│              三种消息类型                                  │<br>│                                                          │<br>│  HumanMessage（用户消息）                                 │<br>│  → <span class="hljs-keyword">type</span>: <span class="hljs-string">‘human’</span>                                         │<br>│  → 来自用户的输入                                         │<br>│  → <span class="hljs-built_in">new</span> HumanMessage(<span class="hljs-string">‘你好’</span>)                               │<br>│                                                          │<br>│  AIMessage（AI 消息）                                     │<br>│  → <span class="hljs-keyword">type</span>: <span class="hljs-string">‘ai’</span>                                            │<br>│  → 模型生成的回答                                         │<br>│  → model.invoke() 返回的就是 AIMessage                    │<br>│  → <span class="hljs-built_in">new</span> AIMessage(<span class="hljs-string">‘你好！有什么可以帮你？’</span>)                │<br>│                                                          │<br>│  SystemMessage（系统消息）                                │<br>│  → <span class="hljs-keyword">type</span>: <span class="hljs-string">‘system’</span>                                        │<br>│  → 给模型的系统指令、人设设定                              │<br>│  → <span class="hljs-built_in">new</span> SystemMessage(<span class="hljs-string">‘你是一个做菜助手’</span>)                  │<br>│                                                          │<br>│  ToolMessage（工具消息）                                  │<br>│  → <span class="hljs-keyword">type</span>: <span class="hljs-string">‘tool’</span>                                          │<br>│  → 工具调用的返回结果                                     │<br>│  → 配合 Tool Call 使用                                    │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  每个消息对象都有：<br>  → <span class="hljs-keyword">type</span>：消息类型（human &#x2F; ai &#x2F; system &#x2F; tool）<br>  → content：消息内容（字符串或数组）<br>  → 其他元信息（name、tool_call_id 等）<br></p></code></pre><p></p>
+<h4 data-id="heading-8">2.3 内存记忆的局限</h4>
+<pre><code class="hljs">InMemoryChatMessageHistory 的问题：
+
+<p>  ① 不持久<br>  → 程序重启 → 历史全没了<br>  → 刷新页面 → 对话消失<br>  → 只适合临时会话</p>
+<p>  ② 无上限<br>  → 对话无限增长<br>  → 迟早爆上下文窗口<br>  → Token 成本越来越高</p>
+<p>  ③ 单会话<br>  → 一个实例对应一个会话<br>  → 多用户需要多实例管理<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-9">三、持久化记忆：FileSystemChatMessageHistory</h3>
+<h4 data-id="heading-10">3.1 文件记忆的优势</h4>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-attr">FileSystemChatMessageHistory</span> = 文件存储的消息历史
+
+<p>  相比内存记忆的优势：<br>  → 持久化：程序重启不丢失<br>  → 跨会话：重新运行能恢复历史<br>  → 多用户：通过 sessionId 区分不同会话<br>  → 简单：不需要数据库，JSON 文件即可<br></p></code></pre><p></p>
+<h4 data-id="heading-11">3.2 写入对话</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">FileSystemChatMessageHistory</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/community/stores/message/file_system'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">HumanMessage</span>, <span class="hljs-title class_">SystemMessage</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/messages'</span>;
+<span class="hljs-keyword">import</span> path <span class="hljs-keyword">from</span> <span class="hljs-string">'node:path'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">fileHistoryDemo</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> filePath &#x3D; path.<span class="hljs-title function_">join</span>(process.<span class="hljs-title function_">cwd</span>(), <span class="hljs-string">‘chat_history.json’</span>);<br>  <span class="hljs-keyword">const</span> sessionId &#x3D; <span class="hljs-string">‘user_session_001’</span>; <span class="hljs-comment">&#x2F;&#x2F; 多用户场景的会话标识</span></p>
+<p>  <span class="hljs-keyword">const</span> systemMessage &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">SystemMessage</span>(<br>    <span class="hljs-string">‘你是一个友好、幽默的做菜助手，喜欢分享美食和烹饪技巧’</span><br>  );</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 创建文件记忆实例</span><br>  <span class="hljs-keyword">const</span> history &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileSystemChatMessageHistory</span>(&amp;#123;<br>    filePath,<br>    sessionId,<br>  &amp;#125;);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 第一轮对话 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span><br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘[第一轮对话]’</span>);<br>  <span class="hljs-keyword">const</span> userMessage1 &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(<span class="hljs-string">‘红烧肉怎么做’</span>);<br>  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(userMessage1);</p>
+<p>  <span class="hljs-keyword">const</span> messages1 &#x3D; [systemMessage, …(<span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>())];<br>  <span class="hljs-keyword">const</span> response1 &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(messages1);<br>  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(response1);</p>
+<p>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>用户：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;userMessage1.content&amp;#125;&lt;/span&gt;\n</code></span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>助手：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;response1.content&amp;#125;&lt;/span&gt;\n</code></span>);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 第二轮对话 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span><br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘[第二轮对话 基于历史记录]’</span>);<br>  <span class="hljs-keyword">const</span> userMessage2 &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(<span class="hljs-string">‘好吃吗？’</span>);<br>  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(userMessage2);</p>
+<p>  <span class="hljs-keyword">const</span> messages2 &#x3D; [systemMessage, …(<span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>())];<br>  <span class="hljs-keyword">const</span> response2 &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(messages2);<br>  <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(response2);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>助手：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;response2.content&amp;#125;&lt;/span&gt;\n</code></span>);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 查看所有消息 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span><br>  <span class="hljs-keyword">const</span> allMessages &#x3D; <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>共保存了 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;allMessages.length&amp;#125;&lt;/span&gt; 条对话</code></span>);<br>  allMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">msg, index</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-keyword">const</span> type &#x3D; msg.<span class="hljs-property">type</span>;<br>    <span class="hljs-keyword">const</span> prefix &#x3D; type &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘human’</span> ? <span class="hljs-string">‘用户’</span> : <span class="hljs-string">‘助手’</span>;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;index + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;. [&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;prefix&amp;#125;&lt;/span&gt;]: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;msg.content.substring(&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;50&lt;/span&gt;)&amp;#125;&lt;/span&gt;...</code></span>);<br>  &amp;#125;);<br>&amp;#125;</p>
+<p><span class="hljs-title function_">fileHistoryDemo</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-variable language_">console</span>.<span class="hljs-property">error</span>);<br></p></code></pre><p></p>
+<h4 data-id="heading-12">3.3 恢复对话</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 重新运行程序，从文件恢复历史</span>
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">restoreAndContinue</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> filePath = path.<span class="hljs-title function_">join</span>(process.<span class="hljs-title function_">cwd</span>(), <span class="hljs-string">'chat_history.json'</span>);
+  <span class="hljs-keyword">const</span> sessionId = <span class="hljs-string">'user_session_001'</span>;
+
+<p>  <span class="hljs-keyword">const</span> systemMessage &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">SystemMessage</span>(<br>    <span class="hljs-string">‘你是一个友好、幽默的做菜助手，喜欢分享美食和烹饪技巧’</span><br>  );</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 从文件中恢复历史</span><br>  <span class="hljs-keyword">const</span> restoredHistory &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">FileSystemChatMessageHistory</span>(&amp;#123;<br>    filePath,<br>    sessionId,<br>  &amp;#125;);</p>
+<p>  <span class="hljs-keyword">const</span> restoredMessages &#x3D; <span class="hljs-keyword">await</span> restoredHistory.<span class="hljs-title function_">getMessages</span>();<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>从文件中恢复了 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;restoredMessages.length&amp;#125;&lt;/span&gt; 条历史信息：</code></span>);<br>  restoredMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">msg, index</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-keyword">const</span> type &#x3D; msg.<span class="hljs-property">type</span>;<br>    <span class="hljs-keyword">const</span> prefix &#x3D; type &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘human’</span> ? <span class="hljs-string">‘用户’</span> : <span class="hljs-string">‘助手’</span>;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;index + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;. [&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;prefix&amp;#125;&lt;/span&gt;]: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;msg.content.substring(&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;50&lt;/span&gt;)&amp;#125;&lt;/span&gt;...</code></span>);<br>  &amp;#125;);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 继续第三轮对话</span><br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘[第三轮对话]’</span>);<br>  <span class="hljs-keyword">const</span> userMessage3 &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(<span class="hljs-string">‘需要哪些食材？’</span>);<br>  <span class="hljs-keyword">await</span> restoredHistory.<span class="hljs-title function_">addMessage</span>(userMessage3);</p>
+<p>  <span class="hljs-keyword">const</span> messages3 &#x3D; [systemMessage, …(<span class="hljs-keyword">await</span> restoredHistory.<span class="hljs-title function_">getMessages</span>())];<br>  <span class="hljs-keyword">const</span> response3 &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(messages3);<br>  <span class="hljs-keyword">await</span> restoredHistory.<span class="hljs-title function_">addMessage</span>(response3);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(response3.<span class="hljs-property">content</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘对话已保存到文件’</span>);<br>&amp;#125;<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript">文件存储的结构（chat_history.<span class="hljs-property">json</span>）：
+
+  &#123;
+    <span class="hljs-string">"user_session_001"</span>: [
+      &#123; <span class="hljs-string">"type"</span>: <span class="hljs-string">"human"</span>, <span class="hljs-string">"content"</span>: <span class="hljs-string">"红烧肉怎么做"</span> &#125;,
+      &#123; <span class="hljs-string">"type"</span>: <span class="hljs-string">"ai"</span>, <span class="hljs-string">"content"</span>: <span class="hljs-string">"红烧肉的做法..."</span> &#125;,
+      &#123; <span class="hljs-string">"type"</span>: <span class="hljs-string">"human"</span>, <span class="hljs-string">"content"</span>: <span class="hljs-string">"好吃吗？"</span> &#125;,
+      &#123; <span class="hljs-string">"type"</span>: <span class="hljs-string">"ai"</span>, <span class="hljs-string">"content"</span>: <span class="hljs-string">"当然好吃..."</span> &#125;,
+      ...
+    ],
+    <span class="hljs-string">"user_session_002"</span>: [ ... ]
+  &#125;
+
+  → sessionId 作为 key
+  → 每个会话独立存储
+  → <span class="hljs-title class_">JSON</span> 格式，人类可读
+</code></pre>
+<h4 data-id="heading-13">3.4 记忆分层</h4>
+<pre><code class="hljs language-arduino" lang="arduino">不同存储方式的定位：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│              记忆三层架构                                  │<br>│                                                          │<br>│  短期记忆（In-Memory）                                    │<br>│  → 当前 Agent 正在进行的对话                               │<br>│  → 速度最快，无 I&#x2F;O                                       │<br>│  → 程序重启即失                                           │<br>│                                                          │<br>│  中期记忆（<span class="hljs-built_in">File</span> System）                                  │<br>│  → 最近几次的对话                                         │<br>│  → JSON 文件持久化                                        │<br>│  → 跨会话恢复                                             │<br>│  → 适合 session 级别的记忆                                │<br>│                                                          │<br>│  长期记忆（Vector DB &#x2F; Milvus）                           │<br>│  → 所有历史对话的语义向量                                 │<br>│  → 按相似度检索相关历史                                   │<br>│  → 真正的<span class="hljs-string">“长期记忆”</span>                                       │<br>│  → 结合 RAG 使用                                          │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-14">四、截断策略：只留最近的消息</h3>
+<h4 data-id="heading-15">4.1 为什么需要截断？</h4>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-string">对话越来越长的问题：</span>
+
+<p>  <span class="hljs-string">对话</span> <span class="hljs-number">10</span> <span class="hljs-string">轮</span> <span class="hljs-string">→</span> <span class="hljs-number">20</span> <span class="hljs-string">条消息</span> <span class="hljs-string">→</span> <span class="hljs-number">2000 </span><span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">还能接受</span><br>  <span class="hljs-string">对话</span> <span class="hljs-number">100</span> <span class="hljs-string">轮</span> <span class="hljs-string">→</span> <span class="hljs-number">200</span> <span class="hljs-string">条消息</span> <span class="hljs-string">→</span> <span class="hljs-number">20000</span> <span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">有点贵了</span><br>  <span class="hljs-string">对话</span> <span class="hljs-number">1000</span> <span class="hljs-string">轮</span> <span class="hljs-string">→</span> <span class="hljs-number">2000</span> <span class="hljs-string">条消息</span> <span class="hljs-string">→</span> <span class="hljs-number">200000</span> <span class="hljs-string">token</span> <span class="hljs-string">→</span> <span class="hljs-string">爆窗口了</span></p>
+<p>  <span class="hljs-string">解决方案：截断（Truncation）</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">只保留最近的</span> <span class="hljs-string">N</span> <span class="hljs-string">条消息</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">旧消息直接丢弃</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">最简单、最直接的策略</span></p>
+<p>  <span class="hljs-string">类比：人的短期记忆</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">你记得昨天吃了什么</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">你可能不记得上个月某天吃了什么</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">太久远的就忘了</span><br></p></code></pre><p></p>
+<h4 data-id="heading-16">4.2 消息数量截断</h4>
+<pre><code class="hljs language-scss" lang="scss">最简单的截断方式：按消息数量截断
+
+<p>  原理：<br>  → 设定 maxMessages（最多保留几条）<br>  → 用 <span class="hljs-built_in">slice</span>(-maxMessages) 截取最后 N 条<br>  → 旧消息直接扔掉<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">InMemoryChatMessageHistory</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/chat_history'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">HumanMessage</span>, <span class="hljs-title class_">AIMessage</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/messages'</span>;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">messageCountTruncation</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> history = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InMemoryChatMessageHistory</span>();
+  <span class="hljs-keyword">const</span> maxMessages = <span class="hljs-number">4</span>; <span class="hljs-comment">// 最多保留 4 条消息</span>
+
+  <span class="hljs-comment">// 模拟 8 条历史消息（4 轮对话）</span>
+  <span class="hljs-keyword">const</span> messages = [
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我叫李四'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'你好李四，很高兴认识你！'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我是一名设计师'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'设计师是个很有创造力的职业！你主要做什么类型的设计？'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我喜欢艺术和音乐'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'艺术和音乐都是很好的爱好，它们能激发创作灵感。'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我擅长 UI/UX 设计'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'UI/UX 设计非常重要，好的用户体验能让产品更成功！'</span> &#125;,
+  ];
+
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> messages) &#123;
+    <span class="hljs-keyword">if</span> (msg.<span class="hljs-property">type</span> === <span class="hljs-string">'human'</span>) &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125; <span class="hljs-keyword">else</span> &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">AIMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125;
+  &#125;
+
+  <span class="hljs-comment">// 调用模型前截断</span>
+  <span class="hljs-keyword">let</span> allMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+  <span class="hljs-keyword">const</span> trimmedMessages = allMessages.<span class="hljs-title function_">slice</span>(-maxMessages);
+
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`保留消息数量：<span class="hljs-subst">$&#123;trimmedMessages.length&#125;</span>`</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'保留的消息：'</span>);
+  trimmedMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function"><span class="hljs-params">m</span> =&gt;</span> 
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`  <span class="hljs-subst">$&#123;m.constructor.name&#125;</span>: <span class="hljs-subst">$&#123;m.content&#125;</span>`</span>)
+  );
+&#125;
+</code></pre>
+<pre><code class="hljs language-markdown" lang="markdown">截断效果（保留最近 4 条）：
+
+  原始 8 条：
+<span class="hljs-bullet">  1.</span> HumanMessage: 我叫李四          ← 被丢弃
+<span class="hljs-bullet">  2.</span> AIMessage: 你好李四...          ← 被丢弃
+<span class="hljs-bullet">  3.</span> HumanMessage: 我是一名设计师     ← 被丢弃
+<span class="hljs-bullet">  4.</span> AIMessage: 设计师是个...        ← 被丢弃
+<span class="hljs-bullet">  5.</span> HumanMessage: 我喜欢艺术和音乐   ← 保留
+<span class="hljs-bullet">  6.</span> AIMessage: 艺术和音乐...        ← 保留
+<span class="hljs-bullet">  7.</span> HumanMessage: 我擅长 UI/UX 设计 ← 保留
+<span class="hljs-bullet">  8.</span> AIMessage: UI/UX 设计...       ← 保留
+
+  优点：简单，O(1) 操作
+  缺点：按条数不精确——短消息和长消息都算 1 条
+</code></pre>
+<h4 data-id="heading-17">4.3 Token 数量截断</h4>
+<pre><code class="hljs">更精确的方式：按 token 数量截断
+
+<p>  为什么按 token 更精确？<br>  → 一条短消息可能只有 5 个 token<br>  → 一条长消息可能有 500 个 token<br>  → 按条数截断可能差 100 倍<br>  → 上下文窗口的限制是 token，不是条数<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">InMemoryChatMessageHistory</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/chat_history'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">HumanMessage</span>, <span class="hljs-title class_">AIMessage</span>, trimMessages &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/messages'</span>;
+<span class="hljs-keyword">import</span> &#123; getEncoding &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'js-tiktoken'</span>;
+
+<span class="hljs-comment">// 统计消息数组的总 token 数</span>
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">countTokens</span>(<span class="hljs-params">messages, encoder</span>) &#123;
+  <span class="hljs-keyword">let</span> total = <span class="hljs-number">0</span>;
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> messages) &#123;
+    <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">typeof</span> msg.<span class="hljs-property">content</span> === <span class="hljs-string">'string'</span>
+      ? msg.<span class="hljs-property">content</span>
+      : <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(msg.<span class="hljs-property">content</span>);
+    total += encoder.<span class="hljs-title function_">encode</span>(content).<span class="hljs-property">length</span>;
+  &#125;
+  <span class="hljs-keyword">return</span> total;
+&#125;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">tokenCountTruncation</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> history = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InMemoryChatMessageHistory</span>();
+  <span class="hljs-keyword">const</span> maxTokens = <span class="hljs-number">100</span>; <span class="hljs-comment">// token 上限</span>
+  <span class="hljs-keyword">const</span> encoder = <span class="hljs-title function_">getEncoding</span>(<span class="hljs-string">'cl100k_base'</span>); <span class="hljs-comment">// GPT 系列的编码方式</span>
+
+  <span class="hljs-keyword">const</span> messages = [
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我叫李四'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'你好李四，很高兴认识你！'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我是一名设计师'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'设计师是个很有创造力的职业！你主要做什么类型的设计？'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我喜欢艺术和音乐'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'艺术和音乐都是很好的爱好，它们能激发创作灵感。'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我擅长 UI/UX 设计'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'UI/UX 设计非常重要，好的用户体验能让产品更成功！'</span> &#125;,
+  ];
+
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> messages) &#123;
+    <span class="hljs-keyword">if</span> (msg.<span class="hljs-property">type</span> === <span class="hljs-string">'human'</span>) &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125; <span class="hljs-keyword">else</span> &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">AIMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125;
+  &#125;
+
+  <span class="hljs-keyword">const</span> allMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+
+  <span class="hljs-comment">// LangChain 内置的 trimMessages 工具</span>
+  <span class="hljs-keyword">const</span> trimmedMessages = <span class="hljs-keyword">await</span> <span class="hljs-title function_">trimMessages</span>(allMessages, &#123;
+    <span class="hljs-attr">maxTokens</span>: maxTokens,
+    <span class="hljs-attr">tokenCounter</span>: <span class="hljs-keyword">async</span> (msgs) =&gt; <span class="hljs-title function_">countTokens</span>(msgs, encoder),
+    <span class="hljs-attr">strategy</span>: <span class="hljs-string">'last'</span>, <span class="hljs-comment">// 保留最近的</span>
+  &#125;);
+
+  <span class="hljs-keyword">const</span> totalTokens = <span class="hljs-title function_">countTokens</span>(trimmedMessages, encoder);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`截断后总 token 数量：<span class="hljs-subst">$&#123;totalTokens&#125;</span>`</span>);
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'保留的消息：'</span>);
+  trimmedMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function"><span class="hljs-params">m</span> =&gt;</span> 
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`  <span class="hljs-subst">$&#123;m.constructor.name&#125;</span>: <span class="hljs-subst">$&#123;m.content&#125;</span>`</span>)
+  );
+&#125;
+</code></pre>
+<pre><code class="hljs language-ini" lang="ini">trimMessages 的工作原理：
+
+  输入：8 条消息，总 <span class="hljs-attr">token</span> = <span class="hljs-number">200</span>，maxTokens = <span class="hljs-number">100</span>
+
+  从最后一条往前数，直到不超过 maxTokens：
+  第 8 条：30 token → 累计 30  ✓ 保留
+  第 7 条：15 token → 累计 45  ✓ 保留
+  第 6 条：25 token → 累计 70  ✓ 保留
+  第 5 条：15 token → 累计 85  ✓ 保留
+  第 4 条：40 token → 累计 125 ✗ 超过了，停
+
+  → 保留第 5-8 条（85 token）
+  → 丢弃第 1-4 条
+
+  内部使用二分查找优化效率
+  → 不需要一条条遍历
+  → O(log n) 找到截断点
+</code></pre>
+<pre><code class="hljs language-arduino" lang="arduino">js-tiktoken：精确计算 token
+
+  token ≠ 字 ≠ 字符
+  → <span class="hljs-string">"你好"</span> 可能是 <span class="hljs-number">2</span> 个 token（中文）
+  → <span class="hljs-string">"hello"</span> 可能是 <span class="hljs-number">1</span> 个 token（英文）
+  → 不同模型的 token 编码方式不同
+
+  cl100k_base：
+  → GPT<span class="hljs-number">-3.5</span> / GPT<span class="hljs-number">-4</span> 使用的编码
+  → 最常用的编码方式
+
+  为什么要精确计算 token？
+  → 控制成本：每次调用花多少钱心里有数
+  → 控制窗口：确保不超过模型上限
+  → 截断策略：精确控制留下多少
+</code></pre>
+<h4 data-id="heading-18">4.4 截断策略的优缺点</h4>
+<pre><code class="hljs language-arduino" lang="arduino">┌──────────────────────────────────────────────────────────┐
+│              截断策略的优缺点                              │
+│                                                          │
+│  优点：                                                   │
+│  ✅ 简单高效，实现成本低                                   │
+│  ✅ token 截断精度高                                       │
+│  ✅ 不需要额外调用模型（零成本）                           │
+│  ✅ 适合短对话、快速对话场景                               │
+│                                                          │
+│  缺点：                                                   │
+│  ❌ 旧消息直接丢失，不可逆                                 │
+│  ❌ 可能丢失重要的早期信息                                 │
+│  ❌ 用户说<span class="hljs-string">"我刚才提到的那件事"</span> → 模型不知道是哪件事       │
+│  ❌ 长期对话体验差                                        │
+│                                                          │
+│  适用场景：                                               │
+│  → 简单问答机器人                                         │
+│  → 短对话任务                                             │
+│  → 对历史记忆要求不高的场景                               │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h3 data-id="heading-19">五、总结策略：用 AI 压缩历史</h3>
+<h4 data-id="heading-20">5.1 为什么需要总结？</h4>
+<pre><code class="hljs language-erlang" lang="erlang">截断策略的问题：旧消息直接丢了
+
+<p>  用户：我叫李四，是一名 UI&#x2F;UX 设计师，喜欢艺术和音乐<br>  …（<span class="hljs-number">10</span> 轮对话后）…<br>  用户：你还记得我是做什么的吗？<br>  模型：抱歉，我们的对话历史中没有提到您的职业。<br>  → 因为早期消息被截断掉了！</p>
+<p>  解决方案：总结（Summarization）<br>  → 旧消息不直接丢<br>  → 让 AI 把旧消息总结成一段摘要<br>  → 摘要 + 最近消息一起喂给模型<br>  → 既省 token，又保留核心信息<br></p></code></pre><p></p>
+<h4 data-id="heading-21">5.2 消息数量触发的总结</h4>
+<pre><code class="hljs">总结策略的核心思路：
+
+<p>  当消息数量超过阈值时：<br>  → 旧消息（前 N 条） → AI 总结 → 摘要<br>  → 最近消息（后 K 条） → 原样保留<br>  → 摘要 + 最近消息 → 组成新的历史<br>  → 既省 token，又保留核心信息<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">InMemoryChatMessageHistory</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/chat_history'</span>;
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">SystemMessage</span>,
+  <span class="hljs-title class_">HumanMessage</span>,
+  <span class="hljs-title class_">AIMessage</span>,
+  getBufferString,
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/messages'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+
+<span class="hljs-keyword">const</span> model = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&#123;
+  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,
+  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,
+  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,
+  <span class="hljs-attr">configuration</span>: &#123;
+    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,
+  &#125;,
+&#125;);
+
+<span class="hljs-comment">// 总结历史消息</span>
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">summarizeHistory</span>(<span class="hljs-params">messages</span>) &#123;
+  <span class="hljs-keyword">if</span> (messages.<span class="hljs-property">length</span> === <span class="hljs-number">0</span>) <span class="hljs-keyword">return</span> <span class="hljs-string">''</span>;
+
+  <span class="hljs-comment">// 将消息数组拼接成对话字符串</span>
+  <span class="hljs-keyword">const</span> conversationText = <span class="hljs-title function_">getBufferString</span>(messages, <span class="hljs-string">'用户'</span>, <span class="hljs-string">'助手'</span>);
+
+  <span class="hljs-keyword">const</span> summaryPrompt = <span class="hljs-string">`请总结以下对话的核心内容，保留重要信息：
+<span class="hljs-subst">$&#123;conversationText&#125;</span>
+
+总结:`</span>;
+
+  <span class="hljs-keyword">const</span> summaryResponse = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>([
+    <span class="hljs-keyword">new</span> <span class="hljs-title class_">SystemMessage</span>(summaryPrompt),
+  ]);
+
+  <span class="hljs-keyword">return</span> summaryResponse.<span class="hljs-property">content</span>;
+&#125;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">summarizationMemoryDemo</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> history = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InMemoryChatMessageHistory</span>();
+  <span class="hljs-keyword">const</span> maxMessages = <span class="hljs-number">6</span>;
+  <span class="hljs-keyword">const</span> keepRecent = <span class="hljs-number">2</span>; <span class="hljs-comment">// 保留最近 2 条</span>
+
+  <span class="hljs-comment">// 模拟 8 条历史消息</span>
+  <span class="hljs-keyword">const</span> messages = [
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我叫李四'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'你好李四，很高兴认识你！'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我是一名设计师'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'设计师是个很有创造力的职业！你主要做什么类型的设计？'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我喜欢艺术和音乐'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'艺术和音乐都是很好的爱好，它们能激发创作灵感。'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'human'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'我擅长 UI/UX 设计'</span> &#125;,
+    &#123; <span class="hljs-attr">type</span>: <span class="hljs-string">'ai'</span>, <span class="hljs-attr">content</span>: <span class="hljs-string">'UI/UX 设计非常重要，好的用户体验能让产品更成功！'</span> &#125;,
+  ];
+
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> messages) &#123;
+    <span class="hljs-keyword">if</span> (msg.<span class="hljs-property">type</span> === <span class="hljs-string">'human'</span>) &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">HumanMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125; <span class="hljs-keyword">else</span> &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">AIMessage</span>(msg.<span class="hljs-property">content</span>));
+    &#125;
+  &#125;
+
+  <span class="hljs-keyword">let</span> allMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`原始消息数量：<span class="hljs-subst">$&#123;allMessages.length&#125;</span>`</span>);
+
+  <span class="hljs-keyword">if</span> (allMessages.<span class="hljs-property">length</span> &gt; maxMessages) &#123;
+    <span class="hljs-comment">// 拆分：旧消息用于总结，最近消息保留</span>
+    <span class="hljs-keyword">const</span> recentMessages = allMessages.<span class="hljs-title function_">slice</span>(-keepRecent);
+    <span class="hljs-keyword">const</span> messagesToSummarize = allMessages.<span class="hljs-title function_">slice</span>(<span class="hljs-number">0</span>, -keepRecent);
+
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`将被总结的消息数量：<span class="hljs-subst">$&#123;messagesToSummarize.length&#125;</span>`</span>);
+
+    <span class="hljs-comment">// AI 总结旧消息</span>
+    <span class="hljs-keyword">const</span> summary = <span class="hljs-keyword">await</span> <span class="hljs-title function_">summarizeHistory</span>(messagesToSummarize);
+
+    <span class="hljs-comment">// 清空历史，重新组装</span>
+    <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">clear</span>();
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> recentMessages) &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(msg);
+    &#125;
+    <span class="hljs-comment">// 把摘要作为一条 AI 消息加入历史</span>
+    <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">AIMessage</span>(<span class="hljs-string">`[对话摘要] <span class="hljs-subst">$&#123;summary&#125;</span>`</span>));
+
+    <span class="hljs-keyword">const</span> newMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`总结后消息数量：<span class="hljs-subst">$&#123;newMessages.length&#125;</span>`</span>);
+    newMessages.<span class="hljs-title function_">forEach</span>(<span class="hljs-function"><span class="hljs-params">m</span> =&gt;</span> &#123;
+      <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">`<span class="hljs-subst">$&#123;m.constructor.name&#125;</span>: <span class="hljs-subst">$&#123;m.content.substring(<span class="hljs-number">0</span>, <span class="hljs-number">60</span>)&#125;</span>...`</span>);
+    &#125;);
+  &#125;
+&#125;
+
+<span class="hljs-title function_">summarizationMemoryDemo</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-variable language_">console</span>.<span class="hljs-property">error</span>);
+</code></pre>
+<pre><code class="hljs language-css" lang="css">总结前后对比：
+
+  总结前（<span class="hljs-number">8</span> 条消息，约 <span class="hljs-number">200</span> token）：
+  用户：我叫李四
+  助手：你好李四，很高兴认识你！
+  用户：我是一名设计师
+  助手：设计师是个很有创造力的职业！你主要做什么类型的设计？
+  用户：我喜欢艺术和音乐
+  助手：艺术和音乐都是很好的爱好，它们能激发创作灵感。
+  用户：我擅长 UI/UX 设计
+  助手：UI/UX 设计非常重要，好的用户体验能让产品更成功！
+
+  总结后（<span class="hljs-number">3</span> 条消息，约 <span class="hljs-number">80</span> token）：
+  助手：<span class="hljs-selector-attr">[对话摘要]</span> 用户名叫李四，是一名设计师，擅长 UI/UX 设计，
+       喜欢艺术和音乐。助手对用户的职业和爱好表示赞赏。
+  用户：我擅长 UI/UX 设计
+  助手：UI/UX 设计非常重要，好的用户体验能让产品更成功！
+
+  → token 减少约 <span class="hljs-number">60%</span>
+  → 核心信息保留
+  → 最近对话保持完整
+</code></pre>
+<h4 data-id="heading-22">5.3 getBufferString 工具</h4>
+<pre><code class="hljs language-vbscript" lang="vbscript">getBufferString：消息数组 → 格式化字符串
+
+<p>  作用：<br>  → 将 messages 数组转换成人类可读的字符串<br>  → 方便传给 AI 做总结<br>  → 可以自定义 human 和 ai 的前缀</p>
+<p>  输入：<br>  [<br>    HumanMessage(<span class="hljs-string">“你好”</span>),<br>    AIMessage(<span class="hljs-string">“你好！有什么可以帮你？”</span>)<br>  ]</p>
+<p>  输出（默认）：<br>  <span class="hljs-string">“Human: 你好<br>  AI: 你好！有什么可以帮你？”</span></p>
+<p>  输出（自定义前缀）：<br>  getBuffer<span class="hljs-built_in">String</span>(messages, <span class="hljs-string">“用户”</span>, <span class="hljs-string">“助手”</span>)<br>  <span class="hljs-string">“用户: 你好<br>  助手: 你好！有什么可以帮你？”</span><br></p></code></pre><p></p>
+<h4 data-id="heading-23">5.4 Token 触发的总结</h4>
+<pre><code class="hljs">更精确的方式：按 token 数量触发总结
+
+<p>  思路：<br>  → 设定 maxTokens（总 token 上限）<br>  → 设定 keepRecentTokens（保留最近多少 token）<br>  → 超过上限时触发总结<br>  → 旧消息总结，最近消息保留<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> &#123; getEncoding &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'js-tiktoken'</span>;
+
+<span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">tokenBasedSummarization</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> history = <span class="hljs-keyword">new</span> <span class="hljs-title class_">InMemoryChatMessageHistory</span>();
+  <span class="hljs-keyword">const</span> encoder = <span class="hljs-title function_">getEncoding</span>(<span class="hljs-string">'cl100k_base'</span>);
+  <span class="hljs-keyword">const</span> maxTokens = <span class="hljs-number">200</span>;        <span class="hljs-comment">// 总 token 上限</span>
+  <span class="hljs-keyword">const</span> keepRecentTokens = <span class="hljs-number">80</span>;  <span class="hljs-comment">// 保留最近消息的 token</span>
+
+  <span class="hljs-comment">// ... 填充消息 ...</span>
+
+  <span class="hljs-keyword">let</span> allMessages = <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">getMessages</span>();
+  <span class="hljs-keyword">const</span> totalTokens = <span class="hljs-title function_">countTokens</span>(allMessages, encoder);
+
+  <span class="hljs-keyword">if</span> (totalTokens &gt;= maxTokens) &#123;
+    <span class="hljs-comment">// 从后往前收集，直到达到 keepRecentTokens</span>
+    <span class="hljs-keyword">const</span> recentMessages = [];
+    <span class="hljs-keyword">let</span> recentTokens = <span class="hljs-number">0</span>;
+
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i = allMessages.<span class="hljs-property">length</span> - <span class="hljs-number">1</span>; i &gt;= <span class="hljs-number">0</span>; i--) &#123;
+      <span class="hljs-keyword">const</span> msg = allMessages[i];
+      <span class="hljs-keyword">const</span> content = <span class="hljs-keyword">typeof</span> msg.<span class="hljs-property">content</span> === <span class="hljs-string">'string'</span>
+        ? msg.<span class="hljs-property">content</span>
+        : <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(msg.<span class="hljs-property">content</span>);
+      <span class="hljs-keyword">const</span> msgTokens = encoder.<span class="hljs-title function_">encode</span>(content).<span class="hljs-property">length</span>;
+
+      <span class="hljs-keyword">if</span> (recentTokens + msgTokens &lt;= keepRecentTokens) &#123;
+        recentMessages.<span class="hljs-title function_">unshift</span>(msg);
+        recentTokens += msgTokens;
+      &#125; <span class="hljs-keyword">else</span> &#123;
+        <span class="hljs-keyword">break</span>;
+      &#125;
+    &#125;
+
+    <span class="hljs-keyword">const</span> messagesToSummarize = allMessages.<span class="hljs-title function_">slice</span>(
+      <span class="hljs-number">0</span>,
+      allMessages.<span class="hljs-property">length</span> - recentMessages.<span class="hljs-property">length</span>
+    );
+
+    <span class="hljs-keyword">const</span> summary = <span class="hljs-keyword">await</span> <span class="hljs-title function_">summarizeHistory</span>(messagesToSummarize);
+
+    <span class="hljs-comment">// 清空并重新组装</span>
+    <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">clear</span>();
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> msg <span class="hljs-keyword">of</span> recentMessages) &#123;
+      <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(msg);
+    &#125;
+    <span class="hljs-keyword">await</span> history.<span class="hljs-title function_">addMessage</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">AIMessage</span>(<span class="hljs-string">`[对话摘要] <span class="hljs-subst">$&#123;summary&#125;</span>`</span>));
+  &#125;
+&#125;
+</code></pre>
+<h4 data-id="heading-24">5.5 总结策略的优缺点</h4>
+<pre><code class="hljs language-erlang" lang="erlang">┌──────────────────────────────────────────────────────────┐
+│              总结策略的优缺点                              │
+│                                                          │
+│  优点：                                                   │
+│  ✅ 保留核心信息，不丢失重要上下文                         │
+│  ✅ token 效率高（压缩比可达 <span class="hljs-number">60</span>-<span class="hljs-number">80</span><span class="hljs-comment">%）                     │</span>
+│  ✅ 适合中长对话                                          │
+│  ✅ 用户体验比纯截断好                                    │
+│                                                          │
+│  缺点：                                                   │
+│  ❌ 需要额外调用 AI → 额外成本                            │
+│  ❌ 摘要可能丢失细节（信息有损压缩）                       │
+│  ❌ 总结质量依赖模型能力                                   │
+│  ❌ 摘要本身也会增长（多轮总结后摘要越来越长）            │
+│                                                          │
+│  适用场景：                                               │
+│  → 中长对话（<span class="hljs-number">10</span>-<span class="hljs-number">100</span> 轮）                                  │
+│  → 需要保留核心上下文的对话机器人                         │
+│  → 客服、助手类应用                                       │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h3 data-id="heading-25">六、检索策略：语义化长期记忆</h3>
+<h4 data-id="heading-26">6.1 为什么需要检索？</h4>
+<pre><code class="hljs language-erlang" lang="erlang">总结策略的问题：摘要越来越长
+
+<p>  第一次总结：<span class="hljs-number">100</span> token 摘要<br>  第二次总结：摘要 + 新消息 → 新摘要 → <span class="hljs-number">150</span> token<br>  第三次总结：更长的摘要 → <span class="hljs-number">200</span> token<br>  → 摘要本身也会膨胀<br>  → 时间越久，信息越模糊</p>
+<p>  终极解决方案：检索（Retrieval）<br>  → 所有历史消息存入向量数据库<br>  → 每次对话时，用 <span class="hljs-keyword">query</span> 检索最相关的历史<br>  → 只把相关的历史消息塞进 prompt<br>  → 类似 RAG，但检索的是对话历史而不是外部知识<br></p></code></pre><p></p>
+<h4 data-id="heading-27">6.2 检索型 Memory 的架构</h4>
+<pre><code class="hljs language-arduino" lang="arduino">检索型 Memory 架构：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  用户输入：<span class="hljs-string">“我上次说的那个项目怎么样了？”</span>                  │<br>│                                                          │<br>│  ① 向量化                                                 │<br>│  → 把用户输入转换成 embedding 向量                        │<br>│                                                          │<br>│  ② 检索                                                   │<br>│  → 在向量数据库中搜索最相似的历史消息                      │<br>│  → 返回 Top-K 相关的历史对话片段                          │<br>│                                                          │<br>│  ③ 组装 prompt                                            │<br>│  → SystemMessage + 相关历史 + 当前对话 + 用户输入          │<br>│                                                          │<br>│  ④ 调用模型                                               │<br>│  → 模型看到相关历史 → 回答准确                            │<br>│                                                          │<br>│  ⑤ 存储新对话                                             │<br>│  → 本轮对话也存入向量数据库                                │<br>│  → 供未来检索使用                                         │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  类比：人的长期记忆<br>  → 你不会每时每刻都记着所有事<br>  → 被问到某个话题时，相关记忆才会浮现<br>  → 这就是检索的本质<br></p></code></pre><p></p>
+<h4 data-id="heading-28">6.3 三种策略对比</h4>
+<pre><code class="hljs language-python" lang="python">┌──────────────────────────────────────────────────────────────┐
+│          三种 Memory 管理策略对比                            │
+│                                                              │
+│          截断           总结              检索               │
+│  ───────────────────────────────────────────────────         │
+│  原理    保留最近 N 条   AI 压缩旧消息     向量相似度检索     │
+│  成本    零额外成本      每次总结调 AI     向量化 + 检索     │
+│  信息    丢失早期信息    保留核心摘要      保留相关细节       │
+│  复杂度  极低           中等              较高               │
+│  适合    短对话         中长对话          超长对话 / 长期记忆 │
+│  类比    短期记忆       工作记忆          长期记忆           │
+│  工具    <span class="hljs-built_in">slice</span> / trim   model.invoke      向量数据库         │
+│                                                              │
+│  实际项目中通常组合使用：                                     │
+│  → 最近 N 条：完整保留                                      │
+│  → 更早的：总结压缩                                          │
+│  → 更早的：存入向量数据库，需要时检索                        │
+│  → 分层管理 = 短期 + 中期 + 长期                             │
+└──────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h3 data-id="heading-29">七、分层 Memory 架构实战</h3>
+<h4 data-id="heading-30">7.1 完整架构</h4>
+<pre><code class="hljs language-arduino" lang="arduino">生产级 Agent 的 Memory 架构：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  Prompt（发送给模型）                                     │<br>│  ├── SystemMessage（系统指令）                             │<br>│  ├── 长期记忆摘要（可选）                                 │<br>│  ├── 检索到的相关历史（来自向量数据库）                   │<br>│  ├── 总结后的历史摘要                                     │<br>│  └── 最近 N 条消息（完整保留）                             │<br>└──────────────────────────────────────────────────────────┘<br>                           │<br>                           │ 写入<br>                           ▼<br>  ┌──────────────────────────────────────────────────────────┐<br>│  Memory 分层存储                                          │<br>│                                                          │<br>│  第一层：短期记忆（In-Memory）                            │<br>│  → 最近 <span class="hljs-number">10</span><span class="hljs-number">-20</span> 条消息                                      │<br>│  → 完整保留                                               │<br>│  → 速度最快                                               │<br>│                                                          │<br>│  第二层：中期记忆（总结）                                 │<br>│  → 更早的消息被 AI 总结压缩                               │<br>│  → 作为摘要加入 prompt                                    │<br>│  → 定期重新总结                                           │<br>│                                                          │<br>│  第三层：长期记忆（向量数据库）                           │<br>│  → 所有历史消息存入 Milvus &#x2F; Supabase                     │<br>│  → 需要时按语义检索                                       │<br>│  → 真正的<span class="hljs-string">“永久记忆”</span>                                       │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-31">7.2 触发时机</h4>
+<pre><code class="hljs language-markdown" lang="markdown">什么时候触发 Memory 管理？
+
+<p>  → 每次用户发送消息后<br>  → 调用模型之前<br>  → 先检查 token 数量<br>  → 超过阈值 → 触发截断 &#x2F; 总结<br>  → 同时检索相关长期记忆</p>
+<p>  流程：<br>  用户消息 → 加入 Memory → 计算 token 数<br><span class="hljs-code">    │<br>    ├─→ 超过 maxTokens？<br>    │     ├─ 是 → 总结旧消息 + 保留最近<br>    │     └─ 否 → 直接使用<br>    │<br>    ├─→ 需要长期记忆？<br>    │     └─ 是 → 向量检索相关历史<br>    │<br>    ▼<br>  组装 messages → 调用模型 → 结果写回 Memory<br></span></p></code></pre><p></p>
+<h4 data-id="heading-32">7.3 与 /compact 和 /clear 的关系</h4>
+<pre><code class="hljs language-bash" lang="bash">用户可以手动触发 Memory 管理：
+
+<p>  &#x2F;compact → 总结压缩<br>  → 手动触发一次总结<br>  → 把当前对话压缩成摘要 + 最近消息<br>  → 类似<span class="hljs-string">“整理记忆”</span></p>
+<p>  &#x2F;clear → 清空记忆<br>  → 清除所有对话历史<br>  → 重新开始新对话<br>  → 类似<span class="hljs-string">“失忆”</span></p>
+<p>  自动管理 + 手动管理相结合<br>  → 自动：token 超限时自动总结<br>  → 手动：用户主动 &#x2F;compact 或 &#x2F;clear<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-33">八、核心工具速查</h3>
+<h4 data-id="heading-34">8.1 LangChain Memory API</h4>
+<table><thead><tr><th>工具</th><th>作用</th><th>所在包</th></tr></thead><tbody><tr><td><strong>InMemoryChatMessageHistory</strong></td><td>内存消息历史</td><td><code>@langchain/core/chat_history</code></td></tr><tr><td><strong>FileSystemChatMessageHistory</strong></td><td>文件消息历史</td><td><code>@langchain/community/stores/message/file_system</code></td></tr><tr><td><strong>HumanMessage</strong></td><td>用户消息</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>AIMessage</strong></td><td>AI 消息</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>SystemMessage</strong></td><td>系统消息</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>ToolMessage</strong></td><td>工具返回消息</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>trimMessages</strong></td><td>按 token 裁剪消息</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>getBufferString</strong></td><td>消息数组转字符串</td><td><code>@langchain/core/messages</code></td></tr><tr><td><strong>getEncoding</strong></td><td>token 编码器</td><td><code>js-tiktoken</code></td></tr></tbody></table>
+<h4 data-id="heading-35">8.2 消息类型属性</h4>
+<pre><code class="hljs language-go" lang="go">每个消息对象的核心属性：
+
+<p>  msg.<span class="hljs-keyword">type</span>     → <span class="hljs-string">‘human’</span> | <span class="hljs-string">‘ai’</span> | <span class="hljs-string">‘system’</span> | <span class="hljs-string">‘tool’</span><br>  msg.content  → 消息内容（字符串或数组）<br>  msg.name     → 名称（可选）<br>  msg.tool_call_id → 工具调用 ID（ToolMessage 用）</p>
+<p>  构造方式：<br>  <span class="hljs-built_in">new</span> HumanMessage(content)<br>  <span class="hljs-built_in">new</span> AIMessage(content)<br>  <span class="hljs-built_in">new</span> SystemMessage(content)<br>  <span class="hljs-built_in">new</span> ToolMessage(&amp;#123; content, tool_call_id &amp;#125;)<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-36">九、总结</h3>
+<h4 data-id="heading-37">9.1 知识体系图</h4>
+<pre><code class="hljs language-scss" lang="scss">LLM Memory 管理
+│
+├── 为什么需要 Memory
+│   ├── LLM 是无状态的（每次都是新的）
+│   ├── Agent = LLM + <span class="hljs-built_in">Harness</span>(Tool + RAG + Memory)
+│   └── 三大挑战：上下文窗口 / Token 开销 / 持久化
+│
+├── 存储方式（存在哪里）
+│   ├── In-Memory（短期）
+│   │   ├── InMemoryChatMessageHistory
+│   │   ├── addMessage / getMessages / <span class="hljs-attribute">clear</span>
+│   │   └── 临时会话，重启即失
+│   ├── File System（中期）
+│   │   ├── FileSystemChatMessageHistory
+│   │   ├── sessionId 多用户隔离
+│   │   └── JSON 文件持久化，跨会话恢复
+│   └── Vector DB（长期）
+│       ├── Milvus / Supabase pgvector
+│       └── 语义检索相关历史
+│
+├── 管理策略（怎么管理）
+│   ├── 截断（Truncation）
+│   │   ├── 按消息数量：<span class="hljs-built_in">slice</span>(-N)
+│   │   ├── 按 token 数量：trimMessages + js-tiktoken
+│   │   ├── 零额外成本，简单高效
+│   │   └── 缺点：旧消息直接丢失
+│   ├── 总结（Summarization）
+│   │   ├── 旧消息 AI 总结 → 摘要
+│   │   ├── 最近消息原样保留
+│   │   ├── getBufferString 消息转字符串
+│   │   ├── 压缩比 <span class="hljs-number">60</span>-<span class="hljs-number">80%</span>
+│   │   └── 缺点：额外 AI 调用成本，有损压缩
+│   └── 检索（Retrieval）
+│       ├── 向量数据库存储所有历史
+│       ├── 按语义检索 <span class="hljs-attribute">Top</span>-K 相关历史
+│       ├── 类似 RAG，但检索的是对话历史
+│       └── 真正的长期记忆
+│
+├── 分层架构
+│   ├── 短期：最近 N 条完整保留
+│   ├── 中期：更早消息总结压缩
+│   ├── 长期：所有消息存入向量数据库
+│   └── 自动管理 + 手动 /compact /<span class="hljs-attribute">clear</span>
+│
+└── 核心工具
+    ├── trimMessages：内置裁剪工具
+    ├── getBufferString：消息转字符串
+    ├── getEncoding：token 编码（cl100k_base）
+    └── LangChain 四种消息类型
+</code></pre>
+<h4 data-id="heading-38">9.2 一句话总结</h4>
+<blockquote>
+<p><strong>大模型是无状态的，Memory 系统让它"记住"对话。Memory 分为两层设计：存储方式（内存 / 文件 / 向量数据库）决定记忆保存在哪里，管理策略（截断 / 总结 / 检索）决定记忆怎么被使用。截断最简单但丢信息，总结用 AI 压缩历史保留核心但有额外成本，检索通过向量相似度找到相关记忆是终极方案。生产级 Agent 通常采用分层架构——最近消息完整保留、中期消息总结压缩、长期消息存入向量数据库按需检索，三者配合实现既省 token 又不丢关键信息的记忆系统。</strong></p>
+</blockquote>
+<hr>
+<blockquote>
+<p>如果这篇文章对你有帮助，欢迎<strong>点赞</strong>和<strong>收藏</strong>！</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统" href="https://juejin.cn/post/7680552737289715731" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">LLM 记忆管理三剑客：截断、总结、检索，彻底搞懂 Agent 的 Memory 系统</span><span class="desc fs12">https://juejin.cn/post/7680552737289715731</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/95c5d50c.html">从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/79b074ba.html">How We Make AI Coding More Cost Efficient Without Sacrificing Task Quality<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/888b2748.html" title="中宣部召开党报党刊理论版改进文风经验交流会"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9708"></div><span class="title">中宣部召开党报党刊理论版改进文风经验交流会</span></a><a class="item" href="/rss/784755e.html" title="ASP.NET Core WebAPI 服务在 IM 即时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8187"></div><span class="title">ASP.NET Core WebAPI 服务在 IM 即时</span></a><a class="item" href="/rss/c14c9400.html" title="Agent Memory 进阶：用 LLM 总结压缩上下文，告别" 金鱼记忆""><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6074"></div><span class="title">Agent Memory 进阶：用 LLM 总结压缩上下文，告别"金鱼记忆"</span></a><a class="item" href="/rss/315ea88b.html" title="RHCE通关秘籍:从零基础到高分拿证的5个加速器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6648"></div><span class="title">RHCE通关秘籍:从零基础到高分拿证的5个加速器</span></a><a class="item" href="/rss/9afed97d.html" title="RHCE学习拿证计划：锁定核心考点，实现备考效率最大化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8857"></div><span class="title">RHCE学习拿证计划：锁定核心考点，实现备考效率最大化</span></a><a class="item" href="/rss/d591b321.html" title="SQL Server 2008 SQL注入详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6387"></div><span class="title">SQL Server 2008 SQL注入详解</span></a><a class="item" href="/rss/5596913c.html" title="Travel Planner — 智能旅行行程规划助手"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1678"></div><span class="title">Travel Planner — 智能旅行行程规划助手</span></a><a class="item" href="/rss/7341fbb7.html" title="《理解道德经》简版第5章：天地不仁，以万物为刍狗"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7766e2afd00d44ee9a08d8bb72ab64d5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiA5rOV5aaC6aOe:q75.awebp?rk3s=f64ab15b&x-expires=1789193299&x-signature=%2F%2BkPLYIzZArl4JnSSOn9aB00qWw%3D"></div><span class="title">《理解道德经》简版第5章：天地不仁，以万物为刍狗</span></a><a class="item" href="/rss/f947ddcd.html" title="【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6582"></div><span class="title">【零依赖量化数据实战 #31】沪深A实时盘口全景：逐笔·全盘实时·最新价·历史逐笔</span></a><a class="item" href="/rss/de72a5d5.html" title="从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8514"></div><span class="title">从 SSE 到 LLM 流式输出：搞懂前端实时通信的两种姿势</span></a><a class="item" href="/rss/1f2613f.html" title="告别盲目刷题！RHCE高效备考路线图，助你一次Pass"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6048"></div><span class="title">告别盲目刷题！RHCE高效备考路线图，助你一次Pass</span></a><a class="item" href="/rss/95c5d50c.html" title="从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6984"></div><span class="title">从 `renderer.render()` 到地面上的阴影：Three.js 阴影渲染全流程源码解析</span></a><a class="item" href="/rss/d1f6d3c2.html" title="【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2325"></div><span class="title">【零依赖量化数据实战 #30】沪深板块与股票列表：新股·板块·主板·成分股</span></a><a class="item" href="/rss/a5fd193f.html" title="在 Uber 规模下高效运行软件工厂"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/0595327d00674b609ad016cb07157d21~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgODcz:q75.awebp?rk3s=f64ab15b&x-expires=1789024903&x-signature=%2FW238lOVZDjRETzwojtBsUCdqCM%3D"></div><span class="title">在 Uber 规模下高效运行软件工厂</span></a><a class="item" href="/rss/dcf5f583.html" title="斐波那契数列的前 N 项和"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2206"></div><span class="title">斐波那契数列的前 N 项和</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

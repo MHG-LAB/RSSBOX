@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache - RSSBOX</title>
+
+  
+    <meta name="description" content="Big Pineapple, the platform behind 1.1.1.1, Gateway DNS, DNS Firewall, AS112, and several other Cloudflare DNS services, stores over 250 billion DNS cache entries at any given time. At that scale, wa">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e31b3b95.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Big Pineapple, the platform behind 1.1.1.1, Gateway DNS, DNS Firewall, AS112, and several other Cloudflare DNS services, stores over 250 billion DNS cache entries at any given time. At that scale, wa">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-27T17:02:35.000Z">
+<meta property="article:modified_time" content="2026-08-27T17:02:35.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What we cache</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Benchmarking memory usage</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The cost of capacity</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Fewer lists, fewer pointers</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Dropping the owner</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Enum sizing</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Boxing the variants</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">The costs of boxing</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Storing records in wire format</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The results</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-08-27T17:02:35.000Z">2026-08-28</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache</span></h1>
+<div>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/big-pineapple-intro/"><span style="text-decoration:underline">Big Pineapple</span></a>, the platform behind <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/dns/what-is-1.1.1.1/"><span style="text-decoration:underline">1.1.1.1</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/products/gateway/"><span style="text-decoration:underline">Gateway DNS</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/dns/dns-firewall/"><span style="text-decoration:underline">DNS Firewall</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/the-as112-project/"><span style="text-decoration:underline">AS112</span></a>, and several other Cloudflare DNS services, stores over 250 billion DNS cache entries at any given time. At that scale, wasting a single byte per entry costs more than 250 gigabytes of memory across our fleet.</p><p>Five successive changes to how cache entries are stored in memory cut the per-entry footprint by over 50%. Across our fleet, these changes freed up roughly 100 terabytes of memory, equivalent to the amount of RAM in 130 of our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/gen13-config/"><span style="text-decoration:underline">Gen 13 servers</span></a>. The cache also got faster. Insert throughput rose 43% and lookup latency dropped 19%, as fewer allocations and better memory locality meant we did not trade speed for space.</p><h2>What we cache</h2><p>On cold start, Big Pineapple starts out with an empty cache. As DNS queries arrive, the cache fills until it hits its maximum entry count, at which point we evict older or less popular items to make room.</p><p>The exact cache size varies by data center. When <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/EDNS_Client_Subnet"><span style="text-decoration:underline">EDNS Client Subnet (ECS)</span></a> is in use, authoritative servers return different answers depending on the client's network, so we cache multiple versions of the same query. This increases both the number of entries and the memory each one consumes, making the optimizations in this post especially impactful for ECS-heavy locations.</p><p>Each item in the cache is a key-value pair. The key identifies what was queried:</p><!-- unsupported block: code --><p>The value stores the DNS response itself: the answer, authority, and additional record sections, along with metadata like the creation time, a hit counter, and the Time-to-Live (TTL).</p><!-- unsupported block: code --><p>Both structs have room for improvement. Several fields use types that carry overhead we don't need once the entry is stored.</p><h2>Benchmarking memory usage</h2><p>To measure the impact of each change, we benchmark by filling the cache with randomly generated entries that roughly match the traffic distribution we see in production: 56% <code>A</code> records, 25% <code>AAAA</code>, and 19% <code>TXT</code>. Each entry contains between one and four records.</p><p><code>TXT</code> records serve as a stand-in for all non-<code>A</code>/<code>AAAA</code> record types in the benchmark. Their size is randomized between 64 and 224 bytes, close to the average response size we see for variable-length record types.</p><p>We track memory usage using a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/std/alloc/trait.GlobalAlloc.html"><span style="text-decoration:underline">custom allocator</span></a> that wraps Rust’s <code>System</code><a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/std/alloc/struct.System.html"><span style="text-decoration:underline"> allocator</span></a> and records the number and size of allocations per cache entry. Alongside memory, we measure insert throughput and lookup latency across the full cache flow to make sure memory savings don’t come at the cost of performance.</p><p>These inputs approximate production rather than reproduce it exactly. Process memory also depends on traffic mix, cache occupancy, allocator state, and memory used outside the cache. We therefore measured resident memory across production instances during the rollout.</p><h2>The cost of capacity</h2><p><code>Vec&lt;T&gt;</code> stores three fields: a pointer to heap-allocated data, the current length, and the total capacity. When you push an item, <code>Vec</code> checks whether the length exceeds the capacity and reallocates if needed. If there’s room, it just appends the item and increments the length.</p><!-- unsupported block: image --><p>Once we store a DNS response in the cache, however, we never modify it again. The capacity field serves no purpose, but still costs 8 bytes per <code>Vec</code>. The over-allocated heap space is wasted as well, as a <code>Vec</code> with capacity for eight items but only five stored leaves three slots unused on the heap.</p><!-- unsupported block: image --><p>Using <code>Box&lt;[T]&gt;</code> solves both problems. It can’t grow after creation, so it doesn’t need a capacity field or reserve space for future elements. The same applies to <code>String</code>, which also carries a capacity field. <code>Box&lt;str&gt;</code> drops it.</p><p>Each cache entry stores 8 <code>Vec</code> and <code>String</code> fields. Replacing them with <code>Box&lt;[T]&gt;</code> and <code>Box&lt;str&gt;</code> saves 8 bytes per field, 64 bytes per entry. It also eliminates the excess heap memory that <code>Vec</code> reserves for future growth. The combined savings add up to over 15 terabytes with over 250 billion cache entries.</p><h2>Fewer lists, fewer pointers</h2><p>Rather than storing the answer, authority, and additional sections in separate lists, we can store a single list with offsets to the start of each section. Since DNS record counts per section fit in a <code>u16</code>, we can use a <code>u16</code> (2 bytes) for each offset, compared to the 8-byte pointer and 8-byte length that each separate <code>Box&lt;[T]&gt;</code> requires.</p><!-- unsupported block: image --><p>This removes two lists, each with an 8-byte pointer and 8-byte length, and replaces them with two 2-byte offsets, saving 28 bytes per entry.</p><p>These savings do not always map directly to the number of bytes removed from individual fields. Rust inserts <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/nomicon/repr-rust.html"><span style="text-decoration:underline">padding to satisfy alignment requirements</span></a> and rounds a struct’s size up to a multiple of its alignment. Removing a small field can therefore eliminate additional padding. For example, we also packed several boolean fields into a single <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/bitflags/latest/bitflags/"><span style="text-decoration:underline">bitflag</span></a>. This reduced the surrounding padding, causing the struct to shrink by more than the size of the individual booleans.</p><h2>Dropping the owner</h2><p>Each DNS record has an owner, the domain the record belongs to. In many cases, this owner is identical to the domain being queried. For example, a query for <code>example.com A</code> returns two records with the same owner:</p><!-- unsupported block: code --><p>But when a <code>CNAME</code> is involved, for example, the record owner can differ from the queried domain:</p><!-- unsupported block: code --><p>The DNS wire format handles repeated owners using name compression, as defined in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/html/rfc1035#section-4.1.4"><span style="text-decoration:underline">RFC 1035</span></a>. Rather than encoding the same domain twice, subsequent occurrences store a 2-byte pointer to the first occurrence. A domain like <code>www.example.com</code> can encode just <code>www</code> followed by a pointer to where <code>example.com</code> already appeared in the message.</p><p>This works well on the wire, but in our cache we store the full owner name alongside each record. Following compression pointers during cache lookups is expensive on the hot path, so we trade memory for speed.</p><p>Most records, however, have an owner identical to the queried domain. For those, we can drop the owner entirely and infer it at read time. When the owner differs, such as the <code>A</code> records behind a <code>CNAME</code>, we store the full name.</p><!-- unsupported block: code --><p>When <code>owner</code> is <code>None</code>, response construction restores the queried domain from the cache key, avoiding a heap allocation. This means the record is no longer self-contained, but the cache key is already available during every lookup. When the owner differs, <code>Some</code> stores a pointer to the full name on the heap.</p><!-- unsupported block: image --><p>In practice, most cached records have an owner identical to the queried domain, so the majority require no heap allocation for the owner field.</p><h2>Enum sizing</h2><p>Rust enums are <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Algebraic_data_type"><span style="text-decoration:underline">sum types</span></a>: each variant can carry different data, but the enum is always the size of its largest variant.</p><!-- unsupported block: code --><p><code>Option</code> is either <code>Some</code> and holds a value, or <code>None</code> and holds nothing. Both variants take the same amount of memory. The enum stores a tag indicating the active variant, followed by space large enough for the largest variant’s data. When the variant is <code>None</code>, that space is unused.</p><p>For record data, it seems natural to store each DNS record type as an enum variant:</p><!-- unsupported block: code --><p>But the enum is always as large as its largest variant. In our case, that’s <code>NAPTR</code> at 136 bytes. It stores three variable-length text fields, a domain name, and two integers. As a result, the full enum, including the variant tag and padding, becomes 144 bytes.</p><!-- unsupported block: image --><p>An <code>A</code> record only needs 4 bytes, and an <code>AAAA</code> record needs 16 bytes. <code>A</code> and <code>AAAA</code> make up over 80% of our traffic, so most records waste over 120 bytes on padding. Since a single cache entry can store many records this quickly adds up.</p><h3>Boxing the variants</h3><p>To solve this problem, we can box the larger variants of the enum, moving them to a separate heap allocation. The enum then stores an 8-byte pointer to the heap, where the data takes up only the size it actually requires.</p><!-- unsupported block: code --><p>For <code>A</code> and <code>AAAA</code> records, this saves 120 bytes per record. Smaller variant types like <code>TXT</code> and <code>CNAME</code> also benefit. They still occupy the 24-byte enum, but their heap allocation is sized to their actual data rather than padded to 144 bytes. <code>NAPTR</code>, the largest variant, actually pays slightly more. It now adds the cost of a heap pointer and allocation overhead. But <code>NAPTR</code> records are rare in practice, so the tradeoff is worth it.</p><!-- unsupported block: image --><p>But boxing the larger record variants introduces costs of its own.</p><h3>The costs of boxing</h3><p>Boxing has two costs. The first is allocator overhead. Each boxed variant becomes a separate heap allocation, and allocators round up to the nearest size class. Big Pineapple uses <a target="_blank" rel="external nofollow noopener noreferrer" href="https://jemalloc.net/"><span style="text-decoration:underline">jemalloc</span></a>, an allocator designed for multithreaded, allocation-heavy workloads. jemalloc groups allocations of similar sizes into fixed-size bins. A <code>TXT</code> record requests 32 bytes and fits exactly into a 32-byte bin, wasting nothing, but an <code>MX</code> record requests 40 bytes and rounds up to 48, wasting 8 bytes.</p><p>The second cost is poor memory locality. Without boxing, the record enum values for a cache entry sit in a single contiguous allocation. With boxing, data for each boxed variant lives in a separate heap region. Reading it requires following a pointer, and when that pointer lands far from the rest of the entry, the CPU has to fetch a new cache line. With millions of cache entries, boxed data ends up scattered across the heap rather than packed together.</p><!-- unsupported block: image --><p>Neither cost is catastrophic on its own, but eliminating both, as the next section shows, yields a measurable improvement in both memory usage and lookup latency.</p><h2>Storing records in wire format</h2><p>An obvious next step would be to store the full DNS response in wire format, patching only per-client fields like the message ID on each lookup. But this has drawbacks. DNSSEC records are only included when the client sets the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/dns/dnssec/how-dnssec-works/"><span style="text-decoration:underline">DO (DNSSEC OK)</span></a> flag. Storing a complete wire format message means either caching two variants, one with DNSSEC and one without, or filtering them out of an already-built message. There is also a cost to parsing the full message on every lookup, which the enum approach we just described avoids by storing already-parsed records.</p><p>As a middle ground, we store just the record data as raw bytes, while keeping the rest of the cache entry as structured fields. Instead of a list of parsed enum variants, we store the records as a single <code>Box&lt;[u8]&gt;</code> containing each record encoded as a 2-byte length prefix followed by its raw bytes.</p><!-- unsupported block: image --><p>This eliminates the per-variant enum overhead and the boxed heap allocations from the previous optimization. The data also becomes packed contiguously, which improves CPU cache locality. The tradeoff is that records can no longer be randomly indexed. We have to iterate through the buffer sequentially. This adds some complexity for features like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/learning/dns/glossary/round-robin-dns/"><span style="text-decoration:underline">round-robin</span></a> rotation of <code>A</code>/<code>AAAA</code> records, but since record counts per entry are small, the cost is negligible.</p><p>When building a DNS response from cached records, most record types can be copied directly from the buffer into the outgoing message. Previously, each parsed record had to be serialized field by field back into DNS wire format. The new layout skips that work for <code>A</code>, <code>AAAA</code>, <code>TXT</code>, and all DNSSEC record types by copying their encoded bytes directly. Only records containing domain names, such as <code>CNAME</code>, <code>NS</code>, <code>MX</code>, and <code>SOA</code>, still require parsing so we can apply DNS name compression. Since records that support direct copying make up the vast majority of our traffic, this change reduces work on the lookup path. Combined with improved memory locality, this reduced cache lookup latency by 5% in our benchmarks.</p><p>To build the record data buffer, we write into a reusable scratchspace buffer that persists across cache insertions. Since previous writes have already grown it, the buffer rarely needs to be reallocated. Records vary in size, so we do not know the exact buffer size until they have been serialized. Once the records are in the scratchspace buffer, we allocate a <code>Box&lt;[u8]&gt;</code> and <code>memcpy</code> the data into it. This replaces the separate allocation for each boxed record with one allocation for all record data. It also avoids the waste from shrinking a <code>Vec&lt;u8&gt;</code>, where the allocator may not be able to reclaim the unused tail of the original allocation. In our benchmark, this change alone increased cache insert throughput by 13%.</p><h2>The results</h2><p>The production measurements show how the benchmarked per-entry savings translated to whole-process resident memory. The graph below shows p90, p98, and p99 memory usage across Big Pineapple instances. The first dashed line marks the start of the rollout on May 18, 2026, and the second marks its completion across all services on July 6, 2026. Each release introduced one or more of the optimizations described above, so memory usage dropped in steps rather than all at once.</p><p>As each release rolled out, restarted instances began with empty caches and consumed more memory as those caches filled. The stable plateaus therefore represent steady-state memory usage better than the initial dips.</p><!-- unsupported block: image --><p>Per-instance memory usage dropped across all percentiles. At p99, memory dropped from 9.3 GB to 5.3 GB, a 43% reduction in resident memory. At p90, memory dropped from 6.5 GB to 3.8 GB, a 42% reduction. Instances with fuller caches saw the largest absolute savings.</p><p>In our benchmarks, these five optimizations reduced the per-entry memory footprint from 953 bytes to 420 bytes, a 56% reduction. Per-entry allocations dropped from 1.1 KB to 461 bytes. The reductions measured in production are smaller because resident memory includes the cache alongside all other process data. After the rollouts settled, aggregate working-set memory across the fleet was roughly 100 terabytes lower.</p><p>Performance also improved. Cache insert throughput increased by 43%, while lookup latency dropped by 19%.</p><!-- unsupported block: table --><p>We plan to reinvest the freed memory into increasing cache capacity without increasing our memory usage, which improves cache hit rates and reduces upstream query volume. We're also exploring further optimizations to the cache itself.</p><p>To learn more about Big Pineapple, see <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/big-pineapple-intro/"><span style="text-decoration:underline">How Rust and Wasm power Cloudflare's 1.1.1.1</span></a>. If you work on DNS or other large systems, share the optimizations that have worked for you in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://community.cloudflare.com/"><span style="text-decoration:underline">Cloudflare Community</span></a> or on the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://discord.cloudflare.com/"><span style="text-decoration:underline">Cloudflare Developers Discord</span></a>.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How we saved 100 terabytes of memory by optimizing 1.1.1.1’s DNS cache" href="https://blog.cloudflare.com/dns-cache-memory-optimization-1111/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How we saved 100 terabytes of memory by optimizing 1.1.1.1’s DNS cache</span><span class="desc fs12">https://blog.cloudflare.com/dns-cache-memory-optimization-1111/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/68292ef4.html">Gemini Omni 1.1 Flash Lets You Build With More Control<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/76839fbd.html">The Open ASR Leaderboard Adds Its First Global South Language<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/9a2f188a.html" title="A Revisit of Remote Spectre Attacks on Cloudflare Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=345"></div><span class="title">A Revisit of Remote Spectre Attacks on Cloudflare Workers</span></a><a class="item" href="/rss/386c7f91.html" title="BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=906"></div><span class="title">BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents</span></a><a class="item" href="/rss/e45f2220.html" title="BGP Role Model: Tracking the Adoption of RFC 9234"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8352"></div><span class="title">BGP Role Model: Tracking the Adoption of RFC 9234</span></a><a class="item" href="/rss/1a9310ca.html" title="Certificate Transparency Monitoring Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9821"></div><span class="title">Certificate Transparency Monitoring Is Now Generally Available</span></a><a class="item" href="/rss/331e5ee6.html" title="From All-or-Nothing to Task-Based OAuth Consent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9085"></div><span class="title">From All-or-Nothing to Task-Based OAuth Consent</span></a><a class="item" href="/rss/cb735ee1.html" title="Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6504"></div><span class="title">Cloudflare DDoS Threat Report H1 2026: 1 Tbps Attacks Soar as DNS Floods and Geopolitical Tensions Drive a New Wave</span></a><a class="item" href="/rss/e8604db3.html" title="How Cloudflare Detects MCP Traffic and Helps Secure It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6343"></div><span class="title">How Cloudflare Detects MCP Traffic and Helps Secure It</span></a><a class="item" href="/rss/4d916bc9.html" title="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5599"></div><span class="title">How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></a><a class="item" href="/rss/90c4a120.html" title="Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9189"></div><span class="title">Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2354"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/8fe56bde.html" title="Say It Once: Introducing Bot Preference Sync"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9245"></div><span class="title">Say It Once: Introducing Bot Preference Sync</span></a><a class="item" href="/rss/94ada8f9.html" title="Secure All Your Internal Vibe-Coded Applications — in One Click"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1831"></div><span class="title">Secure All Your Internal Vibe-Coded Applications — in One Click</span></a><a class="item" href="/rss/4438b469.html" title="The Cloudflare Blog — Brought to You by EmDash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3280"></div><span class="title">The Cloudflare Blog — Brought to You by EmDash</span></a><a class="item" href="/rss/5f9cf594.html" title="Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2459"></div><span class="title">Total Eclipse of the Internet: Traffic Impacts in Iceland, Spain, and Portugal</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
