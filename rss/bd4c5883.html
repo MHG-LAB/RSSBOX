@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握 - RSSBOX</title>
+
+  
+    <meta name="description" content="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握  。LangChain 的工作流是&quot;线性的&quot;——一条直线走到底；LangGraph 的工作流是&quot;网状的&quot;——可以分支、循环、中断、恢复。本文从&quot;为什么需要多 Agent&quot;讲起（上下文开销 vs 分工协作），然后手写五个实战案例：基础状态图（节点+边+状态）、条件路由（数学题 vs 聊天）、循环">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/bd4c5883.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握  。LangChain 的工作流是&quot;线性的&quot;——一条直线走到底；LangGraph 的工作流是&quot;网状的&quot;——可以分支、循环、中断、恢复。本文从&quot;为什么需要多 Agent&quot;讲起（上下文开销 vs 分工协作），然后手写五个实战案例：基础状态图（节点+边+状态）、条件路由（数学题 vs 聊天）、循环">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-11T06:02:28.000Z">
+<meta property="article:modified_time" content="2026-09-11T06:02:28.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、为什么需要多 Agent？</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.1 单 Agent 的上下文开销</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.2 多 Agent 的拆分思路</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.3 多 Agent 分工协作</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.4 多 Agent 的三个核心理由</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、LangChain → LangGraph：从线性到网状</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 LangChain 的基础模块</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 线性 vs 网状</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 网状工作流编排的四大要素</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、基础图实战：StateGraph 的 Hello World</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 完整代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 Annotation：状态声明</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 节点：函数就是节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 图的构建链式调用</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、条件路由：让工作流自己&quot;选路&quot;</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 场景设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 完整代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 addConditionalEdges：条件边</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 eval()：教学用，生产禁用！</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、循环重试：失败自动重来</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.1 场景设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.2 完整代码</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、MemorySaver：状态持久化</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.1 为什么要持久化？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.2 完整代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.3 MemorySaver 与 thread_id</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.4 持久化的进阶</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、interrupt：中断与恢复</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.1 场景设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.2 完整代码</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.3 中断机制详解</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.4 Command：控制图的指令</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">八、总结</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.1 知识体系图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">8.2 一句话总结</span></a></li></ol></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-11T06:02:28.000Z">2026-09-11</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></h1>
+<div>
+<h2 data-id="heading-0">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</h2>
+<blockquote>
+<p>。LangChain 的工作流是"线性的"——一条直线走到底；LangGraph 的工作流是"网状的"——可以分支、循环、中断、恢复。本文从"为什么需要多 Agent"讲起（上下文开销 vs 分工协作），然后手写五个实战案例：基础状态图（节点+边+状态）、条件路由（数学题 vs 聊天）、循环重试（失败自动重来）、MemorySaver 持久化（跨会话记忆）、interrupt 中断恢复（转账确认场景）。全部代码可运行，建议收藏后动手实操。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-1">一、为什么需要多 Agent？</h3>
+<h4 data-id="heading-2">1.1 单 Agent 的上下文开销</h4>
+<pre><code class="hljs language-css" lang="css">单 Agent 架构的问题：
+
+<p>  所有工具描述、所有功能 Prompt 都塞进 system prompt</p>
+<p>  system prompt &#x3D; &amp;#123;<br>    …工具<span class="hljs-number">1</span>的描述<br>    …工具<span class="hljs-number">2</span>的描述<br>    …工具<span class="hljs-number">3</span>的描述<br>    …功能<span class="hljs-selector-tag">A</span>的prompt<br>    …功能<span class="hljs-selector-tag">B</span>的prompt<br>    …功能C的prompt<br>  &amp;#125;</p>
+<p>  问题一：Token 消耗更高<br>  → 每次调用都要带上全部描述<br>  → 实际只执行一个功能<br>  → <span class="hljs-number">90%</span> 的 prompt 是冗余的</p>
+<p>  问题二：无关信息干扰<br>  → 大量无关的 prompt 文本<br>  → 干扰 LLM 的注意力<br>  → 思考效率低<br>  → 更容易出错</p>
+<p>  类比：<br>  → 每个部门开会都全员参加<br>  → 研发会议带销售、市场、客服一起<br>  → 效率低下，还互相干扰<br></p></code></pre><p></p>
+<h4 data-id="heading-3">1.2 多 Agent 的拆分思路</h4>
+<pre><code class="hljs language-ini" lang="ini">如何拆分多个 Agent？
+
+<p>  每个 Agent 只保留自己需要的 Prompt：</p>
+<p>  编程 Agent → 只需要编程相关的 prompt<br>  测试 Agent → 只需要测试相关的 prompt<br>  验证 Agent → 只需要验证相关的 prompt</p>
+<p>  优势：<br>  → 执行功能时消耗的 token 更少<br>  → 没有无关信息干扰<br>  → 准确率更高</p>
+<p>  核心公式：<br>  <span class="hljs-attr">Agent</span> &#x3D; LLM（大脑） + Harness（tool + mcp + rag + skill …）</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  单 Agent vs 多 Agent                                    │<br>│                                                          │<br>│  单 Agent：                                              │<br>│  → 只有一个 LLM 大脑                                     │<br>│  → 需要一步步思考，调用 tool                             │<br>│  → 串行处理，所有能力塞进一个大脑                       │<br>│  → 上下文开销大，容易混乱                                │<br>│                                                          │<br>│  多 Agent：                                              │<br>│  → 多个大脑，并行思考                                    │<br>│  → 主 Agent 下发任务                                     │<br>│  → 子 Agent 并行处理完成后返回                           │<br>│  → 每个大脑选择适合的模型                                │<br>│  → Agent 组合式，按需加载，动态加载                      │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-4">1.3 多 Agent 分工协作</h4>
+<pre><code class="hljs language-arduino" lang="arduino">多 Agent 分工合作的经典场景：
+
+<p>  主 Agent（项目经理）<br>    │<br>    ├── 编程 Agent：负责写代码<br>    ├── 测试 Agent：编写测试代码（TDD）<br>    └── 验证 Agent：验证代码是否符合预期<br>         │<br>         └── 告诉主 Agent：<span class="hljs-string">“通过了！”</span></p>
+<p>  流程：<br>  → 主 Agent 拆解任务<br>  → 编程 Agent 写代码<br>  → 测试 Agent 写测试（TDD 先写测试）<br>  → 验证 Agent 验证代码<br>  → 全部通过 → 回报主 Agent<br></p></code></pre><p></p>
+<h4 data-id="heading-5">1.4 多 Agent 的三个核心理由</h4>
+<pre><code class="hljs language-arduino" lang="arduino">为什么复杂 Agent 产品基本都是多 Agent 架构？
+
+<p>  ① 决策准确率高，Token 消耗更低<br>  → 每个 Agent 只带必要的最少 Prompt<br>  → 没有冗余信息干扰<br>  → 调用 LLM 次数变多，但总 token 更省<br>  → 准确率反而更高</p>
+<p>  ② 并行思考和任务处理<br>  → 主管分派子任务<br>  → 子 Agent 并行处理<br>  → 整体效率更高</p>
+<p>  ③ 多角色互相讨论，纠错能力更强<br>  → 不同角色的 Agent 互相审查<br>  → AutoGen 的<span class="hljs-string">“法庭”</span>模式<br>  → 多个 Agent 辩论，互相纠错<br>  → 最终结论更可靠</p>
+<p>  这就是 LangGraph 存在的意义：<br>  → 把多个 Agent 组织成<span class="hljs-string">“网状工作流”</span><br>  → 分支、循环、并行、中断<br>  → 多 Agent 协作的编排框架<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-6">二、LangChain → LangGraph：从线性到网状</h3>
+<h4 data-id="heading-7">2.1 LangChain 的基础模块</h4>
+<pre><code class="hljs language-lua" lang="lua">LangChain 提供的基础能力：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  llm api           → 大模型调用接口                       │<br>│  document <span class="hljs-built_in">loaders</span>  → 文档加载器                           │<br>│  splitter          → 文本分割器                           │<br>│  embedding         → 向量化                               │<br>│  vector store      → 向量数据库                           │<br>│  <span class="hljs-built_in">output</span> parser     → 输出解析器                           │<br>│  memory            → 记忆管理                             │<br>│  …               → 更多基础模块                         │<br>│                                                          │<br>│  → 这些是<span class="hljs-string">“积木”</span>                                          │<br>│  → 负责单个能力的封装                                   │<br>│  → LangChain 是工具库                                    │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-8">2.2 线性 vs 网状</h4>
+<pre><code class="hljs language-css" lang="css">LangChain 工作流：线性（一条直线）
+
+<p>  <span class="hljs-selector-tag">A</span> → <span class="hljs-selector-tag">B</span> → C → D<br>  │   │   │   │<br>  └───┴───┴───┘<br>  只能串行，不能回头，不能分支</p>
+<p>  LangGraph 工作流：网状（灵活多路）</p>
+<pre><code>    ┌─→ &lt;span class=&quot;hljs-selector-tag&quot;&gt;B&lt;/span&gt; ─┐
+</code></pre>
+<p>  <span class="hljs-selector-tag">A</span> ──→  │     ├──→ D<br>        └─→ C ─┘<br>  可以分支、循环、并行、中断、恢复</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  线性 vs 网状                                             │<br>│                                                          │<br>│                LangChain          LangGraph              │<br>│  ──────────────────────────────────────────────────      │<br>│  编排方式      线性（一条线）      网状（多路）           │<br>│  分支          不支持              条件路由               │<br>│  循环          不支持              回环重试               │<br>│  并行          不支持              并行节点               │<br>│  中断          不支持              interrupt              │<br>│  状态持久化    不支持              MemorySaver            │<br>│  场景          简单流程            复杂多 Agent           │<br>│  演进          简单 Agent          → 复杂多 Agent 协作    │<br>│                                                          │<br>│  LangGraph &#x3D; 工作节点 + 组织方式（API）                   │<br>│  → 简单 Agent 可以用，复杂多 Agent 更要用                 │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-9">2.3 网状工作流编排的四大要素</h4>
+<pre><code class="hljs language-sql" lang="sql">LangGraph 的核心 API：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  ① 开始节点（<span class="hljs-keyword">START</span>）                                     │<br>│  → 工作流的入口                                          │<br>│  → 初始状态从这里进入                                    │<br>│                                                          │<br>│  ② 工作节点（Node）                                      │<br>│  → 每个节点有明确的职责                                  │<br>│  → 函数就是节点                                          │<br>│  → 接收 state，返回新 state                             │<br>│                                                          │<br>│  ③ 边（Edge）                                            │<br>│  → 连接工作节点                                          │<br>│  → 决定流程走向                                          │<br>│  → 可以是固定边、条件边                                  │<br>│                                                          │<br>│  ④ 结束节点（<span class="hljs-keyword">END</span>）                                       │<br>│  → 工作流的出口                                          │<br>│  → 最终状态在这里输出                                   │<br>│                                                          │<br>│  流程：                                                   │<br>│  <span class="hljs-keyword">START</span> → 节点 → 节点 → … → <span class="hljs-keyword">END</span>                        │<br>│  （初始状态）（职责）（边）（最终状态）                   │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-10">三、基础图实战：StateGraph 的 Hello World</h3>
+<h4 data-id="heading-11">3.1 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// basic-graph.mjs — 最基础的状态图</span>
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,  <span class="hljs-comment">// 工作流的状态值的描述（数据 state）</span>
+  <span class="hljs-variable constant_">END</span>,         <span class="hljs-comment">// 结束节点</span>
+  <span class="hljs-variable constant_">START</span>,       <span class="hljs-comment">// 开始节点</span>
+  <span class="hljs-title class_">StateGraph</span>   <span class="hljs-comment">// 状态图，流程编排器，节点的组织</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; Annotation 声明一个字段（数据部分）</span><br><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">text</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; _prev: 来到当前节点之前的状态，next: 当前节点得到的状态</span><br>    <span class="hljs-comment">&#x2F;&#x2F; reducer: 怎么处理状态的改变</span><br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next, <span class="hljs-comment">&#x2F;&#x2F; 类似数组 reduce，text 状态如何变</span><br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span>, <span class="hljs-comment">&#x2F;&#x2F; 默认值</span><br>  &amp;#125;)<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 定义节点：函数就是节点</span><br><span class="hljs-comment">&#x2F;&#x2F; 返回值是下一个节点的状态</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">step1</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; (&amp;#123; <span class="hljs-attr">text</span>: <span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.text&amp;#125;&lt;/span&gt; -&amp;gt; step1</code></span> &amp;#125;);<br><span class="hljs-keyword">const</span> <span class="hljs-title function_">step2</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; (&amp;#123; <span class="hljs-attr">text</span>: <span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.text&amp;#125;&lt;/span&gt; -&amp;gt; step2</code></span> &amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 实例化图（工作流编排器）</span><br><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘step1’</span>, step1)          <span class="hljs-comment">&#x2F;&#x2F; 声明所有节点</span><br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘step2’</span>, step2)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">‘step1’</span>)          <span class="hljs-comment">&#x2F;&#x2F; 连接节点（边）</span><br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘step1’</span>, <span class="hljs-string">‘step2’</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘step2’</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();                       <span class="hljs-comment">&#x2F;&#x2F; 编译工作流，执行</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 可视化：mermaid 文本画图工具</span><br><span class="hljs-comment">&#x2F;&#x2F; 简单的 markdown，自动生成流程图</span><br><span class="hljs-keyword">const</span> drawable &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">getGraphAsync</span>();<br><span class="hljs-keyword">const</span> mermaid &#x3D; drawable.<span class="hljs-title function_">drawMermaid</span>(&amp;#123; <span class="hljs-attr">withStyles</span>: <span class="hljs-literal">true</span> &amp;#125;);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(mermaid);</p>
+<p><span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123; <span class="hljs-attr">text</span>: <span class="hljs-string">‘hello’</span> &amp;#125;);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(result);<br></p></code></pre><p></p>
+<pre><code class="hljs language-arduino" lang="arduino">运行流程：
+
+  <span class="hljs-built_in">invoke</span>(&#123; text: <span class="hljs-string">'hello'</span> &#125;)
+    │
+    ▼
+  START（初始状态: text = <span class="hljs-string">"hello"</span>）
+    │
+    ▼
+  step1 → text: <span class="hljs-string">"hello -&gt; step1"</span>
+    │
+    ▼
+  step2 → text: <span class="hljs-string">"hello -&gt; step1 -&gt; step2"</span>
+    │
+    ▼
+  END → 返回 &#123; text: <span class="hljs-string">"hello -&gt; step1 -&gt; step2"</span> &#125;
+
+  最终输出：
+  &#123; text: <span class="hljs-string">'hello -&gt; step1 -&gt; step2'</span> &#125;
+</code></pre>
+<pre><code class="hljs language-ini" lang="ini">生成的 mermaid 图：
+
+  graph TD<span class="hljs-comment">;</span>
+    __start__ --&gt; step1<span class="hljs-comment">;</span>
+    step1 --&gt; step2<span class="hljs-comment">;</span>
+    step2 --&gt; __end__<span class="hljs-comment">;</span>
+
+  → 可视化整个节点的流转关系
+  → mermaid 是文本画图工具
+  → 简单的 markdown 自动生成流程图
+  → 方便调试和展示工作流
+</code></pre>
+<h4 data-id="heading-12">3.2 Annotation：状态声明</h4>
+<pre><code class="hljs language-vbnet" lang="vbnet">Annotation 的作用：
+
+<p>  → 描述工作流的状态结构<br>  → 定义有哪些字段<br>  → 定义字段如何变化（reducer）<br>  → 定义字段的默认值（<span class="hljs-keyword">default</span>）</p>
+<p>  <span class="hljs-keyword">const</span> StateAnnotation &#x3D; Annotation.Root(&amp;#123;<br>    <span class="hljs-keyword">text</span>: Annotation(&amp;#123;<br>      reducer: (_prev, <span class="hljs-keyword">next</span>) &#x3D;&gt; <span class="hljs-keyword">next</span>,<br>      <span class="hljs-keyword">default</span>: () &#x3D;&gt; <span class="hljs-comment">‘’,</span><br>    &amp;#125;)<br>  &amp;#125;);</p>
+<p>  字段名：<span class="hljs-keyword">text</span><br>  → 状态里只有一个 <span class="hljs-keyword">text</span> 字段</p>
+<p>  reducer: (_prev, <span class="hljs-keyword">next</span>) &#x3D;&gt; <span class="hljs-keyword">next</span><br>  → 状态如何更新<br>  → <em>prev: 旧值，<span class="hljs-keyword">next</span>: 新值<br>  → (</em>, <span class="hljs-keyword">next</span>) &#x3D;&gt; <span class="hljs-keyword">next</span>：直接覆盖<br>  → 类似数组 reduce，所以叫 reducer</p>
+<p>  <span class="hljs-keyword">default</span>: () &#x3D;&gt; <span class="hljs-comment">‘’</span><br>  → 初始默认值<br>  → 状态未初始化时的兜底<br></p></code></pre><p></p>
+<h4 data-id="heading-13">3.3 节点：函数就是节点</h4>
+<pre><code class="hljs language-javascript" lang="javascript">节点的本质：
+
+<p>  <span class="hljs-keyword">const</span> <span class="hljs-title function_">step1</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; (&amp;#123; <span class="hljs-attr">text</span>: <span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.text&amp;#125;&lt;/span&gt; -&amp;gt; step1</code></span> &amp;#125;);</p>
+<p>  → 节点是一个普通函数<br>  → 入参：当前状态 state<br>  → 返回值：要更新的状态片段<br>  → 返回的对象会经过 reducer 处理合并进状态</p>
+<p>  节点职责：<br>  → 接收状态<br>  → 处理业务逻辑<br>  → 返回新状态</p>
+<p>  类比：<br>  → 状态 &#x3D; 流水线上的<span class="hljs-string">“工件”</span><br>  → 节点 &#x3D; 流水线上的<span class="hljs-string">“工位”</span><br>  → 每个工位加工后交给下一个工位<br></p></code></pre><p></p>
+<h4 data-id="heading-14">3.4 图的构建链式调用</h4>
+<pre><code class="hljs language-scss" lang="scss">StateGraph 的构建：
+
+<p>  new <span class="hljs-built_in">StateGraph</span>(StateAnnotation)  <span class="hljs-comment">&#x2F;&#x2F; 传入状态定义</span><br>    <span class="hljs-selector-class">.addNode</span>(‘step1’, step1)       <span class="hljs-comment">&#x2F;&#x2F; 注册节点</span><br>    <span class="hljs-selector-class">.addNode</span>(‘step2’, step2)<br>    <span class="hljs-selector-class">.addEdge</span>(START, ‘step1’)       <span class="hljs-comment">&#x2F;&#x2F; 连接边</span><br>    <span class="hljs-selector-class">.addEdge</span>(‘step1’, ‘step2’)<br>    <span class="hljs-selector-class">.addEdge</span>(‘step2’, END)<br>    <span class="hljs-selector-class">.compile</span>();                    <span class="hljs-comment">&#x2F;&#x2F; 编译</span></p>
+<p>  <span class="hljs-built_in">addNode</span>(name, fn)<br>  → 注册节点<br>  → name: 节点名（字符串标识）<br>  → fn: 节点函数</p>
+<p>  <span class="hljs-built_in">addEdge</span>(from, to)<br>  → 连接两个节点<br>  → START &#x2F; END 是内置的特殊节点<br>  → 固定走向，没有分支</p>
+<p>  <span class="hljs-built_in">compile</span>()<br>  → 编译工作流<br>  → 校验图的完整性<br>  → 生成可执行的图<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-15">四、条件路由：让工作流自己"选路"</h3>
+<h4 data-id="heading-16">4.1 场景设计</h4>
+<pre><code class="hljs language-lua" lang="lua">场景：一个入口，两个出口
+
+<p>  用户输入：<br>  → <span class="hljs-string">“1+2”</span>（数学表达式）→ 走 <span class="hljs-built_in">math</span> 节点，计算<br>  → <span class="hljs-string">“你好”</span>（普通聊天）→ 走 chat 节点，回复</p>
+<p>  流程图：<br>  ┌──────────────────────────────────────────────────────────┐<br>│                                                          │<br>│  START ──→ router ──→ <span class="hljs-built_in">math</span> ──→ END                       │<br>│                │                                          │<br>│                └──→ chat ──→ END                          │<br>│                                                          │<br>│  router 是<span class="hljs-string">“路口”</span>：                                       │<br>│  → 根据 query 判断走哪条路                               │<br>│  → 含 + - * &#x2F; 字符 → <span class="hljs-built_in">math</span>                               │<br>│  → 否则 → chat                                            │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-17">4.2 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// conditional-routing.mjs — 条件路由</span>
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-variable constant_">END</span>,
+  <span class="hljs-variable constant_">START</span>,
+  <span class="hljs-title class_">StateGraph</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 状态声明</span><br><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">query</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;),<br>  <span class="hljs-attr">route</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘chat’</span><br>  &amp;#125;),<br>  <span class="hljs-attr">answer</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;)<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 路由节点：决定下一步怎么走</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">router</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; 判断是否是数学表达式（含 + - * &#x2F; 字符）</span><br>  <span class="hljs-keyword">const</span> isMath &#x3D; <span class="hljs-regexp">&#x2F;[+-*&#x2F;]&#x2F;</span>.<span class="hljs-title function_">test</span>(state.<span class="hljs-property">query</span>);<br>  <span class="hljs-comment">&#x2F;&#x2F; 如果是数学问题走 math，否则走 chat</span><br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">route</span>: isMath ? <span class="hljs-string">‘math’</span> : <span class="hljs-string">‘chat’</span> &amp;#125;<br>&amp;#125;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 数学计算节点</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">mathNode</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">try</span> &amp;#123;<br>    <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">answer</span>: <span class="hljs-title class_">String</span>(<span class="hljs-built_in">eval</span>(state.<span class="hljs-property">query</span>)) &amp;#125; <span class="hljs-comment">&#x2F;&#x2F; “1+2” → 3 → “3”</span><br>  &amp;#125; <span class="hljs-keyword">catch</span> &amp;#123;<br>    <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">answer</span>: <span class="hljs-string">‘表达式无法计算’</span> &amp;#125;<br>  &amp;#125;<br>&amp;#125;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 聊天节点</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">chatNode</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; (&amp;#123; <span class="hljs-attr">answer</span>: <span class="hljs-string"><code>你说的是：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.query&amp;#125;&lt;/span&gt;</code></span> &amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘router’</span>, router)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘math’</span>, mathNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘chat’</span>, chatNode)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">‘router’</span>)  <span class="hljs-comment">&#x2F;&#x2F; 固定走向：先到 router</span><br>  <span class="hljs-comment">&#x2F;&#x2F; 条件跳转：根据 state.route 的值判断，去 math 还是 chat</span><br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">‘router’</span>, <span class="hljs-function">(<span class="hljs-params">state</span>) &#x3D;&gt;</span> state.<span class="hljs-property">route</span>, &amp;#123;<br>    <span class="hljs-attr">math</span>: <span class="hljs-string">‘math’</span>,<br>    <span class="hljs-attr">chat</span>: <span class="hljs-string">‘chat’</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘math’</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘chat’</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘result:’</span>, <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123; <span class="hljs-attr">query</span>: <span class="hljs-string">‘你好’</span> &amp;#125;))<br><span class="hljs-comment">&#x2F;&#x2F; &amp;#123; query: ‘你好’, route: ‘chat’, answer: ‘你说的是：你好’ &amp;#125;</span></p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘result:’</span>, <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123; <span class="hljs-attr">query</span>: <span class="hljs-string">‘1+2’</span> &amp;#125;))<br><span class="hljs-comment">&#x2F;&#x2F; &amp;#123; query: ‘1+2’, route: ‘math’, answer: ‘3’ &amp;#125;</span><br></p></code></pre><p></p>
+<h4 data-id="heading-18">4.3 addConditionalEdges：条件边</h4>
+<pre><code class="hljs language-javascript" lang="javascript">条件边的三个参数：
+
+<p>  .<span class="hljs-title function_">addConditionalEdges</span>(<br>    <span class="hljs-string">‘router’</span>,                        <span class="hljs-comment">&#x2F;&#x2F; ① 从哪个节点出发</span><br>    <span class="hljs-function">(<span class="hljs-params">state</span>) &#x3D;&gt;</span> state.<span class="hljs-property">route</span>,          <span class="hljs-comment">&#x2F;&#x2F; ② 决定函数：返回路由值</span><br>    &amp;#123;                                <span class="hljs-comment">&#x2F;&#x2F; ③ 路由表：值 → 目标节点</span><br>      <span class="hljs-attr">math</span>: <span class="hljs-string">‘math’</span>,<br>      <span class="hljs-attr">chat</span>: <span class="hljs-string">‘chat’</span><br>    &amp;#125;<br>  )</p>
+<p>  执行流程：<br>  router 节点执行完<br>    │<br>    ▼<br>  决定函数执行：(state) &#x3D;&gt; state.<span class="hljs-property">route</span><br>    │<br>    ├── 返回 <span class="hljs-string">“math”</span> → 查路由表 → 去 math 节点<br>    │<br>    └── 返回 <span class="hljs-string">“chat”</span> → 查路由表 → 去 chat 节点</p>
+<p>  类比：<br>  → 路由器（router）根据数据包的<span class="hljs-string">“目的地”</span>选择转发路径<br>  → 这就是<span class="hljs-string">“路由”</span>（routing）名字的由来</p>
+<p>  与 addEdge 的区别：<br>  → addEdge：固定走向（一条路）<br>  → addConditionalEdges：根据状态动态选路（多条路）<br></p></code></pre><p></p>
+<h4 data-id="heading-19">4.4 eval()：教学用，生产禁用！</h4>
+<pre><code class="hljs language-javascript" lang="javascript">数学节点用到了 <span class="hljs-built_in">eval</span>()：
+
+<p>  <span class="hljs-keyword">const</span> <span class="hljs-title function_">mathNode</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>    <span class="hljs-keyword">try</span> &amp;#123;<br>      <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">answer</span>: <span class="hljs-title class_">String</span>(<span class="hljs-built_in">eval</span>(state.<span class="hljs-property">query</span>)) &amp;#125;<br>    &amp;#125; <span class="hljs-keyword">catch</span> &amp;#123;<br>      <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">answer</span>: <span class="hljs-string">‘表达式无法计算’</span> &amp;#125;<br>    &amp;#125;<br>  &amp;#125;;</p>
+<p>  <span class="hljs-built_in">eval</span>(<span class="hljs-string">‘1+2’</span>) → <span class="hljs-number">3</span><br>  <span class="hljs-built_in">eval</span>(<span class="hljs-string">‘5*3’</span>) → <span class="hljs-number">15</span></p>
+<p>  <span class="hljs-built_in">eval</span>() 是什么？<br>  → 把传入的字符串当作 <span class="hljs-variable constant_">JS</span> 代码执行<br>  → 返回代码执行结果<br>  → 非常强大，也非常危险！</p>
+<p>  ⚠️ 安全警告：<br>  ┌──────────────────────────────────────────────────────────┐<br>│  <span class="hljs-built_in">eval</span>() 的危险：                                         │<br>│                                                          │<br>│  输入 <span class="hljs-string">“process.exit()”</span>                                   │<br>│  → <span class="hljs-built_in">eval</span> 直接执行 → 程序退出！                            │<br>│                                                          │<br>│  输入 <span class="hljs-string">“require(‘fs’).readFileSync(‘&#x2F;etc&#x2F;passwd’)”</span>        │<br>│  → <span class="hljs-built_in">eval</span> 直接执行 → 读取系统文件！                        │<br>│                                                          │<br>│  输入 <span class="hljs-string">“1; 恶意代码”</span>                                      │<br>│  → <span class="hljs-built_in">eval</span> 直接执行 → 任意代码注入！                        │<br>│                                                          │<br>│  这就是代码注入（<span class="hljs-title class_">Code</span> <span class="hljs-title class_">Injection</span>）攻击                    │<br>│                                                          │<br>│  ✅ 安全替代方案：                                       │<br>│  → 数学表达式解析库（mathjs 等）                         │<br>│  → 只解析数学表达式，不执行代码                          │<br>│  → 生产环境禁止使用 <span class="hljs-built_in">eval</span>                                 │<br>└──────────────────────────────────────────────────────────┘</p>
+<p>  教学目的：<br>  → 演示<span class="hljs-string">“分支路由”</span>的核心思想<br>  → 用 <span class="hljs-built_in">eval</span> 简化代码，聚焦路由逻辑<br>  → 理解危险，比回避危险更重要<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-20">五、循环重试：失败自动重来</h3>
+<h4 data-id="heading-21">5.1 场景设计</h4>
+<pre><code class="hljs language-sql" lang="sql">场景：重试直到成功
+
+<p>  → 某些操作可能失败（网络、临时错误）<br>  → 需要自动重试<br>  → 达到最大次数才算结束</p>
+<p>  流程图：<br>  ┌──────────────────────────────────────────────────────────┐<br>│                                                          │<br>│  <span class="hljs-keyword">START</span> ──→ attempt ──→ 成功？                            │<br>│                ↑            │                             │<br>│                │            ├─ 成功 → <span class="hljs-keyword">END</span>                │<br>│                │            │                             │<br>│                └── 失败（retry）←───┘                     │<br>│                                                          │<br>│  attempt 节点：                                          │<br>│  → tries <span class="hljs-operator">+</span> <span class="hljs-number">1</span>                                             │<br>│  → 达到 <span class="hljs-number">3</span> 次 → 成功 → 结束                              │<br>│  → 未达到 → 失败 → 回到 attempt 再来                    │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-22">5.2 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// loop-retry.mjs — 循环重试</span>
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-variable constant_">END</span>,
+  <span class="hljs-variable constant_">START</span>,
+  <span class="hljs-title class_">StateGraph</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">tries</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-number">0</span><br>  &amp;#125;),<br>  <span class="hljs-attr">ok</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-literal">false</span><br>  &amp;#125;),<br>  <span class="hljs-attr">message</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;)<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 尝试节点：每来一次尝试次数 +1</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">attempt</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> tries &#x3D; state.<span class="hljs-property">tries</span> + <span class="hljs-number">1</span>;<br>  <span class="hljs-keyword">const</span> ok &#x3D; tries &gt;&#x3D; <span class="hljs-number">3</span>; <span class="hljs-comment">&#x2F;&#x2F; 第 3 次必然成功</span><br>  <span class="hljs-keyword">return</span> &amp;#123;<br>    tries,<br>    ok,<br>    <span class="hljs-attr">message</span>: ok ? <span class="hljs-string"><code>第&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;tries&amp;#125;&lt;/span&gt;次成功</code></span> : <span class="hljs-string"><code>第&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;tries&amp;#125;&lt;/span&gt;次失败</code></span><br>  &amp;#125;<br>&amp;#125;;</p>
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘attempt’</span>, attempt)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">‘attempt’</span>)<br>  <span class="hljs-comment">&#x2F;&#x2F; 条件边：成功 → 结束，失败 → 回到 attempt（形成循环）</span><br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">‘attempt’</span>, <span class="hljs-function">(<span class="hljs-params">state</span>) &#x3D;&gt;</span> state.<span class="hljs-property">ok</span> ? <span class="hljs-string">‘done’</span> : <span class="hljs-string">‘retry’</span>, &amp;#123;<br>    <span class="hljs-attr">retry</span>: <span class="hljs-string">‘attempt’</span>,<br>    <span class="hljs-attr">done</span>: <span class="hljs-variable constant_">END</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">compile</span>();</p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘result:’</span>, <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123; <span class="hljs-attr">tries</span>: <span class="hljs-number">0</span> &amp;#125;))<br></p></code></pre><p></p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-string">执行过程（invoke(&#123;tries:</span> <span class="hljs-number">0</span><span class="hljs-string">&#125;)）：</span>
+
+  <span class="hljs-string">第</span> <span class="hljs-number">1</span> <span class="hljs-string">次进入</span> <span class="hljs-string">attempt：</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">tries:</span> <span class="hljs-number">0</span> <span class="hljs-string">+</span> <span class="hljs-number">1</span> <span class="hljs-string">=</span> <span class="hljs-number">1</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">ok:</span> <span class="hljs-number">1</span> <span class="hljs-string">&gt;=</span> <span class="hljs-number">3</span> <span class="hljs-string">→</span> <span class="hljs-literal">false</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">message:</span> <span class="hljs-string">"第1次失败"</span>
+  <span class="hljs-string">→</span> <span class="hljs-string">条件边</span> <span class="hljs-string">→</span> <span class="hljs-string">返回</span> <span class="hljs-string">"retry"</span> <span class="hljs-string">→</span> <span class="hljs-string">回到</span> <span class="hljs-string">attempt</span>
+
+  <span class="hljs-string">第</span> <span class="hljs-number">2</span> <span class="hljs-string">次进入</span> <span class="hljs-string">attempt：</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">tries:</span> <span class="hljs-number">1</span> <span class="hljs-string">+</span> <span class="hljs-number">1</span> <span class="hljs-string">=</span> <span class="hljs-number">2</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">ok:</span> <span class="hljs-number">2</span> <span class="hljs-string">&gt;=</span> <span class="hljs-number">3</span> <span class="hljs-string">→</span> <span class="hljs-literal">false</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">message:</span> <span class="hljs-string">"第2次失败"</span>
+  <span class="hljs-string">→</span> <span class="hljs-string">条件边</span> <span class="hljs-string">→</span> <span class="hljs-string">返回</span> <span class="hljs-string">"retry"</span> <span class="hljs-string">→</span> <span class="hljs-string">回到</span> <span class="hljs-string">attempt</span>
+
+  <span class="hljs-string">第</span> <span class="hljs-number">3</span> <span class="hljs-string">次进入</span> <span class="hljs-string">attempt：</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">tries:</span> <span class="hljs-number">2</span> <span class="hljs-string">+</span> <span class="hljs-number">1</span> <span class="hljs-string">=</span> <span class="hljs-number">3</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">ok:</span> <span class="hljs-number">3</span> <span class="hljs-string">&gt;=</span> <span class="hljs-number">3</span> <span class="hljs-string">→</span> <span class="hljs-literal">true</span>
+  <span class="hljs-string">→</span> <span class="hljs-attr">message:</span> <span class="hljs-string">"第3次成功"</span>
+  <span class="hljs-string">→</span> <span class="hljs-string">条件边</span> <span class="hljs-string">→</span> <span class="hljs-string">返回</span> <span class="hljs-string">"done"</span> <span class="hljs-string">→</span> <span class="hljs-string">END</span>
+
+  <span class="hljs-string">最终结果：</span>
+  &#123; <span class="hljs-attr">tries:</span> <span class="hljs-number">3</span>, <span class="hljs-attr">ok:</span> <span class="hljs-literal">true</span>, <span class="hljs-attr">message:</span> <span class="hljs-string">'第3次成功'</span> &#125;
+</code></pre>
+<pre><code class="hljs language-bash" lang="bash">循环的本质：
+
+  条件边指向自己 = 循环
+
+  .addConditionalEdges(<span class="hljs-string">'attempt'</span>, ..., &#123;
+    retry: <span class="hljs-string">'attempt'</span>,  // 回到自己 → 循环！
+    <span class="hljs-keyword">done</span>: END
+  &#125;)
+
+  → 条件边不仅可以指向其他节点
+  → 还可以指回自己
+  → 这就形成了<span class="hljs-string">"循环"</span>
+  → 循环必须有出口（<span class="hljs-keyword">done</span> → END）
+  → 否则死循环
+
+  实际应用：
+  → API 调用失败重试
+  → LLM 输出校验不过重试
+  → 指数退避重试（间隔递增）
+</code></pre>
+<hr>
+<h3 data-id="heading-23">六、MemorySaver：状态持久化</h3>
+<h4 data-id="heading-24">6.1 为什么要持久化？</h4>
+<pre><code class="hljs language-perl" lang="perl">没有持久化的问题：
+
+<p>  → 每次 invoke 都是全新开始<br>  → 状态在调用结束后丢失<br>  → 无法跨会话记忆</p>
+<p>  场景：访问计数<br>  → 第 <span class="hljs-number">1</span> 次访问：显示<span class="hljs-string">“第1次进入”</span><br>  → 第 <span class="hljs-number">2</span> 次访问：应该显示<span class="hljs-string">“第2次进入”</span><br>  → 但状态丢了，每次都显示<span class="hljs-string">“第1次”</span></p>
+<p>  用 MemorySaver 保存状态：<br>  → 把 <span class="hljs-keyword">state</span> 保存到内存里<br>  → 下次基于上次的 <span class="hljs-keyword">state</span> 继续执行<br>  → 跨调用保持记忆</p>
+<p>  更复杂的场景：<br>  → Agent 执行中断、失败、暂停、需要授权<br>  → MemorySaver 保存状态<br>  → 之后可以继续运行<br></p></code></pre><p></p>
+<h4 data-id="heading-25">6.2 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// checkpointer-memory.mjs — MemorySaver 状态持久化</span>
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-variable constant_">END</span>,
+  <span class="hljs-variable constant_">START</span>,
+  <span class="hljs-title class_">MemorySaver</span>,  <span class="hljs-comment">// 内存保存器</span>
+  <span class="hljs-title class_">StateGraph</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-comment">&#x2F;&#x2F; session 相关：某人访问次数</span><br>  <span class="hljs-attr">visitCount</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-number">0</span><br>  &amp;#125;),<br>  <span class="hljs-attr">message</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;)<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 计数节点</span><br><span class="hljs-keyword">function</span> <span class="hljs-title function_">recordVisit</span>(<span class="hljs-params">state</span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> visitCount &#x3D; state.<span class="hljs-property">visitCount</span> + <span class="hljs-number">1</span>;<br>  <span class="hljs-keyword">const</span> message &#x3D;<br>    visitCount &#x3D;&#x3D;&#x3D; <span class="hljs-number">1</span><br>      ? <span class="hljs-string">‘这是你在本会话里第1次进入。’</span><br>      : <span class="hljs-string"><code>这是你在本会话里第&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;visitCount&amp;#125;&lt;/span&gt;次进入</code></span>;<br>  <span class="hljs-keyword">return</span> &amp;#123; visitCount, message &amp;#125;;<br>&amp;#125;</p>
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘recordVisit’</span>, recordVisit)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">‘recordVisit’</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘recordVisit’</span>, <span class="hljs-variable constant_">END</span>);</p>
+<p><span class="hljs-keyword">const</span> checkpointer &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">MemorySaver</span>(); <span class="hljs-comment">&#x2F;&#x2F; 内存保存器</span><br><span class="hljs-keyword">const</span> app &#x3D; graph.<span class="hljs-title function_">compile</span>(&amp;#123;<br>  checkpointer<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 多用户：thread_id 区分会话</span><br><span class="hljs-keyword">const</span> user1 &#x3D; &amp;#123; <span class="hljs-attr">configurable</span>: &amp;#123; <span class="hljs-attr">thread_id</span>: <span class="hljs-string">‘用户-小张’</span> &amp;#125; &amp;#125;;<br><span class="hljs-keyword">const</span> user2 &#x3D; &amp;#123; <span class="hljs-attr">configurable</span>: &amp;#123; <span class="hljs-attr">thread_id</span>: <span class="hljs-string">‘用户-小李’</span> &amp;#125; &amp;#125;;</p>
+<p><span class="hljs-keyword">const</span> res1 &#x3D; <span class="hljs-keyword">await</span> app.<span class="hljs-title function_">invoke</span>(&amp;#123;&amp;#125;, user1);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(res1); <span class="hljs-comment">&#x2F;&#x2F; visitCount: 1, “第1次进入”</span><br><span class="hljs-keyword">const</span> res2 &#x3D; <span class="hljs-keyword">await</span> app.<span class="hljs-title function_">invoke</span>(&amp;#123;&amp;#125;, user1);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(res2); <span class="hljs-comment">&#x2F;&#x2F; visitCount: 2, “第2次进入”</span><br><span class="hljs-keyword">const</span> res3 &#x3D; <span class="hljs-keyword">await</span> app.<span class="hljs-title function_">invoke</span>(&amp;#123;&amp;#125;, user1);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(res3); <span class="hljs-comment">&#x2F;&#x2F; visitCount: 3, “第3次进入”</span><br><span class="hljs-keyword">const</span> res4 &#x3D; <span class="hljs-keyword">await</span> app.<span class="hljs-title function_">invoke</span>(&amp;#123;&amp;#125;, user2);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(res4); <span class="hljs-comment">&#x2F;&#x2F; visitCount: 1, “第1次进入”（新会话）</span><br></p></code></pre><p></p>
+<h4 data-id="heading-26">6.3 MemorySaver 与 thread_id</h4>
+<pre><code class="hljs language-python" lang="python">核心机制：
+
+<p>  checkpointer（检查点）<br>  → 在每次节点执行后保存状态快照<br>  → 相当于游戏里的<span class="hljs-string">“存档”</span><br>  → 下次可以从存档继续</p>
+<p>  <span class="hljs-built_in">compile</span>(&amp;#123; checkpointer &amp;#125;)<br>  → 把 checkpointer 挂到图上<br>  → 图就具备持久化能力</p>
+<p>  thread_id（线程 ID）<br>  → 区分不同的会话<br>  → 每个 thread_id 是独立的记忆空间<br>  → 小张的访问计数不影响小李</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  执行过程：                                               │<br>│                                                          │<br>│  user1 第 <span class="hljs-number">1</span> 次 invoke                                    │<br>│  → 会话 <span class="hljs-string">“用户-小张”</span> 状态为空                             │<br>│  → visitCount: <span class="hljs-number">0</span> + <span class="hljs-number">1</span> &#x3D; <span class="hljs-number">1</span>                                 │<br>│  → 保存 → <span class="hljs-string">“第1次进入”</span>                                    │<br>│                                                          │<br>│  user1 第 <span class="hljs-number">2</span> 次 invoke                                    │<br>│  → 从内存读取上次状态                                    │<br>│  → visitCount: <span class="hljs-number">1</span> + <span class="hljs-number">1</span> &#x3D; <span class="hljs-number">2</span>                                 │<br>│  → 保存 → <span class="hljs-string">“第2次进入”</span>                                    │<br>│                                                          │<br>│  user1 第 <span class="hljs-number">3</span> 次 invoke                                    │<br>│  → visitCount: <span class="hljs-number">2</span> + <span class="hljs-number">1</span> &#x3D; <span class="hljs-number">3</span>                                 │<br>│  → <span class="hljs-string">“第3次进入”</span>                                           │<br>│                                                          │<br>│  user2 第 <span class="hljs-number">1</span> 次 invoke                                    │<br>│  → 新线程 <span class="hljs-string">“用户-小李”</span>                                    │<br>│  → 状态独立，从 <span class="hljs-number">0</span> 开始                                   │<br>│  → <span class="hljs-string">“第1次进入”</span>                                           │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-27">6.4 持久化的进阶</h4>
+<pre><code class="hljs language-arduino" lang="arduino">MemorySaver 的局限：
+
+<p>  → 保存在内存里<br>  → 进程重启就丢失<br>  → 只适合开发测试</p>
+<p>  生产级持久化：</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  持久化方案：                                             │<br>│                                                          │<br>│  MemorySaver（内存）                                     │<br>│  → 开发测试用                                            │<br>│  → 进程重启丢失                                          │<br>│                                                          │<br>│  SQLite &#x2F; Redis（数据库）                                │<br>│  → 生产环境用                                            │<br>│  → 重启不丢失                                            │<br>│  → 支持分布式共享                                        │<br>│                                                          │<br>│  用途：                                                   │<br>│  → Agent 执行中断、失败、暂停                            │<br>│  → 需要授权（human-in-the-loop）                         │<br>│  → 保存状态后下次继续运行                                │<br>│  → 这就是 harness 的中断、恢复机制                       │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-28">七、interrupt：中断与恢复</h3>
+<h4 data-id="heading-29">7.1 场景设计</h4>
+<pre><code class="hljs language-vbnet" lang="vbnet">场景：转账需要人工确认
+
+<p>  → AI 帮你转账，不能直接转！<br>  → 必须停下来等用户确认<br>  → 用户输入确认后才继续</p>
+<p>  流程图：<br>  ┌──────────────────────────────────────────────────────────┐<br>│                                                          │<br>│  START ──→ showTransfer ──→ waitConfirm ──→ <span class="hljs-keyword">END</span>          │<br>│                                │                          │<br>│                                │ interrupt（中断）        │<br>│                                ▼                          │<br>│                     等待用户输入确认…                    │<br>│                                │                          │<br>│                                │ Command(&amp;#123;<span class="hljs-keyword">resume</span>&amp;#125;)        │<br>│                                ▼                          │<br>│                          继续执行                          │<br>│                                                          │<br>│  这就是 Human-<span class="hljs-keyword">in</span>-the-<span class="hljs-keyword">Loop</span>（人在回路）                     │<br>│  → AI 执行到关键步骤，停下来等人工批准                   │<br>│  → 这是 Agent 工程的安全底线                             │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-30">7.2 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// graph-interrupt.mjs — 中断与恢复</span>
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-variable constant_">END</span>,
+  <span class="hljs-variable constant_">START</span>,
+  <span class="hljs-title class_">StateGraph</span>,
+  <span class="hljs-title class_">Command</span>,    <span class="hljs-comment">// 命令节点</span>
+  interrupt,  <span class="hljs-comment">// 中断</span>
+  <span class="hljs-title class_">MemorySaver</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+<span class="hljs-keyword">import</span> &#123; createInterface &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'node:readline/promises'</span>;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 状态声明</span><br><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">actionSummary</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;),<br>  <span class="hljs-attr">userInput</span>: <span class="hljs-title class_">Annotation</span>(&amp;#123;<br>    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) &#x3D;&gt;</span> next,<br>    <span class="hljs-attr">default</span>: <span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">‘’</span><br>  &amp;#125;)<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 展示转账信息节点</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">showTransfer</span> &#x3D; (<span class="hljs-params"></span>) &#x3D;&gt; (&amp;#123;<br>  <span class="hljs-attr">actionSummary</span>: <span class="hljs-string">‘向张三转账 $100’</span><br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 等待确认节点（关键！）</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">waitConfirm</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> text &#x3D; <span class="hljs-title function_">interrupt</span>(&amp;#123; <span class="hljs-comment">&#x2F;&#x2F; 中断：暂停图，等外部输入</span><br>    <span class="hljs-attr">hint</span>: <span class="hljs-string">‘终端里输入[确认]或者备注后回车，图才会继续’</span>,<br>    <span class="hljs-attr">actionSummary</span>: state.<span class="hljs-property">actionSummary</span><br>  &amp;#125;);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">userInput</span>: <span class="hljs-title class_">String</span>(text) &amp;#125;;<br>&amp;#125;;</p>
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘showTransfer’</span>, showTransfer)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">‘waitConfirm’</span>, waitConfirm)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">‘showTransfer’</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘showTransfer’</span>, <span class="hljs-string">‘waitConfirm’</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">‘waitConfirm’</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>(&amp;#123; <span class="hljs-attr">checkpointer</span>: <span class="hljs-keyword">new</span> <span class="hljs-title class_">MemorySaver</span>() &amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 第一次 invoke：会中断在 waitConfirm</span><br><span class="hljs-keyword">const</span> config &#x3D; &amp;#123; <span class="hljs-attr">configurable</span>: &amp;#123; <span class="hljs-attr">thread_id</span>: <span class="hljs-string">‘interrupt-demo’</span> &amp;#125; &amp;#125;;<br><span class="hljs-keyword">const</span> paused &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123;&amp;#125;, config);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘待你确认’</span>, paused.<span class="hljs-property"><strong>interrupt</strong></span>?.[<span class="hljs-number">0</span>]?.<span class="hljs-property">value</span>);<br><span class="hljs-comment">&#x2F;&#x2F; 待你确认 &amp;#123; hint: ‘…’, actionSummary: ‘向张三转账 $100’ &amp;#125;</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 等用户输入（模拟人工确认）</span><br><span class="hljs-keyword">const</span> rl &#x3D; <span class="hljs-title function_">createInterface</span>(&amp;#123;<br>  <span class="hljs-attr">input</span>: process.<span class="hljs-property">stdin</span>,<br>  <span class="hljs-attr">output</span>: process.<span class="hljs-property">stdout</span><br>&amp;#125;);<br><span class="hljs-keyword">const</span> line &#x3D; (<span class="hljs-keyword">await</span> rl.<span class="hljs-title function_">question</span>(<span class="hljs-string">‘&gt; ‘</span>)).<span class="hljs-title function_">trim</span>();<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘你输入了’</span>, line);<br><span class="hljs-keyword">await</span> rl.<span class="hljs-title function_">close</span>();</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 第二次 invoke：用 Command(&amp;#123; resume &amp;#125;) 恢复执行</span><br><span class="hljs-keyword">const</span> done &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(<span class="hljs-keyword">new</span> <span class="hljs-title class_">Command</span>(&amp;#123; <span class="hljs-attr">resume</span>: line &amp;#125;), config);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘done:’</span>, done);<br></p></code></pre><p></p>
+<h4 data-id="heading-31">7.3 中断机制详解</h4>
+<pre><code class="hljs language-vbnet" lang="vbnet">interrupt 的完整流程：
+
+<p>  第一次 invoke：<br>  → START → showTransfer（展示转账信息）<br>  → waitConfirm 执行到 interrupt(…)<br>  → 图在此<span class="hljs-string">“暂停”</span><br>  → 返回 paused 对象<br>  → paused.<strong>interrupt</strong> 包含中断信息<br>    &amp;#123; hint: <span class="hljs-comment">‘…’, actionSummary: ‘向张三转账 $100’ &amp;#125;</span></p>
+<p>  人工介入：<br>  → 用户看到转账信息<br>  → 在终端输入确认或备注<br>  → 这是<span class="hljs-string">“人在回路”</span>（Human-<span class="hljs-keyword">in</span>-the-<span class="hljs-keyword">Loop</span>）</p>
+<p>  第二次 invoke：<br>  → <span class="hljs-built_in">new</span> Command(&amp;#123; <span class="hljs-keyword">resume</span>: line &amp;#125;)<br>  → <span class="hljs-keyword">resume</span> 携带用户输入<br>  → 图从暂停处<span class="hljs-string">“恢复”</span><br>  → waitConfirm 收到用户输入<br>  → 继续执行到 <span class="hljs-keyword">END</span></p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  为什么需要 checkpointer？                                │<br>│                                                          │<br>│  中断时：                                                 │<br>│  → 图执行到一半停止                                      │<br>│  → 状态必须保存！                                        │<br>│  → 否则恢复时不知道执行到哪了                             │<br>│                                                          │<br>│  MemorySaver 的作用：                                     │<br>│  → 保存中断时的状态快照                                  │<br>│  → 恢复时从快照继续                                      │<br>│  → 中断 + 持久化 &#x3D; 可恢复的 Agent                        │<br>│                                                          │<br>│  场景：                                                   │<br>│  → 审批流程（AI 起草 → 人工批准 → 执行）                 │<br>│  → 支付确认（AI 生成订单 → 用户确认 → 扣款）             │<br>│  → 敏感操作（AI 生成代码 → 人工审核 → 合并）             │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-32">7.4 Command：控制图的指令</h4>
+<pre><code class="hljs language-scss" lang="scss">Command 是 LangGraph 的控制指令：
+
+<p>  new <span class="hljs-built_in">Command</span>(&amp;#123; resume: line &amp;#125;)<br>  → resume: 恢复中断时传给 interrupt 的返回值<br>  → waitConfirm 里 <span class="hljs-built_in">interrupt</span>() 的返回值就是 line<br>  → 实现了<span class="hljs-string">“外部输入注入图中”</span></p>
+<p>  Command 的其他用途：<br>  → <span class="hljs-built_in">Command</span>(&amp;#123; goto: <span class="hljs-string">‘节点名’</span> &amp;#125;)：指定跳转<br>  → <span class="hljs-built_in">Command</span>(&amp;#123; update: &amp;#123;…&amp;#125; &amp;#125;)：更新状态<br>  → <span class="hljs-built_in">Command</span>(&amp;#123; resume: data &amp;#125;)：恢复中断</p>
+<p>  本质：<br>  → 图是”状态机”<br>  → 中断 &#x3D; 停在某个状态<br>  → Command &#x3D; 外部给状态机发指令<br>  → resume &#x3D; 告诉它”继续，这是你要的数据”<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-33">八、总结</h3>
+<h4 data-id="heading-34">8.1 知识体系图</h4>
+<pre><code class="hljs language-scss" lang="scss">LangGraph 完整实战
+│
+├── 为什么需要多 Agent
+│   ├── 单 Agent 上下文开销（冗余 prompt + 干扰）
+│   ├── 每个 Agent 只带必要 prompt → 省 token + 高准确率
+│   ├── Agent = LLM（大脑）+ Harness（tool/mcp/rag/skill）
+│   ├── 主 Agent 下发任务，子 Agent 并行处理
+│   └── 三大理由：省 token / 并行 / 互相纠错
+│
+├── LangChain → LangGraph
+│   ├── LangChain：线性工作流 + 基础模块
+│   ├── LangGraph：网状工作流编排
+│   ├── 四大要素：START / 节点 / 边 / END
+│   └── 场景：简单 Agent → 复杂多 Agent 协作
+│
+├── 基础图 StateGraph
+│   ├── Annotation<span class="hljs-selector-class">.Root</span> 状态声明（reducer / default）
+│   ├── 函数就是节点（state → new state）
+│   ├── addNode / addEdge / compile / invoke
+│   └── mermaid 可视化（getGraphAsync + drawMermaid）
+│
+├── 条件路由
+│   ├── router 节点判断意图
+│   ├── <span class="hljs-built_in">addConditionalEdges</span>(节点, 决定函数, 路由表)
+│   ├── 正则判断数学表达式
+│   ├── <span class="hljs-built_in">eval</span>() 教学演示（生产禁用！代码注入风险）
+│   └── 分支：math / chat 两个出口
+│
+├── 循环重试
+│   ├── 条件边指向自己 = 循环
+│   ├── tries + <span class="hljs-number">1</span> 计数
+│   ├── 成功 → done → END
+│   ├── 失败 → retry → 回到 attempt
+│   └── 应用：API 失败重试 / 输出校验重试
+│
+├── MemorySaver 持久化
+│   ├── checkpointer 保存状态快照（存档）
+│   ├── <span class="hljs-built_in">compile</span>(&#123; checkpointer &#125;)
+│   ├── thread_id 区分多用户会话
+│   ├── 跨调用保持记忆
+│   └── 生产级：SQLite / Redis
+│
+├── interrupt 中断恢复
+│   ├── <span class="hljs-built_in">interrupt</span>(&#123;...&#125;) 暂停图
+│   ├── __interrupt__ 携带中断信息
+│   ├── <span class="hljs-built_in">Command</span>(&#123; resume &#125;) 恢复执行
+│   ├── 必须配 checkpointer（保存中断状态）
+│   └── 应用：审批 / 支付确认 / Human-in-the-Loop
+│
+└── 核心认知
+    ├── 图 = 状态机（状态 + 节点 + 边）
+    ├── 条件边 = 分支 + 循环
+    ├── checkpointer = 存档机制
+    ├── interrupt = 人在回路
+    └── 单 Agent 串行思考 → 多 Agent 网状协作
+</code></pre>
+<h4 data-id="heading-35">8.2 一句话总结</h4>
+<blockquote>
+<p><strong>LangGraph 是 LangChain 的网状升级：LangChain 的线性工作流只能 A→B→C 一条路走到底，LangGraph 的状态图支持分支、循环、中断、持久化——这正是复杂多 Agent 产品需要的编排能力。核心 API 只有四个要素：Annotation 声明状态（reducer 决定状态如何变）、函数即节点（state 进 state 出）、边连接节点（addEdge 固定走向 / addConditionalEdges 条件选路）、START/END 作为出入口。条件边指向自己是循环（失败重试），挂上 MemorySaver 是持久化（checkpointer 存档 + thread_id 分会话），interrupt 是中断（执行到关键步骤停下来等人工确认，Command(&#123; resume &#125;) 恢复）——这三个组合起来，就实现了 Agent 工程最核心的 Human-in-the-Loop 机制。多 Agent 为什么是趋势？单 Agent 把所有工具和 prompt 塞进一个大脑，token 浪费且互相干扰；多 Agent 各司其职，每个大脑只带最少 prompt，省 token、准确率高、还能并行和互相纠错。LangGraph 就是把这些"大脑"组织成网状工作流的编排框架。</strong></p>
+</blockquote>
+<hr>
+<blockquote>
+<p>如果这篇文章对你有帮助，欢迎<strong>点赞</strong>和<strong>收藏</strong>！</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握" href="https://juejin.cn/post/7683849223256571904" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span><span class="desc fs12">https://juejin.cn/post/7683849223256571904</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/340437f4.html">Don't Sleep on Wrapture<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/76550da4.html">Soft-Deprecating re.match()<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2051"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/4ac73f8a.html" title="Postman 接口测试入门：从发请求到写断言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6652"></div><span class="title">Postman 接口测试入门：从发请求到写断言</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2635"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/8b919ed5.html" title="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7691"></div><span class="title">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></a><a class="item" href="/rss/6d0246a7.html" title="Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5800"></div><span class="title">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=724"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/ae16c9b3.html" title="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span></a><a class="item" href="/rss/c6532117.html" title="使用自定义Bash脚本预防oom卡死 V2"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6512"></div><span class="title">使用自定义Bash脚本预防oom卡死 V2</span></a><a class="item" href="/rss/34d032b3.html" title="干与湿：AI 拿走脑力之后，人剩下什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=502"></div><span class="title">干与湿：AI 拿走脑力之后，人剩下什么</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4036"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/6a73dbeb.html" title="云服务器运行WordPress需要什么配置？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dacbbf232d37447ea7255efcd1679a2f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqR5Yqo6Zuo6aKk:q75.awebp?rk3s=f64ab15b&x-expires=1789626492&x-signature=EQX4vCMzA2%2F7ozlGbhJm5iJSpmM%3D"></div><span class="title">云服务器运行WordPress需要什么配置？</span></a><a class="item" href="/rss/d281a9c3.html" title="用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4710"></div><span class="title">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践</span></a><a class="item" href="/rss/d0f37396.html" title="每天2小时,21天闭环计划-RHCE通关时间表全公开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9423"></div><span class="title">每天2小时,21天闭环计划-RHCE通关时间表全公开</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4239"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

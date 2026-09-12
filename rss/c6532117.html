@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>使用自定义Bash脚本预防oom卡死 V2 - RSSBOX</title>
+
+  
+    <meta name="description" content="前言：首先，这只是个练习脚本，很多不完善的地方，仅供学习使用，出事了我不管啊 OOM SysRq 防卡死方案 该方案通过极简的 Bash 脚本监控内存，在物理空闲内存低于 256 MiB 时强制触发内核 OOM Killer，从而避免系统陷入内存回收死等，保持桌面响应。 原理说明 为什么用 MemFree 而不是 MemAvailable？  MemFree：物理空闲内存，直接反映真实状态 Me">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用自定义Bash脚本预防oom卡死 V2">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/c6532117.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="前言：首先，这只是个练习脚本，很多不完善的地方，仅供学习使用，出事了我不管啊 OOM SysRq 防卡死方案 该方案通过极简的 Bash 脚本监控内存，在物理空闲内存低于 256 MiB 时强制触发内核 OOM Killer，从而避免系统陷入内存回收死等，保持桌面响应。 原理说明 为什么用 MemFree 而不是 MemAvailable？  MemFree：物理空闲内存，直接反映真实状态 Me">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-10T03:55:32.000Z">
+<meta property="article:modified_time" content="2026-09-10T03:55:32.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">OOM SysRq 防卡死方案</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">原理说明</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">为什么用 MemFree 而不是 MemAvailable？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">看门狗的作用</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">安装步骤</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 开启 SysRq 权限（不一定需要）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 部署监控脚本</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. 配置 Systemd 服务</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">验证配置</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">检查服务状态</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">查看当前内存状态</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">查看触发记录</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">卸载与回退</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">配置总结</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">触发链条</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-10T03:55:32.000Z">2026-09-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>使用自定义Bash脚本预防oom卡死 V2</span></h1>
+<div>
+<p>前言：首先，这只是个练习脚本，很多不完善的地方，仅供学习使用，出事了我不管啊</p>
+<h2 data-id="heading-0">OOM SysRq 防卡死方案</h2>
+<p>该方案通过极简的 Bash 脚本监控内存，在物理空闲内存低于 256 MiB 时强制触发内核 OOM Killer，从而避免系统陷入内存回收死等，保持桌面响应。</p>
+<h3 data-id="heading-1">原理说明</h3>
+<h4 data-id="heading-2">为什么用 MemFree 而不是 MemAvailable？</h4>
+<ul>
+<li><strong>MemFree</strong>：物理空闲内存，直接反映真实状态</li>
+<li><strong>MemAvailable</strong>：包含可回收缓存，可能"虚高"掩盖风险</li>
+<li>当 MemFree &lt; 256MiB 时，系统确实已无退路</li>
+</ul>
+<h4 data-id="heading-3">看门狗的作用</h4>
+<ul>
+<li>作为最后防线，防止系统陷入内存回收死等</li>
+<li>当所有回收手段都耗尽时，触发 OOM Killer 杀进程释放内存</li>
+<li>256MiB 是"已经没招了"的信号，触发即正确</li>
+</ul>
+<hr>
+<h3 data-id="heading-4">安装步骤</h3>
+<h4 data-id="heading-5">1. 开启 SysRq 权限（不一定需要）</h4>
+<p>内核必须允许接收手动触发 OOM 的指令。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 临时开启（立即生效）</span>
+<span class="hljs-built_in">echo</span> 1 | sudo <span class="hljs-built_in">tee</span> /proc/sys/kernel/sysrq
+
+<p><span class="hljs-comment"># 永久开启（重启后依然有效）</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">“kernel.sysrq&#x3D;1”</span> | sudo <span class="hljs-built_in">tee</span> &#x2F;etc&#x2F;sysctl.d&#x2F;99-sysrq.conf<br>sudo sysctl –system<br></p></code></pre><p></p>
+<h4 data-id="heading-6">2. 部署监控脚本</h4>
+<p>创建一个 Bash 脚本，每 0.1 秒检查一次物理空闲内存。</p>
+<pre><code class="hljs language-bash" lang="bash">sudo <span class="hljs-built_in">tee</span> /usr/local/bin/oom-sysrq.sh &gt; /dev/null &lt;&lt; <span class="hljs-string">'EOF'</span>
+<span class="hljs-comment">#!/bin/bash</span>
+<span class="hljs-comment"># 触发阈值：256 MiB (262144 kB)</span>
+THRESH=262144
+
+<p><span class="hljs-keyword">while</span> :; <span class="hljs-keyword">do</span><br>    <span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r key val _; <span class="hljs-keyword">do</span><br>        <span class="hljs-keyword">case</span> <span class="hljs-variable">$key</span> <span class="hljs-keyword">in</span><br>            MemFree:) free&#x3D;<span class="hljs-variable">$val</span> ;;<br>        <span class="hljs-keyword">esac</span><br>    <span class="hljs-keyword">done</span> &lt; &#x2F;proc&#x2F;meminfo</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (( free &amp;lt; THRESH )); &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+    &lt;span class=&quot;hljs-comment&quot;&gt;# 强制触发内核 OOM Killer&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;echo&lt;/span&gt; f &amp;gt; /proc/sysrq-trigger
+&lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;# 0.1 秒检查一次&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;sleep&lt;/span&gt; 0.1
+</code></pre>
+<p><span class="hljs-keyword">done</span><br>EOF</p>
+<p><span class="hljs-comment"># 赋予执行权限</span><br>sudo <span class="hljs-built_in">chmod</span> +x &#x2F;usr&#x2F;local&#x2F;bin&#x2F;oom-sysrq.sh<br></p></code></pre><p></p>
+<h4 data-id="heading-7">4. 配置 Systemd 服务</h4>
+<p>将脚本注册为系统服务，确保开机自启，并赋予其最高级别的 OOM 豁免权。</p>
+<pre><code class="hljs language-bash" lang="bash">sudo <span class="hljs-built_in">tee</span> /etc/systemd/system/oom-sysrq.service &gt; /dev/null &lt;&lt; <span class="hljs-string">'EOF'</span>
+[Unit]
+Description=Trigger Kernel OOM via SysRq when memory is low
+After=multi-user.target
+
+<p>[Service]<br>Type&#x3D;simple<br>ExecStart&#x3D;&#x2F;usr&#x2F;local&#x2F;bin&#x2F;oom-sysrq.sh<br>Restart&#x3D;always<br>RestartSec&#x3D;2<br><span class="hljs-comment"># 保护脚本自身不被 OOM 杀死</span><br>OOMScoreAdjust&#x3D;-1000<br><span class="hljs-comment"># 在内存压力下优先获得 CPU 调度</span><br>Nice&#x3D;-10<br><span class="hljs-comment"># 限制脚本自身的最大内存占用</span><br>MemoryMax&#x3D;32M</p>
+<p>[Install]<br>WantedBy&#x3D;multi-user.target<br>EOF</p>
+<p><span class="hljs-comment"># 重新加载 systemd 并启动服务</span><br>sudo systemctl daemon-reload<br>sudo systemctl <span class="hljs-built_in">enable</span> –now oom-sysrq.service<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-8">验证配置</h3>
+<h4 data-id="heading-9">检查服务状态</h4>
+<pre><code class="hljs language-bash" lang="bash">systemctl status oom-sysrq.service
+</code></pre>
+<p>应显示绿色的 <code>active (running)</code>。</p>
+<h4 data-id="heading-10">查看当前内存状态</h4>
+<pre><code class="hljs language-bash" lang="bash">free -h
+<span class="hljs-comment"># 观察 MemFree 是否保持在较高水位</span>
+</code></pre>
+<h4 data-id="heading-11">查看触发记录</h4>
+<p>当脚本介入时，可以通过以下命令查看日志：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 查看内核的 OOM 记录</span>
+sudo dmesg -T | grep -i -E <span class="hljs-string">"sysrq|out of memory"</span> | <span class="hljs-built_in">tail</span> -10
+</code></pre>
+<hr>
+<h3 data-id="heading-12">卸载与回退</h3>
+<p>如果未来不再需要此方案，可通过以下命令彻底清理：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 停止并禁用服务</span>
+sudo systemctl <span class="hljs-built_in">disable</span> --now oom-sysrq.service
+
+<p><span class="hljs-comment"># 删除脚本和服务文件</span><br>sudo <span class="hljs-built_in">rm</span> -f &#x2F;usr&#x2F;local&#x2F;bin&#x2F;oom-sysrq.sh<br>sudo <span class="hljs-built_in">rm</span> -f &#x2F;etc&#x2F;systemd&#x2F;system&#x2F;oom-sysrq.service</p>
+<p><span class="hljs-comment"># 恢复内核参数</span><br>sudo <span class="hljs-built_in">rm</span> -f &#x2F;etc&#x2F;sysctl.d&#x2F;99-sysrq.conf<br>sudo sysctl –system</p>
+<p><span class="hljs-comment"># 清理 systemd 状态</span><br>sudo systemctl daemon-reload<br>sudo systemctl reset-failed<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-13">配置总结</h3>
+<table><thead><tr><th>项目</th><th>值</th><th>说明</th></tr></thead><tbody><tr><td>判断字段</td><td>MemFree</td><td>物理空闲内存</td></tr><tr><td>阈值</td><td>256MB</td><td>最后防线</td></tr><tr><td>检查间隔</td><td>0.1秒</td><td>每秒10次</td></tr><tr><td>触发方式</td><td>SysRq</td><td>直接触发内核 OOM</td></tr></tbody></table>
+<h3 data-id="heading-14">触发链条</h3>
+<pre><code class="hljs">正常状态：
+  MemFree &gt;&gt; 256MiB → 看门狗睡觉 → 系统正常运行
+
+<p>极端场景：<br>  swap 满 → kswapd 换不动 → cache 被榨干 → MemFree 开始跌<br>  → 跌破 256MiB → 看门狗触发 → sysrq f 杀进程 → 释放内存 → 系统恢复<br></p></code></pre><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="使用自定义bash脚本预防oom卡死 v2" href="https://juejin.cn/post/7683457864930050100" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">使用自定义bash脚本预防oom卡死 v2</span><span class="desc fs12">https://juejin.cn/post/7683457864930050100</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5e9bffa3.html">AIGCPanel v2.3.0 API 开放 + 全工具双语，AIGCPanel 变得「可编程」<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/d281a9c3.html">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3942"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2051"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/4ac73f8a.html" title="Postman 接口测试入门：从发请求到写断言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6652"></div><span class="title">Postman 接口测试入门：从发请求到写断言</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2635"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/8b919ed5.html" title="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7691"></div><span class="title">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></a><a class="item" href="/rss/6d0246a7.html" title="Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5800"></div><span class="title">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=724"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/ae16c9b3.html" title="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span></a><a class="item" href="/rss/34d032b3.html" title="干与湿：AI 拿走脑力之后，人剩下什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=502"></div><span class="title">干与湿：AI 拿走脑力之后，人剩下什么</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4036"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/6a73dbeb.html" title="云服务器运行WordPress需要什么配置？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dacbbf232d37447ea7255efcd1679a2f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqR5Yqo6Zuo6aKk:q75.awebp?rk3s=f64ab15b&x-expires=1789626492&x-signature=EQX4vCMzA2%2F7ozlGbhJm5iJSpmM%3D"></div><span class="title">云服务器运行WordPress需要什么配置？</span></a><a class="item" href="/rss/d281a9c3.html" title="用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4710"></div><span class="title">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践</span></a><a class="item" href="/rss/d0f37396.html" title="每天2小时,21天闭环计划-RHCE通关时间表全公开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9423"></div><span class="title">每天2小时,21天闭环计划-RHCE通关时间表全公开</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4239"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

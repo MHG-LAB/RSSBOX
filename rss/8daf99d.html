@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Tornado 如何增加网页操作（下） - RSSBOX</title>
+
+  
+    <meta name="description" content="书接上回，上一篇我们讲解了 Tornado 模板基础配置、语法以及 XSS 安全相关知识点，本篇继续讲解国际化与UI 模块。 二、国际化 当前用户的语言区域（无论用户是否登录），在 Handler 中通过self.locale访问；模板内直接使用locale。 locale.name可以拿到语言标识，例如en_US。调用Locale.translate()做文本翻译。模板内置全局翻译函数_()。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Tornado 如何增加网页操作（下）">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/8daf99d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="书接上回，上一篇我们讲解了 Tornado 模板基础配置、语法以及 XSS 安全相关知识点，本篇继续讲解国际化与UI 模块。 二、国际化 当前用户的语言区域（无论用户是否登录），在 Handler 中通过self.locale访问；模板内直接使用locale。 locale.name可以拿到语言标识，例如en_US。调用Locale.translate()做文本翻译。模板内置全局翻译函数_()。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-11T05:13:22.000Z">
+<meta property="article:modified_time" content="2026-09-11T05:13:22.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、国际化</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">翻译函数两种用法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">国际化模板示例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、UI 模块</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 注册 UI 模块</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 模板中调用模块</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">纯 HTML 模板作为模块</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">和 {% include %} 的区别</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-11T05:13:22.000Z">2026-09-11</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Tornado 如何增加网页操作（下）</span></h1>
+<div>
+<p>书接上回，上一篇我们讲解了 Tornado 模板基础配置、语法以及 XSS 安全相关知识点，本篇继续讲解<strong>国际化</strong>与<strong>UI 模块</strong>。</p>
+<h2 data-id="heading-0">二、国际化</h2>
+<p>当前用户的语言区域（无论用户是否登录），在 Handler 中通过<code>self.locale</code>访问；模板内直接使用<code>locale</code>。</p>
+<p><code>locale.name</code>可以拿到语言标识，例如<code>en_US</code>。调用<code>Locale.translate()</code>做文本翻译。模板内置全局翻译函数<code>_()</code>。</p>
+<h3 data-id="heading-1">翻译函数两种用法</h3>
+<ol>
+<li><strong>普通翻译</strong> 根据当前区域直接翻译字符串。</li>
+<li><strong>单复数翻译</strong> 第三个参数为数字；等于 1 取第一条字符串，大于 1 取第二条字符串。推荐使用命名占位符<code>%(num)d</code>，翻译的时候占位符顺序可以调整。</li>
+</ol>
+<h3 data-id="heading-2">国际化模板示例</h3>
+<pre><code class="hljs language-bash" lang="bash">&lt;html&gt;
+&lt;<span class="hljs-built_in">head</span>&gt;
+    &lt;title&gt;FriendFeed - &#123;&#123; _(<span class="hljs-string">"Sign in"</span>) &#125;&#125;&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;form action=<span class="hljs-string">"&#123;&#123; request.path &#125;&#125;"</span> method=<span class="hljs-string">"post"</span>&gt;
+    &lt;div&gt;&#123;&#123; _(<span class="hljs-string">"Username"</span>) &#125;&#125; &lt;input <span class="hljs-built_in">type</span>=<span class="hljs-string">"text"</span> name=<span class="hljs-string">"username"</span>/&gt;&lt;/div&gt;
+    &lt;div&gt;&#123;&#123; _(<span class="hljs-string">"Password"</span>) &#125;&#125; &lt;input <span class="hljs-built_in">type</span>=<span class="hljs-string">"password"</span> name=<span class="hljs-string">"password"</span>/&gt;&lt;/div&gt;
+    &lt;div&gt;&lt;input <span class="hljs-built_in">type</span>=<span class="hljs-string">"submit"</span> value=<span class="hljs-string">"&#123;&#123; _("</span>Sign <span class="hljs-keyword">in</span><span class="hljs-string">") &#125;&#125;"</span>/&gt;&lt;/div&gt;
+    &#123;% module xsrf_form_html() %&#125;
+&lt;/form&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</code></pre>
+<p>默认读取浏览器请求头<code>Accept‑Language</code>自动识别语言；匹配不到则回退<code>en_US</code>。</p>
+<p>如果你希望用户可以手动选择语言，可以重写<code>RequestHandler.get_user_locale()</code>。</p>
+<pre><code class="hljs language-bash" lang="bash">class BaseHandler(tornado.web.RequestHandler):
+    def get_current_user(self):
+        user_id = self.get_signed_cookie(<span class="hljs-string">"user"</span>)
+        <span class="hljs-keyword">if</span> not user_id:
+            <span class="hljs-built_in">return</span> None
+        <span class="hljs-built_in">return</span> self.backend.get_user_by_id(user_id)
+
+<pre><code>def get_user_locale(self):
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;locale&quot;&lt;/span&gt; not &lt;span class=&quot;hljs-keyword&quot;&gt;in&lt;/span&gt; self.current_user.prefs:
+        &lt;span class=&quot;hljs-comment&quot;&gt;# 使用浏览器Accept‑Language头&lt;/span&gt;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; None
+    &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; self.current_user.prefs[&lt;span class=&quot;hljs-string&quot;&gt;&quot;locale&quot;&lt;/span&gt;]
+</code></pre>
+<p></p></code></pre><p></p>
+<p>如果<code>get_user_locale</code>返回<code>None</code>，系统回退读取<code>Accept‑Language</code>请求头。</p>
+<p><code>tornado.locale</code>模块支持两种翻译文件格式：gettext 标准<code>.mo</code>，以及简单的<code>.csv</code>。 程序启动时调用 <code>tornado.locale.load_translations</code> 或者 <code>tornado.locale.load_gettext_translations</code>加载翻译资源。</p>
+<p>调用<code>tornado.locale.get_supported_locales()</code>获取程序支持的语言列表。系统会自动匹配最接近用户的语言。</p>
+<blockquote>
+<p>举例：用户语言<code>es_GT</code>，程序支持<code>es</code>，则最终使用<code>es</code>；完全匹配不到就回退<code>en_US</code>。</p>
+</blockquote>
+<h2 data-id="heading-3">三、UI 模块</h2>
+<p>UI 模块用来封装可复用页面组件，跨页面复用 UI 小组件，组件可以附带自己的 CSS、JS。</p>
+<blockquote>
+<p>场景举例：博客项目，博客条目组件需要在首页、详情页两处渲染。可以封装<code>EntryUI</code>模块。新建<code>uimodules.py</code>。</p>
+</blockquote>
+<h3 data-id="heading-4">1. 注册 UI 模块</h3>
+<p>在应用配置里面注册 UI 模块文件：</p>
+<pre><code class="hljs language-bash" lang="bash">from . import uimodules
+
+<p>class HomeHandler(tornado.web.RequestHandler):<br>    def get(self):<br>        entries &#x3D; self.db.query(<span class="hljs-string">“SELECT * FROM entries ORDER BY date DESC”</span>)<br>        self.render(<span class="hljs-string">“home.html”</span>, entries&#x3D;entries)</p>
+<p>class EntryHandler(tornado.web.RequestHandler):<br>    def get(self, entry_id):<br>        entry &#x3D; self.db.get(<span class="hljs-string">“SELECT * FROM entries WHERE id &#x3D; %s”</span>, entry_id)<br>        <span class="hljs-keyword">if</span> not entry:<br>            raise tornado.web.HTTPError(404)<br>        self.render(<span class="hljs-string">“entry.html”</span>, entry&#x3D;entry)</p>
+<p>settings &#x3D; &amp;#123;<br>    <span class="hljs-string">“ui_modules”</span>: uimodules,<br>&amp;#125;</p>
+<p>application &#x3D; tornado.web.Application([<br>    (r<span class="hljs-string">“&#x2F;“</span>, HomeHandler),<br>    (r<span class="hljs-string">“&#x2F;entry&#x2F;([0-9]+)”</span>, EntryHandler),<br>],** settings)<br></p></code></pre><p></p>
+<h3 data-id="heading-5">2. 模板中调用模块</h3>
+<p>模板中使用<code>&#123;% module %&#125;</code>调用封装好的组件：</p>
+<p><code>home.html</code></p>
+<pre><code class="hljs language-bash" lang="bash">&#123;% <span class="hljs-keyword">for</span> entry <span class="hljs-keyword">in</span> entries %&#125;
+    &#123;% module Entry(entry) %&#125;
+&#123;% end %&#125;
+</code></pre>
+<p><code>entry.html</code></p>
+<pre><code class="hljs language-bash" lang="bash">&#123;% module Entry(entry) %&#125;
+</code></pre>
+<p>模块类可以重写下面方法来嵌入样式脚本： <code>embedded_css</code>、<code>embedded_javascript</code>、<code>javascript_files</code>、<code>css_files</code></p>
+<blockquote>
+<p>特性：不管页面中该模块被调用多少次，CSS、JS 只会输出一次。CSS 放在页面<code>&lt;head&gt;</code>，JS 放在<code>&lt;/body&gt;</code>结束标签之前。</p>
+</blockquote>
+<h3 data-id="heading-6">纯 HTML 模板作为模块</h3>
+<p>如果不需要写 Python 逻辑，可以直接把 html 模板文件当做模块。</p>
+<p>文件 <code>module-entry.html</code></p>
+<pre><code class="hljs language-bash" lang="bash">&lt;div class=<span class="hljs-string">"entry"</span>&gt;
+    &lt;h2&gt;&#123;&#123; entry.title &#125;&#125;&lt;/h2&gt;
+    &lt;div&gt;&#123;&#123; entry.content &#125;&#125;&lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<p>调用方式：</p>
+<pre><code class="hljs language-bash" lang="bash">&#123;% module Template(<span class="hljs-string">"module-entry.html"</span>, entry=entry) %&#125;
+</code></pre>
+<p><code>set_resources</code>函数仅在<code>&#123;% module Template(...) %&#125;</code>模式下可用。</p>
+<h3 data-id="heading-7">和 &#123;% include %&#125; 的区别</h3>
+<p><code>UI模块</code>拥有独立命名空间，只能访问全局模板变量 + 传入的参数，<strong>无法继承父模板局部变量</strong>； 而<code>&#123;% include %&#125;</code>是直接把文件内容原地展开，可以直接使用父模板的局部变量。</p>
+<hr>
+<p><strong>系列文章：</strong></p>
+<ul>
+<li>Tornado 如何增加网页操作（上）</li>
+<li>Tornado 如何增加网页操作（下）</li>
+</ul>
+<p><strong>参考文档：</strong> tornado 官方文档</p>
+<blockquote>
+<p>博主持续分享量化、Python、Tornado 开发相关内容，欢迎点赞收藏关注。</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Tornado 如何增加网页操作（下）" href="https://juejin.cn/post/7684049880512020532" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Tornado 如何增加网页操作（下）</span><span class="desc fs12">https://juejin.cn/post/7684049880512020532</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/26e9daea.html">M83: The Southern Pinwheel<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/340437f4.html">Don't Sleep on Wrapture<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3942"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2051"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/4ac73f8a.html" title="Postman 接口测试入门：从发请求到写断言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6652"></div><span class="title">Postman 接口测试入门：从发请求到写断言</span></a><a class="item" href="/rss/8b919ed5.html" title="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7691"></div><span class="title">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></a><a class="item" href="/rss/6d0246a7.html" title="Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5800"></div><span class="title">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=724"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/ae16c9b3.html" title="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span></a><a class="item" href="/rss/c6532117.html" title="使用自定义Bash脚本预防oom卡死 V2"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6512"></div><span class="title">使用自定义Bash脚本预防oom卡死 V2</span></a><a class="item" href="/rss/34d032b3.html" title="干与湿：AI 拿走脑力之后，人剩下什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=502"></div><span class="title">干与湿：AI 拿走脑力之后，人剩下什么</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4036"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/6a73dbeb.html" title="云服务器运行WordPress需要什么配置？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dacbbf232d37447ea7255efcd1679a2f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqR5Yqo6Zuo6aKk:q75.awebp?rk3s=f64ab15b&x-expires=1789626492&x-signature=EQX4vCMzA2%2F7ozlGbhJm5iJSpmM%3D"></div><span class="title">云服务器运行WordPress需要什么配置？</span></a><a class="item" href="/rss/d281a9c3.html" title="用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4710"></div><span class="title">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践</span></a><a class="item" href="/rss/d0f37396.html" title="每天2小时,21天闭环计划-RHCE通关时间表全公开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9423"></div><span class="title">每天2小时,21天闭环计划-RHCE通关时间表全公开</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4239"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

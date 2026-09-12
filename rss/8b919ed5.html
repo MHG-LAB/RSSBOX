@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地 - RSSBOX</title>
+
+  
+    <meta name="description" content="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地  上一篇讲了 LLM 结构化输出的四种方案：JsonOutputParser、fromNamesAndDescriptions、fromZodSchema、Tool Call。其中 Tool Call 是最可靠的——但 model.bindTools 的写法有点&quot;讨巧&quot;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/8b919ed5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地  上一篇讲了 LLM 结构化输出的四种方案：JsonOutputParser、fromNamesAndDescriptions、fromZodSchema、Tool Call。其中 Tool Call 是最可靠的——但 model.bindTools 的写法有点&quot;讨巧&quot;">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-10T02:40:14.000Z">
+<meta property="article:modified_time" content="2026-09-10T02:40:14.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、回顾：结构化输出的四种方案</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.1 为什么需要结构化输出</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1.2 四种方案的进化</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、withStructuredOutput：语义化的终极封装</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 bindTools 的&quot;讨巧&quot;写法</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 withStructuredOutput 一行搞定</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 底层原理：仍然是 Tool Call</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.4 bindTools vs withStructuredOutput 对比</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、流式结构化输出</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 为什么需要流式结构化？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 完整实现</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 流式结构化的应用场景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、XMLOutputParser：XML 时代的数据交换遗产</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 XML vs JSON：数据交换标准演进</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 XMLHttpRequest 名字的由来</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 XMLOutputParser 完整实现</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 结构化输出方案全景</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、MySQL 数据落地：建库建表</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.1 mysql2&#x2F;promise</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.2 连接配置解析</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.3 建库：CREATE DATABASE</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.4 建表：CREATE TABLE</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5.5 建表后的数据操作</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、完整链路：LLM 结构化输出 → MySQL 存储</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.1 场景设计</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6.2 完整代码</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、总结</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.1 知识体系图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.2 一句话总结</span></a></li></ol></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-10T02:40:14.000Z">2026-09-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></h1>
+<div>
+<h2 data-id="heading-0">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</h2>
+<blockquote>
+<p>上一篇讲了 LLM 结构化输出的四种方案：JsonOutputParser、fromNamesAndDescriptions、fromZodSchema、Tool Call。其中 Tool Call 是最可靠的——但 <code>model.bindTools</code> 的写法有点"讨巧"，语义不够清晰。LangChain 提供了一行封装的终极方案：<code>model.withStructuredOutput(schema)</code>。本文从 bindTools 到 withStructuredOutput 的进化讲起，覆盖流式结构化输出、XMLOutputParser 历史遗产、再到 MySQL 建表落库——完整走一遍"LLM 输出结构化数据 → 存入数据库"的工程链路。建议收藏后动手实操。</p>
+</blockquote>
+<hr>
+<h3 data-id="heading-1">一、回顾：结构化输出的四种方案</h3>
+<h4 data-id="heading-2">1.1 为什么需要结构化输出</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable constant_">LLM</span> 输出 = 自由文本字符串
+
+<p>  问题：<br>  → 格式随机（可能带 markdown 代码块）<br>  → 字段名随机（name 还是<span class="hljs-string">“姓名”</span>？）<br>  → 类型随机（birth_year 是 <span class="hljs-number">1879</span> 还是 <span class="hljs-string">“1879”</span>？）<br>  → <span class="hljs-title class_">JSON</span>.<span class="hljs-property">parse</span> 直接翻车</p>
+<p>  目标：<br>  → 格式确定<br>  → 字段确定<br>  → 类型安全<br>  → 可靠解析<br></p></code></pre><p></p>
+<h4 data-id="heading-3">1.2 四种方案的进化</h4>
+<pre><code class="hljs language-vbnet" lang="vbnet">┌──────────────────────────────────────────────────────────────┐
+│  结构化输出方案进化链                                         │
+│                                                              │
+│  ① JsonOutputParser                                         │
+│  → 只说<span class="hljs-string">"请输出 JSON"</span>                                        │
+│  → 自动剥离 markdown 代码块                                 │
+│  → 不约束字段名和类型                                       │
+│  → 可靠性 ★★                                               │
+│                                                              │
+│  ② StructuredOutputParser.fromNamesAndDescriptions          │
+│  → 字段名 + 描述                                            │
+│  → 但所有值都是 <span class="hljs-type">string</span>                                     │
+│  → 不支持嵌套结构                                           │
+│  → 可靠性 ★★★                                              │
+│                                                              │
+│  ③ StructuredOutputParser.fromZodSchema                     │
+│  → Zod Schema 精确类型                                      │
+│  → 嵌套对象 / 数组 / 可选字段                              │
+│  → 解析时类型校验                                           │
+│  → 可靠性 ★★★★                                             │
+│                                                              │
+│  ④ Tool <span class="hljs-keyword">Call</span>（bindTools）                                   │
+│  → 利用模型原生 Tool Calling 能力                           │
+│  → Schema 通过 API 传递                                     │
+│  → tool_calls[<span class="hljs-number">0</span>].args 直接是结构化对象                      │
+│  → 不需要 parse                                             │
+│  → 可靠性 ★★★★★                                            │
+│  → 但写法<span class="hljs-string">"讨巧"</span>，语义不够清晰                              │
+│                                                              │
+│  ⑤ withStructuredOutput（本文主角）                          │
+│  → 一行封装 Tool <span class="hljs-keyword">Call</span>                                       │
+│  → 语义清晰：我要<span class="hljs-string">"带结构化输出的模型"</span>                       │
+│  → 支持 invoke / stream / batch                            │
+│  → 底层仍然是 Tool <span class="hljs-keyword">Call</span>                                    │
+└──────────────────────────────────────────────────────────────┘
+
+<p>  本文主线：<br>  → Tool <span class="hljs-keyword">Call</span> 的<span class="hljs-string">“讨巧写法”</span> → withStructuredOutput 的<span class="hljs-string">“语义化封装”</span><br>  → 流式结构化输出（一边生成一边出结构化数据）<br>  → XMLOutputParser（XML 时代的遗产）<br>  → MySQL 落库（结构化数据的最终归宿）<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-4">二、withStructuredOutput：语义化的终极封装</h3>
+<h4 data-id="heading-5">2.1 bindTools 的"讨巧"写法</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// tool-call-args.mjs — 上一课的 Tool Call 写法</span>
+<span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; z &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> scientistSchema &#x3D; z.<span class="hljs-title function_">object</span>(&amp;#123;<br>  <span class="hljs-attr">name</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘科学家的姓名’</span>),<br>  <span class="hljs-attr">birth_year</span>: z.<span class="hljs-title function_">number</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘出生年份’</span>),<br>  <span class="hljs-attr">nationality</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘国籍’</span>),<br>  <span class="hljs-attr">fields</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘研究领域列表’</span>),<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 绑定一个”假的”工具 —— 不是为了调用它</span><br><span class="hljs-comment">&#x2F;&#x2F; 而是利用 Tool Call 的 Schema 校验能力</span><br><span class="hljs-keyword">const</span> modelWithTool &#x3D; model.<span class="hljs-title function_">bindTools</span>([<br>  &amp;#123;<br>    <span class="hljs-attr">name</span>: <span class="hljs-string">‘extract_scientist_info’</span>,<br>    <span class="hljs-attr">description</span>: <span class="hljs-string">‘提取和结构化科学家的详细信息’</span>,<br>    <span class="hljs-attr">schema</span>: scientistSchema,<br>  &amp;#125;,<br>]);</p>
+<p><span class="hljs-keyword">const</span> response &#x3D; <span class="hljs-keyword">await</span> modelWithTool.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">‘介绍一下爱因斯坦’</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(response.<span class="hljs-property">tool_calls</span>[<span class="hljs-number">0</span>].<span class="hljs-property">args</span>);<br><span class="hljs-comment">&#x2F;&#x2F; &amp;#123; name: “爱因斯坦”, birth_year: 1879, nationality: “德国”, fields: [“物理学”] &amp;#125;</span><br></p></code></pre><p></p>
+<pre><code class="hljs language-vbscript" lang="vbscript">bindTools 的问题：
+
+  ┌──────────────────────────────────────────────────────────┐
+│  ① 语义不清晰                                            │
+│  → 我们根本不想<span class="hljs-string">"调用工具"</span>                                │
+│  → 我们想要<span class="hljs-string">"结构化输出"</span>                                  │
+│  → 但必须假装定义了一个工具                              │
+│  → 还要给工具起名、写描述（extract_scientist_info）      │
+│                                                          │
+│  ② 结果藏得深                                            │
+│  → 结果在 <span class="hljs-built_in">response</span>.tool_calls[<span class="hljs-number">0</span>].args                   │
+│  → 层层嵌套：<span class="hljs-built_in">response</span> → tool_calls → [<span class="hljs-number">0</span>] → args        │
+│  → 还要担心 tool_calls 可能为空                          │
+│  → 需要加守卫判断                                       │
+│                                                          │
+│  ③ 心智负担                                              │
+│  → 初学者不理解<span class="hljs-string">"为什么绑定工具能结构化"</span>                 │
+│  → 代码可读性差                                          │
+│  → 团队协作时容易误解                                    │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 data-id="heading-6">2.2 withStructuredOutput 一行搞定</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// with-structured-output.mjs — 语义化升级</span>
+<span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; z &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> scientistSchema &#x3D; z.<span class="hljs-title function_">object</span>(&amp;#123;<br>  <span class="hljs-attr">name</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘科学家的姓名’</span>),<br>  <span class="hljs-attr">birth_year</span>: z.<span class="hljs-title function_">number</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘出生年份’</span>),<br>  <span class="hljs-attr">nationality</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘国籍’</span>),<br>  <span class="hljs-attr">fields</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘研究领域列表’</span>),<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 一行封装：我要一个”带结构化输出的模型”</span><br><span class="hljs-keyword">const</span> structuredModel &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(scientistSchema);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 调用方式跟普通模型一模一样</span><br><span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> structuredModel.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">‘介绍一下爱因斯坦’</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(result);<br><span class="hljs-comment">&#x2F;&#x2F; &amp;#123; name: ‘爱因斯坦’, birth_year: 1879, nationality: ‘德国’, fields: [‘物理学’] &amp;#125;</span></p>
+<p><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘——————‘</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(result, <span class="hljs-literal">null</span>, <span class="hljs-number">2</span>));<br><span class="hljs-comment">&#x2F;&#x2F; &amp;#123;</span><br><span class="hljs-comment">&#x2F;&#x2F;   “name”: “爱因斯坦”,</span><br><span class="hljs-comment">&#x2F;&#x2F;   “birth_year”: 1879,</span><br><span class="hljs-comment">&#x2F;&#x2F;   “nationality”: “德国”,</span><br><span class="hljs-comment">&#x2F;&#x2F;   “fields”: [“物理学”]</span><br><span class="hljs-comment">&#x2F;&#x2F; &amp;#125;</span><br></p></code></pre><p></p>
+<pre><code class="hljs language-ini" lang="ini">withStructuredOutput 的核心改进：
+
+  ┌──────────────────────────────────────────────────────────┐
+│  bindTools（讨巧写法）                                   │
+│                                                          │
+│  const <span class="hljs-attr">modelWithTool</span> = model.bindTools([                  │
+│    &#123; name: <span class="hljs-string">'...'</span>, description: <span class="hljs-string">'...'</span>, schema &#125;            │
+│  ])<span class="hljs-comment">;                                                      │</span>
+│  const <span class="hljs-attr">result</span> = await modelWithTool.invoke(prompt)<span class="hljs-comment">;       │</span>
+│  const <span class="hljs-attr">data</span> = response.tool_calls[<span class="hljs-number">0</span>].args<span class="hljs-comment">;  // 层层取     │</span>
+│                                                          │
+│  withStructuredOutput（语义化写法）                       │
+│                                                          │
+│  const <span class="hljs-attr">structuredModel</span> = model.withStructuredOutput(      │
+│    scientistSchema                                        │
+│  )<span class="hljs-comment">;                                                       │</span>
+│  const <span class="hljs-attr">result</span> = await structuredModel.invoke(prompt)<span class="hljs-comment">;     │</span>
+│  // result 直接就是结构化对象，不用取                     │
+│                                                          │
+│  差异：                                                   │
+│  → 不需要给工具起名、写描述                              │
+│  → 不需要从 tool_calls<span class="hljs-section">[0]</span>.args 里取                      │
+│  → invoke 返回的就是结构化对象                           │
+│  → 语义清晰：这个模型"输出结构化数据"                    │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 data-id="heading-7">2.3 底层原理：仍然是 Tool Call</h4>
+<pre><code class="hljs language-scss" lang="scss">withStructuredOutput 只是"糖衣"
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  withStructuredOutput 的底层实现                          │<br>│                                                          │<br>│  model<span class="hljs-selector-class">.withStructuredOutput</span>(schema)                       │<br>│    │                                                      │<br>│    │  内部做了这些事：                                    │<br>│    │  ① 根据 schema 自动生成工具定义                     │<br>│    │     → 工具名：根据 schema 自动生成                   │<br>│    │     → 工具描述：自动生成                             │<br>│    │     → schema：原样传入                               │<br>│    │  ② 调用 bindTools 绑定工具                          │<br>│    │     → 相当于替你写好了 bindTools                     │<br>│    │  ③ 自动解析 tool_calls                               │<br>│    │     → invoke 时自动提取 tool_calls<span class="hljs-selector-attr">[0]</span><span class="hljs-selector-class">.args</span>           │<br>│    │     → 直接返回结构化对象                             │<br>│    │  ④ 支持流式输出                                     │<br>│    │     → <span class="hljs-built_in">stream</span>() 也能用                                │<br>│    │                                                      │<br>│  → 本质：bindTools 的封装，省去了重复的样板代码           │<br>│  → 注释原话：”tool call 讨巧的做法，升级为语义化更好的    │<br>│              withStructuredOutput，底层 tool call”        │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-8">2.4 bindTools vs withStructuredOutput 对比</h4>
+<table><thead><tr><th>维度</th><th>bindTools</th><th>withStructuredOutput</th></tr></thead><tbody><tr><td><strong>语义</strong></td><td>绑定工具（讨巧）</td><td>结构化输出（清晰）</td></tr><tr><td><strong>工具定义</strong></td><td>手动写 name + description</td><td>自动生成</td></tr><tr><td><strong>结果获取</strong></td><td><code>tool_calls[0].args</code> 层层取</td><td>invoke 直接返回</td></tr><tr><td><strong>空结果处理</strong></td><td>需手动守卫</td><td>内部处理</td></tr><tr><td><strong>流式支持</strong></td><td>需手动处理</td><td>原生支持</td></tr><tr><td><strong>代码量</strong></td><td>多</td><td>少</td></tr><tr><td><strong>可读性</strong></td><td>中</td><td>高</td></tr><tr><td><strong>适用场景</strong></td><td>真的要调用工具</td><td>只要结构化输出</td></tr></tbody></table>
+<pre><code class="hljs language-arduino" lang="arduino">选型建议：
+
+<p>  → 只要<span class="hljs-string">“结构化输出”</span> → withStructuredOutput<br>  → 真的要<span class="hljs-string">“调用工具”</span> → bindTools + 手动执行工具函数<br>  → withStructuredOutput 不是替代 bindTools<br>  → 而是<span class="hljs-string">“只想拿结构化数据”</span>时的最佳选择<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-9">三、流式结构化输出</h3>
+<h4 data-id="heading-10">3.1 为什么需要流式结构化？</h4>
+<pre><code class="hljs language-css" lang="css">普通流式输出的问题：
+
+<p>  → LLM 生成的文本逐 chunk 推送<br>  → 但内容是”自由文本”<br>  → 不是结构化数据<br>  → 前端无法按字段消费</p>
+<p>  流式结构化输出的目标：</p>
+<p>  → 一边生成，一边输出结构化数据<br>  → 用户实时看到结果在”填充”<br>  → 流结束后拿到完整结构化对象</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  流式结构化 vs 普通流式                                   │<br>│                                                          │<br>│  普通流式（model<span class="hljs-selector-class">.stream</span>）                                │<br>│  chunk <span class="hljs-number">1</span>: <span class="hljs-string">“莫”</span>                                           │<br>│  chunk <span class="hljs-number">2</span>: <span class="hljs-string">“扎”</span>                                           │<br>│  chunk <span class="hljs-number">3</span>: <span class="hljs-string">“特”</span>                                           │<br>│  → 是文本片段，不是结构                                  │<br>│                                                          │<br>│  流式结构化（withStructuredOutput + stream）              │<br>│  chunk <span class="hljs-number">1</span>: &amp;#123; name: <span class="hljs-string">“爱”</span>, … &amp;#125;      &#x2F;&#x2F; 部分填充            │<br>│  chunk <span class="hljs-number">2</span>: &amp;#123; name: <span class="hljs-string">“爱因”</span>, … &amp;#125;                          │<br>│  chunk <span class="hljs-number">3</span>: &amp;#123; name: <span class="hljs-string">“爱因斯坦”</span>, birth_year: <span class="hljs-number">1</span>… &amp;#125;         │<br>│  …                                                     │<br>│  最终:  &amp;#123; name: <span class="hljs-string">“爱因斯坦”</span>, birth_year: <span class="hljs-number">1879</span>, … &amp;#125;       │<br>│  → 是结构化的对象，逐步填充                               │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-11">3.2 完整实现</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// stream-with-structured-output.mjs — 流式结构化输出</span>
+<span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; z &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> schema &#x3D; z.<span class="hljs-title function_">object</span>(&amp;#123;<br>  <span class="hljs-attr">name</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘姓名’</span>),<br>  <span class="hljs-attr">birth_year</span>: z.<span class="hljs-title function_">number</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘出生年份’</span>),<br>  <span class="hljs-attr">death_year</span>: z.<span class="hljs-title function_">number</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘死亡年份’</span>),<br>  <span class="hljs-attr">nationality</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘国籍’</span>),<br>  <span class="hljs-attr">occupation</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘职业’</span>),<br>  <span class="hljs-attr">famous_works</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘著名作品列表’</span>),<br>  <span class="hljs-attr">biography</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘简短传记’</span>),<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 一行：结构化输出 + 流式</span><br><span class="hljs-keyword">const</span> structuredModel &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(schema);</p>
+<p><span class="hljs-keyword">const</span> prompt &#x3D; <span class="hljs-string">‘详细介绍莫扎特的信息。’</span>;<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘流式 结构化输出演示’</span>);</p>
+<p><span class="hljs-keyword">try</span> &amp;#123;<br>  <span class="hljs-keyword">const</span> stream &#x3D; <span class="hljs-keyword">await</span> structuredModel.<span class="hljs-title function_">stream</span>(prompt);<br>  <span class="hljs-keyword">let</span> chunkCount &#x3D; <span class="hljs-number">0</span>;<br>  <span class="hljs-keyword">let</span> result &#x3D; <span class="hljs-literal">null</span>;</p>
+<p>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘接收流式数据…\n’</span>);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; for await 消费结构化流</span><br>  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;<br>    chunkCount++;<br>    result &#x3D; chunk; <span class="hljs-comment">&#x2F;&#x2F; 最后一个 chunk 是完整结构化结果</span><br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(chunk, <span class="hljs-literal">null</span>, <span class="hljs-number">2</span>));<br>  &amp;#125;</p>
+<p>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘\n共接收’</span>, chunkCount, <span class="hljs-string">‘个数据块’</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘最终结构化结果：’</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(result);<br>&amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘流式结构化输出出错:’</span>, err);<br>&amp;#125;<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript">代码解析：
+
+  ① model.<span class="hljs-title function_">withStructuredOutput</span>(schema)
+  → 结构化输出模型
+  → 同时支持 invoke 和 stream
+
+  ② structuredModel.<span class="hljs-title function_">stream</span>(prompt)
+  → 流式调用
+  → 返回异步可迭代对象
+  → 每个 chunk 是部分结构化数据
+
+  ③ <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream)
+  → 逐个消费 chunk
+  → <span class="hljs-title class_">JSON</span>.<span class="hljs-property">stringify</span> 方便查看
+
+  ④ result = chunk
+  → 最后一次赋值是完整结果
+  → 流结束后 result 是完整的结构化对象
+
+  ⑤ 与普通 stream 的区别
+  → 普通 stream：chunk 是文本片段
+  → 结构化 stream：chunk 是部分结构数据
+  → 最终结果类型安全
+</code></pre>
+<h4 data-id="heading-12">3.3 流式结构化的应用场景</h4>
+<pre><code class="hljs language-arduino" lang="arduino">流式结构化输出的场景：
+
+<p>  ① 实时表单填充<br>  → AI 生成内容时，表单字段实时填充<br>  → 用户看到<span class="hljs-string">“正在填写”</span>的过程<br>  → 体验更流畅</p>
+<p>  ② 实时信息展示<br>  → 电影信息卡片逐步渲染<br>  → 人物简介逐步完善<br>  → 减少等待感</p>
+<p>  ③ 长内容结构化<br>  → 生成报告时边生成边出结构化<br>  → 每生成一段就结构化一段<br>  → 最终完整对象</p>
+<p>  ④ AI Agent 工具编排<br>  → Agent 调用工具的参数逐步生成<br>  → 用户看到参数在<span class="hljs-string">“组装”</span><br>  → 可提前取消或干预<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-13">四、XMLOutputParser：XML 时代的数据交换遗产</h3>
+<h4 data-id="heading-14">4.1 XML vs JSON：数据交换标准演进</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-variable constant_">XML</span> 时代：
+
+<p>  → <span class="hljs-variable constant_">XML</span>（<span class="hljs-title class_">Extensible</span> <span class="hljs-title class_">Markup</span> <span class="hljs-title class_">Language</span>）可扩展标记语言<br>  → 老一代的数据交换标准<br>  → 结构严谨，标签成对</p>
+<p>  &lt;h1&gt;title&lt;span&gt;副标题&lt;b&gt;文强恋爱了&lt;<span class="hljs-regexp">&#x2F;b&gt;&lt;&#x2F;</span>span&gt;&lt;&#x2F;h1&gt;<br>  → 标签嵌套表示层级<br>  → 有开必有闭<br>  → 机器可读，但冗长</p>
+<p>  <span class="hljs-title class_">JSON</span> 时代：</p>
+<p>  → <span class="hljs-title class_">JSON</span>（<span class="hljs-title class_">JavaScript</span> <span class="hljs-title class_">Object</span> <span class="hljs-title class_">Notation</span>）<br>  → 现代数据交换的事实标准<br>  → 轻量、简洁、易读</p>
+<p>  fetch 后端 <span class="hljs-variable constant_">API</span> → 返回 <span class="hljs-title class_">JSON</span> 格式<br>  → 前后端分离的默认格式<br>  → 浏览器原生 <span class="hljs-title class_">JSON</span>.<span class="hljs-property">parse</span></p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  <span class="hljs-variable constant_">XML</span> vs <span class="hljs-title class_">JSON</span>                                              │<br>│                                                          │<br>│                <span class="hljs-variable constant_">XML</span>                  <span class="hljs-title class_">JSON</span>                 │<br>│  ──────────────────────────────────────────               │<br>│  格式        &lt;tag&gt;value&lt;&#x2F;tag&gt;      <span class="hljs-string">“key”</span>: value           │<br>│  可读性      较差                 好                     │<br>│  体积        大（标签冗余）        小                     │<br>│  解析        需要解析器            <span class="hljs-title class_">JSON</span>.<span class="hljs-property">parse</span>             │<br>│  类型        全文本               有类型                 │<br>│  注释        支持                 不支持                 │<br>│  命名空间    支持                 不支持                 │<br>│  标准        老一代               现代事实标准           │<br>│  历史角色    数据交换初代标准      数据交换事实标准       │<br>│  现状        配置文件、<span class="hljs-variable constant_">SOAP</span> 等     <span class="hljs-variable constant_">API</span> 数据交换默认       │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-15">4.2 XMLHttpRequest 名字的由来</h4>
+<pre><code class="hljs language-javascript" lang="javascript">为什么叫 <span class="hljs-title class_">XMLHttpRequest</span>？它跟 <span class="hljs-variable constant_">XML</span> 有关系吗？
+
+<p>  → <span class="hljs-number">2000</span> 年前后，<span class="hljs-variable constant_">XML</span> 是数据交换标准<br>  → <span class="hljs-variable constant_">IE</span> <span class="hljs-number">5</span> 推出了 <span class="hljs-title class_">XMLHttpRequest</span> 对象<br>  → 最初的设计就是<span class="hljs-string">“用 XML 传输数据”</span><br>  → 名字里带着 <span class="hljs-variable constant_">XML</span></p>
+<p>  但后来：<br>  → 实际使用中 <span class="hljs-title class_">JSON</span> 取代了 <span class="hljs-variable constant_">XML</span><br>  → <span class="hljs-variable constant_">XHR</span> 传 <span class="hljs-title class_">JSON</span> 也完全没问题<br>  → 名字保留了下来（历史包袱）<br>  → 所以现在用 <span class="hljs-variable constant_">XHR</span> 时根本看不到 <span class="hljs-variable constant_">XML</span></p>
+<p>  类似的历史遗产：<br>  → .<span class="hljs-property">js</span> 后缀（<span class="hljs-title class_">JavaScript</span>，不是 <span class="hljs-title class_">Java</span>）<br>  → npm（<span class="hljs-title class_">Node</span> <span class="hljs-title class_">Package</span> <span class="hljs-title class_">Manager</span>，不止管理 <span class="hljs-title class_">Node</span> 包）<br>  → <span class="hljs-variable constant_">AJAX</span>（<span class="hljs-title class_">Asynchronous</span> <span class="hljs-title class_">JavaScript</span> <span class="hljs-title class_">And</span> <span class="hljs-variable constant_">XML</span>，早就不传 <span class="hljs-variable constant_">XML</span> 了）</p>
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  <span class="hljs-title class_">XMLHttpRequest</span> 名字的真相                                │<br>│                                                          │<br>│  <span class="hljs-title class_">XMLHttpRequest</span> &#x3D; 老时代数据交换的产物                    │<br>│  → 最初设计：用 <span class="hljs-variable constant_">XML</span> 做 <span class="hljs-variable constant_">AJAX</span> 数据格式                     │<br>│  → 现实发展：<span class="hljs-title class_">JSON</span> 取代 <span class="hljs-variable constant_">XML</span>                                │<br>│  → 名字保留：历史包袱，约定俗成                           │<br>│  → 今天的 <span class="hljs-variable constant_">XHR</span>：fetch 的底层，传 <span class="hljs-title class_">JSON</span>                     │<br>│                                                          │<br>│  注释原话：                                              │<br>│  <span class="hljs-string">“fetch 后端api, 返回json 格式 数据交换的事实标准        │<br>│   XMLHttpRequest 老时代数据交换 xml ajax”</span>                 │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-16">4.3 XMLOutputParser 完整实现</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// xml-output-parser.mjs — XML 结构化输出</span>
+<span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">XMLOutputParser</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/core/output_parsers'</span>;
+
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123;<br>    <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span>,<br>  &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> parser &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">XMLOutputParser</span>();</p>
+<p><span class="hljs-keyword">const</span> question &#x3D; <span class="hljs-string"><code>请提取一下文本中的任务信息：爱因斯坦生于1879年，是一位伟大的物理学家。 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;parser.getFormatInstructions()&amp;#125;&lt;/span&gt;</code></span>;<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(question);</p>
+<p><span class="hljs-keyword">try</span> &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘正在调用大模型….\n’</span>);<br>  <span class="hljs-keyword">const</span> response &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">invoke</span>(question);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(response.<span class="hljs-property">content</span>);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; XML → JavaScript 对象</span><br>  <span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> parser.<span class="hljs-title function_">parse</span>(response.<span class="hljs-property">content</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(result);<br>&amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘解析错误:’</span>, err);<br>&amp;#125;<br></p></code></pre><p></p>
+<pre><code class="hljs language-xml" lang="xml">XMLOutputParser 的作用：
+
+  ┌──────────────────────────────────────────────────────────┐
+│  getFormatInstructions()                                  │
+│  → 告诉 LLM "请按 XML 格式输出"                          │
+│  → 生成 XML Schema 指令                                  │
+│  → 拼接到 prompt 末尾                                    │
+│                                                          │
+│  parser.parse(response.content)                          │
+│  → 接收 LLM 的 XML 文本输出                              │
+│  → 解析成 JavaScript 对象                                │
+│  → 类似 JSON.parse 但针对 XML                            │
+│                                                          │
+│  输出示例：                                               │
+│  LLM 返回：                                               │
+│  <span class="hljs-tag">&lt;<span class="hljs-name">tasks</span>&gt;</span>                                                  │
+│    <span class="hljs-tag">&lt;<span class="hljs-name">task</span>&gt;</span>                                                 │
+│      <span class="hljs-tag">&lt;<span class="hljs-name">name</span>&gt;</span>爱因斯坦<span class="hljs-tag">&lt;/<span class="hljs-name">name</span>&gt;</span>                                │
+│      <span class="hljs-tag">&lt;<span class="hljs-name">year</span>&gt;</span>1879<span class="hljs-tag">&lt;/<span class="hljs-name">year</span>&gt;</span>                                   │
+│    <span class="hljs-tag">&lt;/<span class="hljs-name">task</span>&gt;</span>                                                │
+│  <span class="hljs-tag">&lt;/<span class="hljs-name">tasks</span>&gt;</span>                                                 │
+│                                                          │
+│  解析后：                                                 │
+│  &#123;                                                        │
+│    tasks: &#123;                                              │
+│      task: &#123;                                             │
+│        name: "爱因斯坦",                                 │
+│        year: "1879"                                      │
+│      &#125;                                                    │
+│    &#125;                                                      │
+│  &#125;                                                        │
+└──────────────────────────────────────────────────────────┘
+
+  为什么还要学 XML 输出？
+  → 了解历史：XML 曾是数据交换标准
+  → 兼容旧系统：某些老系统仍用 XML
+  → 完整认知：JSON 不是唯一的结构化格式
+  → 面试谈资：XMLHttpRequest 名字的由来
+</code></pre>
+<h4 data-id="heading-17">4.4 结构化输出方案全景</h4>
+<pre><code class="hljs language-sql" lang="sql">现在共有六种结构化方案：
+
+<p>  ┌──────────────────────────────────────────────────────────┐<br>│  Output Parser 家族                                      │<br>│  ├── JsonOutputParser（最简单）                          │<br>│  ├── StructuredOutputParser.fromNamesAndDescriptions     │<br>│  ├── StructuredOutputParser.fromZodSchema（天花板）      │<br>│  └── XMLOutputParser（XML 格式）                         │<br>│                                                          │<br>│  Tool 家族                                                │<br>│  ├── model.bindTools（底层，讨巧写法）                   │<br>│  └── model.withStructuredOutput（语义化封装）             │<br>│                                                          │<br>│  选型：                                                   │<br>│  → 常规生产：withStructuredOutput <span class="hljs-operator">+</span> Zod                  │<br>│  → 需要流式：withStructuredOutput <span class="hljs-operator">+</span> stream               │<br>│  → 老系统对接：XMLOutputParser                           │<br>│  → 模型不支持 Tool <span class="hljs-keyword">Call</span>：fromZodSchema                   │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<hr>
+<h3 data-id="heading-18">五、MySQL 数据落地：建库建表</h3>
+<h4 data-id="heading-19">5.1 mysql2/promise</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// create-table.mjs — MySQL 建库建表</span>
+<span class="hljs-keyword">import</span> mysql <span class="hljs-keyword">from</span> <span class="hljs-string">'mysql2/promise'</span>;
+
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">main</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> connectionConfig &#x3D; &amp;#123;<br>    <span class="hljs-attr">host</span>: <span class="hljs-string">‘localhost’</span>,<br>    <span class="hljs-attr">port</span>: <span class="hljs-number">3307</span>,           <span class="hljs-comment">&#x2F;&#x2F; Docker 映射端口（上篇文章的 MySQL 容器）</span><br>    <span class="hljs-attr">user</span>: <span class="hljs-string">‘root’</span>,<br>    <span class="hljs-attr">password</span>: <span class="hljs-string">‘123456’</span>,<br>    <span class="hljs-attr">multipleStatements</span>: <span class="hljs-literal">true</span>,<br>  &amp;#125;;</p>
+<p>  <span class="hljs-keyword">const</span> connection &#x3D; <span class="hljs-keyword">await</span> mysql.<span class="hljs-title function_">createConnection</span>(connectionConfig);</p>
+<p>  <span class="hljs-keyword">try</span> &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; ① 创建数据库（不存在才创建）</span><br>    <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(<span class="hljs-string"><code>      CREATE DATABASE IF NOT EXISTS hello CHARACTER SET utf8mb4       COLLATE utf8mb4_unicode_ci;    </code></span>);</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// ② 切换到数据库&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;await&lt;/span&gt; connection.&lt;span class=&quot;hljs-title function_&quot;&gt;query&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;USE hello;&#39;&lt;/span&gt;);
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// ③ 创建表（不存在才创建）&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;await&lt;/span&gt; connection.&lt;span class=&quot;hljs-title function_&quot;&gt;query&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`
+  CREATE TABLE IF NOT EXISTS friends (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    gender VARCHAR(10),                -- 性别
+    birth_date DATE,                   -- 出生日期
+    company VARCHAR(100),              -- 公司
+    title VARCHAR(100),                -- 职位
+    phone VARCHAR(20),                 -- 当前手机号
+    wechat VARCHAR(50)                 -- 微信号
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+`&lt;/span&gt;);
+&lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;数据库和表创建成功&#39;&lt;/span&gt;);
+</code></pre>
+<p>  &amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘建库建表失败:’</span>, err);<br>  &amp;#125; <span class="hljs-keyword">finally</span> &amp;#123;<br>    <span class="hljs-comment">&#x2F;&#x2F; ④ 关闭连接</span><br>    <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">end</span>();<br>  &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-title function_">main</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-function">(<span class="hljs-params">err</span>) &#x3D;&gt;</span> <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘执行失败:’</span>, err));<br></p></code></pre><p></p>
+<pre><code class="hljs language-javascript" lang="javascript">mysql2/promise 是什么？
+
+  ┌──────────────────────────────────────────────────────────┐
+│  mysql2 的两个版本                                        │
+│                                                          │
+│  mysql2（回调版）                                        │
+│  → <span class="hljs-keyword">const</span> mysql = <span class="hljs-built_in">require</span>(<span class="hljs-string">'mysql2'</span>)                       │
+│  → connection.<span class="hljs-title function_">query</span>(sql, callback)                       │
+│  → 回调地狱问题                                          │
+│                                                          │
+│  mysql2/promise（<span class="hljs-title class_">Promise</span> 版）                            │
+│  → <span class="hljs-keyword">import</span> mysql <span class="hljs-keyword">from</span> <span class="hljs-string">'mysql2/promise'</span>                    │
+│  → <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(sql)                           │
+│  → 配合 <span class="hljs-keyword">async</span>/<span class="hljs-keyword">await</span> 使用                                │
+│  → 现代写法，推荐使用                                    │
+│                                                          │
+│  本文使用 <span class="hljs-title class_">Promise</span> 版                                     │
+│  → 所有操作都是 <span class="hljs-keyword">await</span>                                   │
+│  → 代码更清晰                                            │
+└──────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 data-id="heading-20">5.2 连接配置解析</h4>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-string">connectionConfig</span> <span class="hljs-string">配置项：</span>
+
+<p>  <span class="hljs-attr">host:</span> <span class="hljs-string">‘localhost’</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">MySQL</span> <span class="hljs-string">服务器地址</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">本机连接用</span> <span class="hljs-string">localhost</span></p>
+<p>  <span class="hljs-attr">port:</span> <span class="hljs-number">3307</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">MySQL</span> <span class="hljs-string">端口</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">默认是</span> <span class="hljs-number">3306</span><br>  <span class="hljs-string">→</span> <span class="hljs-number">3307</span> <span class="hljs-string">说明是</span> <span class="hljs-string">Docker</span> <span class="hljs-string">容器映射的端口</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">（上篇</span> <span class="hljs-string">Docker</span> <span class="hljs-string">文章：3307:3306</span> <span class="hljs-string">映射）</span></p>
+<p>  <span class="hljs-attr">user:</span> <span class="hljs-string">‘root’</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">MySQL</span> <span class="hljs-string">用户名</span></p>
+<p>  <span class="hljs-attr">password:</span> <span class="hljs-string">‘123456’</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">密码</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">生产环境用环境变量，不要硬编码！</span></p>
+<p>  <span class="hljs-attr">multipleStatements:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">允许一次执行多条</span> <span class="hljs-string">SQL</span> <span class="hljs-string">语句</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">用</span> <span class="hljs-string">;</span> <span class="hljs-string">分隔</span><br>  <span class="hljs-string">→</span> <span class="hljs-string">注意：也会带来</span> <span class="hljs-string">SQL</span> <span class="hljs-string">注入风险，生产慎用</span><br></p></code></pre><p></p>
+<h4 data-id="heading-21">5.3 建库：CREATE DATABASE</h4>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">CREATE</span> DATABASE IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> hello <span class="hljs-type">CHARACTER</span> <span class="hljs-keyword">SET</span> utf8mb4
+<span class="hljs-keyword">COLLATE</span> utf8mb4_unicode_ci;
+</code></pre>
+<pre><code class="hljs language-sql" lang="sql">建库语句解析：
+
+<p>  <span class="hljs-keyword">CREATE</span> DATABASE<br>  → 创建数据库</p>
+<p>  IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span><br>  → 已存在则不创建<br>  → 幂等操作（执行多次结果一样）<br>  → 脚本可重复运行</p>
+<p>  <span class="hljs-type">CHARACTER</span> <span class="hljs-keyword">SET</span> utf8mb4<br>  → 字符集 utf8mb4<br>  → 支持所有 Unicode 字符（包括 emoji）<br>  → <span class="hljs-number">4</span> 字节 UTF<span class="hljs-number">-8</span> 编码<br>  → 现代 MySQL 的事实标准</p>
+<p>  <span class="hljs-keyword">COLLATE</span> utf8mb4_unicode_ci<br>  → 排序规则<br>  → utf8mb4 的 Unicode 通用排序<br>  → ci <span class="hljs-operator">&#x3D;</span> <span class="hljs-keyword">case</span> <span class="hljs-keyword">insensitive</span>（不区分大小写）</p>
+<p>  为什么用 utf8mb4 而不是 utf8？<br>  → MySQL 的 utf8 其实是 utf8mb3（<span class="hljs-number">3</span> 字节）<br>  → 存不了 emoji 和生僻字<br>  → utf8mb4 才是完整的 UTF<span class="hljs-number">-8</span><br>  → 从 MySQL <span class="hljs-number">5.5</span><span class="hljs-number">.3</span> 开始支持，现在是默认推荐<br></p></code></pre><p></p>
+<h4 data-id="heading-22">5.4 建表：CREATE TABLE</h4>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> friends (
+  id <span class="hljs-type">INT</span> AUTO_INCREMENT <span class="hljs-keyword">PRIMARY</span> KEY,
+  name <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+  gender <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">10</span>),
+  birth_date <span class="hljs-type">DATE</span>,
+  company <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">100</span>),
+  title <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">100</span>),
+  phone <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>),
+  wechat <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>)
+) ENGINE<span class="hljs-operator">=</span>InnoDB <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4;
+</code></pre>
+<pre><code class="hljs language-sql" lang="sql">friends 表字段设计：
+
+<p>  ┌────────────┬────────────────────────────────────────────┐<br>│  字段        类型 <span class="hljs-operator">+</span> 约束        说明                      │<br>├────────────┼────────────────────────────────────────────┤<br>│  id          <span class="hljs-type">INT</span> AUTO_INCREMENT  主键，自增              │<br>│             <span class="hljs-keyword">PRIMARY</span> KEY                                  │<br>│  name        <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>  姓名，必填           │<br>│  gender      <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">10</span>)          性别                   │<br>│  birth_date  <span class="hljs-type">DATE</span>                 出生日期               │<br>│  company     <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">100</span>)         公司                   │<br>│  title       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">100</span>)         职位                   │<br>│  phone       <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>)          当前手机号             │<br>│  wechat      <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>)          微信号                 │<br>└────────────┴────────────────────────────────────────────┘</p>
+<p>  设计要点：</p>
+<p>  ① id <span class="hljs-type">INT</span> AUTO_INCREMENT <span class="hljs-keyword">PRIMARY</span> KEY<br>  → 整数自增主键<br>  → 每插入一行自动 <span class="hljs-operator">+</span><span class="hljs-number">1</span><br>  → 唯一标识每一行<br>  → 数据库自动生成，无需手动指定</p>
+<p>  ② name <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span><br>  → 姓名，最多 <span class="hljs-number">50</span> 字符<br>  → <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>：必填字段<br>  → 不能为空</p>
+<p>  ③ gender <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">10</span>)<br>  → 性别，没有 <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span><br>  → 可选字段<br>  → 可以为 <span class="hljs-keyword">NULL</span></p>
+<p>  ④ birth_date <span class="hljs-type">DATE</span><br>  → 日期类型<br>  → 不是字符串！是真正的日期类型<br>  → 可以用日期函数处理</p>
+<p>  ⑤ 手机号<span class="hljs-operator">&#x2F;</span>微信号用 <span class="hljs-type">VARCHAR</span><br>  → 不用数字类型！<br>  → 因为：可能带 <span class="hljs-operator">+</span><span class="hljs-number">86</span> 前缀、可能有空格<br>  → 数字类型会丢前导零<br>  → 电话<span class="hljs-operator">&#x2F;</span>ID 类数据一律用字符串<br></p></code></pre><p></p>
+<pre><code class="hljs language-ini" lang="ini">表级设置：
+
+  <span class="hljs-attr">ENGINE</span>=InnoDB
+  → 存储引擎
+  → InnoDB：支持事务、外键、行级锁
+  → MySQL 5.5+ 默认引擎
+  → 生产环境标准选择
+
+  DEFAULT <span class="hljs-attr">CHARSET</span>=utf8mb4
+  → 表默认字符集
+  → 与数据库一致
+  → 保证中文、emoji 都能存
+</code></pre>
+<h4 data-id="heading-23">5.5 建表后的数据操作</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 插入数据</span>
+<span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(<span class="hljs-string">`
+  INSERT INTO friends (name, gender, birth_date, company, title)
+  VALUES (?, ?, ?, ?, ?)
+`</span>, [<span class="hljs-string">'张三'</span>, <span class="hljs-string">'男'</span>, <span class="hljs-string">'1990-01-01'</span>, <span class="hljs-string">'字节跳动'</span>, <span class="hljs-string">'前端工程师'</span>]);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 查询数据</span><br><span class="hljs-keyword">const</span> [rows] &#x3D; <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(<span class="hljs-string"><code>  SELECT * FROM friends WHERE company = ?</code></span>, [<span class="hljs-string">‘字节跳动’</span>]);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(rows);<br></p></code></pre><p></p>
+<pre><code class="hljs language-sql" lang="sql">注意参数化查询：
+
+  ✅ 正确写法（参数化）：
+  connection.query(<span class="hljs-string">'SELECT * FROM friends WHERE id = ?'</span>, [<span class="hljs-number">1</span>])
+
+  ❌ 错误写法（字符串拼接）：
+  connection.query(`<span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">FROM</span> friends <span class="hljs-keyword">WHERE</span> id <span class="hljs-operator">=</span> $&#123;id&#125;`)
+
+  → ? 是占位符
+  → 参数通过数组传入
+  → 防止 <span class="hljs-keyword">SQL</span> 注入
+  → 这是安全底线！
+</code></pre>
+<hr>
+<h3 data-id="heading-24">六、完整链路：LLM 结构化输出 → MySQL 存储</h3>
+<h4 data-id="heading-25">6.1 场景设计</h4>
+<pre><code class="hljs language-sql" lang="sql">场景：AI 人物信息提取 <span class="hljs-operator">+</span> 落库
+
+<p>  流程：<br>  ┌──────────────────────────────────────────────────────────┐<br>│                                                          │<br>│  用户输入文本                                             │<br>│  “爱因斯坦生于1879年，是一位伟大的物理学家…”            │<br>│    │                                                      │<br>│    ▼                                                      │<br>│  withStructuredOutput 提取结构化数据                       │<br>│  → &amp;#123; name, birth_year, nationality, fields &amp;#125;              │<br>│    │                                                      │<br>│    ▼                                                      │<br>│  MySQL 建表（friends<span class="hljs-operator">&#x2F;</span>scientists）                         │<br>│  → <span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> …                        │<br>│    │                                                      │<br>│    ▼                                                      │<br>│  <span class="hljs-keyword">INSERT</span> 落库                                               │<br>│  → 参数化插入                                             │<br>│    │                                                      │<br>│    ▼                                                      │<br>│  查询验证                                                  │<br>│  → <span class="hljs-keyword">SELECT</span> <span class="hljs-operator">*</span> <span class="hljs-keyword">FROM</span> scientists                              │<br>│                                                          │<br>│  <span class="hljs-operator">&#x3D;</span> LLM 结构化输出 → 数据库持久化                          │<br>└──────────────────────────────────────────────────────────┘<br></p></code></pre><p></p>
+<h4 data-id="heading-26">6.2 完整代码</h4>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> <span class="hljs-string">'dotenv/config'</span>;
+<span class="hljs-keyword">import</span> mysql <span class="hljs-keyword">from</span> <span class="hljs-string">'mysql2/promise'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/openai'</span>;
+<span class="hljs-keyword">import</span> &#123; z &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; ① 结构化输出模型</span><br><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">modelName</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123; <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span> &amp;#125;,<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> scientistSchema &#x3D; z.<span class="hljs-title function_">object</span>(&amp;#123;<br>  <span class="hljs-attr">name</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘科学家的姓名’</span>),<br>  <span class="hljs-attr">birth_year</span>: z.<span class="hljs-title function_">number</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘出生年份’</span>),<br>  <span class="hljs-attr">nationality</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘国籍’</span>),<br>  <span class="hljs-attr">fields</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">describe</span>(<span class="hljs-string">‘研究领域列表’</span>),<br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> structuredModel &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(scientistSchema);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; ② 建表 + 落库</span><br><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">saveToMySQL</span>(<span class="hljs-params">scientist</span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> connection &#x3D; <span class="hljs-keyword">await</span> mysql.<span class="hljs-title function_">createConnection</span>(&amp;#123;<br>    <span class="hljs-attr">host</span>: <span class="hljs-string">‘localhost’</span>,<br>    <span class="hljs-attr">port</span>: <span class="hljs-number">3307</span>,<br>    <span class="hljs-attr">user</span>: <span class="hljs-string">‘root’</span>,<br>    <span class="hljs-attr">password</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MYSQL_PASSWORD</span>,<br>  &amp;#125;);</p>
+<p>  <span class="hljs-keyword">try</span> &amp;#123;<br>    <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(<span class="hljs-string"><code>CREATE DATABASE IF NOT EXISTS ai_data       CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci</code></span>);<br>    <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">query</span>(<span class="hljs-string">‘USE ai_data’</span>);</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;await&lt;/span&gt; connection.&lt;span class=&quot;hljs-title function_&quot;&gt;query&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`
+  CREATE TABLE IF NOT EXISTS scientists (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    birth_year INT,
+    nationality VARCHAR(50),
+    fields VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+`&lt;/span&gt;);
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;await&lt;/span&gt; connection.&lt;span class=&quot;hljs-title function_&quot;&gt;query&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;`
+  INSERT INTO scientists (name, birth_year, nationality, fields)
+  VALUES (?, ?, ?, ?)
+`&lt;/span&gt;, [
+  scientist.&lt;span class=&quot;hljs-property&quot;&gt;name&lt;/span&gt;,
+  scientist.&lt;span class=&quot;hljs-property&quot;&gt;birth_year&lt;/span&gt;,
+  scientist.&lt;span class=&quot;hljs-property&quot;&gt;nationality&lt;/span&gt;,
+  scientist.&lt;span class=&quot;hljs-property&quot;&gt;fields&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;join&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;,&#39;&lt;/span&gt;),
+]);
+
+&lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&#39;已存入数据库:&#39;&lt;/span&gt;, scientist.&lt;span class=&quot;hljs-property&quot;&gt;name&lt;/span&gt;);
+</code></pre>
+<p>  &amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">‘落库失败:’</span>, err);<br>  &amp;#125; <span class="hljs-keyword">finally</span> &amp;#123;<br>    <span class="hljs-keyword">await</span> connection.<span class="hljs-title function_">end</span>();<br>  &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; ③ 主流程</span><br><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">main</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> structuredModel.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">‘介绍一下爱因斯坦’</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘结构化输出:’</span>, result);<br>  <span class="hljs-keyword">await</span> <span class="hljs-title function_">saveToMySQL</span>(result);<br>&amp;#125;</p>
+<p><span class="hljs-title function_">main</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-variable language_">console</span>.<span class="hljs-property">error</span>);<br></p></code></pre><p></p>
+<pre><code class="hljs language-sql" lang="sql">完整链路总结：
+
+  ① withStructuredOutput(schema)
+  → LLM 输出结构化数据（类型安全）
+
+  ② <span class="hljs-keyword">CREATE</span> DATABASE <span class="hljs-operator">/</span> <span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span>
+  → 准备存储结构（幂等，可重复运行）
+
+  ③ <span class="hljs-keyword">INSERT</span> 参数化插入
+  → 结构化数据落库（防止 <span class="hljs-keyword">SQL</span> 注入）
+
+  ④ <span class="hljs-keyword">SELECT</span> 查询
+  → 验证数据已持久化
+
+  → 这就是 LLM 应用落地的标准链路：
+    自由文本 → 结构化 → 数据库
+</code></pre>
+<hr>
+<h3 data-id="heading-27">七、总结</h3>
+<h4 data-id="heading-28">7.1 知识体系图</h4>
+<pre><code class="hljs language-sql" lang="sql">LLM 结构化输出进阶
+│
+├── withStructuredOutput（语义化终极封装）
+│   ├── 一行：model.withStructuredOutput(schema)
+│   ├── 底层：封装了 Tool <span class="hljs-keyword">Call</span>（bindTools 的糖衣）
+│   ├── 支持 invoke <span class="hljs-operator">/</span> stream <span class="hljs-operator">/</span> batch
+│   ├── 结果直接返回结构化对象（不用取 tool_calls）
+│   └── vs bindTools：语义清晰、代码少、可读性高
+│
+├── 流式结构化输出
+│   ├── structuredModel.stream(prompt)
+│   ├── 每个 chunk 是部分结构化数据
+│   ├── 最后一个 chunk 是完整结果
+│   ├── 实时填充表单<span class="hljs-operator">/</span>卡片
+│   └── 最终类型安全
+│
+├── XMLOutputParser（历史遗产）
+│   ├── XML：老一代数据交换标准
+│   ├── JSON：现代数据交换事实标准
+│   ├── XMLHttpRequest 名字的由来（历史包袱）
+│   ├── parser.parse(xml) → JavaScript 对象
+│   └── 场景：兼容老系统
+│
+├── MySQL 落库
+│   ├── mysql2<span class="hljs-operator">/</span>promise（Promise 版 API）
+│   ├── connectionConfig（host<span class="hljs-operator">/</span>port<span class="hljs-operator">/</span><span class="hljs-keyword">user</span><span class="hljs-operator">/</span>password）
+│   ├── <span class="hljs-keyword">CREATE</span> DATABASE IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span>
+│   │   ├── utf8mb4（完整 UTF<span class="hljs-number">-8</span>，支持 emoji）
+│   │   └── utf8mb4_unicode_ci（排序规则）
+│   ├── <span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span>
+│   │   ├── <span class="hljs-type">INT</span> AUTO_INCREMENT <span class="hljs-keyword">PRIMARY</span> KEY
+│   │   ├── <span class="hljs-type">VARCHAR</span>(n) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>
+│   │   ├── <span class="hljs-type">DATE</span>（日期类型）
+│   │   ├── ENGINE<span class="hljs-operator">=</span>InnoDB（事务<span class="hljs-operator">/</span>行锁）
+│   │   └── <span class="hljs-keyword">DEFAULT</span> CHARSET<span class="hljs-operator">=</span>utf8mb4
+│   └── 参数化查询（? 占位符，防 <span class="hljs-keyword">SQL</span> 注入）
+│
+├── 完整链路
+│   ├── 用户输入自由文本
+│   ├── withStructuredOutput 提取结构化数据
+│   ├── MySQL 建表（幂等）
+│   ├── <span class="hljs-keyword">INSERT</span> 参数化落库
+│   └── <span class="hljs-keyword">SELECT</span> 验证持久化
+│
+└── 核心认知
+    ├── withStructuredOutput <span class="hljs-operator">=</span> Tool <span class="hljs-keyword">Call</span> 的语义化封装
+    ├── 流式结构化 <span class="hljs-operator">=</span> 实时性 <span class="hljs-operator">+</span> 类型安全
+    ├── XML 是历史，JSON 是现在
+    └── 结构化输出的终点是"数据落地"
+</code></pre>
+<h4 data-id="heading-29">7.2 一句话总结</h4>
+<blockquote>
+<p><strong>withStructuredOutput 是 Tool Call 的语义化封装：<code>model.withStructuredOutput(schema)</code> 一行代码，底层自动完成"定义工具 → 绑定工具 → 解析 tool_calls"的全部流程，invoke 直接返回类型安全的结构化对象，还支持 stream() 流式结构化输出——每个 chunk 是部分结构数据，最后一个 chunk 是完整结果。再加上 XMLOutputParser 了解 XML 时代的数据交换遗产（XMLHttpRequest 名字的由来），以及 MySQL 的建库建表（utf8mb4 + InnoDB + 参数化查询），就构成了 LLM 应用的完整数据链路：自由文本 → 结构化输出 → 数据库持久化。用一句话概括：结构化输出解决"AI 输出不可控"的问题，数据库解决"数据不落地"的问题，两者结合才是 LLM 应用的工程化闭环。</strong></p>
+</blockquote>
+<hr>
+<blockquote>
+<p>如果这篇文章对你有帮助，欢迎<strong>点赞</strong>和<strong>收藏</strong>！</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地" href="https://juejin.cn/post/7683448371321225252" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span><span class="desc fs12">https://juejin.cn/post/7683448371321225252</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/2dc99d2c.html">华为麒麟9050 Pro开辟国产芯片全新赛道 网友：韬定律终于亮剑了<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6d0246a7.html">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3942"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2051"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/4ac73f8a.html" title="Postman 接口测试入门：从发请求到写断言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6652"></div><span class="title">Postman 接口测试入门：从发请求到写断言</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2635"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/6d0246a7.html" title="Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5800"></div><span class="title">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=724"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/ae16c9b3.html" title="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3268"></div><span class="title">一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span></a><a class="item" href="/rss/c6532117.html" title="使用自定义Bash脚本预防oom卡死 V2"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6512"></div><span class="title">使用自定义Bash脚本预防oom卡死 V2</span></a><a class="item" href="/rss/34d032b3.html" title="干与湿：AI 拿走脑力之后，人剩下什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=502"></div><span class="title">干与湿：AI 拿走脑力之后，人剩下什么</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4036"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/6a73dbeb.html" title="云服务器运行WordPress需要什么配置？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dacbbf232d37447ea7255efcd1679a2f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqR5Yqo6Zuo6aKk:q75.awebp?rk3s=f64ab15b&x-expires=1789626492&x-signature=EQX4vCMzA2%2F7ozlGbhJm5iJSpmM%3D"></div><span class="title">云服务器运行WordPress需要什么配置？</span></a><a class="item" href="/rss/d281a9c3.html" title="用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4710"></div><span class="title">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践</span></a><a class="item" href="/rss/d0f37396.html" title="每天2小时,21天闭环计划-RHCE通关时间表全公开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9423"></div><span class="title">每天2小时,21天闭环计划-RHCE通关时间表全公开</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4239"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

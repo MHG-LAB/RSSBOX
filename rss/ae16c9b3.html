@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化 - RSSBOX</title>
+
+  
+    <meta name="description" content="为什么需要多 Agent？ 复杂的 Agent 产品基本都是多 Agent 架构。 单 Agent 的痛点 ┌─────────────────────────────────────┐ │           单 Agent 架构              │ │  ┌─────────────────────────────┐   │ │  │  System Prompt (巨大)">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/ae16c9b3.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="为什么需要多 Agent？ 复杂的 Agent 产品基本都是多 Agent 架构。 单 Agent 的痛点 ┌─────────────────────────────────────┐ │           单 Agent 架构              │ │  ┌─────────────────────────────┐   │ │  │  System Prompt (巨大)">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-10T01:03:16.000Z">
+<meta property="article:modified_time" content="2026-09-10T01:03:16.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么需要多 Agent？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">单 Agent 的痛点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">多 Agent 的优势</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">LangChain → LangGraph 演进</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">网状工作流编排 API</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">状态定义：Annotation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">基础示例：线性流程</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">分支与循环</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">条件分支</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">可视化调试</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-10T01:03:16.000Z">2026-09-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span></h1>
+<div>
+<h2 data-id="heading-0">为什么需要多 Agent？</h2>
+<p>复杂的 Agent 产品基本都是多 Agent 架构。</p>
+<h3 data-id="heading-1">单 Agent 的痛点</h3>
+<pre><code class="hljs language-java" lang="java">┌─────────────────────────────────────┐
+│           单 Agent 架构              │
+│  ┌─────────────────────────────┐   │
+│  │  System <span class="hljs-title function_">Prompt</span> <span class="hljs-params">(巨大)</span>        │   │
+│  │  - 所有 tool 描述            │   │
+│  │  - 所有功能 prompt           │   │
+│  │  - 所有上下文                │   │
+│  └─────────────────────────────┘   │
+│           ↓ 每次都带上              │
+│       Token 消耗高 + 干扰多         │
+└─────────────────────────────────────┘
+</code></pre>
+<p><strong>问题：</strong></p>
+<ul>
+<li>执行每个功能只需要一部分 prompt，但每次都带上全部</li>
+<li>Token 消耗高，无关信息干扰思考</li>
+<li>准确率低，容易出错</li>
+</ul>
+<h3 data-id="heading-2">多 Agent 的优势</h3>
+<pre><code class="hljs language-css" lang="css">┌─────────────────────────────────────┐
+│           多 Agent 架构              │
+│  ┌─────────┐    ┌─────────┐        │
+│  │ Agent <span class="hljs-selector-tag">A</span> │    │ Agent <span class="hljs-selector-tag">B</span> │  并行   │
+│  │(写代码)  │    │(写测试)  │  处理   │
+│  └────┬────┘    └────┬────┘        │
+│       └──────┬───────┘             │
+│              ↓                      │
+│         主 Agent 协调               │
+└─────────────────────────────────────┘
+</code></pre>
+<p><strong>三个核心优势：</strong></p>
+<table><thead><tr><th>优势</th><th>说明</th></tr></thead><tbody><tr><td><strong>决策准确率高</strong></td><td>每个 Agent 只带必要 Prompt，无冗余信息干扰</td></tr><tr><td><strong>并行处理</strong></td><td>主管分派子任务，子 Agent 并行执行，效率更高</td></tr><tr><td><strong>互相纠错</strong></td><td>多角色讨论，类似 AutoGen 的"法庭"机制</td></tr></tbody></table>
+<blockquote>
+<p>Agent = LLM(大脑) + Harness(tool + mcp + rag + skill...)</p>
+<p>单 Agent 只有一个大脑，一步步思考调用 tool。
+多 Agent 多个大脑，并行思考，按需组合。</p>
+</blockquote>
+<hr>
+<h2 data-id="heading-3">LangChain → LangGraph 演进</h2>
+<table><thead><tr><th>框架</th><th>定位</th><th>特点</th></tr></thead><tbody><tr><td><strong>LangChain</strong></td><td>基础模块库</td><td>LLM API、Document Loaders、Embedding、Vector Store...</td></tr><tr><td><strong>LangGraph</strong></td><td>工作流编排器</td><td>网状工作流，支持分支、循环、多 Agent 协作</td></tr></tbody></table>
+<pre><code class="hljs language-scss" lang="scss">LangChain (基础积木)
+    ↓
+LangGraph (网状编排)
+    ↓
+复杂多 Agent 协作
+</code></pre>
+<hr>
+<h2 data-id="heading-4">网状工作流编排 API</h2>
+<p>核心概念：<strong>工作节点 + 组织方式</strong></p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">Annotation</span>,   <span class="hljs-comment">// 状态定义</span>
+  <span class="hljs-variable constant_">END</span>,          <span class="hljs-comment">// 结束节点</span>
+  <span class="hljs-variable constant_">START</span>,        <span class="hljs-comment">// 开始节点</span>
+  <span class="hljs-title class_">StateGraph</span>    <span class="hljs-comment">// 状态图编排器</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+</code></pre>
+<h3 data-id="heading-5">状态定义：Annotation</h3>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> = <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&#123;
+  <span class="hljs-attr">text</span>: <span class="hljs-title class_">Annotation</span>(&#123;
+    <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) =&gt;</span> next,  <span class="hljs-comment">// 新值覆盖旧值</span>
+    <span class="hljs-attr">default</span>: <span class="hljs-function">() =&gt;</span> <span class="hljs-string">""</span>,               <span class="hljs-comment">// 默认空字符串</span>
+  &#125;)
+&#125;)
+</code></pre>
+<p><strong>Annotation vs StateGraph 区别：</strong></p>
+<table><thead><tr><th></th><th>Annotation</th><th>StateGraph</th></tr></thead><tbody><tr><td>角色</td><td>📋 数据定义</td><td>🔧 流程编排</td></tr><tr><td>做什么</td><td>描述状态<strong>长什么样</strong></td><td>描述节点<strong>怎么跑</strong></td></tr><tr><td>类比</td><td>数据库表结构</td><td>程序主流程</td></tr></tbody></table>
+<h3 data-id="heading-6">基础示例：线性流程</h3>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 定义节点函数</span>
+<span class="hljs-keyword">const</span> <span class="hljs-title function_">step1</span> = (<span class="hljs-params">state</span>) =&gt; (&#123; <span class="hljs-attr">text</span>: <span class="hljs-string">`<span class="hljs-subst">$&#123;state.text&#125;</span> -&gt; step1`</span> &#125;);
+<span class="hljs-keyword">const</span> <span class="hljs-title function_">step2</span> = (<span class="hljs-params">state</span>) =&gt; (&#123; <span class="hljs-attr">text</span>: <span class="hljs-string">`<span class="hljs-subst">$&#123;state.text&#125;</span> -&gt; step2`</span> &#125;);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 编排工作流</span><br><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“step1”</span>, step1)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“step2”</span>, step2)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">“step1”</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“step1”</span>, <span class="hljs-string">“step2”</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“step2”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 执行</span><br><span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123; <span class="hljs-attr">text</span>: <span class="hljs-string">“hello”</span> &amp;#125;);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(result);  <span class="hljs-comment">&#x2F;&#x2F; &amp;#123; text: “hello -&gt; step1 -&gt; step2” &amp;#125;</span><br></p></code></pre><p></p>
+<p><strong>执行流程图：</strong></p>
+<pre><code class="hljs language-mermaid" lang="mermaid">graph TD;
+    __start__([__start__]) --&gt; step1(step1)
+    step1 --&gt; step2(step2)
+    step2 --&gt; __end__([__end__])
+</code></pre>
+<hr>
+<h2 data-id="heading-7">分支与循环</h2>
+<h3 data-id="heading-8">条件分支</h3>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title class_">StateAnnotation</span> = <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&#123;
+  <span class="hljs-attr">query</span>: <span class="hljs-title class_">Annotation</span>(&#123; <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) =&gt;</span> next, <span class="hljs-attr">default</span>: <span class="hljs-function">() =&gt;</span> <span class="hljs-string">""</span> &#125;),
+  <span class="hljs-attr">route</span>: <span class="hljs-title class_">Annotation</span>(&#123; <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) =&gt;</span> next, <span class="hljs-attr">default</span>: <span class="hljs-function">() =&gt;</span> <span class="hljs-string">"chat"</span> &#125;),
+  <span class="hljs-attr">answer</span>: <span class="hljs-title class_">Annotation</span>(&#123; <span class="hljs-attr">reducer</span>: <span class="hljs-function">(<span class="hljs-params">_prev, next</span>) =&gt;</span> next, <span class="hljs-attr">default</span>: <span class="hljs-function">() =&gt;</span> <span class="hljs-string">""</span> &#125;)
+&#125;);
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 路由节点：根据条件选择分支</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">router</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> isMath &#x3D; <span class="hljs-regexp">&#x2F;[+-*&#x2F;]&#x2F;</span>.<span class="hljs-title function_">test</span>(state.<span class="hljs-property">query</span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">route</span>: isMath ? <span class="hljs-string">“math”</span> : <span class="hljs-string">“chat”</span> &amp;#125;;<br>&amp;#125;;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 条件边</span><br><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">StateAnnotation</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“router”</span>, router)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“math”</span>, mathHandler)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“chat”</span>, chatHandler)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">“router”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“router”</span>, <span class="hljs-function">(<span class="hljs-params">state</span>) &#x3D;&gt;</span> state.<span class="hljs-property">route</span>)  <span class="hljs-comment">&#x2F;&#x2F; 分支</span><br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“math”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“chat”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();<br></p></code></pre><p></p>
+<p><strong>分支流程图：</strong></p>
+<pre><code class="hljs language-mermaid" lang="mermaid">graph TD;
+    __start__ --&gt; router&#123;router&#125;
+    router --&gt;|math| math[math]
+    router --&gt;|chat| chat[chat]
+    math --&gt; __end__
+    chat --&gt; __end__
+</code></pre>
+<hr>
+<h2 data-id="heading-9">可视化调试</h2>
+<p>LangGraph 内置 Mermaid 导出，方便可视化：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> drawable = <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">getGraphAsync</span>();
+<span class="hljs-keyword">const</span> mermaid = drawable.<span class="hljs-title function_">drawMermaid</span>(&#123; <span class="hljs-attr">withStyles</span>: <span class="hljs-literal">true</span> &#125;);
+<span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(mermaid);  <span class="hljs-comment">// 直接粘贴到 Markdown 渲染</span>
+</code></pre>
+<hr>
+<h2 data-id="heading-10">总结</h2>
+<table><thead><tr><th>场景</th><th>方案</th></tr></thead><tbody><tr><td>简单任务</td><td>单 Agent + LangChain</td></tr><tr><td>复杂流程</td><td>LangGraph 网状编排</td></tr><tr><td>多角色协作</td><td>多 Agent + LangGraph</td></tr></tbody></table>
+<p><strong>一句话：</strong> LangGraph 是 LangChain 的"大脑连接器"，把多个 Agent 组织成网状工作流，实现高效协作。</p>
+<hr>
+<p><em>觉得有帮助的话，点个赞👍支持一下～</em></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化" href="https://juejin.cn/post/7683350015278923828" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">一文搞懂 LangGraph：从单 Agent 到多 Agent 协作的进化</span><span class="desc fs12">https://juejin.cn/post/7683350015278923828</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a7d463b8.html">Rebuilding AUTOMATIC1111 With Gradio Workflow<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/745624fc.html">定名T09！阿维塔9系旗舰申报：71度大电池续航超400km<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3942"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2051"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/4ac73f8a.html" title="Postman 接口测试入门：从发请求到写断言"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6652"></div><span class="title">Postman 接口测试入门：从发请求到写断言</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2635"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/8b919ed5.html" title="LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7691"></div><span class="title">LLM 结构化输出进阶：withStructuredOutput 一行封装 Tool Call，从流式输出到 MySQL 落地</span></a><a class="item" href="/rss/6d0246a7.html" title="Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5800"></div><span class="title">Text2SQL 实战：自然语言直连数据库，让 AI 自动写 SQL 完成 CRUD 与多表联查</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=724"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/c6532117.html" title="使用自定义Bash脚本预防oom卡死 V2"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6512"></div><span class="title">使用自定义Bash脚本预防oom卡死 V2</span></a><a class="item" href="/rss/34d032b3.html" title="干与湿：AI 拿走脑力之后，人剩下什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=502"></div><span class="title">干与湿：AI 拿走脑力之后，人剩下什么</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4036"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/6a73dbeb.html" title="云服务器运行WordPress需要什么配置？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dacbbf232d37447ea7255efcd1679a2f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LqR5Yqo6Zuo6aKk:q75.awebp?rk3s=f64ab15b&x-expires=1789626492&x-signature=EQX4vCMzA2%2F7ozlGbhJm5iJSpmM%3D"></div><span class="title">云服务器运行WordPress需要什么配置？</span></a><a class="item" href="/rss/d281a9c3.html" title="用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4710"></div><span class="title">用多模态图像模型批量生产电商主图：Prompt 模板化 + 自动化质检的工程实践</span></a><a class="item" href="/rss/d0f37396.html" title="每天2小时,21天闭环计划-RHCE通关时间表全公开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9423"></div><span class="title">每天2小时,21天闭环计划-RHCE通关时间表全公开</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4239"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

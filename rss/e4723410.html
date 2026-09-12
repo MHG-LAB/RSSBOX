@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility - RSSBOX</title>
+
+  
+    <meta name="description" content="We’ve rewritten the module registry in workerd, the core open-source component of the Workers runtime, to be faster, more standards-compliant, and more closely aligned with Node.js&#39; module registry.O">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e4723410.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="We’ve rewritten the module registry in workerd, the core open-source component of the Workers runtime, to be faster, more standards-compliant, and more closely aligned with Node.js&#39; module registry.O">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-09T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-09T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How the Workers runtime loads the code you give it</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why a new implementation?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">import.meta</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Specifiers are URLs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Import attributes are correctly validated</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">require(esm) follows Node.js&#39; rules</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Errors are consistent, and use the right class</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">WebAssembly source phase imports</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What&#39;s next</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-09T13:00:00.000Z">2026-09-09</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility</span></h1>
+<div>
+<p>We’ve rewritten the module registry in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd"><code><span style="text-decoration:underline">workerd</span></code></a>, the core open-source component of the Workers runtime, to be faster, more standards-compliant, and more closely aligned with Node.js' module registry.</p><p>Over the past few years, we’ve been adding support for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/nodejs-workers-2025/"><span style="text-decoration:underline">more</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/bringing-node-js-http-servers-to-cloudflare-workers/"><span style="text-decoration:underline">more</span></a> Node.js runtime APIs. The Workers runtime now supports every stable API from Node.js that you might want to use in a serverless context, and these APIs are now <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/changelog/post/2026-08-04-nodejs-compat-default/"><span style="text-decoration:underline">enabled by default</span></a>, letting you deploy <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/"><span style="text-decoration:underline">even larger Node.js apps</span></a> to Cloudflare (now up to 64 MiB on all plans — we’ve removed the limit on compressed bundle size).</p><p>But API compatibility alone is not enough: Node.js applications also depend on how the runtime resolves, loads, and caches <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules"><span style="text-decoration:underline">modules</span></a>. ESM, CommonJS, and WebAssembly are each types of modules that you can import in your Worker’s code. The system within the runtime that handles all of this is called the module registry.</p><p>You can start using it today by enabling the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/configuration/compatibility-flags/new-module-registry"><span style="text-decoration:underline"><code>new_module_registry</code> compatibility flag</span></a> in your Worker.</p><!-- unsupported block: code --><p>When you enable the <code>new_module_registry</code> compatibility flag:</p><ul><li><code>import.meta.url</code>, <code>import.meta.main</code>, and <code>import.meta.resolve()</code> all work.</li><li>Module specifiers are parsed and resolved as real URLs, including query strings and fragments.</li><li><code>node:</code> built-ins resolve to the same module instance no matter how you reach them.</li><li>Import attributes (<code>with &#123; type: 'json' &#125;</code>) are correctly validated.</li><li><code>require()</code> on an ES module follows Node.js' <a target="_blank" rel="external nofollow noopener noreferrer" href="https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require"><code><span style="text-decoration:underline">require(esm)</span></code></a> rules.</li><li>Errors use consistent classes and messages regardless of which loading path triggered them.</li><li>Modules compile lazily when first imported (statically or dynamically).</li><li>WebAssembly modules support source phase imports.</li></ul><p>For the full deep-dive on how this new module registry interacts with V8’s module APIs, we’ve added <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd/blob/main/docs/reference/detail/new-module-registry.md"><span style="text-decoration:underline">reference docs to workerd</span></a> that break down everything in detail. But for most people building on Workers, you want to understand how these changes improve compatibility and help you build. To do that, we’ll dive into each of these changes in the sections below.</p><h2>How the Workers runtime loads the code you give it</h2><p>When you deploy a Worker to Cloudflare, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/wrangler/"><span style="text-decoration:underline">wrangler</span></a> or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/vite-plugin/"><span style="text-decoration:underline">Vite</span></a> “bundles” all of your Worker’s code from many files and dependencies into one or many modules, which are then uploaded to Cloudflare when you run <code>wrangler deploy</code>.</p><p>By default, Wrangler bundles nearly all of this code into a single module script. It runs <code>esbuild</code> under the hood, which processes then inlines relative imports and <code>require()</code> calls for most npm dependencies into that one file. The <code>import</code> and <code>require()</code> statements are replaced with regular functions as part of the process. By the time that bundle reaches the Workers runtime (<a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd"><code><span style="text-decoration:underline">workerd</span></code></a>), there usually isn't much of a module graph left for the Workers runtime to deal with. Most of the different modules are bundled into one file. We have seen these scripts grow to as many as multiple hundreds of thousands of lines long.</p><!-- unsupported block: image --><p>Why is it necessary to bundle many modules into a single file before uploading server-side code to Cloudflare? It has been technically possible to upload multiple modules, and even modules of different types, in the Workers runtime for many years now. However, the runtime has not resolved modules in a way that was consistent with all the other runtimes. If, for example, your code or dependencies used <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta/resolve"><code><span style="text-decoration:underline">import.meta.resolve()</span></code></a> to resolve the path to another module, that code would fail because <code>import.meta.resolve()</code> was not supported.</p><p>When you use the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/vite-plugin/"><span style="text-decoration:underline">Cloudflare Vite plugin</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://vite.dev/blog/announcing-vite8"><span style="text-decoration:underline">Vite 8</span></a> bundles your code using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://rolldown.rs/"><span style="text-decoration:underline">Rolldown</span></a>, instead of Wrangler bundling your code using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://esbuild.github.io/"><span style="text-decoration:underline">esbuild</span></a>. Rolldown resolves imports and npm dependencies, converts CommonJS to ESM where necessary, and emits an entry module plus any additional chunks created through code splitting, such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import"><span style="text-decoration:underline">dynamic imports</span></a>. As a result, the Workers runtime receives a smaller, build-generated module graph rather than the application’s original source graph.</p><!-- unsupported block: image --><p>The new module registry implementation in the Workers runtime opens the door to bundlers like Rolldown to perform fewer transformations, and to rely more on the runtime to handle module resolution.</p><p>When you import a Node.js API in your worker, by default you are importing a module that is built into <code>workerd</code>. It is not bundled into your code as a polyfill. Wasm, text, and binary modules are provided to the Workers runtime as separate files too. They are referenced by specifier instead of being inlined. And if you deploy with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/wrangler/bundling/#disable-bundling"><code><span style="text-decoration:underline">--no-bundle</span></code></a>, or your tooling uploads a Worker as multiple modules directly, the full module graph shows up at runtime exactly as you wrote it.</p><!-- unsupported block: image --><p>In all of these cases, something has to take a specifier, work out what code it actually points to, compile it, and hand V8 a module object it can link and run. In <code>workerd</code>, that's the module registry's job.</p><h2>Why a new implementation?</h2><p>The original registry resolves specifiers as filesystem-style paths, not URLs. That sounds like a minor distinction, but it ruled out a bunch of things: there was no clean way to implement <code>import.meta.url</code>, relative imports didn't follow the same resolution rules as <code>new URL()</code>, and protocols like <code>node:</code> and <code>cloudflare:</code> were handled as special-cased string prefixes instead of, well, protocols.</p><p>It also compiles your entire Worker bundle up front, whether or not a given module ever gets imported, and it keeps a separate, private copy of everything per V8 isolate. Cloudflare runs multiple V8 isolate replicas of the same Worker to spread load across CPU cores, so in practice that meant compiling the exact same source more than once, with keeping multiple copies of the source in memory.</p><p>None of this is really a bug, but it made it difficult to evolve the implementation without breaking changes. The new registry starts from URLs as the specifier format and treats laziness and cache sharing as things to design in from day one. The existing registry implementation is not going anywhere. Currently, deployed Workers will continue to work as they always have.</p><h2>import.meta</h2><p>The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import.meta"><code><span style="text-decoration:underline">import.meta</span></code></a> API provides information about the module, such as the module's URL, and whether it is the main entry point module:</p><!-- unsupported block: code --><p>That prints something like <code>file:///bundle/index.js, main: true</code>. </p><p><code>import.meta.main</code> is true only for the module configured as your Worker's entrypoint; every other module gets <code>false</code>.</p><p><code>import.meta.resolve()</code> resolves a specifier against the current module without importing it:</p><!-- unsupported block: code --><p>It's a pure string transform, same as in Node.js and in browsers: it doesn't check that the resolved URL corresponds to a real module, and it throws a <code>TypeError</code> for a specifier that can't be parsed as a URL at all, rather than returning <code>null</code>. One detail worth knowing if you ever look closely at the output: it normalizes percent-encoding the same way <code>new URL()</code> does, which means it collapses paths like <code>./a/../b.js</code>, but it does not decode characters that were already percent-encoded. <code>import.meta.resolve('%66oo.js')</code> resolves to <code>file:///bundle/%66oo.js</code>, not <code>file:///bundle/foo.js</code>.</p><h2>Specifiers are URLs</h2><p>Relative imports now resolve the same way as <code>new URL(specifier, base)</code> would, because that's literally what's happening under the hood. Full URLs work as specifiers too, not just relative paths:</p><!-- unsupported block: code --><p>The more interesting consequence is what happens with query strings and fragments. Per the same module-identity rules browsers use, a specifier with a different query string or fragment is treated as a genuinely distinct module instance, even when it points at the same underlying source:</p><!-- unsupported block: code --><!-- unsupported block: code --><p><code>./counter.js?a</code> and <code>./counter.js?b</code> load the same source, but they're evaluated separately, each gets its own <code>import.meta.url</code>, and each gets its own copy of any top-level state. Importing the same specifier with the same query string again still gets you back the same instance, so this isn't a way to force re-evaluation on every import.</p><h2>Import attributes are correctly validated</h2><!-- unsupported block: code --><p>The original module registry implementation silently ignores the import attributes in violation of the spec. It is expected that implementations throw an exception when any import attribute it does not understand is used.</p><p><code>json</code> is the only import attribute type enabled right now, since it's the only one of the relevant <a target="_blank" rel="external nofollow noopener noreferrer" href="https://tc39.es/"><span style="text-decoration:underline">TC39</span></a> proposals that has reached Stage 4. <code>text</code> and <code>bytes</code> are recognized, because they track the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/tc39/proposal-import-text"><span style="text-decoration:underline">Import Text</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/tc39/proposal-import-bytes"><span style="text-decoration:underline">Import Bytes</span></a> proposals, but they're rejected with a specific error instead of being silently ignored or treated as unsupported syntax:</p><!-- unsupported block: code --><p>Any attribute key other than <code>type</code> is now a hard error too, rather than being ignored:</p><!-- unsupported block: code --><p>And if the type you specify doesn't match what the module actually is:</p><!-- unsupported block: code --><h2><code>require(esm)</code> follows Node.js' rules</h2><p>If you <code>require()</code> something that turns out to be an ES module, whether that's directly inside a CommonJS module or through <code>require('node:module').createRequire()</code>, the registry follows Node.js' <a target="_blank" rel="external nofollow noopener noreferrer" href="https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require"><code><span style="text-decoration:underline">require(esm)</span></code></a> behavior:</p><ul><li>If the module has a string-named export called <code>'module.exports'</code>, Node.js' actual mechanism for letting an ES module control what require() sees, that value is returned.</li><li>Otherwise, <code>require()</code> returns the module's namespace object.</li><li>The one exception is <code>workerd</code>'s own <code>node:</code> built-ins. They're implemented as ES modules that wrap a CommonJS-style API in a default export, so requiring one returns that default export directly. <code>require('node:buffer').Buffer</code> behaves the way you'd expect; you don't get a namespace object with a <code>.default</code> you need to unwrap yourself.</li></ul><!-- unsupported block: code --><!-- unsupported block: code --><p>There's a restriction that comes along with this: if the module you're requiring, or anything in its module graph, has a top-level <code>await, require()</code> throws instead of blocking or handing back something half-finished:</p><!-- unsupported block: code --><!-- unsupported block: code --><p>This matches Node.js' own <a target="_blank" rel="external nofollow noopener noreferrer" href="https://nodejs.org/api/errors.html#err_require_async_module"><code><span style="text-decoration:underline">ERR_REQUIRE_ASYNC_MODULE</span></code></a> restriction: <code>require()</code> has to return synchronously, and there's no reasonable value to hand back for a module that hasn't finished evaluating yet. Use <code>import()</code> for anything async instead. The check holds regardless of import order too: a module doesn't become <code>require()</code>-able just because something already <code>import()</code>'d and fully evaluated it earlier.</p><p>If you're requiring output from a bundler that predates Node.js' <code>require(esm)</code> support and sets a <code>truthy __cjsUnwrapDefault</code> export as a marker, that takes priority over both rules above and returns the default export. That's purely there so existing prebuilt bundles keep working.</p><h2>Errors are consistent, and use the right class</h2><p>Regardless of whether resolution fails through a static <code>import</code>, a dynamic <code>import()</code>, or <code>require()</code>, you get the same class of error with the same message shape:</p><!-- unsupported block: code --><p><code>"Module not found"</code> is a plain <code>Error</code>, since it's a failure to locate something rather than a problem with the value you passed in. A specifier that can't be parsed as a URL at all is a <code>TypeError</code>, matching Node.js' own <code>ERR_INVALID_MODULE_SPECIFIER</code>. A circular dependency that V8 can't unwind is also a plain Error, never a <code>TypeError</code>. This mostly matters if you're building something on top of dynamic <code>import()</code>, like your own loader or a retry wrapper, since you can now branch on the error class or message reliably no matter which loading path triggered it.</p><h2>WebAssembly source phase imports</h2><p>You can now import the compiled-but-not-instantiated form of a WebAssembly module directly, using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/tc39/proposal-source-phase-imports"><span style="text-decoration:underline">source phase imports</span></a>:</p><!-- unsupported block: code --><p>or dynamically:</p><!-- unsupported block: code --><p>Either way you get a <code>WebAssembly.Module</code> back directly, instead of importing the module normally and pulling it off the <code>default</code> export. As source phase imports are a new feature of the language, right now this only works for WebAssembly; trying it on any other module type throws a <code>SyntaxError</code>, matching the behavior of Node.js and other runtimes.</p><h2>What's next</h2><p>Try it out! Add the new_module_registry compatibility flag to your Worker:</p><!-- unsupported block: code --><p>It doesn't have a default on date yet, so it won't turn on automatically for your Worker, old or new, no matter what compatibility date it's using. You will need to add the flag explicitly.</p><p>We’d love your feedback. <code>workerd</code> is open source. If you run into behavior that looks like a regression rather than one of the changes described here, please file it against the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/workerd"><span style="text-decoration:underline">workerd repository</span></a>.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How we rebuilt Cloudflare Workers’ module registry for Node.js compatibility" href="https://blog.cloudflare.com/workers-module-registry-nodejs/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How we rebuilt Cloudflare Workers’ module registry for Node.js compatibility</span><span class="desc fs12">https://blog.cloudflare.com/workers-module-registry-nodejs/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e37fcd2.html">GPT-6 Astra, Looped Transformers, and Hidden Reasoning<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/1f14d8a8.html">The AI Policy Window Is Open. We Need to Act.<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1a579b4d.html" title="1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6830"></div><span class="title">1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It</span></a><a class="item" href="/rss/9a2f188a.html" title="A Revisit of Remote Spectre Attacks on Cloudflare Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2196"></div><span class="title">A Revisit of Remote Spectre Attacks on Cloudflare Workers</span></a><a class="item" href="/rss/a1d6809f.html" title="Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=923"></div><span class="title">Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)</span></a><a class="item" href="/rss/e45f2220.html" title="BGP Role Model: Tracking the Adoption of RFC 9234"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4459"></div><span class="title">BGP Role Model: Tracking the Adoption of RFC 9234</span></a><a class="item" href="/rss/386c7f91.html" title="BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4359"></div><span class="title">BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents</span></a><a class="item" href="/rss/331e5ee6.html" title="From All-or-Nothing to Task-Based OAuth Consent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1186"></div><span class="title">From All-or-Nothing to Task-Based OAuth Consent</span></a><a class="item" href="/rss/e8604db3.html" title="How Cloudflare Detects MCP Traffic and Helps Secure It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=330"></div><span class="title">How Cloudflare Detects MCP Traffic and Helps Secure It</span></a><a class="item" href="/rss/4d916bc9.html" title="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4079"></div><span class="title">How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></a><a class="item" href="/rss/c419f88.html" title="Introducing Automatic Remediation Policies With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6647"></div><span class="title">Introducing Automatic Remediation Policies With Cloudflare CASB</span></a><a class="item" href="/rss/90c4a120.html" title="Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=516"></div><span class="title">Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack</span></a><a class="item" href="/rss/e31b3b95.html" title="How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=886"></div><span class="title">How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8563"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/8fe56bde.html" title="Say It Once: Introducing Bot Preference Sync"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4404"></div><span class="title">Say It Once: Introducing Bot Preference Sync</span></a><a class="item" href="/rss/4438b469.html" title="The Cloudflare Blog — Brought to You by EmDash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1630"></div><span class="title">The Cloudflare Blog — Brought to You by EmDash</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
