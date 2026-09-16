@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构 - RSSBOX</title>
+
+  
+    <meta name="description" content="本文以《天龙八部》小说知识库为例，手把手带你从 Naive RAG 走向 Agentic RAG，用 LangGraph 实现一个能自主路由、可纠错的智能 RAG 系统。  前言 做过 RAG 的同学都知道，最基础的 RAG 流程就是：检索 → 拼上下文 → 生成回答。简单直接，但用着用着你会发现一堆问题：  问&quot;1+1等于几&quot;也要走一遍向量检索？纯浪费 token 检索回来的内容不相关，LL">
+<meta property="og:type" content="article">
+<meta property="og:title" content="一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/f9acbac1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="本文以《天龙八部》小说知识库为例，手把手带你从 Naive RAG 走向 Agentic RAG，用 LangGraph 实现一个能自主路由、可纠错的智能 RAG 系统。  前言 做过 RAG 的同学都知道，最基础的 RAG 流程就是：检索 → 拼上下文 → 生成回答。简单直接，但用着用着你会发现一堆问题：  问&quot;1+1等于几&quot;也要走一遍向量检索？纯浪费 token 检索回来的内容不相关，LL">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-15T08:14:07.000Z">
+<meta property="article:modified_time" content="2026-09-15T08:14:07.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、Naive RAG：能跑但不够聪明</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">数据准备：电子书入库</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">检索与生成</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Naive RAG 的三大痛点</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、Agentic RAG：让 RAG 学会思考</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">设计新的 Graph</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、核心实现</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. 状态定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 路由节点：用 Zod 做结构化输出</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 条件分支：decideNext</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. 直接回答节点（简单问题）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5. 检索 + 生成节点（复杂问题）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6. 组装 Graph</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、技术栈总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、下一步优化方向</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-15T08:14:07.000Z">2026-09-15</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构</span></h1>
+<div>
+<blockquote>
+<p>本文以《天龙八部》小说知识库为例，手把手带你从 Naive RAG 走向 Agentic RAG，用 LangGraph 实现一个能自主路由、可纠错的智能 RAG 系统。</p>
+</blockquote>
+<h2 data-id="heading-0">前言</h2>
+<p>做过 RAG 的同学都知道，最基础的 RAG 流程就是：<strong>检索 → 拼上下文 → 生成回答</strong>。简单直接，但用着用着你会发现一堆问题：</p>
+<ul>
+<li>问"1+1等于几"也要走一遍向量检索？纯浪费 token</li>
+<li>检索回来的内容不相关，LLM 照样一本正经地胡说</li>
+<li>遇到"四大恶人排行第二的人的儿子的生父在武林中的公开身份是什么"这种多跳问题，直接歇菜</li>
+</ul>
+<p>这些问题的根源在于：<strong>Naive RAG 没有"脑子"</strong>，它不会判断、不会规划、不会纠错。</p>
+<p>今天我们就来升级——用 <strong>LangGraph</strong> 搭建一个 <strong>Agentic RAG</strong>，让 RAG 学会"思考"。</p>
+<h2 data-id="heading-1">一、Naive RAG：能跑但不够聪明</h2>
+<p>先回顾一下最基础的 RAG 长什么样：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> graph = <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"retrieve"</span>, retrieveNode)    <span class="hljs-comment">// 检索</span>
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"generate"</span>, generateNode)    <span class="hljs-comment">// 生成</span>
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">"retrieve"</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"retrieve"</span>, <span class="hljs-string">"generate"</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"generate"</span>, <span class="hljs-variable constant_">END</span>)
+  .<span class="hljs-title function_">compile</span>()
+</code></pre>
+<p>流程图：</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">START</span> → retrieve → generate → <span class="hljs-keyword">END</span>
+</code></pre>
+<p>所有问题都走同一条路：先检索，再生成。简单粗暴。</p>
+<h3 data-id="heading-2">数据准备：电子书入库</h3>
+<p>在检索之前，我们得先把数据灌进向量库。以《天龙八部》epub 文件为例：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 1. 加载 EPUB，按章节拆分</span>
+<span class="hljs-keyword">const</span> loader = <span class="hljs-keyword">new</span> <span class="hljs-title class_">EPubLoader</span>(<span class="hljs-variable constant_">EPUB_FILE</span>, &#123; <span class="hljs-attr">splitChapters</span>: <span class="hljs-literal">true</span> &#125;);
+<span class="hljs-keyword">const</span> documents = <span class="hljs-keyword">await</span> loader.<span class="hljs-title function_">load</span>();
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 2. 每个章节再拆成 500 字的小片段（重叠 50 字保持上下文连贯）</span><br><span class="hljs-keyword">const</span> textSplitter &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">RecursiveCharacterTextSplitter</span>(&amp;#123;<br>  <span class="hljs-attr">chunkSize</span>: <span class="hljs-number">500</span>,<br>  <span class="hljs-attr">chunkOverlap</span>: <span class="hljs-number">50</span>,<br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 3. 每个片段调用 embedding API 转成向量，批量写入 Milvus</span><br><span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> chapter <span class="hljs-keyword">of</span> documents) &amp;#123;<br>  <span class="hljs-keyword">const</span> chunks &#x3D; <span class="hljs-keyword">await</span> textSplitter.<span class="hljs-title function_">splitText</span>(chapter.<span class="hljs-property">pageContent</span>);<br>  <span class="hljs-keyword">await</span> <span class="hljs-title function_">insertChunksBatch</span>(chunks, bookId, chapterNum);<br>&amp;#125;<br></p></code></pre><p></p>
+<p>Milvus 里每条记录长这样：</p>
+<pre><code class="hljs language-javascript" lang="javascript">&#123;
+  <span class="hljs-attr">id</span>: <span class="hljs-string">"1_3_5"</span>,                    <span class="hljs-comment">// 书id_章节号_片段序号</span>
+  <span class="hljs-attr">book_id</span>: <span class="hljs-number">1</span>,
+  <span class="hljs-attr">book_name</span>: <span class="hljs-string">"天龙八部"</span>,
+  <span class="hljs-attr">chapter_num</span>: <span class="hljs-number">3</span>,
+  <span class="hljs-attr">content</span>: <span class="hljs-string">"乔峰道：阿朱..."</span>,
+  <span class="hljs-attr">vector</span>: [<span class="hljs-number">0.12</span>, -<span class="hljs-number">0.03</span>, ...]     <span class="hljs-comment">// 1024维向量</span>
+&#125;
+</code></pre>
+<h3 data-id="heading-3">检索与生成</h3>
+<p>检索时，把用户问题转成向量，去 Milvus 里找最相似的 top-k 个片段：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> docsWithScores = <span class="hljs-keyword">await</span> vectorStore.<span class="hljs-title function_">similaritySearchWithScore</span>(question, k);
+<span class="hljs-comment">// 返回：[ [Document, 相似度分数], ... ]</span>
+</code></pre>
+<p>然后把检索到的片段拼成上下文，交给 LLM 生成回答：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> context = documents.<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">item, i</span>) =&gt;</span>
+  <span class="hljs-string">`[片段 <span class="hljs-subst">$&#123;i+<span class="hljs-number">1</span>&#125;</span>] 章节: 第 <span class="hljs-subst">$&#123;item.chapter_num&#125;</span>章\n内容：<span class="hljs-subst">$&#123;item.content&#125;</span>`</span>
+).<span class="hljs-title function_">join</span>(<span class="hljs-string">"\n\n"</span>);
+
+<p><span class="hljs-keyword">const</span> prompt &#x3D; <span class="hljs-string"><code>你是《天龙八部》小说助手，请根据以下内容回答问题： &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;context&amp;#125;&lt;/span&gt; 用户问题：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;question&amp;#125;&lt;/span&gt;</code></span>;<br></p></code></pre><p></p>
+<h3 data-id="heading-4">Naive RAG 的三大痛点</h3>
+<p><strong>痛点一：所有问题都走检索，浪费资源</strong></p>
+<p>"1+1等于几" 这种常识问题，完全不需要去向量库里搜一遍。白白浪费了 embedding 调用 + 向量检索的时间和 token。</p>
+<p><strong>痛点二：没有纠错机制</strong></p>
+<p>检索回来的片段可能跟问题完全不相关，但 LLM 还是会硬着头皮编答案。</p>
+<p><strong>痛点三：处理不了复杂问题</strong></p>
+<p>"四大恶人排行第二的人是谁？此人之子的生父在武林中的公开身份是什么？"——这种需要先查 A、再查 B 的多跳问题，单次检索根本搞不定。</p>
+<h2 data-id="heading-5">二、Agentic RAG：让 RAG 学会思考</h2>
+<p>Agentic RAG 的核心思想：<strong>把固定的流水线升级成能自主决策的智能体</strong>。</p>
+<p>关键改进：</p>
+<ol>
+<li><strong>智能路由</strong>：简单问题直接回答，复杂问题才走检索</li>
+<li><strong>可扩展性</strong>：未来可以加入多步检索、网络搜索、纠错评估等节点</li>
+</ol>
+<h3 data-id="heading-6">设计新的 Graph</h3>
+<pre><code class="hljs language-sql" lang="sql">            ┌──→ direct_answer → <span class="hljs-keyword">END</span>
+<span class="hljs-keyword">START</span> → route_question ─┤
+            └──→ retrieve → rag_generate → <span class="hljs-keyword">END</span>
+</code></pre>
+<p>多了个 <code>route_question</code> 节点，它会判断问题类型，然后走不同的分支。</p>
+<h2 data-id="heading-7">三、核心实现</h2>
+<h3 data-id="heading-8">1. 状态定义</h3>
+<p>用 LangGraph 的 <code>Annotation</code> 定义图的状态，比 Naive RAG 多了 <code>strategy</code> 和 <code>routeReason</code>：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title class_">GraphState</span> = <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&#123;
+  <span class="hljs-attr">question</span>: <span class="hljs-title class_">Annotation</span>,      <span class="hljs-comment">// 用户问题</span>
+  <span class="hljs-attr">k</span>: <span class="hljs-title class_">Annotation</span>,             <span class="hljs-comment">// 检索数量</span>
+  <span class="hljs-attr">strategy</span>: <span class="hljs-title class_">Annotation</span>,      <span class="hljs-comment">// 路由策略：simple 或 complex</span>
+  <span class="hljs-attr">routeReason</span>: <span class="hljs-title class_">Annotation</span>,   <span class="hljs-comment">// 路由原因</span>
+  <span class="hljs-attr">documents</span>: <span class="hljs-title class_">Annotation</span>,     <span class="hljs-comment">// 检索到的文档</span>
+  <span class="hljs-attr">generation</span>: <span class="hljs-title class_">Annotation</span>     <span class="hljs-comment">// 生成的回答</span>
+&#125;)
+</code></pre>
+<h3 data-id="heading-9">2. 路由节点：用 Zod 做结构化输出</h3>
+<p>路由节点是整个 Agentic RAG 的"大脑"。我们用 <strong>Zod</strong> 定义输出 schema，让 LLM 返回结构化的判断结果：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title class_">RouteSchema</span> = z.<span class="hljs-title function_">object</span>(&#123;
+  <span class="hljs-attr">strategy</span>: z.<span class="hljs-title function_">enum</span>([<span class="hljs-string">"simple"</span>, <span class="hljs-string">"complex"</span>]),  <span class="hljs-comment">// 只能二选一</span>
+  <span class="hljs-attr">reason</span>: z.<span class="hljs-title function_">string</span>()                         <span class="hljs-comment">// 判断理由</span>
+&#125;);
+</code></pre>
+<p><code>z.enum(["simple", "complex"])</code> 保证 LLM 只能返回这两个值之一，不会乱来。</p>
+<p>然后用 <code>withStructuredOutput</code> 让 LLM 按 schema 返回：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title function_">routeQuestionNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-keyword">const</span> router = model.<span class="hljs-title function_">withStructuredOutput</span>(<span class="hljs-title class_">RouteSchema</span>);
+  <span class="hljs-keyword">const</span> route = <span class="hljs-keyword">await</span> router.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">`
+    你是问答路由器，请判断用户问题是否需要外部检索。
+
+<pre><code>规则：
+- simple: 常识问答、简短定义、无需特定小说细节即可回答。
+- complex: 需要《天龙八部》具体情节、人物关系、章节事实。
+
+用户问题：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.question&amp;#125;&lt;/span&gt;
+</code></pre>
+<p>  &#96;</p></span>);<p></p>
+<p>  <span class="hljs-keyword">return</span> &amp;#123;<br>    <span class="hljs-attr">strategy</span>: route.<span class="hljs-property">strategy</span>,<br>    <span class="hljs-attr">routeReason</span>: route.<span class="hljs-property">reason</span><br>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<h3 data-id="heading-10">3. 条件分支：decideNext</h3>
+<p>路由判断完后，根据 strategy 决定走哪条路：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title function_">decideNext</span> = (<span class="hljs-params">state</span>) =&gt;
+  state.<span class="hljs-property">strategy</span> === <span class="hljs-string">'simple'</span> ? <span class="hljs-string">"direct_answer"</span> : <span class="hljs-string">"retrieve"</span>
+</code></pre>
+<h3 data-id="heading-11">4. 直接回答节点（简单问题）</h3>
+<p>简单问题不走检索，直接让 LLM 回答：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> <span class="hljs-title function_">directAnswerNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-keyword">let</span> generation = <span class="hljs-string">""</span>;
+  <span class="hljs-keyword">const</span> stream = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(<span class="hljs-string">`你是一个中文回答助手，请简洁回答问题。
+    问题：<span class="hljs-subst">$&#123;state.question&#125;</span>`</span>);
+
+<p>  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;<br>    <span class="hljs-keyword">const</span> text &#x3D; <span class="hljs-keyword">typeof</span> chunk.<span class="hljs-property">content</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">‘string’</span> ? chunk.<span class="hljs-property">content</span> : <span class="hljs-string">“”</span>;<br>    <span class="hljs-keyword">if</span> (!text) <span class="hljs-keyword">continue</span>;<br>    generation +&#x3D; text;<br>    process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(text);  <span class="hljs-comment">&#x2F;&#x2F; 流式打印，打字机效果</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-keyword">return</span> &amp;#123; generation, <span class="hljs-attr">documents</span>: [] &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<h3 data-id="heading-12">5. 检索 + 生成节点（复杂问题）</h3>
+<p>复杂问题走原来的 RAG 流程：检索 → 拼上下文 → 生成。</p>
+<h3 data-id="heading-13">6. 组装 Graph</h3>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">const</span> graph = <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"route_question"</span>, routeQuestionNode)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"direct_answer"</span>, directAnswerNode)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"retrieve"</span>, retrieveNode)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"rag_generate"</span>, generateNode)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">"route_question"</span>)
+  <span class="hljs-comment">// 条件分支：根据 strategy 决定走哪条路</span>
+  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">"route_question"</span>, decideNext, &#123;
+    <span class="hljs-attr">direct_answer</span>: <span class="hljs-string">"direct_answer"</span>,
+    <span class="hljs-attr">retrieve</span>: <span class="hljs-string">"retrieve"</span>
+  &#125;)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"retrieve"</span>, <span class="hljs-string">"rag_generate"</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"direct_answer"</span>, <span class="hljs-variable constant_">END</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"rag_generate"</span>, <span class="hljs-variable constant_">END</span>)
+  .<span class="hljs-title function_">compile</span>();
+</code></pre>
+<p>注意 <code>addConditionalEdges</code>——这是 LangGraph 实现条件分支的关键 API。第一个参数是源节点，第二个是决策函数，第三个是分支映射。</p>
+<h2 data-id="heading-14">四、技术栈总结</h2>
+<table><thead><tr><th>组件</th><th>技术选型</th><th>作用</th></tr></thead><tbody><tr><td>编排框架</td><td>LangGraph</td><td>状态图、条件分支、流程控制</td></tr><tr><td>LLM</td><td>通义千问（qwen-plus）</td><td>问题路由判断 + 回答生成</td></tr><tr><td>Embedding</td><td>text-embedding-v3（1024维）</td><td>文本转向量</td></tr><tr><td>向量数据库</td><td>Milvus</td><td>存储和检索向量</td></tr><tr><td>数据验证</td><td>Zod</td><td>结构化输出 schema 约束</td></tr><tr><td>数据加载</td><td>LangChain EPubLoader</td><td>解析 EPUB 电子书</td></tr></tbody></table>
+<h2 data-id="heading-15">五、下一步优化方向</h2>
+<p>目前的 Agentic RAG 只实现了"智能路由"这一个增强点，还可以继续加：</p>
+<ul>
+<li><strong>检索质量评估</strong>：检索完让 LLM 打分，分数太低就重新检索或换策略</li>
+<li><strong>多步检索</strong>：复杂问题拆成多个子问题，分步检索再综合</li>
+<li><strong>混合检索</strong>：语义检索 + 关键词检索（BM25），解决精确实体匹配问题</li>
+<li><strong>网络搜索兜底</strong>：本地知识库找不到的，去网络搜索补充</li>
+</ul>
+<p>这些节点都可以像搭积木一样加到 LangGraph 的 StateGraph 里，这也是 Agentic RAG 的魅力——<strong>架构可扩展，逻辑可组合</strong>。</p>
+<h2 data-id="heading-16">总结</h2>
+<p>Naive RAG 是"流水线工人"，Agentic RAG 是"有脑子的工人"。</p>
+<p>核心区别在于：Agentic RAG 在流程中加入了<strong>决策节点</strong>（路由判断）和<strong>条件分支</strong>（简单/复杂走不同路径），让整个系统从"固定流程"升级为"自主规划"。</p>
+<p>LangGraph 的 StateGraph + 条件边，天然适合实现这种有分支、有循环的智能流程。如果你的 RAG 系统还停留在"所有问题一锅炖"的阶段，不妨试试 Agentic RAG。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构" href="https://juejin.cn/post/7685597597232660532" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构</span><span class="desc fs12">https://juejin.cn/post/7685597597232660532</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/c0bbee78.html">联发科天玑 9600 Pro 旗舰芯片发布：2nm 工艺、4.55GHz 双超大核、120 帧光追手游<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/185516e6.html">美联储周四加息几成共识，渣打为何拒绝“投降”？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/63b6fe71.html" title="Java 入门实战：从零搭建环境到写出第一个可用的命令行工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3026"></div><span class="title">Java 入门实战：从零搭建环境到写出第一个可用的命令行工具</span></a><a class="item" href="/rss/274bd8c1.html" title="LangChain 流式输出与结构化输出深度解耦：一次生成，两条管道消费"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2eb7890985fc4bc5b8a6262af30f8528~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg546J5a6H5aSV6JC9:q75.awebp?rk3s=f64ab15b&x-expires=1789903235&x-signature=VOTVKKYlTOFRgzVV8LoMisAj1ZM%3D"></div><span class="title">LangChain 流式输出与结构化输出深度解耦：一次生成，两条管道消费</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6508"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6433"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/3587474e.html" title="RHCE10一次过!提高通过率+快速拿证的7个核心技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8724"></div><span class="title">RHCE10一次过!提高通过率+快速拿证的7个核心技巧</span></a><a class="item" href="/rss/5b0bd782.html" title="RHCE备考别瞎学!按这个计划走,30天提高通过率,快速拿证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1899"></div><span class="title">RHCE备考别瞎学!按这个计划走,30天提高通过率,快速拿证</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9568"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/1b34baa7.html" title="Tornado 部署公域网络安全与防护（上）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e4816950fc024da48d811c3fa15474f4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5p2O5Y-v5Lul6YeP5YyW:q75.awebp?rk3s=f64ab15b&x-expires=1789977080&x-signature=ql6yGkqpWVmPJTWAyZPKEFar9pw%3D"></div><span class="title">Tornado 部署公域网络安全与防护（上）</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9702"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/ef2b0d86.html" title="一文搞懂 LangGraph 分支、循环与状态持久化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1790"></div><span class="title">一文搞懂 LangGraph 分支、循环与状态持久化</span></a><a class="item" href="/rss/236e45c8.html" title="在Finch用了62亿词元，我认为这是新一代Agent工具之神"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6247e7da0dd470dbad6fa3e53d016e1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1789908676&x-signature=BAnOBo2MZOq%2FoZ9iHRDsC%2FKVZig%3D"></div><span class="title">在Finch用了62亿词元，我认为这是新一代Agent工具之神</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4741"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4975"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a><a class="item" href="/rss/b1242053.html" title="马斯克和乔布斯的目标近乎妄想，Dan Koe 拆解「现实」目标为何通向平庸"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f29c51691c1d42a79c09e6790763621b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg546L6Iul6aOO:q75.awebp?rk3s=f64ab15b&x-expires=1789918529&x-signature=s5vloNFvzN3aGIgD4%2FmGIIwX5b0%3D"></div><span class="title">马斯克和乔布斯的目标近乎妄想，Dan Koe 拆解「现实」目标为何通向平庸</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

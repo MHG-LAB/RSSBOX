@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Tornado 部署公域网络安全与防护（上） - RSSBOX</title>
+
+  
+    <meta name="description" content="摘要：很多开发者会将 Tornado 服务直接部署到公网，尤其是量化交易相关业务，如果缺少安全防护，外部攻击者可以随意访问接口，窃取交易数据、篡改业务逻辑。本文讲解 Tornado 中身份验证相关安全机制：签名 Cookie、用户登录认证、第三方 OAuth 登录的实现与避坑要点。  前言 有些小伙伴想把 Tornado 放到公域网络上，但有一个问题需要注意 ——网络安全。 如果没有做访问阻挡">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Tornado 部署公域网络安全与防护（上）">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1b34baa7.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="摘要：很多开发者会将 Tornado 服务直接部署到公网，尤其是量化交易相关业务，如果缺少安全防护，外部攻击者可以随意访问接口，窃取交易数据、篡改业务逻辑。本文讲解 Tornado 中身份验证相关安全机制：签名 Cookie、用户登录认证、第三方 OAuth 登录的实现与避坑要点。  前言 有些小伙伴想把 Tornado 放到公域网络上，但有一个问题需要注意 ——网络安全。 如果没有做访问阻挡">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e4816950fc024da48d811c3fa15474f4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5p2O5Y-v5Lul6YeP5YyW:q75.awebp?rk3s=f64ab15b&amp;x-expires=1789977080&amp;x-signature=ql6yGkqpWVmPJTWAyZPKEFar9pw%3D">
+<meta property="article:published_time" content="2026-09-14T07:51:20.000Z">
+<meta property="article:modified_time" content="2026-09-14T07:51:20.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e4816950fc024da48d811c3fa15474f4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5p2O5Y-v5Lul6YeP5YyW:q75.awebp?rk3s=f64ab15b&amp;x-expires=1789977080&amp;x-signature=ql6yGkqpWVmPJTWAyZPKEFar9pw%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、身份验证与安全</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. Cookie 与签名 Cookie</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 用户身份验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 第三方身份验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、身份验证与安全</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. Cookie 与签名 Cookie</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 用户身份验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. 第三方身份验证</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">小结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">小结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-14T07:51:20.000Z">2026-09-14</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Tornado 部署公域网络安全与防护（上）</span></h1>
+<div>
+<blockquote>
+<p>摘要：很多开发者会将 Tornado 服务直接部署到公网，尤其是量化交易相关业务，如果缺少安全防护，外部攻击者可以随意访问接口，窃取交易数据、篡改业务逻辑。本文讲解 Tornado 中身份验证相关安全机制：签名 Cookie、用户登录认证、第三方 OAuth 登录的实现与避坑要点。</p>
+</blockquote>
+<h2 data-id="heading-0">前言</h2>
+<p>有些小伙伴想把 Tornado 放到公域网络上，但有一个问题需要注意 ——<strong>网络安全</strong>。 如果没有做访问阻挡，其他人就有可能访问到你的 Tornado 服务，获取量化交易等核心业务内容。本篇就来讲解 Tornado 如何搭建基础安全壁垒，第一部分聚焦身份验证相关安全实践。</p>
+<h2 data-id="heading-1">一、身份验证与安全</h2>
+<h3 data-id="heading-2">1. Cookie 与签名 Cookie</h3>
+<p>我们可以使用<code>set_cookie</code>方法直接在浏览器设置 Cookie。但普通 Cookie 本身并不安全，客户端可以随意修改 Cookie 内容。</p>
+<p>如果业务场景需要依靠 Cookie 识别登录用户，必须使用<strong>签名 Cookie</strong>，防止 Cookie 被伪造篡改。 Tornado 提供<code>set_signed_cookie</code>、<code>get_signed_cookie</code>两个接口实现签名 Cookie。使用该功能，创建<code>Application</code>实例时必须配置密钥<code>cookie_secret</code>。</p>
+<p>签名 Cookie 内部包含编码后的值、时间戳以及 HMAC 签名。当 Cookie 过期或者签名校验失败时，<code>get_signed_cookie</code>会返回<code>None</code>，等同于 Cookie 不存在。</p>
+<p>⚠️ <strong>重要注意点</strong></p>
+<ol>
+<li>
+<p>Tornado 签名 Cookie<strong>只保证完整性，不保证保密性</strong>：Cookie 不能被篡改，但是浏览器端可以直接查看 Cookie 存储的原始内容，不要存放密码这类敏感明文。</p>
+</li>
+<li>
+<p><code>cookie_secret</code>属于对称密钥，必须严格保密；密钥一旦泄露，攻击者就可以伪造合法签名 Cookie。</p>
+</li>
+<li>
+<p>默认签名 Cookie 有效期为 30 天。</p>
+<ul>
+<li>
+<p><code>set_signed_cookie</code>通过<code>expires_days</code>设置 Cookie 过期时间</p>
+</li>
+<li>
+<p><code>get_signed_cookie</code>通过<code>max_age_days</code>控制读取校验的最大存活时间</p>
+</li>
+</ul>
+<blockquote>
+<p>两个参数相互独立。例如一般业务有效期 30 天；修改账单等高危接口读取 Cookie 时，设置更小的<code>max_age_days</code>，缩短校验有效期提升安全。</p>
+</blockquote>
+</li>
+<li>
+<p><strong>密钥轮换</strong>：<code>cookie_secret</code>支持传入字典实现多套密钥。key 为密钥版本整数，value 为密钥字符串；配置<code>key_version</code>标记当前生效密钥，旧版本密钥仍然可以用于校验历史 Cookie。使用<code>get_signed_cookie_key_version</code>可以获取 Cookie 对应的密钥版本。</p>
+</li>
+</ol>
+<h3 data-id="heading-3">2. 用户身份验证</h3>
+<p>在 Handler 中通过<code>self.current_user</code>获取当前登录用户，模板中直接使用<code>current_user</code>，未登录默认返回<code>None</code>。</p>
+<p>实现登录认证需要重写<code>get_current_user()</code>方法，一般结合签名 Cookie 完成登录态判断。</p>
+<p>示例代码：把登录昵称保存在签名 Cookie，未登录跳转登录页</p>
+<pre><code class="hljs language-bash" lang="bash">class BaseHandler(tornado.web.RequestHandler):
+    def get_current_user(self):
+        <span class="hljs-built_in">return</span> self.get_signed_cookie(<span class="hljs-string">"user"</span>)
+
+
+<p>class MainHandler(BaseHandler):<br>    def get(self):<br>        <span class="hljs-keyword">if</span> not self.current_user:<br>            self.redirect(<span class="hljs-string">“&#x2F;login”</span>)<br>            <span class="hljs-built_in">return</span><br>        name &#x3D; tornado.escape.xhtml_escape(self.current_user)<br>        self.write(<span class="hljs-string">“Hello, “</span> + name)</p>
+<p>class LoginHandler(BaseHandler):<br>    def get(self):<br>        self.write(<span class="hljs-string">‘&lt;html&gt;&lt;body&gt;&lt;form action&#x3D;”<a target="_blank" rel="external nofollow noopener noreferrer" href="https://cors.mhuig.top/?r=https://juejin.cn&amp;url=https://juejin.cn/login&quot;">https://cors.mhuig.top/?r=https://juejin.cn&amp;url=https://juejin.cn/login&quot;</a> method&#x3D;”post”&gt;’</span><br>                   <span class="hljs-string">‘Name: &lt;input type&#x3D;”text” name&#x3D;”name”&gt;’</span><br>                   <span class="hljs-string">‘&lt;input type&#x3D;”submit” value&#x3D;”Sign in”&gt;’</span><br>                   <span class="hljs-string">‘&lt;&#x2F;form&gt;&lt;&#x2F;body&gt;&lt;&#x2F;html&gt;’</span>)</p>
+<pre><code>def post(self):
+    self.set_signed_cookie(&lt;span class=&quot;hljs-string&quot;&gt;&quot;user&quot;&lt;/span&gt;, self.get_argument(&lt;span class=&quot;hljs-string&quot;&gt;&quot;name&quot;&lt;/span&gt;))
+    self.redirect(&lt;span class=&quot;hljs-string&quot;&gt;&quot;/&quot;&lt;/span&gt;)&lt;span class=&quot;hljs-string&quot;&gt;&quot;)
+</code></pre>
+<p>application &#x3D; tornado.web.Application([<br>    (r”&#x2F;<span class="hljs-string">“, MainHandler),<br>    (r”</span>&#x2F;login<span class="hljs-string">“, LoginHandler),<br>], cookie_secret&#x3D;”</span>_<em>TODO:<em>GENERATE_YOUR_OWN_RANDOM_VALUE_HERE</em></em><span class="hljs-string">“)<br></span></p></code></pre><p></p>
+<p>Tornado 提供<code>@tornado.web.authenticated</code>装饰器，简化登录判断逻辑。</p>
+<blockquote>
+<p>当 GET 接口被该装饰器修饰，用户未登录时会自动重定向到<code>login_url</code>配置地址； 如果装饰<code>post</code>方法，未登录请求直接返回<code>403</code>状态码。</p>
+</blockquote>
+<blockquote>
+<p>💡提示：<code>authenticated</code>只是语法糖，底层等价<code>if not self.current_user</code>的判断逻辑，<strong>不适合非浏览器接口登录场景</strong>。</p>
+</blockquote>
+<p>改写后代码：</p>
+<pre><code class="hljs language-bash" lang="bash">class MainHandler(BaseHandler):
+    @tornado.web.authenticated
+    def get(self):
+        name = tornado.escape.xhtml_escape(self.current_user)
+        self.write(<span class="hljs-string">"Hello, "</span> + name)
+
+
+<p>settings &#x3D; &amp;#123;<br>    <span class="hljs-string">“cookie_secret”</span>: <span class="hljs-string">“_<em>TODO:<em>GENERATE_YOUR_OWN_RANDOM_VALUE_HERE</em></em>“</span>,<br>    <span class="hljs-string">“login_url”</span>: <span class="hljs-string">“&#x2F;login”</span>,<br>&amp;#125;</p>
+<p>application &#x3D; tornado.web.Application([<br>    (r<span class="hljs-string">“&#x2F;“</span>, MainHandler),<br>    (r<span class="hljs-string">“&#x2F;login”</span>, LoginHandler),<br>], **settings)<br></p></code></pre><p></p>
+<h3 data-id="heading-4">3. 第三方身份验证</h3>
+<p><code>tornado.auth</code>内置主流第三方授权协议，支持 Google、Facebook 等账号登录，也可以获取第三方账号授权（读取通讯录、代发动态等）。</p>
+<blockquote>
+<p>摘要：很多开发者会将 Tornado 服务直接部署到公网，尤其是量化交易相关业务，如果缺少安全防护，外部攻击者可以随意访问接口，窃取交易数据、篡改业务逻辑。本文讲解 Tornado 中身份验证相关安全机制：签名 Cookie、用户登录认证、第三方 OAuth 登录的实现与避坑要点。</p>
+</blockquote>
+<h2 data-id="heading-5">前言</h2>
+<p>有些小伙伴想把 Tornado 放到公域网络上，但有一个问题需要注意 ——<strong>网络安全</strong>。 如果没有做访问阻挡，其他人就有可能访问到你的 Tornado 服务，获取量化交易等核心业务内容。本篇就来讲解 Tornado 如何搭建基础安全壁垒，第一部分聚焦身份验证相关安全实践。</p>
+<h2 data-id="heading-6">一、身份验证与安全</h2>
+<h3 data-id="heading-7">1. Cookie 与签名 Cookie</h3>
+<p>我们可以使用<code>set_cookie</code>方法直接在浏览器设置 Cookie。但普通 Cookie 本身并不安全，客户端可以随意修改 Cookie 内容。</p>
+<p>如果业务场景需要依靠 Cookie 识别登录用户，必须使用<strong>签名 Cookie</strong>，防止 Cookie 被伪造篡改。 Tornado 提供<code>set_signed_cookie</code>、<code>get_signed_cookie</code>两个接口实现签名 Cookie。使用该功能，创建<code>Application</code>实例时必须配置密钥<code>cookie_secret</code>。</p>
+<p>签名 Cookie 内部包含编码后的值、时间戳以及 HMAC 签名。当 Cookie 过期或者签名校验失败时，<code>get_signed_cookie</code>会返回<code>None</code>，等同于 Cookie 不存在。</p>
+<p>⚠️ <strong>重要注意点</strong></p>
+<ol>
+<li>
+<p>Tornado 签名 Cookie<strong>只保证完整性，不保证保密性</strong>：Cookie 不能被篡改，但是浏览器端可以直接查看 Cookie 存储的原始内容，不要存放密码这类敏感明文。</p>
+</li>
+<li>
+<p><code>cookie_secret</code>属于对称密钥，必须严格保密；密钥一旦泄露，攻击者就可以伪造合法签名 Cookie。</p>
+</li>
+<li>
+<p>默认签名 Cookie 有效期为 30 天。</p>
+<ul>
+<li>
+<p><code>set_signed_cookie</code>通过<code>expires_days</code>设置 Cookie 过期时间</p>
+</li>
+<li>
+<p><code>get_signed_cookie</code>通过<code>max_age_days</code>控制读取校验的最大存活时间</p>
+</li>
+</ul>
+<blockquote>
+<p>两个参数相互独立。例如一般业务有效期 30 天；修改账单等高危接口读取 Cookie 时，设置更小的<code>max_age_days</code>，缩短校验有效期提升安全。</p>
+</blockquote>
+</li>
+<li>
+<p><strong>密钥轮换</strong>：<code>cookie_secret</code>支持传入字典实现多套密钥。key 为密钥版本整数，value 为密钥字符串；配置<code>key_version</code>标记当前生效密钥，旧版本密钥仍然可以用于校验历史 Cookie。使用<code>get_signed_cookie_key_version</code>可以获取 Cookie 对应的密钥版本。</p>
+</li>
+</ol>
+<h3 data-id="heading-8">2. 用户身份验证</h3>
+<p>在 Handler 中通过<code>self.current_user</code>获取当前登录用户，模板中直接使用<code>current_user</code>，未登录默认返回<code>None</code>。</p>
+<p><img class="lazy" alt loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e4816950fc024da48d811c3fa15474f4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5p2O5Y-v5Lul6YeP5YyW:q75.awebp?rk3s=f64ab15b&amp;x-expires=1789977080&amp;x-signature=ql6yGkqpWVmPJTWAyZPKEFar9pw%3D"></p>
+<p>实现登录认证需要重写<code>get_current_user()</code>方法，一般结合签名 Cookie 完成登录态判断。</p>
+<p>示例代码：把登录昵称保存在签名 Cookie，未登录跳转登录页</p>
+<pre><code class="hljs language-bash" lang="bash">class BaseHandler(tornado.web.RequestHandler):
+    def get_current_user(self):
+        <span class="hljs-built_in">return</span> self.get_signed_cookie(<span class="hljs-string">"user"</span>)
+
+
+<p>class MainHandler(BaseHandler):<br>    def get(self):<br>        <span class="hljs-keyword">if</span> not self.current_user:<br>            self.redirect(<span class="hljs-string">“&#x2F;login”</span>)<br>            <span class="hljs-built_in">return</span><br>        name &#x3D; tornado.escape.xhtml_escape(self.current_user)<br>        self.write(<span class="hljs-string">“Hello, “</span> + name)</p>
+<p>class LoginHandler(BaseHandler):<br>    def get(self):<br>        self.write(<span class="hljs-string">‘&lt;html&gt;&lt;body&gt;&lt;form action&#x3D;”<a target="_blank" rel="external nofollow noopener noreferrer" href="https://cors.mhuig.top/?r=https://juejin.cn&amp;url=https://juejin.cn/login&quot;">https://cors.mhuig.top/?r=https://juejin.cn&amp;url=https://juejin.cn/login&quot;</a> method&#x3D;”post”&gt;’</span><br>                   <span class="hljs-string">‘Name: &lt;input type&#x3D;”text” name&#x3D;”name”&gt;’</span><br>                   <span class="hljs-string">‘&lt;input type&#x3D;”submit” value&#x3D;”Sign in”&gt;’</span><br>                   <span class="hljs-string">‘&lt;&#x2F;form&gt;&lt;&#x2F;body&gt;&lt;&#x2F;html&gt;’</span>)</p>
+<pre><code>def post(self):
+    self.set_signed_cookie(&lt;span class=&quot;hljs-string&quot;&gt;&quot;user&quot;&lt;/span&gt;, self.get_argument(&lt;span class=&quot;hljs-string&quot;&gt;&quot;name&quot;&lt;/span&gt;))
+    self.redirect(&lt;span class=&quot;hljs-string&quot;&gt;&quot;/&quot;&lt;/span&gt;)&lt;span class=&quot;hljs-string&quot;&gt;&quot;)
+</code></pre>
+<p>application &#x3D; tornado.web.Application([<br>    (r”&#x2F;<span class="hljs-string">“, MainHandler),<br>    (r”</span>&#x2F;login<span class="hljs-string">“, LoginHandler),<br>], cookie_secret&#x3D;”</span>_<em>TODO:<em>GENERATE_YOUR_OWN_RANDOM_VALUE_HERE</em></em><span class="hljs-string">“)<br></span></p></code></pre><p></p>
+<p>Tornado 提供<code>@tornado.web.authenticated</code>装饰器，简化登录判断逻辑。</p>
+<blockquote>
+<p>当 GET 接口被该装饰器修饰，用户未登录时会自动重定向到<code>login_url</code>配置地址； 如果装饰<code>post</code>方法，未登录请求直接返回<code>403</code>状态码。</p>
+</blockquote>
+<blockquote>
+<p>💡提示：<code>authenticated</code>只是语法糖，底层等价<code>if not self.current_user</code>的判断逻辑，<strong>不适合非浏览器接口登录场景</strong>。</p>
+</blockquote>
+<p>改写后代码：</p>
+<pre><code class="hljs language-bash" lang="bash">class MainHandler(BaseHandler):
+    @tornado.web.authenticated
+    def get(self):
+        name = tornado.escape.xhtml_escape(self.current_user)
+        self.write(<span class="hljs-string">"Hello, "</span> + name)
+
+
+<p>settings &#x3D; &amp;#123;<br>    <span class="hljs-string">“cookie_secret”</span>: <span class="hljs-string">“_<em>TODO:<em>GENERATE_YOUR_OWN_RANDOM_VALUE_HERE</em></em>“</span>,<br>    <span class="hljs-string">“login_url”</span>: <span class="hljs-string">“&#x2F;login”</span>,<br>&amp;#125;</p>
+<p>application &#x3D; tornado.web.Application([<br>    (r<span class="hljs-string">“&#x2F;“</span>, MainHandler),<br>    (r<span class="hljs-string">“&#x2F;login”</span>, LoginHandler),<br>], **settings)<br></p></code></pre><p></p>
+<h3 data-id="heading-9">3. 第三方身份验证</h3>
+<p><code>tornado.auth</code>内置主流第三方授权协议，支持 Google、Facebook 等账号登录，也可以获取第三方账号授权（读取通讯录、代发动态等）。</p>
+<p>下面是 Google OAuth2 登录示例，登录成功后将授权信息存入签名 Cookie：</p>
+<pre><code class="hljs language-bash" lang="bash">class GoogleOAuth2LoginHandler(tornado.web.RequestHandler,
+                               tornado.auth.GoogleOAuth2Mixin):
+    async def get(self):
+        <span class="hljs-keyword">if</span> self.get_argument(<span class="hljs-string">'code'</span>, False):
+            user = await self.get_authenticated_user(
+                redirect_uri=<span class="hljs-string">'http://your.site.com/auth/google'</span>,
+                code=self.get_argument(<span class="hljs-string">'code'</span>))
+            <span class="hljs-comment"># Save the user with e.g. set_signed_cookie</span>
+        <span class="hljs-keyword">else</span>:
+            await self.authorize_redirect(
+                redirect_uri=<span class="hljs-string">'http://your.site.com/auth/google'</span>,
+                client_id=self.settings[<span class="hljs-string">'google_oauth'</span>][<span class="hljs-string">'key'</span>],
+                scope=[<span class="hljs-string">'profile'</span>, <span class="hljs-string">'email'</span>],
+                response_type=<span class="hljs-string">'code'</span>,
+                extra_params=&#123;<span class="hljs-string">'approval_prompt'</span>: <span class="hljs-string">'auto'</span>&#125;)
+</code></pre>
+<blockquote>
+<p>注意：使用第三方登录时，<code>client_id</code>、<code>client_secret</code>等密钥需要存放在配置文件，禁止硬编码提交到代码仓库。</p>
+</blockquote>
+<h2 data-id="heading-10">小结</h2>
+<p>本篇主要介绍公网部署 Tornado 的身份认证基础：签名 Cookie 机制、自定义登录态、<code>authenticated</code>装饰器、第三方 OAuth 登录。</p>
+<ul>
+<li>普通 Cookie 极易篡改，登录会话务必使用<code>set_signed_cookie</code></li>
+<li>签名 Cookie 防篡改但不加密，不能存储敏感明文</li>
+<li><code>cookie_secret</code>密钥做好保管，支持密钥轮换平滑更新密钥</li>
+<li><code>authenticated</code>适合浏览器 web 页面，API 接口不要直接依赖该装饰器</li>
+</ul>
+<blockquote>
+<p>下篇将会继续讲解 XSS 防护、CSRF 防御、请求限制、服务端口与反向代理等 Tornado 公网防护内容。</p>
+</blockquote>
+<p>下面是 Google OAuth2 登录示例，登录成功后将授权信息存入签名 Cookie：</p>
+<pre><code class="hljs language-bash" lang="bash">class GoogleOAuth2LoginHandler(tornado.web.RequestHandler,
+                               tornado.auth.GoogleOAuth2Mixin):
+    async def get(self):
+        <span class="hljs-keyword">if</span> self.get_argument(<span class="hljs-string">'code'</span>, False):
+            user = await self.get_authenticated_user(
+                redirect_uri=<span class="hljs-string">'http://your.site.com/auth/google'</span>,
+                code=self.get_argument(<span class="hljs-string">'code'</span>))
+            <span class="hljs-comment"># Save the user with e.g. set_signed_cookie</span>
+        <span class="hljs-keyword">else</span>:
+            await self.authorize_redirect(
+                redirect_uri=<span class="hljs-string">'http://your.site.com/auth/google'</span>,
+                client_id=self.settings[<span class="hljs-string">'google_oauth'</span>][<span class="hljs-string">'key'</span>],
+                scope=[<span class="hljs-string">'profile'</span>, <span class="hljs-string">'email'</span>],
+                response_type=<span class="hljs-string">'code'</span>,
+                extra_params=&#123;<span class="hljs-string">'approval_prompt'</span>: <span class="hljs-string">'auto'</span>&#125;)
+</code></pre>
+<blockquote>
+<p>注意：使用第三方登录时，<code>client_id</code>、<code>client_secret</code>等密钥需要存放在配置文件，禁止硬编码提交到代码仓库。</p>
+</blockquote>
+<h2 data-id="heading-11">小结</h2>
+<p>本篇主要介绍公网部署 Tornado 的身份认证基础：签名 Cookie 机制、自定义登录态、<code>authenticated</code>装饰器、第三方 OAuth 登录。</p>
+<ul>
+<li>普通 Cookie 极易篡改，登录会话务必使用<code>set_signed_cookie</code></li>
+<li>签名 Cookie 防篡改但不加密，不能存储敏感明文</li>
+<li><code>cookie_secret</code>密钥做好保管，支持密钥轮换平滑更新密钥</li>
+<li><code>authenticated</code>适合浏览器 web 页面，API 接口不要直接依赖该装饰器</li>
+</ul>
+<blockquote>
+<p>下篇将会继续讲解 XSS 防护、CSRF 防御、请求限制、服务端口与反向代理等 Tornado 公网防护内容。</p>
+</blockquote>
+<p>投资有风险，入市需谨慎。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Tornado 部署公域网络安全与防护（上）" href="https://juejin.cn/post/7684965404387524623" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Tornado 部署公域网络安全与防护（上）</span><span class="desc fs12">https://juejin.cn/post/7684965404387524623</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/87e37624.html">新 iPhone 相机如何记录照片真实性？开发者视角的猜想和尝试<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/49c68fd6.html">Excel AI 辅助工作流横评：数据分析高手还是照葫芦画瓢？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/63b6fe71.html" title="Java 入门实战：从零搭建环境到写出第一个可用的命令行工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3026"></div><span class="title">Java 入门实战：从零搭建环境到写出第一个可用的命令行工具</span></a><a class="item" href="/rss/274bd8c1.html" title="LangChain 流式输出与结构化输出深度解耦：一次生成，两条管道消费"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2eb7890985fc4bc5b8a6262af30f8528~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg546J5a6H5aSV6JC9:q75.awebp?rk3s=f64ab15b&x-expires=1789903235&x-signature=VOTVKKYlTOFRgzVV8LoMisAj1ZM%3D"></div><span class="title">LangChain 流式输出与结构化输出深度解耦：一次生成，两条管道消费</span></a><a class="item" href="/rss/e94c574b.html" title="Omarchy 将研发基础设施迁移至 DigitalOcean 云平台"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6508"></div><span class="title">Omarchy 将研发基础设施迁移至 DigitalOcean 云平台</span></a><a class="item" href="/rss/bd4c5883.html" title="LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6433"></div><span class="title">LangGraph 实战：从 StateGraph 基础到多 Agent 编排，分支循环中断恢复全掌握</span></a><a class="item" href="/rss/3587474e.html" title="RHCE10一次过!提高通过率+快速拿证的7个核心技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8724"></div><span class="title">RHCE10一次过!提高通过率+快速拿证的7个核心技巧</span></a><a class="item" href="/rss/5b0bd782.html" title="RHCE备考别瞎学!按这个计划走,30天提高通过率,快速拿证"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1899"></div><span class="title">RHCE备考别瞎学!按这个计划走,30天提高通过率,快速拿证</span></a><a class="item" href="/rss/8daf99d.html" title="Tornado 如何增加网页操作（下）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9568"></div><span class="title">Tornado 如何增加网页操作（下）</span></a><a class="item" href="/rss/8e4aa9ed.html" title="《道德经》第 11 章：真正有用的，常常是你没写出来的那部分"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9702"></div><span class="title">《道德经》第 11 章：真正有用的，常常是你没写出来的那部分</span></a><a class="item" href="/rss/f9acbac1.html" title="一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1114"></div><span class="title">一文搞懂 Agentic RAG：用 LangGraph 打造会思考的智能检索架构</span></a><a class="item" href="/rss/ef2b0d86.html" title="一文搞懂 LangGraph 分支、循环与状态持久化"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1790"></div><span class="title">一文搞懂 LangGraph 分支、循环与状态持久化</span></a><a class="item" href="/rss/236e45c8.html" title="在Finch用了62亿词元，我认为这是新一代Agent工具之神"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6247e7da0dd470dbad6fa3e53d016e1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1789908676&x-signature=BAnOBo2MZOq%2FoZ9iHRDsC%2FKVZig%3D"></div><span class="title">在Finch用了62亿词元，我认为这是新一代Agent工具之神</span></a><a class="item" href="/rss/ddc5b292.html" title="拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4741"></div><span class="title">拿RHCE证书只是起点:这样备考,顺便把真实运维能力也练了</span></a><a class="item" href="/rss/2fe33a39.html" title="蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4975"></div><span class="title">蛋炒饭周刊 · 第 1 期（2026-09-07至2026-09-11）</span></a><a class="item" href="/rss/b1242053.html" title="马斯克和乔布斯的目标近乎妄想，Dan Koe 拆解「现实」目标为何通向平庸"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f29c51691c1d42a79c09e6790763621b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg546L6Iul6aOO:q75.awebp?rk3s=f64ab15b&x-expires=1789918529&x-signature=s5vloNFvzN3aGIgD4%2FmGIIwX5b0%3D"></div><span class="title">马斯克和乔布斯的目标近乎妄想，Dan Koe 拆解「现实」目标为何通向平庸</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
