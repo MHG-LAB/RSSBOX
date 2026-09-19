@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战） - RSSBOX</title>
+
+  
+    <meta name="description" content="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）  一句话导读：上一篇文章我们把《天龙八部》灌进了向量库，跑通了一个 Naive RAG。但它什么问题都硬走检索、没有判断、不会多步推理、也不会联网补知识。这篇我们把 RAG 升级成「会思考的 Agent」：问题路由、多跳检索、上下文评估、联网兜底，四招在手，跑出一个真正的 Agenti">
+<meta property="og:type" content="article">
+<meta property="og:title" content="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1a69a272.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）  一句话导读：上一篇文章我们把《天龙八部》灌进了向量库，跑通了一个 Naive RAG。但它什么问题都硬走检索、没有判断、不会多步推理、也不会联网补知识。这篇我们把 RAG 升级成「会思考的 Agent」：问题路由、多跳检索、上下文评估、联网兜底，四招在手，跑出一个真正的 Agenti">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-18T01:52:49.000Z">
+<meta property="article:modified_time" content="2026-09-18T01:52:49.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么 Naive RAG 不够用了？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第一招：装一个「问题路由器」——简单 &#x2F; 复杂分道扬镳</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">路由节点：让 LLM 决定走哪条路</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">直接回答 + 检索 + 生成节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">用条件边把分支接起来</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第二招：多跳检索（Multi-Hop）——把复杂问题拆成子问题逐个攻破</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">问题拆解器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">循环检索 + 去重</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">规划器：判断「够了没」还是「继续搜」</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">串成「拆解 → 循环检索 → 规划 → 生成」的图</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第三招 &amp; 第四招：评估纠错 + 联网兜底，把闭环焊死</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">状态与评估器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">评估节点：LLM 当「质检员」</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">联网搜索兜底节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">条件边的防死循环护栏</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">生成节点：本地 + 联网统一融合</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">用一张图看清「从 Naive 到 Agentic」的四次进化</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">复盘：Agentic RAG 的四个核心设计原则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">结尾：Agentic RAG 不是终点，是生产化的起点</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-18T01:52:49.000Z">2026-09-18</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></h1>
+<div>
+<h2 data-id="heading-0">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</h2>
+<blockquote>
+<p>一句话导读：上一篇文章我们把《天龙八部》灌进了向量库，跑通了一个 Naive RAG。但它什么问题都硬走检索、没有判断、不会多步推理、也不会联网补知识。这篇我们把 RAG 升级成「会思考的 Agent」：问题路由、多跳检索、上下文评估、联网兜底，四招在手，跑出一个真正的 Agentic RAG 闭环。</p>
+</blockquote>
+<h3 data-id="heading-1">为什么 Naive RAG 不够用了？</h3>
+<p>先把朴素 RAG 的短板摊开看。它的流水线固定是 <code>检索 → 生成</code>，<strong>所有问题一视同仁</strong>，于是暴露出一堆问题：</p>
+<table><thead><tr><th>需求场景</th><th>Naive RAG 的表现</th><th>问题本质</th></tr></thead><tbody><tr><td>用户问 <code>1+1=?</code> 这种常识</td><td>也傻乎乎地走一遍向量检索</td><td>简单问题白白浪费 token 和时间</td></tr><tr><td>检索回的片段对不对、够不够</td><td>不校验就直接喂给模型</td><td>没有评估/纠错机制</td></tr><tr><td>「四大恶人第二的是谁？他儿子的生父公开身份是什么？」</td><td>一次性检索，拆不出因果链</td><td>处理不了需要多步检索的复杂问题</td></tr><tr><td>问「高血糖」这种专有术语</td><td>纯语义检索可能捞回「低血糖」</td><td>实体/术语更适合关键词精准匹配</td></tr><tr><td>本地知识库没有的东西</td><td>硬编或干脆不答</td><td>不会主动联网补充</td></tr></tbody></table>
+<p>这些单点问题的本质是同一个：<strong>流水线太死板了，缺一个「大脑」来做判断。</strong></p>
+<p><strong>Agentic RAG（智能体化 RAG）</strong> 要做的，就是把这条方程式的控制权交给 LLM + 图编排：让它自主决定要不要检索、用什么检索、信息够不够、要不要重新检索。LangGraph 就是承载这套「思考流程」的最佳载体——节点是动作，边是流向，<code>State</code> 是共享的海绵板。</p>
+<blockquote>
+<p>LLM 的 <code>withStructuredOutput</code>（结构化输出）会是本篇反复用到的魔术，后面每招都会遇到。</p>
+</blockquote>
+<h3 data-id="heading-2">第一招：装一个「问题路由器」——简单 / 复杂分道扬镳</h3>
+<p>第一个优化：<strong>别让简单问题也硬走检索。</strong></p>
+<p>先用 LLM 判断问题是 <code>simple</code> 还是 <code>complex</code>，然后走不同的分支：</p>
+<ul>
+<li><code>simple</code>（常识问答、简短定义）→ 直接让模型作答，不进检索；</li>
+<li><code>complex</code>（需要具体情节、事实、原文证据）→ 才进入检索链路。</li>
+</ul>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">import</span> <span class="hljs-string">"dotenv/config"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span>, <span class="hljs-title class_">OpenAIEmbeddings</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">"@langchain/openai"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">Annotation</span>, <span class="hljs-variable constant_">END</span>, <span class="hljs-variable constant_">START</span>, <span class="hljs-title class_">StateGraph</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">Milvus</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/community/vectorstores/milvus'</span>;
+<span class="hljs-keyword">import</span> &#123; z &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'zod'</span>;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title class_">GraphState</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">question</span>: <span class="hljs-title class_">Annotation</span>,<br>  <span class="hljs-attr">k</span>: <span class="hljs-title class_">Annotation</span>,<br>  <span class="hljs-attr">strategy</span>: <span class="hljs-title class_">Annotation</span>,   <span class="hljs-comment">&#x2F;&#x2F; simple | complex</span><br>  <span class="hljs-attr">routeReason</span>: <span class="hljs-title class_">Annotation</span>,<br>  <span class="hljs-attr">documents</span>: <span class="hljs-title class_">Annotation</span>,<br>  <span class="hljs-attr">generation</span>: <span class="hljs-title class_">Annotation</span><br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">model</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123; <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span> &amp;#125;,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span><br>&amp;#125;);<br><span class="hljs-keyword">const</span> embeddings &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">OpenAIEmbeddings</span>(&amp;#123;<br>  <span class="hljs-attr">model</span>: <span class="hljs-string">“text-embedding-v3”</span>,<br>  <span class="hljs-attr">dimensions</span>: <span class="hljs-number">1024</span><br>&amp;#125;);</p>
+<p><span class="hljs-keyword">let</span> vectorStore;<br></p></code></pre><p></p>
+<h4 data-id="heading-3">路由节点：让 LLM 决定走哪条路</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-comment">// 用 zod 声明一个结构化的输出契约（枚举 + 理由）</span>
+<span class="hljs-keyword">const</span> <span class="hljs-title class_">RouteSchema</span> = z.<span class="hljs-title function_">object</span>(&#123;
+  <span class="hljs-attr">strategy</span>: z.<span class="hljs-title function_">enum</span>([<span class="hljs-string">"simple"</span>, <span class="hljs-string">"complex"</span>]),
+  <span class="hljs-attr">reason</span>: z.<span class="hljs-title function_">string</span>()
+&#125;);
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">routeQuestionNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">‘<em><strong>ROUTE-QUESTION</strong></em>‘</span>);<br>  <span class="hljs-comment">&#x2F;&#x2F; withStructuredOutput：逼着模型严格按 schema 输出 JSON</span><br>  <span class="hljs-keyword">const</span> router &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(<span class="hljs-title class_">RouteSchema</span>);<br>  <span class="hljs-keyword">const</span> route &#x3D; <span class="hljs-keyword">await</span> router.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">&#96;<br>你是问答路由器，请判断用户问题是否需要外部检索。<br>规则：</span></p>
+<ul>
+<li>simple: 常识问答、简短定义、无需特定小说细节即可回答。</li>
+<li>complex: 需要《天龙八部》具体情节、人物关系、章节事实、原文细节或证据支持。</li>
+</ul>
+<p>用户问题：<span class="hljs-subst">$&amp;#123;state.question&amp;#125;</span><br><code>&lt;/span&gt;);   &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;</code>路由策略：<span class="hljs-subst">$&amp;#123;route.strategy&amp;#125;</span> （<span class="hljs-subst">$&amp;#123;route.reason&amp;#125;</span>）&#96;);<br>  <span class="hljs-keyword">return</span> &amp;#123;<br>    <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>,<br>    <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>,<br>    <span class="hljs-attr">strategy</span>: route.<span class="hljs-property">strategy</span>,<br>    <span class="hljs-attr">routeReason</span>: route.<span class="hljs-property">reason</span><br>  &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<p><code>withStructuredOutput</code> 的意义在于：路由结果必须是 <code>simple</code> / <code>complex</code> 这种<strong>可被代码枚举判断</strong>的字符串，而不是模型胡诌的一段散文。这样下游才能用字符串相等来做分支。</p>
+<h4 data-id="heading-4">直接回答 + 检索 + 生成节点</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">directAnswerNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'----DIRECT_ANSWER----'</span>);
+  <span class="hljs-keyword">let</span> generation = <span class="hljs-string">""</span>;
+  <span class="hljs-keyword">const</span> stream = <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(
+    <span class="hljs-string">`你是一个中文回答助手，请直接简洁回答问题。
+问题：<span class="hljs-subst">$&#123;state.question&#125;</span>`</span>
+  );
+  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &#123;
+    <span class="hljs-keyword">const</span> text = <span class="hljs-keyword">typeof</span> chunk.<span class="hljs-property">content</span> === <span class="hljs-string">'string'</span> ? chunk.<span class="hljs-property">content</span> : <span class="hljs-string">""</span>;
+    <span class="hljs-keyword">if</span> (!text) <span class="hljs-keyword">continue</span>;
+    generation += text;
+    process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(text);
+  &#125;
+  <span class="hljs-keyword">return</span> &#123; <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>, <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>, <span class="hljs-attr">strategy</span>: state.<span class="hljs-property">strategy</span>,
+           <span class="hljs-attr">routeReason</span>: state.<span class="hljs-property">routeReason</span>, <span class="hljs-attr">documents</span>: [], generation &#125;;
+&#125;;
+
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">retrieveRelevantContent</span>(<span class="hljs-params">question, k &#x3D; <span class="hljs-number">5</span></span>) &amp;#123;<br>  <span class="hljs-keyword">try</span> &amp;#123;<br>    <span class="hljs-keyword">const</span> docsWithScores &#x3D; <span class="hljs-keyword">await</span> vectorStore.<span class="hljs-title function_">similaritySearchWithScore</span>(question, k);<br>    <span class="hljs-keyword">return</span> docsWithScores.<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">[doc, score]</span>) &#x3D;&gt;</span> (&amp;#123;<br>      score,<br>      <span class="hljs-attr">content</span>: doc.<span class="hljs-property">pageContent</span>,<br>      <span class="hljs-attr">id</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">id</span> ?? <span class="hljs-string">“unknown”</span>,<br>      <span class="hljs-attr">book_id</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">book_id</span> ?? <span class="hljs-string">“未知”</span>,<br>      <span class="hljs-attr">chapter_num</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">chapter_num</span> ?? <span class="hljs-string">“未知”</span>,<br>      <span class="hljs-attr">index</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">index</span> ?? <span class="hljs-string">“未知”</span><br>    &amp;#125;));<br>  &amp;#125; <span class="hljs-keyword">catch</span> (err) &amp;#123; <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">“检索出错：”</span>, err.<span class="hljs-property">message</span>); <span class="hljs-keyword">return</span> []; &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">retrieveNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> documents &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">retrieveRelevantContent</span>(state.<span class="hljs-property">question</span>, state.<span class="hljs-property">k</span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>, <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>, documents &amp;#125;;<br>&amp;#125;;</p>
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">generateNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> context &#x3D; state.<span class="hljs-property">documents</span><br>    .<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">item, i</span>) &#x3D;&gt;</span><br>      <span class="hljs-string"><code>[片段 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;] 章节: 第 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;item.chapter_num&amp;#125;&lt;/span&gt;章 内容：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;item.content&amp;#125;&lt;/span&gt;</code></span>)<br>    .<span class="hljs-title function_">join</span>(<span class="hljs-string">“\n\n———-\n\n”</span>);<br>  <span class="hljs-keyword">let</span> generation &#x3D; <span class="hljs-string">“”</span>;<br>  <span class="hljs-keyword">const</span> stream &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(<span class="hljs-string"><code> 你是一个专业的《天龙八部》小说助手，基于小说片段回答问题。 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;context&amp;#125;&lt;/span&gt; 用户问题：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.question&amp;#125;&lt;/span&gt; 回答要求：有信息就详细准确回答；可综合多片段；没有就如实告知；可引用原文。 AI 助手的回答：</code></span>);<br>  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;<br>    <span class="hljs-keyword">const</span> text &#x3D; <span class="hljs-keyword">typeof</span> chunk.<span class="hljs-property">content</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">“string”</span> ? chunk.<span class="hljs-property">content</span> : <span class="hljs-string">“”</span>;<br>    <span class="hljs-keyword">if</span> (!text) <span class="hljs-keyword">continue</span>;<br>    generation +&#x3D; text; process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(text);<br>  &amp;#125;<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>, <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>, <span class="hljs-attr">documents</span>: state.<span class="hljs-property">documents</span>, generation &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-5">用条件边把分支接起来</h4>
+<p>关键来了：LangGraph 的 <strong>条件边（conditional edges）</strong> 能根据 State 内容动态决定下一步。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">decideNext</span> = (<span class="hljs-params">state</span>) =&gt;
+  state.<span class="hljs-property">strategy</span> === <span class="hljs-string">'simple'</span> ? <span class="hljs-string">"direct_answer"</span> : <span class="hljs-string">"retrieve"</span>;
+
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“route_question”</span>, routeQuestionNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“direct_answer”</span>, directAnswerNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“retrieve”</span>, retrieveNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“rag_generate”</span>, generateNode)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">“route_question”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“route_question”</span>, decideNext, &amp;#123;<br>    <span class="hljs-attr">direct_answer</span>: <span class="hljs-string">“direct_answer”</span>,  <span class="hljs-comment">&#x2F;&#x2F; simple -&gt; 直接答</span><br>    <span class="hljs-attr">retrieve</span>: <span class="hljs-string">“retrieve”</span>              <span class="hljs-comment">&#x2F;&#x2F; complex -&gt; 进检索</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“retrieve”</span>, <span class="hljs-string">“rag_generate”</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“direct_answer”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“rag_generate”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();<br></p></code></pre><p></p>
+<p>现在问 <code>1+1=?</code> 会走直答分支，只有复杂问题才去检索。<strong>每一块钱的 token 都花在刀刃上。</strong></p>
+<h3 data-id="heading-6">第二招：多跳检索（Multi-Hop）——把复杂问题拆成子问题逐个攻破</h3>
+<p>路由解决了「要不要检索」，但没解决「检索一次够不够」。</p>
+<p>有些问题天生需要<strong>多步推理</strong>，例如：</p>
+<blockquote>
+<p>《天龙八部》中「四大恶人」排行第二的是谁？此人之子在身世揭晓前，其生父在武林中的公开身份是什么？</p>
+</blockquote>
+<p>要答这道题，必须<strong>先</strong>查出「四大恶人第二 = 叶二娘」，<strong>再</strong>查「叶二娘的儿子（虚竹）的生父，其武林中的公开身份（玄慈方丈）」。一次性向量化整个长问题，匹配必然发散（这就是为什么这个 repo 注释里感叹「直接把 query 向量化匹配不够准确」）。</p>
+<p>解决思路：<strong>子问题拆解（Decompose）</strong>。让 LLM 把大问题拆成一串<strong>有序、可独立检索</strong>的子问题，然后循环执行 <code>检索一个子问题 → 汇总去重 → 判断够不够 → 继续下一个</code>。</p>
+<p>要在上面那套 <code>GraphState</code> 上做多跳，得先给状态补充几个新字段：子问题列表、当前进度、累计检索次数与预算、以及「规划器」的裁决结果。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title class_">GraphState</span> = <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&#123;
+  <span class="hljs-attr">question</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">k</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">strategy</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">routeReason</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">subQuestions</span>: <span class="hljs-title class_">Annotation</span>,  <span class="hljs-comment">// 拆解出的有序子问题列表</span>
+  <span class="hljs-attr">nextSubIdx</span>: <span class="hljs-title class_">Annotation</span>,    <span class="hljs-comment">// 下一个要检索的子问题下标（做循环推进）</span>
+  <span class="hljs-attr">currentQuery</span>: <span class="hljs-title class_">Annotation</span>,  <span class="hljs-comment">// 当前这一轮正在检索的子问题</span>
+  <span class="hljs-attr">retrievalCount</span>: <span class="hljs-title class_">Annotation</span>,<span class="hljs-comment">// 已检索轮数</span>
+  <span class="hljs-attr">maxRetrievals</span>: <span class="hljs-title class_">Annotation</span>, <span class="hljs-comment">// 最大检索轮数（预算/护栏）</span>
+  <span class="hljs-attr">plannedNext</span>: <span class="hljs-title class_">Annotation</span>,   <span class="hljs-comment">// 规划器裁决：下一步 retrieve | generate</span>
+  <span class="hljs-attr">documents</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">generation</span>: <span class="hljs-title class_">Annotation</span>
+&#125;);
+</code></pre>
+<h4 data-id="heading-7">问题拆解器</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title class_">DecomposeSchema</span> = z.<span class="hljs-title function_">object</span>(&#123;
+  <span class="hljs-attr">sub_questions</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">min</span>(<span class="hljs-number">1</span>).<span class="hljs-title function_">max</span>(<span class="hljs-number">8</span>),
+  <span class="hljs-attr">reason</span>: z.<span class="hljs-title function_">string</span>()
+&#125;);
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">decomposeQuestionNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">“—DECOMPOSE_QUESTION—“</span>);<br>  <span class="hljs-keyword">const</span> decomposer &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(<span class="hljs-title class_">DecomposeSchema</span>);<br>  <span class="hljs-keyword">const</span> out &#x3D; <span class="hljs-keyword">await</span> decomposer.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">&#96;<br>你是《天龙八部》多跳问答的【子问题拆解器】。<br>用户原始问题：<br><span class="hljs-subst">$&amp;#123;state.question&amp;#125;</span><br>任务：将问题拆成<strong>有序</strong>子问题列表，用于<strong>依次向量检索</strong>。要求：</span></p>
+<ol>
+<li>链式推理、多层关系、先后因果的问题必须拆成多条；单跳即可答的也可只输出 1 条。</li>
+<li>每条子问题必须是<strong>可独立检索</strong>的完整中文问句，禁止使用「他&#x2F;她&#x2F;此人&#x2F;上文」等指代，要写全人物名与事件名。</li>
+<li>顺序必须符合推理链：先查前置实体&#x2F;事实，再查后续结论。</li>
+<li>不要把整句原题原样复制成唯一一条（除非确实无法拆分）；也不要拆成过碎的关键词列表。</li>
+<li>输出 1～8 条即可。<br><code>&lt;/span&gt;);   &lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; subQuestions = out.&lt;span class=&quot;hljs-property&quot;&gt;sub_questions&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;map&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;&lt;span class=&quot;hljs-params&quot;&gt;s&lt;/span&gt; =&amp;gt;&lt;/span&gt; s.&lt;span class=&quot;hljs-title function_&quot;&gt;trim&lt;/span&gt;()).&lt;span class=&quot;hljs-title function_&quot;&gt;filter&lt;/span&gt;(&lt;span class=&quot;hljs-title class_&quot;&gt;Boolean&lt;/span&gt;);   &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (subQuestions.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt; === &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;) &lt;span class=&quot;hljs-keyword&quot;&gt;throw&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;hljs-title class_&quot;&gt;Error&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;拆解结果为空&quot;&lt;/span&gt;);   &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;</code>拆解出 <span class="hljs-subst">$&amp;#123;subQuestions.length&amp;#125;</span> 条子问题（<span class="hljs-subst">$&amp;#123;out.reason&amp;#125;</span>）<code>&lt;/span&gt;);   subQuestions.&lt;span class=&quot;hljs-title function_&quot;&gt;forEach&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;(&lt;span class=&quot;hljs-params&quot;&gt;q, i&lt;/span&gt;) =&amp;gt;&lt;/span&gt; &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;</code>[<span class="hljs-subst">$&amp;#123;i+<span class="hljs-number">1</span>&amp;#125;</span>] <span class="hljs-subst">$&amp;#123;q&amp;#125;</span>&#96;));<br>  <span class="hljs-keyword">return</span> &amp;#123; subQuestions, <span class="hljs-attr">nextSubIdx</span>: <span class="hljs-number">0</span>, <span class="hljs-attr">currentQuery</span>: subQuestions[<span class="hljs-number">0</span>] &amp;#125;;<br>&amp;#125;;<br></li></ol></code></pre><h4 data-id="heading-8">循环检索 + 去重</h4>
+<p>多轮检索容易重复捞回同一片段，既浪费又可能让模型产生「重复 = 强调」的错觉。用 <code>Map</code> 按文档 id 去重，留相似度更高版本。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">mergeUnique</span> = (<span class="hljs-params">existing, fresh</span>) =&gt; &#123;
+  <span class="hljs-keyword">const</span> map = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Map</span>(); <span class="hljs-comment">// ES6 的 HashMap，key: value</span>
+  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> d <span class="hljs-keyword">of</span> [...existing, ...fresh]) &#123;
+ <span class="hljs-keyword">const</span> key = <span class="hljs-title class_">String</span>(d.<span class="hljs-property">id</span>);
+ <span class="hljs-keyword">const</span> prev = map.<span class="hljs-title function_">get</span>(key);
+ <span class="hljs-keyword">if</span> (!prev || <span class="hljs-title class_">Number</span>(d.<span class="hljs-property">score</span>) &gt; <span class="hljs-title class_">Number</span>(prev.<span class="hljs-property">score</span>)) map.<span class="hljs-title function_">set</span>(key, d);
+  &#125;
+  <span class="hljs-keyword">return</span> <span class="hljs-title class_">Array</span>.<span class="hljs-title function_">from</span>(map.<span class="hljs-title function_">values</span>()).<span class="hljs-title function_">sort</span>(<span class="hljs-function">(<span class="hljs-params">a, b</span>) =&gt;</span> <span class="hljs-title class_">Number</span>(b.<span class="hljs-property">score</span>) - <span class="hljs-title class_">Number</span>(a.<span class="hljs-property">score</span>));
+&#125;;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">retrieveNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> subs &#x3D; state.<span class="hljs-property">subQuestions</span> ?? [];<br>  <span class="hljs-keyword">const</span> idx &#x3D; state.<span class="hljs-property">nextSubIdx</span> ?? <span class="hljs-number">0</span>;<br>  <span class="hljs-keyword">const</span> q &#x3D; subs[idx]?.<span class="hljs-title function_">trim</span>();<br>  <span class="hljs-keyword">if</span> (!q) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Error</span>(<span class="hljs-string"><code>retrieve: 子问题下标 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;idx&amp;#125;&lt;/span&gt; 无有效文本</code></span>);</p>
+<p>  <span class="hljs-keyword">const</span> round &#x3D; state.<span class="hljs-property">retrievalCount</span> + <span class="hljs-number">1</span>;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>----第 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;round&amp;#125;&lt;/span&gt; 轮，子问题 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;idx+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;/&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;subs.length&amp;#125;&lt;/span&gt;：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;q&amp;#125;&lt;/span&gt;----</code></span>);<br>  <span class="hljs-keyword">const</span> newDocs &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">retrieveRelevantContent</span>(q, state.<span class="hljs-property">k</span>);<br>  <span class="hljs-keyword">const</span> merged &#x3D; <span class="hljs-title function_">mergeUnique</span>(state.<span class="hljs-property">documents</span> ?? [], newDocs);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>本轮命中 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;newDocs.length&amp;#125;&lt;/span&gt; 条，累计去重后 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;merged.length&amp;#125;&lt;/span&gt; 条</code></span>);<br>  <span class="hljs-keyword">return</span> &amp;#123;<br>    <span class="hljs-attr">documents</span>: merged,<br>    <span class="hljs-attr">retrievalCount</span>: round,<br>    <span class="hljs-attr">nextSubIdx</span>: idx + <span class="hljs-number">1</span>,<br>    <span class="hljs-attr">currentQuery</span>: q<br>  &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-9">规划器：判断「够了没」还是「继续搜」</h4>
+<p>每检索完一个子问题，让 LLM 看当前已召回的证据，决定下一步 <code>retrieve</code>（继续）还是 <code>generate</code>（收尾作答）。同时用 <strong>硬性规则护栏</strong>：子问题搜完、或轮数到达上限，必须强制 <code>generate</code>，防止死循环。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title class_">NextStepSchema</span> = z.<span class="hljs-title function_">object</span>(&#123;
+  <span class="hljs-attr">nextAction</span>: z.<span class="hljs-title function_">enum</span>([<span class="hljs-string">"retrieve"</span>, <span class="hljs-string">"generate"</span>]),
+  <span class="hljs-attr">reason</span>: z.<span class="hljs-title function_">string</span>()
+&#125;);
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">planNextStepNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">“—PLAN_NEXT_STEP—“</span>);<br>  <span class="hljs-keyword">const</span> subs &#x3D; state.<span class="hljs-property">subQuestions</span> ?? [];<br>  <span class="hljs-keyword">const</span> nextIdx &#x3D; state.<span class="hljs-property">nextSubIdx</span> ?? <span class="hljs-number">0</span>;<br>  <span class="hljs-keyword">const</span> remaining &#x3D; subs.<span class="hljs-property">length</span> - nextIdx;</p>
+<p>  <span class="hljs-keyword">const</span> subList &#x3D; subs.<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">s, i</span>) &#x3D;&gt;</span><br>    <span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;.&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;s&amp;#125;&lt;/span&gt; &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i &amp;lt; nextIdx ? &lt;span class=&quot;hljs-string&quot;&gt;&quot;已检索&quot;&lt;/span&gt; : i === nextIdx ? &lt;span class=&quot;hljs-string&quot;&gt;&quot;(下一轮将检索)&quot;&lt;/span&gt; : &lt;span class=&quot;hljs-string&quot;&gt;&quot;未检索&quot;&lt;/span&gt;&amp;#125;&lt;/span&gt;</code></span>).<span class="hljs-title function_">join</span>(<span class="hljs-string">“\n”</span>);<br>  <span class="hljs-keyword">const</span> docStr &#x3D; state.<span class="hljs-property">documents</span>.<span class="hljs-property">length</span> &#x3D;&#x3D;&#x3D; <span class="hljs-number">0</span><br>    ? <span class="hljs-string">“(尚无检索结果)”</span><br>    : state.<span class="hljs-property">documents</span>.<span class="hljs-title function_">slice</span>(<span class="hljs-number">0</span>, <span class="hljs-number">6</span>)<br>        .<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">d, i</span>) &#x3D;&gt;</span> <span class="hljs-string"><code>[&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;] score=&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;&lt;span class=&quot;hljs-built_in&quot;&gt;Number&lt;/span&gt;(d.score).toFixed(&lt;span class=&quot;hljs-number&quot;&gt;4&lt;/span&gt;)&amp;#125;&lt;/span&gt; 第&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;d.chapter_num&amp;#125;&lt;/span&gt;章：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;d.content.slice(&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;200&lt;/span&gt;)&amp;#125;&lt;/span&gt;</code></span>)<br>        .<span class="hljs-title function_">join</span>(<span class="hljs-string">“\n\n”</span>);</p>
+<p>  <span class="hljs-keyword">const</span> prompt &#x3D; <span class="hljs-string"><code> 你是多跳 RAG 规划器。检索查询已由前置步骤拆解为**有序子问题**，若需继续检索，下一轮将自动使用【下一条子问题】检索，你不要自拟新检索句。 用户原始问题：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.question&amp;#125;&lt;/span&gt; 子问题序列： &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;subList || &lt;span class=&quot;hljs-string&quot;&gt;&quot;无&quot;&lt;/span&gt;&amp;#125;&lt;/span&gt; 已检索轮次：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.retrievalCount&amp;#125;&lt;/span&gt;；剩余未检索子问题：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;remaining&amp;#125;&lt;/span&gt;；最大轮数：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;state.maxRetrievals&amp;#125;&lt;/span&gt; 已召回文档摘要： &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;docStr&amp;#125;&lt;/span&gt; 请判断下一步： 1）已有足够依据回答原问题 -&amp;gt; nextAction=generate 2）仍缺关键事实、且仍有未检索子问题、且未超过上限 -&amp;gt; nextAction=retrieve 硬性规则：剩余子问题为 0 必须 generate；已达/超最大轮数必须 generate。</code></span>;</p>
+<p>  <span class="hljs-keyword">const</span> planModel &#x3D; model.<span class="hljs-title function_">withStructuredOutput</span>(<span class="hljs-title class_">NextStepSchema</span>);<br>  <span class="hljs-keyword">const</span> &amp;#123; nextAction, reason &amp;#125; &#x3D; <span class="hljs-keyword">await</span> planModel.<span class="hljs-title function_">invoke</span>(prompt);</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 硬性护栏覆盖模型建议，防止死循环</span><br>  <span class="hljs-keyword">let</span> finalNext &#x3D; nextAction;<br>  <span class="hljs-keyword">if</span> (state.<span class="hljs-property">retrievalCount</span> &gt;&#x3D; state.<span class="hljs-property">maxRetrievals</span>) finalNext &#x3D; <span class="hljs-string">“generate”</span>;<br>  <span class="hljs-keyword">if</span> (remaining &lt;&#x3D; <span class="hljs-number">0</span>) finalNext &#x3D; <span class="hljs-string">“generate”</span>;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>[决策] plannedNext=&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;finalNext&amp;#125;&lt;/span&gt;（模型建议=&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;nextAction&amp;#125;&lt;/span&gt;）&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;reason&amp;#125;&lt;/span&gt;</code></span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">plannedNext</span>: finalNext &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-10">串成「拆解 → 循环检索 → 规划 → 生成」的图</h4>
+<p>注意这里出现了一个<strong>回环</strong>：<code>retrieve -&gt; plan_next_step -&gt; retrieve</code>（条件边）。这就是 Agentic 的标志——图允许「走一步、看一眼、决定要不要再走一步」。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">afterRoute</span> = (<span class="hljs-params">state</span>) =&gt;
+  state.<span class="hljs-property">strategy</span> === <span class="hljs-string">'simple'</span> ? <span class="hljs-string">"direct_answer"</span> : <span class="hljs-string">"decompose_question"</span>;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 条件边依据注入的 plannedNext 裁决，而不是字符串 strategy</span><br><span class="hljs-keyword">const</span> <span class="hljs-title function_">afterPlan</span> &#x3D; (<span class="hljs-params">state</span>) &#x3D;&gt;<br>  state.<span class="hljs-property">plannedNext</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">“retrieve”</span> ? <span class="hljs-string">“retrieve”</span> : <span class="hljs-string">“generate”</span>;</p>
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“route_question”</span>, routeQuestionNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“direct_answer”</span>, directAnswerNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“decompose_question”</span>, decomposeQuestionNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“retrieve”</span>, retrieveNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“plan_next_step”</span>, planNextStepNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“generate”</span>, generateNode)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">“route_question”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“route_question”</span>, afterRoute, &amp;#123;<br>    <span class="hljs-attr">direct_answer</span>: <span class="hljs-string">“direct_answer”</span>,<br>    <span class="hljs-attr">decompose_question</span>: <span class="hljs-string">“decompose_question”</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“decompose_question”</span>, <span class="hljs-string">“retrieve”</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“retrieve”</span>, <span class="hljs-string">“plan_next_step”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“plan_next_step”</span>, afterPlan, &amp;#123;<br>    <span class="hljs-attr">retrieve</span>: <span class="hljs-string">“retrieve”</span>,   <span class="hljs-comment">&#x2F;&#x2F; 回环：继续检索下一条子问题</span><br>    <span class="hljs-attr">generate</span>: <span class="hljs-string">“generate”</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“direct_answer”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“generate”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();<br></p></code></pre><p></p>
+<blockquote>
+<p>埋个知识点：条件边的判定函数必须<strong>严格依赖 State 中可判定的字段</strong>，千万别拿语义不稳定的字段去猜分支——否则在分支判定处会出现永远走不到的分支。这也是多跳图里最常见的隐性 bug。</p>
+</blockquote>
+<h3 data-id="heading-11">第三招 &amp; 第四招：评估纠错 + 联网兜底，把闭环焊死</h3>
+<p>前两招升级了「检索的智能」，但还有一个致命场景没处理：<strong>本地知识库里根本没有的东西，模型只能编。</strong></p>
+<p>比如用户要「可核对的来源链接」，或者问本地向量库之外的时效信息。正确的姿势是：检索后先让模型<strong>评估信息够不够</strong>，不够就<strong>去联网搜索补充</strong>，再加一道「二次评估」把「联网补充的上下文」也纳入判断，最后才生成。</p>
+<h4 data-id="heading-12">状态与评估器</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title class_">GraphState</span> = <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&#123;
+  <span class="hljs-attr">question</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">k</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">strategy</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">routeReason</span>: <span class="hljs-title class_">Annotation</span>,
+  <span class="hljs-attr">retrievedDocs</span>: <span class="hljs-title class_">Annotation</span>, <span class="hljs-comment">// 召回的本地片段</span>
+  <span class="hljs-attr">localContext</span>: <span class="hljs-title class_">Annotation</span>,  <span class="hljs-comment">// RAG 上下文</span>
+  <span class="hljs-attr">webContext</span>: <span class="hljs-title class_">Annotation</span>,    <span class="hljs-comment">// 联网搜索补充</span>
+  <span class="hljs-attr">evaluation</span>: <span class="hljs-title class_">Annotation</span>,    <span class="hljs-comment">// &#123; enough, missing, reason, web_query? &#125;</span>
+  <span class="hljs-attr">generation</span>: <span class="hljs-title class_">Annotation</span>
+&#125;);
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title class_">EvaluateSchema</span> &#x3D; z.<span class="hljs-title function_">object</span>(&amp;#123;<br>  <span class="hljs-attr">enough</span>: z.<span class="hljs-title function_">boolean</span>(),                              <span class="hljs-comment">&#x2F;&#x2F; 上下文是否足够回答</span><br>  <span class="hljs-attr">missing</span>: z.<span class="hljs-title function_">array</span>(z.<span class="hljs-title function_">string</span>()).<span class="hljs-title function_">max</span>(<span class="hljs-number">6</span>),              <span class="hljs-comment">&#x2F;&#x2F; 缺失的信息点</span><br>  <span class="hljs-attr">reason</span>: z.<span class="hljs-title function_">string</span>(),<br>  <span class="hljs-attr">web_query</span>: z.<span class="hljs-title function_">string</span>().<span class="hljs-title function_">optional</span>()                  <span class="hljs-comment">&#x2F;&#x2F; 不足时，给一条联网搜索句</span><br>&amp;#125;);<br></p></code></pre><p></p>
+<p>沿用前面定义的聊天模型（这里记为 <code>llm</code>），并补一个「本地检索」节点，把召回片段拼成 <code>localContext</code>：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> llm = model; <span class="hljs-comment">// 复用第一招定义的 ChatOpenAI 实例</span>
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">retrieveLocalNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">“—LOCAL_RETRIEVE—“</span>);<br>  <span class="hljs-keyword">const</span> retrievedDocs &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">retrieveRelevantContent</span>(state.<span class="hljs-property">question</span>, state.<span class="hljs-property">k</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>本地检索命中 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;retrievedDocs.length&amp;#125;&lt;/span&gt; 条</code></span>);<br>  <span class="hljs-keyword">const</span> localContext &#x3D; (retrievedDocs ?? []).<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">d</span>) &#x3D;&gt;</span> d.<span class="hljs-property">content</span>).<span class="hljs-title function_">join</span>(<span class="hljs-string">“\n\n”</span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; retrievedDocs, localContext &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-13">评估节点：LLM 当「质检员」</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">evaluateNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-keyword">const</span> hasWeb = <span class="hljs-title class_">Boolean</span>(state.<span class="hljs-property">webContext</span> &amp;&amp; <span class="hljs-title class_">String</span>(state.<span class="hljs-property">webContext</span>).<span class="hljs-title function_">trim</span>());
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(hasWeb ? <span class="hljs-string">"---EVALUATE_CONTEXT_WITH_WEB---"</span> : <span class="hljs-string">"---EVALUATE_LOCAL_CONTEXT---"</span>);
+  <span class="hljs-keyword">const</span> evaluator = llm.<span class="hljs-title function_">withStructuredOutput</span>(<span class="hljs-title class_">EvaluateSchema</span>);
+  <span class="hljs-keyword">const</span> out = <span class="hljs-keyword">await</span> evaluator.<span class="hljs-title function_">invoke</span>(<span class="hljs-string">`
+你是信息充分性评估器，判断当前上下文是否足以回答用户问题。
+用户问题：<span class="hljs-subst">$&#123;state.question&#125;</span>
+已检索上下文（来自本地知识库）：
+<span class="hljs-subst">$&#123;state.localContext || <span class="hljs-string">"（空）"</span>&#125;</span>
+<span class="hljs-subst">$&#123;hasWeb ? <span class="hljs-string">`联网搜索结果：\n<span class="hljs-subst">$&#123;state.webContext || <span class="hljs-string">"（空）"</span>&#125;</span>`</span> : <span class="hljs-string">""</span>&#125;</span>
+
+<p>输出字段：</p>
+<ul>
+<li>enough: 是否足够回答（true&#x2F;false）</li>
+<li>missing: 若不够，列出缺失信息点（最多 6 条）</li>
+<li>reason: 简短原因<br><span class="hljs-subst">$&amp;#123;hasWeb ? <span class="hljs-string">“”</span> : <span class="hljs-string">“- web_query: 若不够，给出一个适合互联网搜索的中文查询句（完整句，可为空）”</span>&amp;#125;</span><br><code>&lt;/span&gt;); &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;</code><span class="hljs-subst">$&amp;#123;hasWeb ? <span class="hljs-string">“二次评估”</span> : <span class="hljs-string">“评估”</span>&amp;#125;</span>：enough&#x3D;<span class="hljs-subst">$&amp;#123;out.enough&amp;#125;</span>（<span class="hljs-subst">$&amp;#123;out.reason&amp;#125;</span>）<code>&lt;/span&gt;); &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (!out.&lt;span class=&quot;hljs-property&quot;&gt;enough&lt;/span&gt; &amp;amp;&amp;amp; out.&lt;span class=&quot;hljs-property&quot;&gt;missing&lt;/span&gt;?.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt;) out.&lt;span class=&quot;hljs-property&quot;&gt;missing&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;forEach&lt;/span&gt;(&lt;span class=&quot;hljs-function&quot;&gt;(&lt;span class=&quot;hljs-params&quot;&gt;m, i&lt;/span&gt;) =&amp;gt;&lt;/span&gt; &lt;span class=&quot;hljs-variable language_&quot;&gt;console&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;log&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;</code>缺失 <span class="hljs-subst">$&amp;#123;i+<span class="hljs-number">1</span>&amp;#125;</span>: <span class="hljs-subst">$&amp;#123;m&amp;#125;</span>&#96;</li></ul></span>));<br><span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">evaluation</span>: <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(out) &amp;#125;;<br>&amp;#125;;<br></code></pre><p><strong>注意 <code>hasWeb</code> 这个开关</strong>：第一次评估（只有本地上下文）时，LLM 可以输出 <code>web_query</code> 告诉系统「去网上搜什么」；但<strong>经过联网后进入第二次评估</strong>时，强制模型不要再发起联网，而是基于「本地 + 联网」一起判断。这个开关是后面防死循环的一半关键。</p>
+<h4 data-id="heading-14">联网搜索兜底节点</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">bochaWebSearch</span>(<span class="hljs-params">query, count</span>) &#123;
+<span class="hljs-keyword">const</span> apiKey = process.<span class="hljs-property">env</span>.<span class="hljs-property">BOCHA_API_KEY</span>;
+<span class="hljs-keyword">if</span> (!apiKey) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Error</span>(<span class="hljs-string">"未配置环境变量 BOCHA_API_KEY。"</span>);
+<span class="hljs-keyword">const</span> url = <span class="hljs-string">"https://api.bochaai.com/v1/web-search"</span>;
+<span class="hljs-keyword">const</span> body = &#123; query, <span class="hljs-attr">freshness</span>: <span class="hljs-string">"noLimit"</span>, <span class="hljs-attr">summary</span>: <span class="hljs-literal">true</span>, <span class="hljs-attr">count</span>: count ?? <span class="hljs-number">10</span> &#125;;
+
+<span class="hljs-keyword">const</span> response &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">fetch</span>(url, &amp;#123;<br>  <span class="hljs-attr">method</span>: <span class="hljs-string">“POST”</span>,<br>  <span class="hljs-attr">headers</span>: &amp;#123; <span class="hljs-title class_">Authorization</span>: <span class="hljs-string"><code>Bearer &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;apiKey&amp;#125;&lt;/span&gt;</code></span>, <span class="hljs-string">“Content-Type”</span>: <span class="hljs-string">“application&#x2F;json”</span> &amp;#125;,<br>  <span class="hljs-attr">body</span>: <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">stringify</span>(body)<br>&amp;#125;);<br><span class="hljs-keyword">if</span> (!response.<span class="hljs-property">ok</span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> errorText &#x3D; <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">text</span>().<span class="hljs-title function_">catch</span>(<span class="hljs-function">() &#x3D;&gt;</span> <span class="hljs-string">“”</span>);<br>  <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> <span class="hljs-title class_">Error</span>(<span class="hljs-string"><code>搜索 API 失败，状态码 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;response.status&amp;#125;&lt;/span&gt;：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;errorText&amp;#125;&lt;/span&gt;</code></span>);<br>&amp;#125;<br><span class="hljs-keyword">const</span> json &#x3D; <span class="hljs-keyword">await</span> response.<span class="hljs-title function_">json</span>();<br><span class="hljs-keyword">const</span> webpages &#x3D; json.<span class="hljs-property">data</span>.<span class="hljs-property">webPages</span>?.<span class="hljs-property">value</span> ?? [];<br><span class="hljs-keyword">if</span> (!webpages.<span class="hljs-property">length</span>) <span class="hljs-keyword">return</span> <span class="hljs-string">“未找到相关结果。”</span>;   <span class="hljs-comment">&#x2F;&#x2F; 注意：没结果才返回这句</span><br><span class="hljs-keyword">return</span> webpages<br>  .<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">p, i</span>) &#x3D;&gt;</span> <span class="hljs-string">&#96;引用 <span class="hljs-subst">$&amp;#123;i+<span class="hljs-number">1</span>&amp;#125;</span>
+
+<p>标题：<span class="hljs-subst">$&amp;#123;p.name&amp;#125;</span><br>URL: <span class="hljs-subst">$&amp;#123;p.url&amp;#125;</span><br>摘要：<span class="hljs-subst">$&amp;#123;p.summary&amp;#125;</span><br>发布时间：<span class="hljs-subst">$&amp;#123;p.dateLastCrawled&amp;#125;</span>&#96;</p></span>)<br>    .<span class="hljs-title function_">join</span>(<span class="hljs-string">“\n\n”</span>);<br>&amp;#125;<p></p>
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">webSearchNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">“—WEB_SEARCH—“</span>);<br>  <span class="hljs-keyword">const</span> parsed &#x3D; (<span class="hljs-function">() &#x3D;&gt;</span> &amp;#123; <span class="hljs-keyword">try</span> &amp;#123; <span class="hljs-keyword">return</span> <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">parse</span>(state.<span class="hljs-property">evaluation</span> || <span class="hljs-string">“&amp;#123;&amp;#125;”</span>); &amp;#125; <span class="hljs-keyword">catch</span> &amp;#123; <span class="hljs-keyword">return</span> &amp;#123;&amp;#125;; &amp;#125; &amp;#125;)();<br>  <span class="hljs-keyword">const</span> query &#x3D; (parsed.<span class="hljs-property">web_query</span> ?? <span class="hljs-string">“”</span>).<span class="hljs-title function_">trim</span>() || state.<span class="hljs-property">question</span>;<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>联网查询：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;query&amp;#125;&lt;/span&gt;</code></span>);<br>  <span class="hljs-keyword">const</span> webContext &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">bochaWebSearch</span>(query, <span class="hljs-number">8</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>联网结果长度：&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;webContext.length&amp;#125;&lt;/span&gt;</code></span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; webContext &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<p>包一层 <code>bochaWebSearch</code> 是很有价值的工程习惯——<strong>把搜索厂商隔离成一个函数</strong>，将来要换 Brave、Serper、周泊查等任何服务商，只改这一个函数即可，流程图的 State 完全不用动。</p>
+<h4 data-id="heading-15">条件边的防死循环护栏</h4>
+<p>这是整篇最容易踩坑的地方。看这条条件边：</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">afterEvaluateLocal</span> = (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-comment">// 死循环护栏：一旦有联网上下文就放行到 generate，绝不再评估（避免 本地⇄联网 无限循环）</span>
+  <span class="hljs-keyword">if</span> (state.<span class="hljs-property">webContext</span> &amp;&amp; <span class="hljs-title class_">String</span>(state.<span class="hljs-property">webContext</span>).<span class="hljs-title function_">trim</span>()) &#123;
+    <span class="hljs-keyword">return</span> <span class="hljs-string">"generate"</span>;
+  &#125;
+  <span class="hljs-keyword">const</span> parsed = (<span class="hljs-function">() =&gt;</span> &#123; <span class="hljs-keyword">try</span> &#123; <span class="hljs-keyword">return</span> <span class="hljs-title class_">JSON</span>.<span class="hljs-title function_">parse</span>(state.<span class="hljs-property">evaluation</span> || <span class="hljs-string">"&#123;&#125;"</span>); &#125; <span class="hljs-keyword">catch</span> &#123; <span class="hljs-keyword">return</span> &#123;&#125;; &#125; &#125;)();
+  <span class="hljs-keyword">return</span> parsed.<span class="hljs-property">enough</span> === <span class="hljs-literal">true</span> ? <span class="hljs-string">"generate"</span> : <span class="hljs-string">"web_search"</span>;
+&#125;;
+
+<p><span class="hljs-keyword">const</span> graph &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“route_question”</span>, routeQuestionNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“direct_answer”</span>, directAnswerNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“local_retrieve”</span>, retrieveLocalNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“evaluate_local”</span>, evaluateNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“generate”</span>, generateNode)<br>  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">“web_search”</span>, webSearchNode)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">“route_question”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“route_question”</span>, afterRoute, &amp;#123;<br>    <span class="hljs-attr">direct_answer</span>: <span class="hljs-string">“direct_answer”</span>,<br>    <span class="hljs-attr">local_retrieve</span>: <span class="hljs-string">“local_retrieve”</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“local_retrieve”</span>, <span class="hljs-string">“evaluate_local”</span>)<br>  .<span class="hljs-title function_">addConditionalEdges</span>(<span class="hljs-string">“evaluate_local”</span>, afterEvaluateLocal, &amp;#123;<br>    <span class="hljs-attr">generate</span>: <span class="hljs-string">“generate”</span>,<br>    <span class="hljs-attr">web_search</span>: <span class="hljs-string">“web_search”</span><br>  &amp;#125;)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“web_search”</span>, <span class="hljs-string">“evaluate_local”</span>)   <span class="hljs-comment">&#x2F;&#x2F; 联网后再回评估做二次判断</span><br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“direct_answer”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">“generate”</span>, <span class="hljs-variable constant_">END</span>)<br>  .<span class="hljs-title function_">compile</span>();<br></p></code></pre><p></p>
+<p>推演一遍完整流程：</p>
+<ol>
+<li><code>route_question</code> 判定 simple → 直接答结束；</li>
+<li>complex → <code>local_retrieve</code> 在本地向量库里召回片段，拼成 <code>localContext</code>；</li>
+<li><code>evaluate_local</code> 第一次评估：本地上下文够不够？
+<ul>
+<li><code>enough=true</code> → <code>generate</code> 结束；</li>
+<li><code>enough=false</code> → 输出 <code>web_query</code> → <code>web_search</code>；</li>
+</ul>
+</li>
+<li><code>web_search</code> 联网，把结果写进 <code>webContext</code>；</li>
+<li><code>web_search -&gt; evaluate_local</code>：<strong>但此时 <code>hasWeb=true</code>，第二次评估不再允许触发联网</strong>；</li>
+<li>条件边 <code>afterEvaluateLocal</code> 看到 <code>webContext</code> 非空 → 直接 <code>generate</code>，<strong>不管够不够都收尾</strong>。</li>
+</ol>
+<p>这条护栏的存在保证了：<strong>联网最多发生一次，永不陷入「本地→网络→本地→网络」的死循环</strong>。这就是 Agentic RAG 里「可以自由，但不能失控」的经典设计。</p>
+<h4 data-id="heading-16">生成节点：本地 + 联网统一融合</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">generateNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">"---GENERATE---"</span>);
+  <span class="hljs-comment">// 增强 prompt：本地知识库 + 可选联网补充，一起喂给模型</span>
+  <span class="hljs-keyword">const</span> context = [state.<span class="hljs-property">localContext</span>, state.<span class="hljs-property">webContext</span>].<span class="hljs-title function_">filter</span>(<span class="hljs-title class_">Boolean</span>).<span class="hljs-title function_">join</span>(<span class="hljs-string">"\n\n==联网补充==\n\n"</span>);
+  <span class="hljs-keyword">let</span> generation = <span class="hljs-string">""</span>;
+  <span class="hljs-keyword">const</span> stream = <span class="hljs-keyword">await</span> llm.<span class="hljs-title function_">stream</span>(<span class="hljs-string">`
+你是一个严谨的中文问答助手，优先依据上下文回答，不要编造。
+上下文（本地知识库 + 可选联网补充）：
+<span class="hljs-subst">$&#123;context || <span class="hljs-string">"（空）"</span>&#125;</span>
+用户问题：<span class="hljs-subst">$&#123;state.question&#125;</span>
+回答要求：
+1. 如果上下文足够，给出清晰、可核对的回答，需要时引用来源 / 链接。
+2. 如果上下文仍不足以确认关键事实，明确说明"不确定/无法从上下文确认"，并说明缺失点。
+3. 不要输出表情符号。
+回答：`</span>);
+  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &#123;
+    <span class="hljs-keyword">const</span> text = <span class="hljs-keyword">typeof</span> chunk.<span class="hljs-property">content</span> === <span class="hljs-string">"string"</span> ? chunk.<span class="hljs-property">content</span> : <span class="hljs-string">""</span>;
+    <span class="hljs-keyword">if</span> (!text) <span class="hljs-keyword">continue</span>;
+    generation += text; process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(text);
+  &#125;
+  <span class="hljs-keyword">return</span> &#123; generation &#125;;
+&#125;;
+</code></pre>
+<p>到这里，一个完整的 <strong>Agentic RAG 闭环</strong>成型了：</p>
+<pre><code class="hljs language-arduino" lang="arduino">问题 →
+  ↗ simple → 直接回答
+路由判断 →
+  ↘ complex → 本地检索 → 评估
+                              ├ enough → 生成
+                              └ 不足 → 联网搜索 → 二次评估(不再联网) → 生成
+</code></pre>
+<h3 data-id="heading-17">用一张图看清「从 Naive 到 Agentic」的四次进化</h3>
+<pre><code class="hljs language-css" lang="css">    <span class="hljs-selector-tag">A</span><span class="hljs-selector-attr">[普通 RAG 固定管线]</span> --&gt;|加问题路由| <span class="hljs-selector-tag">B</span><span class="hljs-selector-attr">[简单直接答，复杂才检索]</span>
+    <span class="hljs-selector-tag">B</span> --&gt;|加子问题拆解| C<span class="hljs-selector-attr">[多跳 RAG 循环检索]</span>
+    C --&gt;|加上下文评估| D<span class="hljs-selector-attr">[信息不足自动联网补]</span>
+    D --&gt;|加二次评估护栏| E<span class="hljs-selector-attr">[闭环 Agentic RAG 收尾生成]</span>
+</code></pre>
+<h3 data-id="heading-18">复盘：Agentic RAG 的四个核心设计原则</h3>
+<ol>
+<li><strong>路由分流</strong>：用 <code>withStructuredOutput</code> 让 LLM 输出可枚举的 <code>strategy</code>，简单与复杂问题各走各的，省 token。</li>
+<li><strong>拆解 + 回环</strong>：复杂问题拆成有序、去指代的可独立检索子问题；用条件边造 <code>retrieve → plan → retrieve</code> 回环，每轮回溯去重。</li>
+<li><strong>评估纠错</strong>：检索后不盲目生成，先让 LLM 当质检员判断 <code>enough / missing / web_query</code>。</li>
+<li><strong>兜底 + 护栏</strong>：本地缺失时联网补；用「联网后不再触发联网」的条件边焊死「防死循环」的最后一道闸。</li>
+</ol>
+<h3 data-id="heading-19">结尾：Agentic RAG 不是终点，是生产化的起点</h3>
+<p>必须诚实地说：<strong>Agentic RAG 的具体设计没有标准答案，完全取决于你的业务场景。</strong> 内部客服机器人可能只需要「路由 + 评估」，多源事实核对可能要「子问题拆解 + 混合检索」，而带时效主张的问题则必须「联网兜底」。理解这套 <strong>「路由 → 拆解 → 评估 → 兜底」的闭环思路</strong>，再根据业务场景裁剪组合，才是正确的打开方式。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）" href="https://juejin.cn/post/7686407926581903375" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span><span class="desc fs12">https://juejin.cn/post/7686407926581903375</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/52306e8f.html">华为夺8月路由器线上双第一 销售额独占超30%<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/984cae21.html">让 Agent 读懂你的身体：数据获取篇<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/908a1c89.html" title="DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9019"></div><span class="title">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本</span></a><a class="item" href="/rss/b4c5ecd5.html" title="CSS Grid 布局实战指南，看这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8766"></div><span class="title">CSS Grid 布局实战指南，看这篇就够了</span></a><a class="item" href="/rss/f9dc35c0.html" title="MCP 架构概览"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=992"></div><span class="title">MCP 架构概览</span></a><a class="item" href="/rss/6c3bf74a.html" title="RHCE 考试通过率提升:核心考点、实验环境与排错技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5831"></div><span class="title">RHCE 考试通过率提升:核心考点、实验环境与排错技巧</span></a><a class="item" href="/rss/98141922.html" title="Nginx 反向代理配置指南，看完这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6187"></div><span class="title">Nginx 反向代理配置指南，看完这篇就够了</span></a><a class="item" href="/rss/6a9bed7.html" title="《潮水漫过十七岁》开学了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6488"></div><span class="title">《潮水漫过十七岁》开学了</span></a><a class="item" href="/rss/ff43a132.html" title="《潮水漫过十七岁》爸爸最近很忙"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6068"></div><span class="title">《潮水漫过十七岁》爸爸最近很忙</span></a><a class="item" href="/rss/80175ce7.html" title="RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1790321510&x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D"></div><span class="title">RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span></a><a class="item" href="/rss/e90f99c2.html" title="从 Windows 换到 Mac 三个月，我真香了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/962f2972579f4eb595e23889202ccfee~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oCV5rWq54yr:q75.awebp?rk3s=f64ab15b&x-expires=1790410500&x-signature=zSsIIe4s2ibVz5%2FCwqr7pECTFCg%3D"></div><span class="title">从 Windows 换到 Mac 三个月，我真香了</span></a><a class="item" href="/rss/93bb2588.html" title="从挂科到高分通过:RHCE快速拿证的10个提分技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7623"></div><span class="title">从挂科到高分通过:RHCE快速拿证的10个提分技巧</span></a><a class="item" href="/rss/54325595.html" title="手写一个 Mini HashMap，彻底搞懂哈希表原理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5010"></div><span class="title">手写一个 Mini HashMap，彻底搞懂哈希表原理</span></a><a class="item" href="/rss/54b87b7d.html" title="红帽RHCE从挂科边缘到一次过，我做对了什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">红帽RHCE从挂科边缘到一次过，我做对了什么</span></a><a class="item" href="/rss/13d83a1d.html" title="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1445"></div><span class="title">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></a><a class="item" href="/rss/f966d59.html" title="视野修炼第133期 | Native 回春了?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/67ebbc355bbc4866909964e3daf59359~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790409305&x-signature=GlJRe0TzJTyAaozLNu2IgLwRtqs%3D"></div><span class="title">视野修炼第133期 | Native 回春了?</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

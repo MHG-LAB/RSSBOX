@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Saving Another 100TB of RAM With Math (And Rust) - RSSBOX</title>
+
+  
+    <meta name="description" content="Cloudflare operates at a scale so big that even after working here for years, it doesn’t seem real. We have thousands of servers all over the world with petabytes of RAM and millions of CPU cores, an">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Saving Another 100TB of RAM With Math (And Rust)">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b1815887.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Cloudflare operates at a scale so big that even after working here for years, it doesn’t seem real. We have thousands of servers all over the world with petabytes of RAM and millions of CPU cores, an">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-18T17:23:58.000Z">
+<meta property="article:modified_time" content="2026-09-18T17:23:58.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Waste not</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Consistent hashing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Math and consequences</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What if we add hashes?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What if we add more hashes?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What if we add even more hashes???</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Storage improvements</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What if we tried fewer hashes?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Migrating without melting origins</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Try it yourself</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-18T17:23:58.000Z">2026-09-19</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Saving Another 100TB of RAM With Math (And Rust)</span></h1>
+<div>
+<p>Cloudflare operates at a scale so big that even after working here for years, it doesn’t seem real. We have thousands of servers all over the world with petabytes of RAM and millions of CPU cores, and all of it is pushed to the max. As vast as those resources feel, they are still finite, and when you need every service to run on every node, it doesn’t leave room for wasted space.</p><p>At this scale, small improvements are greatly magnified, so even <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/pingora-saving-compute-1-percent-at-a-time/"><span style="text-decoration:underline">1%-at-a-time</span></a> improvements are worth celebrating. And some tweaks add up to a lot more: in this post, we’ll look at how small changes to a single algorithm reduced the memory footprint of one of our Pingora-based services significantly. That allowed us to reclaim more than 100TB of RAM globally, on top of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/dns-cache-memory-optimization-1111/"><span style="text-decoration:underline">100TB of memory the DNS team was able to shed last month</span></a>.</p><h2>Waste not</h2><p>Maintaining equitable resource sharing between teams is not easy, especially in large organizations. One of the ways Cloudflare ensures the balance is kept is through the tireless efforts of the wonderful Performance team. </p><p>This story starts with a ticket filed by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/author/ivan/"><span style="text-decoration:underline">Ivan</span></a><em> </em>who found: <em>Excessive memory usage from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://docs.rs/pingora-ketama/latest/pingora_ketama/"><span style="text-decoration:underline">pingora-ketama</span></a> in Pingora Backend Router</em>. The finding was that our internal load-balancing service, Pingora Backend Router (yes, PBR), was using significantly more memory than expected — specifically in structures associated with pingora-ketama, which is our open-source library for handling consistent hashing.</p><p>In order to talk about how we addressed this seeming overuse of memory, we need to talk about what consistent hashing even is, why we are using it in PBR, and how it became so memory hungry. Along the way, we’ll learn some Rust and even a little math.</p><h2>Consistent hashing</h2><p>Consistent hashing is a widely used method for distributing tasks across multiple servers in a way that does not require large changes when servers are added or removed. Internally we use it to route cacheable requests to servers by URL. This allows us to keep only one copy of a file stored per data center and gives a stable way to find the location of each file. We have <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/rearchitecting-workers-kv-for-redundancy/"><span style="text-decoration:underline">mentioned</span></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/high-availability-load-balancers-with-maglev/"><span style="text-decoration:underline">this</span></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/"><span style="text-decoration:underline">system</span></a> <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/making-magic-transit-health-checks-faster-and-more-responsive/"><span style="text-decoration:underline">before</span></a>, but let’s take the time to walk through how and why this algorithm is used and how it works.</p><p>The key concept of consistent hashing is that while hash functions can accept any kind of input, their output is limited to a single unsigned integer (32, 64, or 128-bit integers depending on which hash function). This allows us to relate tasks and servers to each other in a <em>consistent</em> way. Most discussions of consistent hashing have you think of that output space as a continuous, circular ring that wraps around from its max value to zero. This depiction makes for some nice visualizations, but it can also make the simple concept of integer ranges seem more complicated than it needs to be. For our discussion, we’ll represent the 32-bit output of our hash function as a number line.</p><!-- unsupported block: image --><p>Now, let’s say we have a set of servers, A, B, &amp; C, and a set of tasks t-z. We can map each onto the number line based on the hash of their representative values, so something like IP addresses for servers and cache keys for tasks.</p><!-- unsupported block: image --><p>Assigning tasks to servers is now just a matter of finding the first server to the left of each task. We can represent this visually by coloring in the region of hashes that will be associated with each server. Notice that the range covered by server C wraps around to the beginning, hence the idea that hashes exist in a ring.</p><!-- unsupported block: image --><p>And that’s it. At a base level, consistent hashing is this simple — but it doesn’t take long to see that there is room for improvement. Notice that the range covered by server A in our example is significantly larger than that of either B or C. This is a problem because the fraction of the requests a server handles is going to be proportional to the size of its range on the number line. Ideally we would like to guarantee each server will have an equal size, but because hashes are essentially random numbers, we have to talk about the size of the regions in terms of <em>statistics</em>. 😨</p><h2>Math and consequences</h2><p>First: don’t panic. I promise <a target="_blank" rel="external nofollow noopener noreferrer" href="https://x.com/ThePrimeagen/status/1861040630832742795"><span style="text-decoration:underline">I'm not about to lie to you</span></a> and that we will stay safely within the bounds of a day-one probability lesson. When we talk about statistical distributions, there are two big factors that help us quantify uncertainty in helpful ways: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Expected_value"><span style="text-decoration:underline">expected value</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Standard_deviation"><span style="text-decoration:underline">standard deviation</span></a>. In (over-)simplified terms, expected value gives us a point where measurements based on a distribution will be centered, and standard deviation tells how close to that central point most measurements are likely to be.</p><p>For consistent hashing, we can calculate these factors for the fractional size of the range associated with one of N servers. (Details on where this formula comes from later).</p><p></p><!-- unsupported block: htmlBlock --><p></p><p>In terms of concrete numbers, let’s say we have 100 servers. The formulas above give:<br></p><!-- unsupported block: htmlBlock --><p></p><p>That tells us that we can expect that the range each server handles will be centered around 0.99% of the total and most of the lengths to fall within 1% of what's expected. This <em>sounds</em> good until we realize that that’s 0.99% of the <em>total length</em>. We need to scale the standard deviation by the expected value to see how big the error is as a fraction of the target size. This value is called the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Coefficient_of_variation"><span style="text-decoration:underline">coefficient of variation</span></a>. <br></p><!-- unsupported block: htmlBlock --><p></p><!-- unsupported block: htmlBlock --><h2>What if we add hashes?</h2><p>The simplicity of consistent hashing is a double-edged sword. It’s easy to understand and implement because everything is turned into easily-relatable hashes on the same numberline, but any improvements to the system will also need to be relatable to that numberline. That means the solution to any consistent hashing problem can only be <em>more hashes</em>. It’s less like a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Law_of_the_instrument"><span style="text-decoration:underline">golden hammer</span></a> (a tool with which all problems look like nails) and more like a golden <em>nail</em> in that it turns all tools into hammers.</p><p>To solve the problem of imbalanced workloads, we can add multiple hashes to represent each server instead of just one. We’ll get to the math behind this momentarily, but it should make some intuitive sense that while each individual range has a large standard deviation, adding a bunch together should make their total size even out. If we take our three-server example from the above diagrams and add two more hashes at random for each server, we see that it helps even out each server’s workload. </p><!-- unsupported block: image --><p>This is an admittedly contrived example. The random nature of the system means there’s no guarantee how much improvement you will get from adding 2 additional hashes per server, but it should make some intuitive sense that combining more of these hash segments together produces a more even distribution. Each segment in the sum has a chance of balancing another. Maybe one is too short; maybe one is too long. This is essentially what the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Law_of_large_numbers"><span style="text-decoration:underline">law of large numbers</span></a> tells us should happen… The obvious problem is it only works for large numbers. In NGINX, the baseline number of hashes per server is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/nginx/nginx/blob/0427f5335f7abfbb733a72d6bf3561508f5d8a88/src/http/modules/ngx_http_upstream_hash_module.c#L408"><span style="text-decoration:underline">hardcoded to 160</span></a>, and Pingora uses the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/blob/200cee483d895dac0bb2698fa6b3bd6347270197/pingora-ketama/src/lib.rs#L136"><span style="text-decoration:underline">same value as the default</span></a>. I’ll spare you the math for now, but if we go back to our 100-server example, if we use 160 points per server instead of just one, the coefficient of variation (which we can think of like an error margin) drops from about 99% to about 8%, a significant improvement.</p><h2>What if we add more hashes?</h2><p>We saw above that increasing the number of hashes per server by a constant amount allows us to improve how evenly workloads are distributed per server, but what if we <em>don’t</em> want to distribute the work evenly? In Cloudflare’s case, we have some servers that have more storage space than others, so it would be better to have the number of requests allotted to a server be proportional to its disk space. One way to accomplish this is with the ketama algorithm. The naming is a little funny because the algorithm is named after the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/RJ/ketama"><span style="text-decoration:underline">library where it was first implemented</span></a>, and the library was named … well you can <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.aboutwayfair.com/tech-innovation/consistent-hashing-with-memcached-or-redis-and-a-patch-to-libketama#:~:text=What's%20up%20with%20the%20name,Heh."><span style="text-decoration:underline">google it</span></a> 😶‍🌫️.</p><!-- unsupported block: htmlBlock --><p>For us, since we want workload to be scaled based on storage, we can use the disk space as the weight, which is exactly what the Pingora team has been doing for years. Elsewhere in the company where workloads are more compute-intensive, weights might be based on CPU or GPU count.</p><h2>What if we add even <em>more</em> hashes???</h2><p>The last problem we need to address is that so far we are working under the assumption that any server can handle any request, but in practice that is not the case. Things like compliance requirements or enabled caching features mean only a subset of servers can handle any particular request. Unfortunately, unlike before, we can’t solve this problem by adding more hashes to the same ring. We have to add completely<em> new </em>rings, and not only that — every <em>combination</em> of features potentially needs its own specific ring!</p><!-- unsupported block: htmlBlock --><h2>Storage improvements</h2><p>One big improvement came from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/author/zaidoon/"><span style="text-decoration:underline">Zaidoon</span></a>, who had an insight about our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/blob/702f69015e53f7244d6ad2e743de571d859a70a4/pingora-ketama/src/lib.rs#L101-L107"><span style="text-decoration:underline">struct</span></a> for storing hashes in PBR. That struct looks like this:</p><!-- unsupported block: code --><!-- unsupported block: htmlBlock --><!-- unsupported block: code --><p>Unfortunately, Rust doesn’t make it that easy. Changing the size of the index as we did above does nothing to reduce the memory footprint. This is because Rust has alignment rules that require the size of a structure in memory to be a multiple of its largest (or “most aligned”) field. In this case, the hash is the largest with four bytes, so when stored in memory, a Point is required to have size $mN \times 4m$, so the minimum size is eight bytes.</p><p></p><p>Luckily there are well-known ways around this. You (meaning me) might be tempted to use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://doc.rust-lang.org/nomicon/other-reprs.html#reprpacked-reprpackedn"><code><span style="text-decoration:underline">#[repr(packed)]</span></code></a>, but that is controversial for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/rust-lang/rust/issues/27060"><span style="text-decoration:underline">good reasons</span></a>. A safer but less readable solution is to store the hash and index as raw byte array and access them with getters. Both methods <a target="_blank" rel="external nofollow noopener noreferrer" href="https://godbolt.org/z/1E5TeW1za"><span style="text-decoration:underline">compile to the same thing</span></a>.</p><!-- unsupported block: code --><p>This simple (if wordy) change reduces the amount of memory used for consistent hashing by a whopping <strong>25%</strong>! In order to do better than that, we’ll need to jump back into the math, so everybody hang on to something; this is the home stretch.</p><h2>What if we tried fewer hashes?</h2><p>You may have noticed that we gave the formula for the standard deviation for the case where there is only one hash per server. Deriving the formula for the case where there are $m k m$ hashes per server is not easy, and most sources only give you an approximation or an asymptotic limit, but not us. I might not be a statistician, but I grew up with a calculus teacher (Hi, Mom!), and I wanted to know the <em>actual</em> value. The full derivation is in a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://ch.terabyteoff.com"><span style="text-decoration:underline">supplemental post</span></a>, but here is the payoff.</p><!-- unsupported block: htmlBlock --><p></p><p>To see how increasing the hash count improves the accuracy, we need to look again at the coefficient of variation.<br></p><!-- unsupported block: htmlBlock --><p></p><!-- unsupported block: htmlBlock --><!-- unsupported block: image --><!-- unsupported block: htmlBlock --><p></p><p>The predictions from my beautiful math only work if we think about hashes in a <em>continuous</em> ring, but in practice we use 32-bit numbers for the hashes that have the potential for collisions, and the probability of collisions goes up surprisingly quickly as the number of hashes increases (see the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://en.wikipedia.org/wiki/Birthday_problem"><span style="text-decoration:underline">birthday paradox</span></a>). Collisions matter because in the ideal case, every hash contributes to the volume and distribution of requests handled by the associated server, but a collision means some contributions are randomly dropped, introducing unpredictable error. If we compare some simulated results with 32-bit hashes with the predicted error rate, we can see that for data centers with 2048 servers, the error rate increases: between 10,000 and 100,000 hashes per server.</p><!-- unsupported block: image --><p>Ultimately, even though this realization feels kind of bad, it’s great news for our plan to reclaim some RAM! Now that we have some math to back it up, we determined that we could decrease the number of hashes we were generating for each server by <strong>90%</strong> without incurring any appreciable error, so that is what we set out to do.</p><h2>Migrating without melting origins</h2><p>There was one more problem: changing the hash ring changes where some cacheable requests go. Even if the new ring is better, switching the whole network at once would effectively invalidate almost all cached content. It would turn a memory optimization into an apocalyptic increase in origin traffic.</p><p>So we did not make this a single global flip. For a while, PBR carried both versions of the cacheable load balancer in memory: the old ketama ring and the new smaller one. Each request used our normal migration framework to decide which ring should select the backend. That meant the rollout decision was stable per request hash, and it also gave us a clean rollback path. If anything looked wrong, we could send new requests back through the old ring without redeploying PBR.</p><p>We then rolled the migration out in layers. We started with small validation locations, moved through progressively larger groups of data centers, and only then continued toward the rest of the world. </p><p>The important part was that we controlled two dimensions independently: how much traffic used the new ring, and where that traffic was allowed to move. A plain global percentage rollout would have spread cache churn everywhere at once. Data-center-scoped rollout kept the blast radius small and made it much easier to tell whether a change was actually safe.</p><p>During the migration, we watched backend-selection traces, ring-version counters, PBR connection errors, process memory, startup time, cache behavior, and origin traffic. Once the migration reached 100%, we removed the temporary old-ring path, and voila!</p><!-- unsupported block: image --><p>The chart above shows the comparison of the memory used by PBR the week of the change compared with data from a few weeks before, as well as the result of subtracting one from the other. The sharp drop is the day where the version of PBR with the large (now unused) hash rings was decommissioned forever. Looking at the difference, we get the satisfying result that our changes dropped the used memory by 100TB!</p><!-- unsupported block: image --><h2>Try it yourself</h2><p>All the changes we talked about in this post are available now in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/pingora/blob/main/pingora-ketama/Cargo.toml#L34"><span style="text-decoration:underline">pingora-ketama crate</span></a> in the form of a (for now) unadvertised cargo feature. The <code>v2</code> ring has the compacted storage format, a faster sorting method, and the ability to scale the base number of hashes per node. Our focus in making these changes had to be on stability and control, so the <code>v1</code> ring is identical to what pingora ketama has always used, and the library makes it possible to run both simultaneously and decide on a request-by-request basis which to use and when. </p><p>Beyond trying our literal consistent hashing changes, I would like you to take away from this some inspiration to dig into your own systems to see what “simple” or “obvious” decisions are hiding potential wins, if you’re willing to get into the numbers. You might not be able to solve all your problems with <em>Rust</em>, but math is universal.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Saving another 100TB of RAM with math (and Rust)" href="https://blog.cloudflare.com/saving-100-tb-of-ram-with-math/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Saving another 100TB of RAM with math (and Rust)</span><span class="desc fs12">https://blog.cloudflare.com/saving-100-tb-of-ram-with-math/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/70425699.html">S: 苏超苏州会南京<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/369aa039.html">日本又要出手？日央行被曝汇率摸底，日元收窄跌幅，高市早苗的“鸽派牌”埋到明年7月<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1a579b4d.html" title="1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1038"></div><span class="title">1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It</span></a><a class="item" href="/rss/a1d6809f.html" title="Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8632"></div><span class="title">Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)</span></a><a class="item" href="/rss/cc5bf354.html" title="Give Every Teammate and Agent the Right Level of Access to Your Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8135"></div><span class="title">Give Every Teammate and Agent the Right Level of Access to Your Workers</span></a><a class="item" href="/rss/386c7f91.html" title="BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6376"></div><span class="title">BotBase for Operators: A Clearer Path to Joining Cloudflare's Directory of Bots and Agents</span></a><a class="item" href="/rss/cd83c88d.html" title="Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5493"></div><span class="title">Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training</span></a><a class="item" href="/rss/4d916bc9.html" title="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9628"></div><span class="title">How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></a><a class="item" href="/rss/e4723410.html" title="How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1291"></div><span class="title">How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility</span></a><a class="item" href="/rss/c419f88.html" title="Introducing Automatic Remediation Policies With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6265"></div><span class="title">Introducing Automatic Remediation Policies With Cloudflare CASB</span></a><a class="item" href="/rss/e31b3b95.html" title="How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8414"></div><span class="title">How We Saved 100 Terabytes of Memory by Optimizing 1.1.1.1’s DNS Cache</span></a><a class="item" href="/rss/90c4a120.html" title="Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6976"></div><span class="title">Introducing Adaptive Intelligence: Undermining the Economics of Every Bot Attack</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9786"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/8fe56bde.html" title="Say It Once: Introducing Bot Preference Sync"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2342"></div><span class="title">Say It Once: Introducing Bot Preference Sync</span></a><a class="item" href="/rss/4438b469.html" title="The Cloudflare Blog — Brought to You by EmDash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2807"></div><span class="title">The Cloudflare Blog — Brought to You by EmDash</span></a><a class="item" href="/rss/a8d1fd1c.html" title="When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8984"></div><span class="title">When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

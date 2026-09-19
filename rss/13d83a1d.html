@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？ - RSSBOX</title>
+
+  
+    <meta name="description" content="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？  一句话导读：LLM 再聪明，也背不出你公司的内部文档。想让 AI 基于自有知识库回答问题，就得先解决「怎么把文本找出来」这件事。本文从 MySQL 全文检索的痛点出发，带你依次搞懂 ElasticSearch 倒排索引、Milvus 向量库，最终落地一个能跑通的朴素 RAG（Nai">
+<meta property="og:type" content="article">
+<meta property="og:title" content="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/13d83a1d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？  一句话导读：LLM 再聪明，也背不出你公司的内部文档。想让 AI 基于自有知识库回答问题，就得先解决「怎么把文本找出来」这件事。本文从 MySQL 全文检索的痛点出发，带你依次搞懂 ElasticSearch 倒排索引、Milvus 向量库，最终落地一个能跑通的朴素 RAG（Nai">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-17T11:42:17.000Z">
+<meta property="article:modified_time" content="2026-09-17T11:42:17.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">背景：为什么 AI 需要一套「检索系统」</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第一步：MySQL 的 LIKE 为什么不扛打？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第二步：倒排索引，ES 秒杀 MySQL 的核心武器</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">正向索引：文档 → 词</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">倒排索引：词 → 文档</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第三步：用 Docker Compose 把 ES 和 Kibana 拉起来</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第四步：建索引与检索——Mapping 和 DSL</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">看所有索引</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">创建索引并声明 Mapping</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">中文字段要配中文分词器</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">用 DSL 检索</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第五步：向量检索——语义相似的利器</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第六步：实战入库——把《天龙八部》整个装进 Milvus</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">为什么「流式处理」而不是一次性读完？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">为什么要切块（Chunking）？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">为什么手动生成主键 bookId_chapterNum_index</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第七步：第一个能跑的 RAG——Naive RAG</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">状态定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">检索节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">生成节点</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">把节点串成图</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">连接向量库并调用</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">第八步：混合检索——关键词 + 语义 双引擎合流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">小结：这一篇你该带走的东西</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-17T11:42:17.000Z">2026-09-17</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></h1>
+<div>
+<h2 data-id="heading-0">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</h2>
+<blockquote>
+<p>一句话导读：LLM 再聪明，也背不出你公司的内部文档。想让 AI 基于自有知识库回答问题，就得先解决「怎么把文本找出来」这件事。本文从 MySQL 全文检索的痛点出发，带你依次搞懂 ElasticSearch 倒排索引、Milvus 向量库，最终落地一个能跑通的朴素 RAG（Naive RAG）管线。</p>
+</blockquote>
+<h3 data-id="heading-1">背景：为什么 AI 需要一套「检索系统」</h3>
+<p>很多人第一次做 RAG 都会问一个问题：<strong>为什么不能直接把文档全塞给大模型？</strong></p>
+<p>因为三个现实约束：</p>
+<ol>
+<li><strong>LLM 只能思考，不懂你的私域数据</strong>。它没读过你公司内部的排期表、售前话术、或者《天龙八部》全文。</li>
+<li><strong>Token 有成本，也有长度上限</strong>。把几百万字的资料一次性丢给模型，既贵又超长。</li>
+<li><strong>模型会「编」</strong>。没有可靠依据时，它倾向于一本正经地胡说（幻想）。</li>
+</ol>
+<p>所以场景收敛成一条固定流水线：<strong>先检索出来相关片段，再把片段拼进 Prompt，最后让模型基于片段作答</strong>。这就是 RAG（Retrieval-Augmented Generation，检索增强生成）。</p>
+<p>而「检索」这两个字，是整个流水线的地基。地基怎么选，直接决定了效果上限。</p>
+<h3 data-id="heading-2">第一步：MySQL 的 LIKE 为什么不扛打？</h3>
+<p>在公司里，关系型数据库（MySQL）一定是你最先想到的存放方式。它有清晰的 <code>database -&gt; table -&gt; row -&gt; column</code> 结构，字段检索、表关联都很快。<strong>但是</strong>——当需求变成「在 <code>content</code> 这种大文本字段里做全文检索」时，性能会急剧恶化。</p>
+<p>核心问题出在 <code>SELECT ... LIKE '%关键词%'</code> 这类写法上：</p>
+<ul>
+<li>它是<strong>逐行遍历</strong>的：每一行都要整行读出来，再逐字去和关键词匹配；</li>
+<li>数据量越大、文本越长，这种<strong>模糊匹配就越慢</strong>；</li>
+<li>它没法利用普通索引（B+Tree 前缀匹配帮不上模糊中间匹配），属于全表扫。</li>
+</ul>
+<p>一句话：<strong>MySQL 适合「结构化数据的精确查找」，不适合「海量文本的关键词全文检索」。</strong></p>
+<p>所以业内普遍共识是——文本全文搜索，交给专门干这个的 ElasticSearch（ES）。</p>
+<blockquote>
+<p>一个有趣的类比：<strong>MySQL 是常规部队，ES 是特种兵</strong>。常规部队管好纪律（行列、事务），特种兵专精攻坚（文本检索）。</p>
+</blockquote>
+<h3 data-id="heading-3">第二步：倒排索引，ES 秒杀 MySQL 的核心武器</h3>
+<p>ES 快，不是玄学，而是它的底层机制叫<strong>倒排索引（Inverted Index）</strong>。要理解它，先看 MySQL 的<strong>正向索引</strong>是怎么存储的。</p>
+<h4 data-id="heading-4">正向索引：文档 → 词</h4>
+<table><thead><tr><th>文档 ID</th><th>内容</th></tr></thead><tbody><tr><td>1</td><td>乔峰是丐帮帮主</td></tr><tr><td>2</td><td>段誉会六脉神剑</td></tr><tr><td>3</td><td>虚竹破了珍珑棋局</td></tr></tbody></table>
+<p>正向索引以<strong>整行为单位</strong>存数据。想找「帮主」，就得把每行内容从头扫一遍，看看有没有这个词——这就是刚才说的慢。</p>
+<h4 data-id="heading-5">倒排索引：词 → 文档</h4>
+<p>ES 的做法是<strong>反过来</strong>：写入时先把文本<strong>分词（tokenization）<strong>拆成一个一个独立词条，然后</strong>以词条为核心，反向挂接所有包含它的文档 ID</strong>。</p>
+<table><thead><tr><th>词条</th><th>文档 ID 列表</th></tr></thead><tbody><tr><td>乔峰</td><td>1</td></tr><tr><td>帮主</td><td>1</td></tr><tr><td>六脉神剑</td><td>2</td></tr><tr><td>珍珑棋局</td><td>3</td></tr></tbody></table>
+<p>于是「正向索引是 文档→词，倒排索引是 词→文档」。用户输入关键词时，ES 只需要：</p>
+<ol>
+<li>把关键词切词；</li>
+<li>在倒排表里按词条<strong>精准命中</strong>对应的文档 ID；</li>
+<li>直接取出这些文档。</li>
+</ol>
+<p>全程<strong>不需要全表遍历</strong>，所以能在<strong>海量文本</strong>下实现<strong>毫秒级</strong>全文检索。这就是 ES 与 MySQL 最本质的差距。</p>
+<blockquote>
+<p>记忆锚点：MySQL 像「先翻一本书再找词」，ES 像「查字典的部首索引，先定位词再翻到页」。</p>
+</blockquote>
+<h3 data-id="heading-6">第三步：用 Docker Compose 把 ES 和 Kibana 拉起来</h3>
+<p>理论说完，直接上车。ES 官方推荐用 <strong>Docker 容器化</strong>部署，配合 <strong>Kibana</strong>（可以把它理解为「ES 界面的 phpMyAdmin」）可视化查数据。</p>
+<p>先建立心智模型：</p>
+<ul>
+<li>镜像（image）＝打包好的「代码 + 运行环境依赖」；</li>
+<li>容器（container）＝镜像运行起来后的独立进程实例；</li>
+<li>docker-compose.yml＝把多个容器编排到一起的配置文件。</li>
+</ul>
+<p>一张 <code>compose</code> 文件通常长这样：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">version:</span> <span class="hljs-string">"3.8"</span>
+<span class="hljs-attr">services:</span>
+  <span class="hljs-attr">elasticsearch:</span>
+    <span class="hljs-attr">image:</span> <span class="hljs-string">docker.elastic.co/elasticsearch/elasticsearch:8.12.0</span>
+    <span class="hljs-attr">container_name:</span> <span class="hljs-string">es8</span>
+    <span class="hljs-attr">environment:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">discovery.type=single-node</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">xpack.security.enabled=false</span>
+    <span class="hljs-attr">ports:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">"9200:9200"</span>
+    <span class="hljs-attr">volumes:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">es-data:/usr/share/elasticsearch/data</span>
+
+<p>  <span class="hljs-attr">kibana:</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">docker.elastic.co&#x2F;kibana&#x2F;kibana:8.12.0</span><br>    <span class="hljs-attr">container_name:</span> <span class="hljs-string">kibana</span><br>    <span class="hljs-attr">ports:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">“5601:5601”</span><br>    <span class="hljs-attr">environment:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-string">ELASTICSEARCH_HOSTS&#x3D;<a target="_blank" rel="external nofollow noopener noreferrer" href="http://es8:9200/">http://es8:9200</a></span></p>
+<p><span class="hljs-attr">volumes:</span><br>  <span class="hljs-attr">es-data:</span><br></p></code></pre><p></p>
+<p>启动命令与解释：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose up -d
+</code></pre>
+<ul>
+<li><code>docker compose</code>：命令会在<strong>当前目录</strong>寻找 <code>docker-compose.yml</code> 作为编排配置；</li>
+<li><code>up</code>：把配置里的容器启动起来；</li>
+<li><code>-d</code>：<strong>后台运行</strong>（detached），不占住你的终端。</li>
+</ul>
+<p>启动后 ES 监听 <code>9200</code> 端口，Kibana 监听 <code>5601</code> 端口。ES 的 <code>9200</code> 上存放的是<strong>索引</strong>（索引可理解成 ES 的「表」）。</p>
+<h3 data-id="heading-7">第四步：建索引与检索——Mapping 和 DSL</h3>
+<p>ES 的操作术语和 MySQL 一一对应，理解起来就顺了：</p>
+<table><thead><tr><th>MySQL</th><th>ElasticSearch</th></tr></thead><tbody><tr><td>database（库）</td><td>通常用索引前缀区分业务</td></tr><tr><td>table / 表结构</td><td>index（索引）+ mapping</td></tr><tr><td>row（行）</td><td>document（文档）</td></tr><tr><td>column（列）</td><td>field（字段）</td></tr><tr><td>SQL 查询</td><td>Query DSL</td></tr><tr><td>正排索引（全表扫）</td><td>倒排索引（词→文档）</td></tr></tbody></table>
+<h4 data-id="heading-8">看所有索引</h4>
+<pre><code class="hljs language-bash" lang="bash">GET /_cat/indices?v
+</code></pre>
+<p>输出所有索引，以表格形式组织并显示。</p>
+<h4 data-id="heading-9">创建索引并声明 Mapping</h4>
+<pre><code class="hljs language-css" lang="css">PUT /<span class="hljs-selector-tag">article</span>
+&#123;
+  "mappings": &#123;
+    "properties": &#123;
+      "title":   &#123; "type": <span class="hljs-string">"text"</span> &#125;,
+      "<span class="hljs-attribute">content</span>": &#123; "type": <span class="hljs-string">"text"</span>, <span class="hljs-string">"analyzer"</span>: <span class="hljs-string">"ik_max_word"</span>, <span class="hljs-string">"search_analyzer"</span>: <span class="hljs-string">"ik_smart"</span> &#125;,
+      "author":  &#123; "type": <span class="hljs-string">"keyword"</span> &#125;
+    &#125;
+  &#125;
+&#125;
+</code></pre>
+<p>这里藏着全文检索最关键的 <strong>type 选择</strong>：</p>
+<ul>
+<li><strong><code>text</code> 类型：会分词</strong>，用于标题、正文这类需要全文检索的字段；</li>
+<li><strong><code>keyword</code> 类型：不分词</strong>，整值精确匹配，用于作者名、标签、ID 这类字段。</li>
+</ul>
+<p>于是你自然拥有了「<strong>全文检索 + 精确过滤</strong>」的组合能力：正文用 <code>match</code> 语义搜索，作者用 <code>term</code> 精确锁定。</p>
+<h4 data-id="heading-10">中文字段要配中文分词器</h4>
+<p>ES 默认的分词器对中文只做粗粒度的单字切分，效果一般。所以中文场景几乎必配 <strong>IK 分词器</strong>，它提供两档：</p>
+<ul>
+<li><strong><code>ik_max_word</code></strong>：<strong>存的时候用</strong>，尽量多存索引、粒度最细（把句子切到最细的词）；</li>
+<li><strong><code>ik_smart</code></strong>：<strong>查的时候用</strong>，粒度粗一点，保证匹配命中率。</li>
+</ul>
+<p>一句话记忆：<strong>写细存，查粗查</strong>。</p>
+<h4 data-id="heading-11">用 DSL 检索</h4>
+<pre><code class="hljs language-css" lang="css">GET /<span class="hljs-selector-tag">article</span>/_search
+&#123;
+  "query": &#123;
+    "match": &#123;
+      "<span class="hljs-attribute">content</span>": <span class="hljs-string">"六脉神剑"</span>
+    &#125;
+  &#125;
+&#125;
+</code></pre>
+<p>这里的 <strong>DSL（Domain Specific Language，领域特定语言）</strong> 就是 ES 的「SQL」——只不过它通过 HTTP + JSON 来表达查询意图，专门为搜索引擎设计，语义清晰、可组合（能自由叠加 <code>bool</code>、<code>should</code>、<code>filter</code> 等）。</p>
+<h3 data-id="heading-12">第五步：向量检索——语义相似的利器</h3>
+<p>ES 解决的是「关键词/字面」匹配。但很快你会发现一个尴尬：<strong>「土豆」和「马铃薯」字面完全不同，语义却一样；纯关键词检索匹配不到它们。</strong></p>
+<p>再进一步：RAG 的核心诉求是「找语义相关的片段」，而关键字面匹配对「同义改写、意译、跨语言（tomato vs 西红柿）」无能为力。</p>
+<p>这就轮到<strong>向量数据库</strong>登场了。核心思路：</p>
+<ol>
+<li>用 <strong>Embedding 模型</strong>把一段文本编码成一组高维浮点向量（比如 1024 维）；</li>
+<li>语义相近的文本，向量在空间里也<strong>靠得近</strong>；</li>
+<li>检索时把用户问题也转成向量，然后<strong>算向量相似度</strong>（余弦相似度 COSINE 是常用度量），取距离最近的 Top-K 条。</li>
+</ol>
+<p>市面上主流向量库各有定位：</p>
+<ul>
+<li><strong>Milvus</strong>：Java 生态（文中用 <code>@zilliz/milvus2-sdk-node</code> Node 客户端 + TypeScript），生产级、支持分布式；</li>
+<li><strong>Qdrant</strong>：Rust 实现，Python 生态常用；</li>
+<li><strong>Pinecone</strong>：托管云服务，开箱即用。</li>
+</ul>
+<blockquote>
+<p>备注：ES 生态自身也支持向量检索（kNN），很多生产架构其实用 <strong>ES（关键词）+ 向量库/向量字段（语义）</strong> 双引擎。我们下文先把「关键词检索」和「语义检索」两条腿分别立起来，最后再谈**混合检索（Hybrid Search）**怎么合流。</p>
+</blockquote>
+<h3 data-id="heading-13">第六步：实战入库——把《天龙八部》整个装进 Milvus</h3>
+<p>纸上谈兵结束，现在把一整本 EPUB 电子书拆成片段、向量化、灌进 Milvus。这一步是后续所有 RAG 的地基，代码我会给全，并加了详细注释。</p>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">import</span> <span class="hljs-string">"dotenv/config"</span>;
+<span class="hljs-keyword">import</span> &#123; parse &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'node:path'</span>;
+<span class="hljs-keyword">import</span> &#123;
+  <span class="hljs-title class_">MilvusClient</span>,
+  <span class="hljs-title class_">DataType</span>,      <span class="hljs-comment">// 字段类型</span>
+  <span class="hljs-title class_">MetricType</span>,    <span class="hljs-comment">// 相似度度量类型</span>
+  <span class="hljs-title class_">IndexType</span>      <span class="hljs-comment">// 索引类型</span>
+&#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@zilliz/milvus2-sdk-node'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">OpenAIEmbeddings</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">"@langchain/openai"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">EPubLoader</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">"@langchain/community/document_loaders/fs/epub"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">RecursiveCharacterTextSplitter</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">"@langchain/textsplitters"</span>;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">COLLECTION_NAME</span> &#x3D; <span class="hljs-string">‘ebook_collection’</span>;<br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">VECTOR_DIM</span> &#x3D; <span class="hljs-number">1024</span>;<br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">CHUNK_SIZE</span> &#x3D; <span class="hljs-number">500</span>;          <span class="hljs-comment">&#x2F;&#x2F; 每个片段最多 500 字符</span><br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">CHUNK_OVERLAP</span> &#x3D; <span class="hljs-number">50</span>;        <span class="hljs-comment">&#x2F;&#x2F; 相邻片段重叠 50 字符，保住上下文连贯</span><br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">EPUB_FILE</span> &#x3D; <span class="hljs-string">‘.&#x2F;天龙八部.epub’</span>;<br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">BOOK_NAME</span> &#x3D; <span class="hljs-title function_">parse</span>(<span class="hljs-variable constant_">EPUB_FILE</span>).<span class="hljs-property">name</span>; <span class="hljs-comment">&#x2F;&#x2F; 从文件名去掉扩展名拿书名</span></p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 1. 初始化 Embedding 模型</span><br><span class="hljs-keyword">const</span> embeddings &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">OpenAIEmbeddings</span>(&amp;#123;<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span>,<br>  <span class="hljs-attr">model</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">EMBEDDINGS_MODEL_NAME</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123; <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span> &amp;#125;,<br>  <span class="hljs-attr">dimensions</span>: <span class="hljs-variable constant_">VECTOR_DIM</span><br>&amp;#125;);</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 2. 初始化 Milvus 客户端（对接 docker 里的 milvus）</span><br><span class="hljs-keyword">const</span> client &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">MilvusClient</span>(&amp;#123; <span class="hljs-attr">address</span>: <span class="hljs-string">‘localhost:19530’</span> &amp;#125;);</p>
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">getEmbedding</span>(<span class="hljs-params">text</span>) &amp;#123;<br>  <span class="hljs-keyword">return</span> embeddings.<span class="hljs-title function_">embedQuery</span>(text);<br>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 3. 创建集合（相当于建表）+ 建索引</span><br><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">ensureCollection</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> has &#x3D; <span class="hljs-keyword">await</span> client.<span class="hljs-title function_">hasCollection</span>(&amp;#123; <span class="hljs-attr">collection_name</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span> &amp;#125;);<br>  <span class="hljs-keyword">if</span> (!has.<span class="hljs-property">value</span>) &amp;#123;<br>    <span class="hljs-keyword">await</span> client.<span class="hljs-title function_">createCollection</span>(&amp;#123;<br>      <span class="hljs-attr">collection_name</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span>,<br>      <span class="hljs-attr">fields</span>: [<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘id’</span>,          <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">VarChar</span>, <span class="hljs-attr">max_length</span>: <span class="hljs-number">100</span>, <span class="hljs-attr">is_primary_key</span>: <span class="hljs-literal">true</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘book_id’</span>,     <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">VarChar</span>, <span class="hljs-attr">max_length</span>: <span class="hljs-number">100</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘book_name’</span>,   <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">VarChar</span>, <span class="hljs-attr">max_length</span>: <span class="hljs-number">200</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘chapter_num’</span>, <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">Int32</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘index’</span>,       <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">Int32</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘content’</span>,     <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">VarChar</span>, <span class="hljs-attr">max_length</span>: <span class="hljs-number">10000</span> &amp;#125;,<br>        &amp;#123; <span class="hljs-attr">name</span>: <span class="hljs-string">‘vector’</span>,      <span class="hljs-attr">data_type</span>: <span class="hljs-title class_">DataType</span>.<span class="hljs-property">FloatVector</span>, <span class="hljs-attr">dim</span>: <span class="hljs-variable constant_">VECTOR_DIM</span> &amp;#125;<br>      ]<br>    &amp;#125;);<br>    <span class="hljs-comment">&#x2F;&#x2F; IVF_FLAT：先分桶再在目标桶内暴力比对，速度快</span><br>    <span class="hljs-keyword">await</span> client.<span class="hljs-title function_">createIndex</span>(&amp;#123;<br>      <span class="hljs-attr">collection_name</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span>,<br>      <span class="hljs-attr">field_name</span>: <span class="hljs-string">‘vector’</span>,<br>      <span class="hljs-attr">index_type</span>: <span class="hljs-title class_">IndexType</span>.<span class="hljs-property">IVF_FLAT</span>,<br>      <span class="hljs-attr">metric_type</span>: <span class="hljs-title class_">MetricType</span>.<span class="hljs-property">COSINE</span>,<br>      <span class="hljs-attr">params</span>: &amp;#123; <span class="hljs-attr">nlist</span>: <span class="hljs-number">1024</span> &amp;#125;<br>    &amp;#125;);<br>  &amp;#125;<br>  <span class="hljs-keyword">await</span> client.<span class="hljs-title function_">loadCollection</span>(&amp;#123; <span class="hljs-attr">collection_name</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span> &amp;#125;);<br>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 4. 批量把一批片段向量化并插入</span><br><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">insertChunksBatch</span>(<span class="hljs-params">chunks, bookId, chapterNum</span>) &amp;#123;<br>  <span class="hljs-keyword">if</span> (chunks.<span class="hljs-property">length</span> &#x3D;&#x3D;&#x3D; <span class="hljs-number">0</span>) <span class="hljs-keyword">return</span> <span class="hljs-number">0</span>;<br>  <span class="hljs-keyword">const</span> insertData &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title class_">Promise</span>.<span class="hljs-title function_">all</span>(<br>    chunks.<span class="hljs-title function_">map</span>(<span class="hljs-keyword">async</span> (chunk, chunkIndex) &#x3D;&gt; &amp;#123;<br>      <span class="hljs-keyword">const</span> vector &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">getEmbedding</span>(chunk);<br>      <span class="hljs-keyword">return</span> &amp;#123;<br>        <span class="hljs-attr">id</span>: <span class="hljs-string"><code>&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;bookId&amp;#125;&lt;/span&gt;_&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;chapterNum&amp;#125;&lt;/span&gt;_&lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;chunkIndex&amp;#125;&lt;/span&gt;</code></span>, <span class="hljs-comment">&#x2F;&#x2F; 手动生成主键</span><br>        <span class="hljs-attr">book_id</span>: bookId,<br>        <span class="hljs-attr">book_name</span>: <span class="hljs-variable constant_">BOOK_NAME</span>,<br>        <span class="hljs-attr">chapter_num</span>: chapterNum,<br>        <span class="hljs-attr">index</span>: chunkIndex,<br>        <span class="hljs-attr">content</span>: chunk,<br>        vector<br>      &amp;#125;;<br>    &amp;#125;)<br>  );<br>  <span class="hljs-keyword">const</span> res &#x3D; <span class="hljs-keyword">await</span> client.<span class="hljs-title function_">insert</span>(&amp;#123; <span class="hljs-attr">collection_name</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span>, <span class="hljs-attr">data</span>: insertData &amp;#125;);<br>  <span class="hljs-keyword">return</span> <span class="hljs-title class_">Number</span>(res.<span class="hljs-property">insert_cnt</span>) || <span class="hljs-number">0</span>;<br>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 5. 加载 EPUB，按章节流式处理（边处理边插入，避免一次性全部驻留内存）</span><br><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">loadAndProcessEPubStreaming</span>(<span class="hljs-params">bookId</span>) &amp;#123;<br>  <span class="hljs-keyword">const</span> loader &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">EPubLoader</span>(<span class="hljs-variable constant_">EPUB_FILE</span>, &amp;#123; <span class="hljs-attr">splitChapters</span>: <span class="hljs-literal">true</span> &amp;#125;);<br>  <span class="hljs-keyword">const</span> documents &#x3D; <span class="hljs-keyword">await</span> loader.<span class="hljs-title function_">load</span>();<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>加载完成，共 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;documents.length&amp;#125;&lt;/span&gt; 个章节</code></span>);</p>
+<p>  <span class="hljs-keyword">const</span> textSplitter &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">RecursiveCharacterTextSplitter</span>(&amp;#123;<br>    <span class="hljs-attr">chunkSize</span>: <span class="hljs-variable constant_">CHUNK_SIZE</span>,<br>    <span class="hljs-attr">chunkOverlap</span>: <span class="hljs-variable constant_">CHUNK_OVERLAP</span><br>  &amp;#125;);</p>
+<p>  <span class="hljs-keyword">let</span> totalInserted &#x3D; <span class="hljs-number">0</span>;<br>  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; documents.<span class="hljs-property">length</span>; i++) &amp;#123;<br>    <span class="hljs-keyword">const</span> chunks &#x3D; <span class="hljs-keyword">await</span> textSplitter.<span class="hljs-title function_">splitText</span>(documents[i].<span class="hljs-property">pageContent</span>);<br>    <span class="hljs-keyword">if</span> (chunks.<span class="hljs-property">length</span> &#x3D;&#x3D;&#x3D; <span class="hljs-number">0</span>) <span class="hljs-keyword">continue</span>;<br>    totalInserted +&#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">insertChunksBatch</span>(chunks, bookId, i + <span class="hljs-number">1</span>);<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>已处理第 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt; 章，累计插入 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;totalInserted&amp;#125;&lt;/span&gt; 条</code></span>);<br>  &amp;#125;<br>  <span class="hljs-keyword">return</span> totalInserted;<br>&amp;#125;</p>
+<p><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">main</span>(<span class="hljs-params"></span>) &amp;#123;<br>  <span class="hljs-keyword">await</span> client.<span class="hljs-property">connectPromise</span>;<br>  <span class="hljs-keyword">await</span> <span class="hljs-title function_">ensureCollection</span>();<br>  <span class="hljs-keyword">const</span> total &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">loadAndProcessEPubStreaming</span>(<span class="hljs-number">1</span>);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>处理完成，总插入 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;total&amp;#125;&lt;/span&gt; 条</code></span>);<br>&amp;#125;</p>
+<p><span class="hljs-title function_">main</span>().<span class="hljs-keyword">catch</span>(<span class="hljs-function">(<span class="hljs-params">err</span>) &#x3D;&gt;</span> &amp;#123; <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(err); process.<span class="hljs-title function_">exit</span>(<span class="hljs-number">1</span>); &amp;#125;);<br></p></code></pre><p></p>
+<p>这里有几个设计点值得单独讲讲：</p>
+<h4 data-id="heading-14">为什么「流式处理」<strong>而不是</strong>一次性读完？</h4>
+<p>电子书很大，一次性全载入内存再一起向量化容易 OOM。这里的模式是<strong>按章节循环：拆一个章节 → 向量化 → 立即 insert</strong>，内存占用保持平稳，中途也好观察进度。这是很多 RAG 入库脚本忽略、但很实用的工程细节。</p>
+<h4 data-id="heading-15">为什么要切块（Chunking）？</h4>
+<p>单个片段过长会带来两个问题：</p>
+<ul>
+<li>向量化时，一个长文本的向量会被「平均淹没」，语义变得模糊；</li>
+<li>命中「一句关键线索」时，送给模型的上下文里却掺了大量无关段落。</li>
+</ul>
+<p>所以用 <code>RecursiveCharacterTextSplitter</code> 按结构划分，<code>chunkSize=500</code>、<code>chunkOverlap=50</code>。<strong>Overlap（重叠）</strong> 也很关键：它让相邻片段共享首尾 50 字符，避免「恰好在切缝处断掉」的句子上下文断裂。</p>
+<h4 data-id="heading-16">为什么手动生成主键 <code>bookId_chapterNum_index</code></h4>
+<p>主键自增数字在多本书、多版本入库时不够直观。手动拼成 <code>&#123;book_id&#125;_&#123;chapter_num&#125;_&#123;index&#125;</code>，一眼就能从 ID 反推「这本书第几章第几段」，后面检索、调试定位都方便。</p>
+<h3 data-id="heading-17">第七步：第一个能跑的 RAG——Naive RAG</h3>
+<p>数据灌好了，现在写第一个端到端的 RAG。它只有两步：<strong>检索（retrieve）+ 生成（generate）</strong>，所以叫 <strong>Naive（朴素）RAG</strong>——是个极简但完整的最小闭环。</p>
+<h4 data-id="heading-18">状态定义</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">import</span> <span class="hljs-string">"dotenv/config"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">ChatOpenAI</span>, <span class="hljs-title class_">OpenAIEmbeddings</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">"@langchain/openai"</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">Annotation</span>, <span class="hljs-variable constant_">END</span>, <span class="hljs-variable constant_">START</span>, <span class="hljs-title class_">StateGraph</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/langgraph'</span>;
+<span class="hljs-keyword">import</span> &#123; <span class="hljs-title class_">Milvus</span> &#125; <span class="hljs-keyword">from</span> <span class="hljs-string">'@langchain/community/vectorstores/milvus'</span>;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">COLLECTION_NAME</span> &#x3D; <span class="hljs-string">“ebook_collection”</span>;<br><span class="hljs-keyword">const</span> <span class="hljs-variable constant_">TOP_K</span> &#x3D; <span class="hljs-number">5</span>;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; LangGraph 的所有节点共享一个 State（状态）。谁往里写，谁就能读。</span><br><span class="hljs-keyword">const</span> <span class="hljs-title class_">GraphState</span> &#x3D; <span class="hljs-title class_">Annotation</span>.<span class="hljs-title class_">Root</span>(&amp;#123;<br>  <span class="hljs-attr">question</span>: <span class="hljs-title class_">Annotation</span>,   <span class="hljs-comment">&#x2F;&#x2F; 用户问题</span><br>  <span class="hljs-attr">k</span>: <span class="hljs-title class_">Annotation</span>,          <span class="hljs-comment">&#x2F;&#x2F; 检索数量</span><br>  <span class="hljs-attr">documents</span>: <span class="hljs-title class_">Annotation</span>,  <span class="hljs-comment">&#x2F;&#x2F; 检索到的文档</span><br>  <span class="hljs-attr">generation</span>: <span class="hljs-title class_">Annotation</span>  <span class="hljs-comment">&#x2F;&#x2F; 生成的内容</span><br>&amp;#125;);</p>
+<p><span class="hljs-keyword">const</span> model &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">ChatOpenAI</span>(&amp;#123;<br>  <span class="hljs-attr">model</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">MODEL_NAME</span>,<br>  <span class="hljs-attr">temperature</span>: <span class="hljs-number">0</span>,<br>  <span class="hljs-attr">configuration</span>: &amp;#123; <span class="hljs-attr">baseURL</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_BASE_URL</span> &amp;#125;,<br>  <span class="hljs-attr">apiKey</span>: process.<span class="hljs-property">env</span>.<span class="hljs-property">OPENAI_API_KEY</span><br>&amp;#125;);<br><span class="hljs-keyword">const</span> embeddings &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">OpenAIEmbeddings</span>(&amp;#123;<br>  <span class="hljs-attr">model</span>: <span class="hljs-string">“text-embedding-v3”</span>,<br>  <span class="hljs-attr">dimensions</span>: <span class="hljs-number">1024</span><br>&amp;#125;);</p>
+<p><span class="hljs-keyword">let</span> vectorStore;<br></p></code></pre><p></p>
+<h4 data-id="heading-19">检索节点</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">retrieveRelevantContent</span>(<span class="hljs-params">question, k = TOP_K</span>) &#123;
+  <span class="hljs-keyword">try</span> &#123;
+    <span class="hljs-comment">// similaritySearchWithScore 返回 [(doc, score), ...]</span>
+    <span class="hljs-keyword">const</span> docsWithScores = <span class="hljs-keyword">await</span> vectorStore.<span class="hljs-title function_">similaritySearchWithScore</span>(question, k);
+    <span class="hljs-keyword">return</span> docsWithScores.<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">[doc, score]</span>) =&gt;</span> (&#123;
+      score,
+      <span class="hljs-attr">content</span>: doc.<span class="hljs-property">pageContent</span>,
+      <span class="hljs-attr">id</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">id</span> ?? <span class="hljs-string">"unknown"</span>,
+      <span class="hljs-attr">book_id</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">book_id</span> ?? <span class="hljs-string">"未知"</span>,
+      <span class="hljs-attr">chapter_num</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">chapter_num</span> ?? <span class="hljs-string">"未知"</span>,
+      <span class="hljs-attr">index</span>: doc.<span class="hljs-property">metadata</span>?.<span class="hljs-property">index</span> ?? <span class="hljs-string">"未知"</span>
+    &#125;));
+  &#125; <span class="hljs-keyword">catch</span> (err) &#123;
+    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">error</span>(<span class="hljs-string">"检索出错："</span>, err.<span class="hljs-property">message</span>);
+    <span class="hljs-keyword">return</span> [];
+  &#125;
+&#125;
+
+<p><span class="hljs-keyword">const</span> <span class="hljs-title function_">retrieveNode</span> &#x3D; <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) &#x3D;&gt; &amp;#123;<br>  <span class="hljs-keyword">const</span> documents &#x3D; <span class="hljs-keyword">await</span> <span class="hljs-title function_">retrieveRelevantContent</span>(state.<span class="hljs-property">question</span>, state.<span class="hljs-property">k</span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>, <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>, documents &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-20">生成节点</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> <span class="hljs-title function_">generateNode</span> = <span class="hljs-keyword">async</span> (<span class="hljs-params">state</span>) =&gt; &#123;
+  <span class="hljs-keyword">const</span> context = state.<span class="hljs-property">documents</span>
+    .<span class="hljs-title function_">map</span>(<span class="hljs-function">(<span class="hljs-params">item, i</span>) =&gt;</span>
+      <span class="hljs-string">`[片段 <span class="hljs-subst">$&#123;i+<span class="hljs-number">1</span>&#125;</span>]
+章节: 第 <span class="hljs-subst">$&#123;item.chapter_num&#125;</span>章
+内容：<span class="hljs-subst">$&#123;item.content&#125;</span>`</span>
+    ).<span class="hljs-title function_">join</span>(<span class="hljs-string">"\n\n----------\n\n"</span>);
+
+<p>  <span class="hljs-keyword">const</span> prompt &#x3D; <span class="hljs-string">&#96;<br>你是一个专业的《天龙八部》小说助手。请根据以下小说片段回答问题：<br><span class="hljs-subst">$&amp;#123;context&amp;#125;</span><br>用户问题：<span class="hljs-subst">$&amp;#123;state.question&amp;#125;</span></span></p>
+<p>回答要求：</p>
+<ol>
+<li>如果片段中有相关信息，请给出详细、准确的回答</li>
+<li>可以综合多个片段内容，提供完整答案</li>
+<li>如果片段中没有相关信息，请如实告知用户</li>
+<li>回答要准确，符合小说情节和人物设定</li>
+<li>可以引用原文支持你的回答</li>
+</ol>
+<p>AI 助手的回答：<br>&#96;;<br>  process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(<span class="hljs-string">“\n[AI回答（流式）]\n”</span>);<br>  <span class="hljs-keyword">let</span> generation &#x3D; <span class="hljs-string">“”</span>;<br>  <span class="hljs-keyword">const</span> stream &#x3D; <span class="hljs-keyword">await</span> model.<span class="hljs-title function_">stream</span>(prompt);<br>  <span class="hljs-keyword">for</span> <span class="hljs-keyword">await</span> (<span class="hljs-keyword">const</span> chunk <span class="hljs-keyword">of</span> stream) &amp;#123;<br>    <span class="hljs-keyword">const</span> text &#x3D; <span class="hljs-keyword">typeof</span> chunk.<span class="hljs-property">content</span> &#x3D;&#x3D;&#x3D; <span class="hljs-string">“string”</span> ? chunk.<span class="hljs-property">content</span> : <span class="hljs-string">“”</span>;<br>    <span class="hljs-keyword">if</span> (!text) <span class="hljs-keyword">continue</span>;<br>    generation +&#x3D; text;<br>    process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(text); <span class="hljs-comment">&#x2F;&#x2F; 边生成边打印，体验更好</span><br>  &amp;#125;<br>  process.<span class="hljs-property">stdout</span>.<span class="hljs-title function_">write</span>(<span class="hljs-string">“\n”</span>);<br>  <span class="hljs-keyword">return</span> &amp;#123; <span class="hljs-attr">question</span>: state.<span class="hljs-property">question</span>, <span class="hljs-attr">k</span>: state.<span class="hljs-property">k</span>, <span class="hljs-attr">documents</span>: state.<span class="hljs-property">documents</span>, generation &amp;#125;;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-21">把节点串成图</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">const</span> graph = <span class="hljs-keyword">new</span> <span class="hljs-title class_">StateGraph</span>(<span class="hljs-title class_">GraphState</span>)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"retrieve"</span>, retrieveNode)
+  .<span class="hljs-title function_">addNode</span>(<span class="hljs-string">"generate"</span>, generateNode)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-variable constant_">START</span>, <span class="hljs-string">"retrieve"</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"retrieve"</span>, <span class="hljs-string">"generate"</span>)
+  .<span class="hljs-title function_">addEdge</span>(<span class="hljs-string">"generate"</span>, <span class="hljs-variable constant_">END</span>)
+  .<span class="hljs-title function_">compile</span>();
+</code></pre>
+<p>流程是直的：<code>START -&gt; retrieve -&gt; generate -&gt; END</code>。</p>
+<h4 data-id="heading-22">连接向量库并调用</h4>
+<pre><code class="hljs language-js" lang="js"><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">main</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> question = <span class="hljs-string">"阿朱的结局是什么？"</span>;
+  vectorStore = <span class="hljs-keyword">await</span> <span class="hljs-title class_">Milvus</span>.<span class="hljs-title function_">fromExistingCollection</span>(embeddings, &#123;
+    <span class="hljs-attr">collectionName</span>: <span class="hljs-variable constant_">COLLECTION_NAME</span>,
+    <span class="hljs-attr">url</span>: <span class="hljs-string">"localhost:19530"</span>,
+    <span class="hljs-attr">textField</span>: <span class="hljs-string">"content"</span>,
+    <span class="hljs-attr">primaryField</span>: <span class="hljs-string">"id"</span>,
+    <span class="hljs-attr">vectorField</span>: <span class="hljs-string">"vector"</span>,
+    <span class="hljs-attr">indexCreateOptions</span>: &#123;
+      <span class="hljs-attr">metric_type</span>: <span class="hljs-string">"COSINE"</span>,
+      <span class="hljs-comment">// HNSW：多层近邻图索引；相比 IVF_FLAT 是另一类索引策略</span>
+      <span class="hljs-attr">index_type</span>: <span class="hljs-string">"HNSW"</span>,
+      <span class="hljs-attr">params</span>: &#123; <span class="hljs-attr">M</span>: <span class="hljs-number">16</span>, <span class="hljs-attr">efConstruction</span>: <span class="hljs-number">200</span> &#125;,
+      <span class="hljs-attr">search_params</span>: &#123; <span class="hljs-attr">ef</span>: <span class="hljs-number">64</span> &#125;
+    &#125;
+  &#125;);
+
+<p>  <span class="hljs-keyword">const</span> result &#x3D; <span class="hljs-keyword">await</span> graph.<span class="hljs-title function_">invoke</span>(&amp;#123;<br>    question,<br>    <span class="hljs-attr">k</span>: <span class="hljs-variable constant_">TOP_K</span>,<br>    <span class="hljs-attr">documents</span>: [],<br>    <span class="hljs-attr">generation</span>: <span class="hljs-string">“”</span><br>  &amp;#125;);</p>
+<p>  result.<span class="hljs-property">documents</span>.<span class="hljs-title function_">forEach</span>(<span class="hljs-function">(<span class="hljs-params">item, i</span>) &#x3D;&gt;</span> &amp;#123;<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>\n【片段 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;i+&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;&amp;#125;&lt;/span&gt;】相似度: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;item.score.toFixed(&lt;span class=&quot;hljs-number&quot;&gt;4&lt;/span&gt;)&amp;#125;&lt;/span&gt;</code></span>);<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>章节: 第 &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;item.chapter_num&amp;#125;&lt;/span&gt; 章</code></span>);<br>    <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string"><code>内容: &lt;span class=&quot;hljs-subst&quot;&gt;$&amp;#123;item.content.substring(&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;120&lt;/span&gt;)&amp;#125;&lt;/span&gt;...</code></span>);<br>  &amp;#125;);<br>  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">“\n[AI回答]\n”</span>, result.<span class="hljs-property">generation</span>);<br>&amp;#125;</p>
+<p><span class="hljs-title function_">main</span>().<span class="hljs-keyword">catch</span>(<span class="hljs-variable language_">console</span>.<span class="hljs-property">error</span>);<br></p></code></pre><p></p>
+<p>当用户问「阿朱的结局是什么」，这个最小 RAG 会：把问题向量化 → 在 Milvus 里相似度检索出 Top-5 片段 → 把片段拼进 Prompt → 让模型基于片段作答。<strong>「先检索，再增强生成」的最小闭环跑通了。</strong></p>
+<h3 data-id="heading-23">第八步：混合检索——关键词 + 语义 双引擎合流</h3>
+<p>等你想把架构做得更稳，会发现纯向量检索有一个已知短板：</p>
+<blockquote>
+<p><strong>专业术语、精确实体，纯语义检索容易匹配不准。</strong></p>
+</blockquote>
+<p>比如问「高血糖的成因」，向量检索可能把语义相近的「低血糖」也捞进来；查「乔峰」这种专有名词，关键词精准命中反而更可靠。而反过来，关键词又搞不定同义改写。</p>
+<p>所以生产级方案是<strong>混合检索（Hybrid Search）</strong>：</p>
+<pre><code class="hljs language-markdown" lang="markdown">混合检索 = ES 关键词检索（倒排索引，精确命中实体/术语）
+<span class="hljs-bullet">         +</span> Milvus 语义检索（向量相似度，命中同义/意译）
+<span class="hljs-bullet">         +</span> 模型统一融合多路结果，提升专业场景准确率
+</code></pre>
+<p>关键词检索有 ES 这个「特种兵」，语义检索有向量库这条腿，两者各取所长、由模型融合打分——这才是 RAG 检索层的「完全体」。</p>
+<h3 data-id="heading-24">小结：这一篇你该带走的东西</h3>
+<ol>
+<li><strong>MySQL 适合精确结构化查找，不适合大文本全文检索</strong>；海量文本检索交给 ES。</li>
+<li><strong>ES 快的本质是倒排索引</strong>：写入时分词建「词→文档」表，查询时按词条精准命中，无需全表扫。</li>
+<li><strong><code>text</code> 分词做全文检索、<code>keyword</code> 不分词做精确匹配</strong>，中文配 IK 分词器（存 <code>ik_max_word</code>、查 <code>ik_smart</code>）。</li>
+<li><strong>向量库用 Embedding 把语义编码为向量</strong>，靠余弦相似度取 Top-K，补足关键词检索的同义/意译短板。</li>
+<li><strong>入库要做 Chunking（切块）+ Overlap（重叠）+ 流式处理</strong>，Naive RAG = 检索 + 生成的最小闭环。</li>
+<li>生产级检索层是<strong>混合检索</strong>：ES 关键词 + 向量语义双引擎合流。</li>
+</ol>
+<p>但这里有个必须诚实面对的问题：<strong>这个 Naive RAG 太「死板」了。</strong> 它无论什么问题都硬走一遍检索，没有判断、没有纠错、没有多步推理、也不会联网补充。下一篇，我们就把它升级成一个「会思考、会判断、会纠错」的 <strong>Agentic RAG</strong>。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？" href="https://juejin.cn/post/7686389996107694130" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span><span class="desc fs12">https://juejin.cn/post/7686389996107694130</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/f5681138.html">灵界 OS 5.0 稳定版 · 桌面按钮可以隐藏了<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8f17dc51.html">How Cooley Is Accelerating IPO Work With ChatGPT<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/908a1c89.html" title="DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9019"></div><span class="title">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本</span></a><a class="item" href="/rss/b4c5ecd5.html" title="CSS Grid 布局实战指南，看这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8766"></div><span class="title">CSS Grid 布局实战指南，看这篇就够了</span></a><a class="item" href="/rss/f9dc35c0.html" title="MCP 架构概览"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=992"></div><span class="title">MCP 架构概览</span></a><a class="item" href="/rss/6c3bf74a.html" title="RHCE 考试通过率提升:核心考点、实验环境与排错技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5831"></div><span class="title">RHCE 考试通过率提升:核心考点、实验环境与排错技巧</span></a><a class="item" href="/rss/98141922.html" title="Nginx 反向代理配置指南，看完这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6187"></div><span class="title">Nginx 反向代理配置指南，看完这篇就够了</span></a><a class="item" href="/rss/6a9bed7.html" title="《潮水漫过十七岁》开学了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6488"></div><span class="title">《潮水漫过十七岁》开学了</span></a><a class="item" href="/rss/ff43a132.html" title="《潮水漫过十七岁》爸爸最近很忙"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6068"></div><span class="title">《潮水漫过十七岁》爸爸最近很忙</span></a><a class="item" href="/rss/80175ce7.html" title="RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1790321510&x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D"></div><span class="title">RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span></a><a class="item" href="/rss/e90f99c2.html" title="从 Windows 换到 Mac 三个月，我真香了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/962f2972579f4eb595e23889202ccfee~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oCV5rWq54yr:q75.awebp?rk3s=f64ab15b&x-expires=1790410500&x-signature=zSsIIe4s2ibVz5%2FCwqr7pECTFCg%3D"></div><span class="title">从 Windows 换到 Mac 三个月，我真香了</span></a><a class="item" href="/rss/93bb2588.html" title="从挂科到高分通过:RHCE快速拿证的10个提分技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7623"></div><span class="title">从挂科到高分通过:RHCE快速拿证的10个提分技巧</span></a><a class="item" href="/rss/1a69a272.html" title="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2435"></div><span class="title">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></a><a class="item" href="/rss/54325595.html" title="手写一个 Mini HashMap，彻底搞懂哈希表原理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5010"></div><span class="title">手写一个 Mini HashMap，彻底搞懂哈希表原理</span></a><a class="item" href="/rss/54b87b7d.html" title="红帽RHCE从挂科边缘到一次过，我做对了什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">红帽RHCE从挂科边缘到一次过，我做对了什么</span></a><a class="item" href="/rss/f966d59.html" title="视野修炼第133期 | Native 回春了?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/67ebbc355bbc4866909964e3daf59359~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790409305&x-signature=GlJRe0TzJTyAaozLNu2IgLwRtqs%3D"></div><span class="title">视野修炼第133期 | Native 回春了?</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

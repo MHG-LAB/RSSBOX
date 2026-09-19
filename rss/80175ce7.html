@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战 - RSSBOX</title>
+
+  
+    <meta name="description" content="图 1：本文以 RK3588 上的文本推理为目标。板卡为概念示意，CPU 与三核 NPU 均属于 RK3588 SoC。  写在前面：跑起来只是起点，还要知道它跑在哪里 一块 8GB 的 RK3588 开发板，可以把 Qwen3.5-2B 做成局域网里的模型服务：浏览器直接聊天，程序通过 &#x2F;v1&#x2F;chat&#x2F;completions 调用，部分计算交给板载 NPU。真正需要解决的是一整条链路：设">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/80175ce7.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="图 1：本文以 RK3588 上的文本推理为目标。板卡为概念示意，CPU 与三核 NPU 均属于 RK3588 SoC。  写在前面：跑起来只是起点，还要知道它跑在哪里 一块 8GB 的 RK3588 开发板，可以把 Qwen3.5-2B 做成局域网里的模型服务：浏览器直接聊天，程序通过 &#x2F;v1&#x2F;chat&#x2F;completions 调用，部分计算交给板载 NPU。真正需要解决的是一整条链路：设">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1ff5922ba5e24365b767cb57d7ef1fc6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=Q0g1KSKv%2BnL4%2B87PFrzfB7m%2B8VE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/71677fbd8a044129b4bd2f954068336a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=RuUfMFlwsDeTi1JogvrxkDBATAo%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c88588abb14d48d2b17aa1ae3bf50d1e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=GFsAS7HGtlBEcxTFJlB22tOqwys%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/61d566e0b4604772a7ae90842a543366~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=1ytOtSbVNjGtwyECjd4Xl04sp2o%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a265359b063643b4909d22a3b3553092~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=7Y2Logld7Sn0K9pHB3sREa%2FwmZ0%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/667acdbc836f42cf816aaccfc905ff9d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=g5g%2F3AZ%2FwgPG99p%2F93DAReXiA%2F0%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/36ab356d42ad48a5aefc02cb5ac5b27f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=hwl603ji8njAdv%2FZvnMvAdFmlk4%3D">
+<meta property="article:published_time" content="2026-09-18T07:31:50.000Z">
+<meta property="article:modified_time" content="2026-09-18T07:31:50.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">写在前面：跑起来只是起点，还要知道它跑在哪里</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">1. 先固定环境和版本</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">本文实测环境</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">2. 为什么选择 rk-llama.cpp</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">llama.cpp、ggml 和 backend 分别是什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">和 RKLLM 路线有什么区别</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3. 软件栈与 CPU、GPU、NPU 的分工</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4. 准备板卡，并按可定位故障的顺序部署</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">5. 检查系统、NPU、Runtime 和用户权限</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">系统与资源</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">设备、驱动和运行库</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么优先检查 render 组</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">ldconfig 不能单独证明 NPU 是否可用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">6. 安装依赖与建立部署目录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">7. 获取 rknpu2 分支：板端下载或电脑中转</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">方式 A：开发板直接 clone</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">方式 B：电脑下载、压缩，再 SCP 上传</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">8. 编译并证明 RKNPU backend 已注册</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">9. GGUF 怎么选：磁盘量化与 NPU 管线要分开看</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">10. 下载大文件，并验证 SHA256</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">固定文件版本</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">推荐：电脑下载后上传</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">可选：开发板直接下载</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">11. 首次 CLI 推理：把错误限制在最少的层里</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">12. Bench：区分“读输入的速度”和“吐字的速度”</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">本文已有 Q6_K 实测结果</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">13. 服务化：完整 start.sh 与 stop.sh</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">start.sh 完整代码</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">stop.sh 完整代码</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">14. 启动参数分别控制什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">15. 启动服务：编码、真实进程、健康状态都要过关</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">健康检查</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Web UI</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">16. OpenAI 兼容 API：把开发板接入应用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">17. 证明请求确实使用了 NPU：四层证据链</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">证据一：设备注册</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">证据二：当前服务的日志</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">证据三：请求期间的三核实际负载</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">证据四：llama-bench 的 backend</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">另外核对“生效配置”，别只看脚本</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">18. 停止服务：PID 文件消失，不等于服务消失</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">19. 性能优化：先缩小变量，再放大负载</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">NPU 不必始终 100%</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8GB 应该配置多大 Context</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Batch 与 UBatch</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">CACHE_RAM 能节约哪些重复工作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">CPU 绑定、频率与散热</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">20. RK3588 本地知识库：让检索减轻上下文负担</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">21. 常见问题与故障排查</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Processing 0% 与首次崩溃的恢复顺序</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">网页不可达：从回环地址到局域网</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">多个独立 NPU 模型进程的风险</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">浏览器为什么还记得旧会话</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">22. 已完成编译后的最短启动流程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">参考资料</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-18T07:31:50.000Z">2026-09-18</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span></h1>
+<div>
+<p><img class="lazy" alt="RK3588、Qwen3.5-2B 与 RKNPU2 本地推理" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D"></p>
+<blockquote>
+<p>图 1：本文以 RK3588 上的文本推理为目标。板卡为概念示意，CPU 与三核 NPU 均属于 RK3588 SoC。</p>
+</blockquote>
+<h2 data-id="heading-0">写在前面：跑起来只是起点，还要知道它跑在哪里</h2>
+<p>一块 8GB 的 RK3588 开发板，可以把 Qwen3.5-2B 做成局域网里的模型服务：浏览器直接聊天，程序通过 <code>/v1/chat/completions</code> 调用，部分计算交给板载 NPU。真正需要解决的是一整条链路：设备权限是否正确、程序是否编译了 NPU 后端、GGUF 量化是否匹配硬件管线、第一次推理是否稳定，以及停止服务后内存和端口是否确实释放。</p>
+<p>本文完成的部署路径是：</p>
+<pre><code class="hljs language-text" lang="text">Qwen3.5-2B GGUF
+        ↓
+rk-llama.cpp 的 RKNPU2 backend
+        ↓
+RK3588 NPU Core0 / Core1 / Core2，与 CPU 协同
+        ↓
+llama-server :8080
+        ↓
+Web UI / OpenAI Compatible API
+</code></pre>
+<p>开始前先明确边界：8GB RAM 需要同时容纳系统、权重和推理缓存；GGUF 的量化类型不等于 NPU 实际执行精度；NPU 加速也不代表所有算子都离开 CPU。NPU 利用率不是加速比例，Context 越大，缓存和缓冲区压力通常越高。本文服务只接受文本，普通图片不能直接输入。多个独立 NPU 模型进程同时计算存在驱动层风险，上游也仍在持续迭代。</p>
+<p><strong>能力澄清：</strong> Qwen 官方将 Qwen3.5-2B 定义为包含视觉编码器的模型。本文只加载实测 GGUF 文本路径，没有配置视觉编码组件，所以这里的“文本模型服务”不等于“Qwen3.5-2B 原模型没有视觉能力”。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FQwen%2FQwen3.5-2B" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/Qwen/Qwen3.5-2B" rel="external nofollow noopener noreferrer">Qwen 官方模型卡</a></p>
+<p>本文区分五类信息：<strong>实测记录</strong>指下表对应环境的已有部署结果；<strong>项目说明</strong>来自链接所指版本；<strong>原理解释</strong>用于理解机制；<strong>建议配置</strong>需要在自己的板卡验证；<strong>版本差异</strong>单独列出。下文没有新增板端跑分，也没有把语法检查当成 NPU 实测。</p>
+<h2 data-id="heading-1">1. 先固定环境和版本</h2>
+<h3 data-id="heading-2">本文实测环境</h3>
+<table><thead><tr><th>项目</th><th>本文实测基线</th></tr></thead><tbody><tr><td>SoC / 内存</td><td>RK3588 / 8GB</td></tr><tr><td>系统</td><td>Ubuntu 22.04.5 LTS，厂商镜像</td></tr><tr><td>架构 / 内核</td><td>aarch64 / Linux 5.10</td></tr><tr><td>NPU 软件路径</td><td>RKNPU2 backend + RKNN Runtime</td></tr><tr><td>NPU 驱动</td><td>RKNPU driver v0.9.8</td></tr><tr><td>Runtime 文件检查</td><td><code>/usr/lib/librknnrt.so</code>；未记录独立版本号</td></tr><tr><td>源码</td><td><code>invisiofficial/rk-llama.cpp</code> 的 <code>rknpu2</code> 分支</td></tr><tr><td>实测提交</td><td><code>81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62</code></td></tr><tr><td>模型 / 格式</td><td>Qwen3.5-2B / GGUF</td></tr><tr><td>本文默认量化</td><td><code>Q8_0</code></td></tr><tr><td>已有数值跑分</td><td><code>Q6_K</code>，见性能测试一节</td></tr><tr><td>服务 / 端口</td><td><code>llama-server</code> / TCP 8080</td></tr><tr><td>部署目录</td><td><code>$HOME/rk_llama_npu_test</code>；用户名为 edge 时是 <code>/home/edge/rk_llama_npu_test</code></td></tr></tbody></table>
+<p>不同厂商镜像的内核、RKNPU 驱动和 RKNN Runtime 可能不同，不能仅凭“都是 RK3588”就认为软件环境一致。本文以镜像已包含匹配的驱动及运行库为前提；组件缺失时，应先按开发板厂商的镜像或 SDK 文档处理。</p>
+<h2 data-id="heading-3">2. 为什么选择 rk-llama.cpp</h2>
+<h3 data-id="heading-4">llama.cpp、ggml 和 backend 分别是什么</h3>
+<p>llama.cpp 是使用 C/C++ 实现的模型推理项目，提供模型加载、分词、推理、采样和服务工具。ggml 是其底层张量计算库；backend，也就是“计算后端”，把一部分张量操作交给特定硬件执行。GGUF 则是存放权重及模型元数据的文件格式，量化后的权重也可以放在其中。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fggml-org%2Fllama.cpp" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/ggml-org/llama.cpp" rel="external nofollow noopener noreferrer">llama.cpp 项目</a></p>
+<p>普通 ARM 可执行程序不会因为设备上有 NPU，就自动调用它。NPU 需要自己的运行接口、数据布局和受支持运算路径。rk-llama.cpp 是 llama.cpp 的社区分支，在 ggml 层接入 RKNPU2 backend，让它可以通过 RKNN Runtime 与 Rockchip NPU 交互；它不是 Rockchip 官方的 RKLLM 产品。</p>
+<p>选择这条路线的主要价值，是继续使用 GGUF、<code>llama-cli</code>、<code>llama-bench</code>、<code>llama-server</code> 及其 API 生态，同时使用 NPU 支持的计算能力。GGUF 文件可以继续统一分发和校验，但不意味着 NPU 会直接按文件中的块量化格式计算。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/README.md" rel="external nofollow noopener noreferrer">实测版本后端说明</a></p>
+<h3 data-id="heading-5">和 RKLLM 路线有什么区别</h3>
+<table><thead><tr><th>路线</th><th>常用模型格式</th><th>RK3588 NPU</th><th>模型及工具通用性</th><th>llama.cpp 生态</th><th>部署工作</th></tr></thead><tbody><tr><td>普通 llama.cpp</td><td>GGUF</td><td>普通 CPU 构建不会自动调用 RKNPU2；其他加速后端需分别配置</td><td>较广，仍受具体模型支持限制</td><td>原生</td><td>相对较少</td></tr><tr><td>rk-llama.cpp RKNPU2</td><td>GGUF</td><td>通过专用 backend 使用</td><td>受算子、量化管线和驱动组合约束</td><td>高度沿用</td><td>需要编译、权限和后端验证</td></tr><tr><td>RKLLM</td><td>转换后的 RKLLM 模型</td><td>通过 RKLLM Runtime 使用</td><td>受官方转换器及支持列表约束</td><td>接口和工具链不同</td><td>需要模型转换与 Runtime 配套</td></tr></tbody></table>
+<p>这里的部署工作量是工程判断，不是统一评分。RKLLM 的核心流程是使用 RKLLM-Toolkit 转换模型，再用板端 Runtime 推理；它更适合希望围绕 Rockchip 提供的模型工具链开展部署的项目。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fairockchip%2Frknn-llm" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/airockchip/rknn-llm" rel="external nofollow noopener noreferrer">Rockchip RKLLM 项目</a></p>
+<p>三条路线没有脱离条件的“绝对更快”。有意义的对比至少要固定板卡、模型、量化或质量目标、上下文、输入长度、生成长度和频率状态。</p>
+<h2 data-id="heading-6">3. 软件栈与 CPU、GPU、NPU 的分工</h2>
+<p><img class="lazy" alt="rk-llama.cpp 到 RK3588 NPU 的软件栈" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1ff5922ba5e24365b767cb57d7ef1fc6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=Q0g1KSKv%2BnL4%2B87PFrzfB7m%2B8VE%3D"></p>
+<blockquote>
+<p>图 2：CLI、Bench 和 Server 使用同一套模型与计算后端；RKNPU2 经 Runtime、驱动到达硬件，CPU 仍参与计算。</p>
+</blockquote>
+<p>Runtime 是用户空间的运行库，Driver 是内核中的设备驱动，两者不应混称为“装了一个 NPU 库”。<code>librknnrt.so</code> 存在、设备节点存在、进程有权限，是不同层的条件。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fairockchip%2Frknn-toolkit2" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/airockchip/rknn-toolkit2" rel="external nofollow noopener noreferrer">Rockchip RKNN-Toolkit2 与 Runtime 项目</a></p>
+<p>RK3588 的 CPU 包含四颗 Cortex-A76 和四颗 Cortex-A55，另有 GPU 和 NPU。它们共享系统内存资源，但不会自动组成一套“所有加速器一起跑”的推理方案。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.rock-chips.com%2Fa%2Fcn%2Fnews%2Frockchip%2F2022%2F0303%2F1544.html" ref="nofollow noopener noreferrer" target="_blank" title="https://www.rock-chips.com/a/cn/news/rockchip/2022/0303/1544.html" rel="external nofollow noopener noreferrer">Rockchip RK3588 介绍</a></p>
+<p><img class="lazy" alt="CPU、NPU 与共享 RAM 的协同" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/71677fbd8a044129b4bd2f954068336a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=RuUfMFlwsDeTi1JogvrxkDBATAo%3D"></p>
+<blockquote>
+<p>图 3：CPU 负责调度、分词、部分算子、采样和服务；NPU 承担支持的矩阵计算；RAM 容纳权重、缓存、状态和工作缓冲区。</p>
+</blockquote>
+<p>Tokenizer 把文本转换成 Token，即模型处理的基本单元，Token 不等于一个汉字。Sampling 根据模型输出分数选择下一个 Token。CPU 因而不会在 NPU 推理时闲置。本文实测镜像中 CPU4～7 对应 A76 大核，后文把 CPU 工作绑定到这一范围；换镜像后要核对编号，不能把操作系统 CPU 编号当成 SoC 固有接口。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.arm.com%2Fproducts%2Fsilicon-ip-cpu%2Fcortex-a%2Fcortex-a76" ref="nofollow noopener noreferrer" target="_blank" title="https://www.arm.com/products/silicon-ip-cpu/cortex-a/cortex-a76" rel="external nofollow noopener noreferrer">Arm Cortex-A76 资料</a></p>
+<p>GPU 通常负责图形显示，也可被其他推理后端用于计算；本文没有启用 GPU 推理路径。NPU 三个 Core 是同一 NPU 内的计算核心，不是三张独立加速卡。RKNPU2 只接管满足后端条件的运算，余下工作仍由 CPU 等既定路径处理。</p>
+<h2 data-id="heading-7">4. 准备板卡，并按可定位故障的顺序部署</h2>
+<p>准备 RK3588 8GB 开发板、稳定电源和散热，建议预留至少 15GB 磁盘空间。需要一台能 SSH 登录的电脑，负责下载、压缩和上传。</p>
+<p><img class="lazy" alt="从系统检查到 NPU 验收的部署流程" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c88588abb14d48d2b17aa1ae3bf50d1e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=GFsAS7HGtlBEcxTFJlB22tOqwys%3D"></p>
+<blockquote>
+<p>图 4：先用 CLI 排除模型和后端问题，再用 Bench 验证计算，最后增加 HTTP、网络和浏览器这一层。</p>
+</blockquote>
+<p>除明确标注 “电脑 PowerShell” 的代码外，下面命令均在开发板的 Bash 中运行。示例用户名采用 <code>edge</code>。电脑端先记录连接信息；IP 和用户名需按实际设备输入，避免把尖括号占位符误当重定向符号：</p>
+<pre><code class="hljs language-powershell" lang="powershell">$BoardIP = Read-Host '输入开发板局域网 IP'
+$BoardUser = Read-Host '输入 SSH 用户名（例如 edge）'
+$BoardPort = 22
+$BoardTarget = "$&#123;BoardUser&#125;@$&#123;BoardIP&#125;"
+$BoardBase = "/home/$BoardUser/rk_llama_npu_test"
+ssh -p $BoardPort $BoardTarget
+</code></pre>
+<p>电脑上传示例按 Ubuntu 普通用户家目录 <code>/home/用户名</code> 编写；若 <code>echo "$HOME"</code> 显示不同目录，应同步修改 <code>$BoardBase</code>。不要把密码写进脚本。Windows 端需要 OpenSSH、<code>curl.exe</code>、<code>tar</code>，源码下载还需 Git；缺少 Git 时使用 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgit-scm.com%2Fdownload%2Fwin" ref="nofollow noopener noreferrer" target="_blank" title="https://git-scm.com/download/win" rel="external nofollow noopener noreferrer">Git 官方下载页</a>。</p>
+<h2 data-id="heading-8">5. 检查系统、NPU、Runtime 和用户权限</h2>
+<h3 data-id="heading-9">系统与资源</h3>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cat</span> /etc/os-release
+<span class="hljs-built_in">uname</span> -a
+<span class="hljs-built_in">uname</span> -m
+free -h
+<span class="hljs-built_in">df</span> -h /
+</code></pre>
+<p>核对 <code>aarch64</code>，以及 <code>free -h</code> 中的 <code>available</code>。不要仅看 <code>free</code> 列：Linux 会用空闲内存作文件缓存。RAM 紧张时，模型能加载并不保证长提示词或首次推理也能成功。</p>
+<h3 data-id="heading-10">设备、驱动和运行库</h3>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">ls</span> -l /dev/dri/by-path/platform-fdab0000.npu-render
+sudo <span class="hljs-built_in">cat</span> /sys/kernel/debug/rknpu/version
+<span class="hljs-built_in">ls</span> -l /usr/lib/librknnrt.so
+</code></pre>
+<p>本文实测设备链接及驱动输出为：</p>
+<pre><code class="hljs language-text" lang="text">platform-fdab0000.npu-render -&gt; ../renderD129
+RKNPU driver: v0.9.8
+</code></pre>
+<p><code>renderD129</code> 是本文镜像的实际编号，其他镜像应以 <code>by-path</code> 指向和设备归属为准。若 debugfs 路径不存在，可先检查是否挂载：</p>
+<pre><code class="hljs language-bash" lang="bash">findmnt -t debugfs
+</code></pre>
+<p>仅在确认系统支持 debugfs、但尚未挂载时执行：</p>
+<pre><code class="hljs language-bash" lang="bash">sudo mount -t debugfs debugfs /sys/kernel/debug
+</code></pre>
+<p>挂载不会凭空安装驱动。设备节点缺失、驱动未加载、Runtime 缺失，需要回到厂商镜像或 SDK 处理，不能靠反复启动模型修复。</p>
+<h3 data-id="heading-11">为什么优先检查 render 组</h3>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">id</span>
+<span class="hljs-built_in">ls</span> -l /dev/dri/renderD129
+</code></pre>
+<p>实测节点类似：</p>
+<pre><code class="hljs language-text" lang="text">crw-rw---- 1 root render ... /dev/dri/renderD129
+</code></pre>
+<p><code>root:render</code> 表示所有者为 root、所属组为 render；<code>0660</code> 表示所有者和所属组有读写权限，其他用户没有。这个权限模型下，普通用户应加入 <code>render</code>，仅加入 <code>video</code> 不足以保证可访问此节点。不同镜像也可能使用 ACL 或不同组名，实际权限以节点为准。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.kernel.org%2Fdoc%2Fhtml%2Flatest%2Fgpu%2Fdrm-uapi.html%23render-nodes" ref="nofollow noopener noreferrer" target="_blank" title="https://www.kernel.org/doc/html/latest/gpu/drm-uapi.html#render-nodes" rel="external nofollow noopener noreferrer">Linux DRM render node 文档</a></p>
+<pre><code class="hljs language-bash" lang="bash">sudo usermod -aG render <span class="hljs-string">"<span class="hljs-variable">$USER</span>"</span>
+</code></pre>
+<p>注销 SSH 并重新登录，再运行 <code>id</code>。旧会话不会自动获得新的附加组。后续以普通用户运行模型，仅对驱动状态、系统配置等操作使用 <code>sudo</code>。</p>
+<h3 data-id="heading-12">ldconfig 不能单独证明 NPU 是否可用</h3>
+<pre><code class="hljs language-bash" lang="bash">ldconfig -p | grep rknn
+</code></pre>
+<p>这个命令查询的是动态链接器缓存。没有结果不等于 <code>librknnrt.so</code> 不存在，更不等于 NPU 损坏；有结果也不等于后端已加载。判断必须联合使用：<strong>实际库文件 → 设备及权限 → <code>--list-devices</code> → 真实推理</strong>。</p>
+<p>还有一个版本细节：实测提交的后端 CMake 链接了源码目录内 <code>ggml/src/ggml-rknpu2/libs/librknnrt.so</code>。检查系统库是环境基线检查，进程最终加载哪份库还应看 <code>ldd</code> 或 <code>/proc/PID/maps</code>，不要把系统文件存在误写成“运行时必定用了它”。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FCMakeLists.txt" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/CMakeLists.txt" rel="external nofollow noopener noreferrer">该提交的后端构建文件</a></p>
+<h2 data-id="heading-13">6. 安装依赖与建立部署目录</h2>
+<pre><code class="hljs language-bash" lang="bash">sudo apt update
+sudo apt install -y \
+  build-essential cmake git curl wget ca-certificates \
+  pkg-config libssl-dev python3 python3-pip \
+  tar unzip zip rsync file util-linux iproute2 procps nano
+
+<p><span class="hljs-keyword">for</span> c <span class="hljs-keyword">in</span> git cmake make gcc g++ python3 curl wget tar file taskset flock ss; <span class="hljs-keyword">do</span><br>  <span class="hljs-built_in">printf</span> <span class="hljs-string">‘%-10s ‘</span> <span class="hljs-string">“<span class="hljs-variable">$c</span>“</span><br>  <span class="hljs-built_in">command</span> -v <span class="hljs-string">“<span class="hljs-variable">$c</span>“</span> || <span class="hljs-built_in">echo</span> <span class="hljs-string">‘未安装’</span><br><span class="hljs-keyword">done</span></p>
+<p>BASE&#x3D;<span class="hljs-string">“<span class="hljs-variable">$HOME</span>&#x2F;rk_llama_npu_test”</span><br><span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;models”</span><br><span class="hljs-built_in">cd</span> <span class="hljs-string">“<span class="hljs-variable">$BASE</span>“</span><br></p></code></pre><p></p>
+<p><code>build-essential</code> 提供编译工具，<code>util-linux</code> 提供 <code>taskset</code>、<code>flock</code> 等工具，<code>iproute2</code> 提供 <code>ss</code>，<code>procps</code> 提供进程检查工具。原实测镜像已经具备部分依赖；这里补列 <code>libssl-dev</code>、<code>iproute2</code>、<code>procps</code>、<code>nano</code>，使新镜像的依赖更明确。启用 HTTPS 的构建需要相应 OpenSSL 开发文件，不应遇错就随意关闭功能。</p>
+<p>部署目录最终为：</p>
+<pre><code class="hljs language-text" lang="text">rk_llama_npu_test/
+├── rk-llama.cpp/
+│   └── build/bin/
+├── models/
+│   └── Qwen3.5-2B.q8_0.gguf
+├── start.sh
+├── stop.sh
+├── qwen35_server_8080.log
+└── qwen35_server_8080.pid
+</code></pre>
+<h2 data-id="heading-14">7. 获取 rknpu2 分支：板端下载或电脑中转</h2>
+<h3 data-id="heading-15">方式 A：开发板直接 clone</h3>
+<p>下面用于新部署目录。先下载分支，再额外取回实测提交并切换到它：</p>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$BASE</span>"</span>
+git <span class="hljs-built_in">clone</span> -b rknpu2 --depth 1 \
+  https://github.com/invisiofficial/rk-llama.cpp \
+  rk-llama.cpp
+<span class="hljs-built_in">cd</span> rk-llama.cpp
+git fetch --depth 1 origin 81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62
+git checkout --detach 81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62
+git rev-parse HEAD
+git <span class="hljs-built_in">log</span> -1 --oneline
+</code></pre>
+<p>固定提交后处于 detached HEAD，<code>git branch --show-current</code> 为空属于正常现象。原实测教程直接浅克隆分支；本文为防止分支更新影响复现，明确增加固定提交步骤。此时判据是完整 SHA 与上文一致，不是要求分支名命令继续输出 <code>rknpu2</code>。</p>
+<p>如果服务器拒绝对指定提交做浅 fetch，可获取完整分支历史再切换：</p>
+<pre><code class="hljs language-bash" lang="bash">git fetch --unshallow origin rknpu2
+git checkout --detach 81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62
+</code></pre>
+<p>后一组仅用于仍为浅仓库且前一条 fetch 失败的情况。已有源码目录应先检查修改状态，不要对仍在使用的目录重复 clone 或强制覆盖。</p>
+<h3 data-id="heading-16">方式 B：电脑下载、压缩，再 SCP 上传</h3>
+<p>开发板访问 GitHub 不稳定时，在电脑 PowerShell 的一个新源码下载目录执行。下列连接变量沿用第 4 节：</p>
+<pre><code class="hljs language-powershell" lang="powershell">git clone -b rknpu2 --depth 1 https://github.com/invisiofficial/rk-llama.cpp rk-llama.cpp
+git -C rk-llama.cpp fetch --depth 1 origin 81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62
+git -C rk-llama.cpp checkout --detach 81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62
+git -C rk-llama.cpp rev-parse HEAD
+tar -czf rk-llama.cpp-rknpu2.tar.gz rk-llama.cpp
+ssh -p $BoardPort $BoardTarget "mkdir -p '$BoardBase/models'"
+scp -P $BoardPort .\rk-llama.cpp-rknpu2.tar.gz "$&#123;BoardTarget&#125;:$&#123;BoardBase&#125;/"
+</code></pre>
+<p>每条完成并确认无错误后再执行下一条；不要把下载失败后的残缺目录继续打包。上传的是源码及 Git 版本信息，不是在 Windows 编译好的二进制。开发板执行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+tar -xzf rk-llama.cpp-rknpu2.tar.gz
+<span class="hljs-built_in">cd</span> rk-llama.cpp
+git rev-parse HEAD
+git <span class="hljs-built_in">log</span> -1 --oneline
+</code></pre>
+<h2 data-id="heading-17">8. 编译并证明 RKNPU backend 已注册</h2>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+REPO=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/rk-llama.cpp"</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$REPO</span>"</span>
+
+<p>cmake -S . -B build <br>  -DLLAMA_RKNPU2&#x3D;ON <br>  -DCMAKE_BUILD_TYPE&#x3D;Release</p>
+<p>cmake –build build -j4 <br>  –target llama-cli llama-bench llama-server</p>
+<p><span class="hljs-built_in">ls</span> -lh <br>  build&#x2F;bin&#x2F;llama-cli <br>  build&#x2F;bin&#x2F;llama-bench <br>  build&#x2F;bin&#x2F;llama-server <br>  build&#x2F;bin&#x2F;libggml-rknpu2.so<br></p></code></pre><p></p>
+<p>保留 <code>-DLLAMA_RKNPU2=ON</code>，它在实测提交中启用 <code>GGML_RKNPU2</code>。Release 开启发布优化；<code>-j4</code> 控制并行编译任务数量，不是推理线程或 NPU 核心数。</p>
+<table><thead><tr><th>产物</th><th>用途</th></tr></thead><tbody><tr><td><code>llama-cli</code></td><td>隔离网页、HTTP 和浏览器，先完成模型推理</td></tr><tr><td><code>llama-bench</code></td><td>检查后端及输入处理、生成性能</td></tr><tr><td><code>llama-server</code></td><td>加载模型并提供 Web UI、HTTP API</td></tr><tr><td><code>libggml-rknpu2.so</code></td><td>RKNPU2 计算后端动态库</td></tr></tbody></table>
+<p>现在检查设备注册：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">export</span> LD_LIBRARY_PATH=<span class="hljs-string">"<span class="hljs-variable">$REPO</span>/build/bin<span class="hljs-variable">$&#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&#125;</span>"</span>
+<span class="hljs-string">"<span class="hljs-variable">$REPO</span>/build/bin/llama-cli"</span> --list-devices
+</code></pre>
+<p>关键输出必须包含：</p>
+<pre><code class="hljs language-text" lang="text">RKNPU: Rockchip NPU
+</code></pre>
+<p>这只是第一层证据，说明程序能够发现该后端，尚不能证明当前模型的请求已经使用 NPU。只有程序启动成功、出现欢迎信息，都不足以代替它。</p>
+<p>如果没有 RKNPU，按顺序检查：</p>
+<pre><code class="hljs language-bash" lang="bash">grep -E <span class="hljs-string">'LLAMA_RKNPU2|GGML_RKNPU2'</span> <span class="hljs-string">"<span class="hljs-variable">$REPO</span>/build/CMakeCache.txt"</span>
+<span class="hljs-built_in">ls</span> -l <span class="hljs-string">"<span class="hljs-variable">$REPO</span>/build/bin/libggml-rknpu2.so"</span>
+ldd <span class="hljs-string">"<span class="hljs-variable">$REPO</span>/build/bin/libggml-rknpu2.so"</span>
+<span class="hljs-built_in">ls</span> -l /usr/lib/librknnrt.so
+<span class="hljs-built_in">ls</span> -l /dev/dri/by-path/platform-fdab0000.npu-render
+<span class="hljs-built_in">id</span>
+</code></pre>
+<p><code>ldd</code> 中有 <code>not found</code> 就先修复库依赖；更换过源码提交时，用新的构建目录重新编译，避免把旧对象文件和新代码混用。</p>
+<h2 data-id="heading-18">9. GGUF 怎么选：磁盘量化与 NPU 管线要分开看</h2>
+<p>FP16 用半精度浮点保存权重。Q8_0、Q4_0 是分块量化类型；Q6_K、Q4_K_M 属于 K 量化体系，后缀不只是“几个比特”的简单替换。模型还包含缩放信息、元数据及不同精度的张量，所以文件大小不会严格等于参数量乘以名义位宽。</p>
+<p><img class="lazy" alt="GGUF 权重经 CPU 准备后进入 NPU 执行精度" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/61d566e0b4604772a7ae90842a543366~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=1ytOtSbVNjGtwyECjd4Xl04sp2o%3D"></p>
+<blockquote>
+<p>图 5：GGUF 是输入权重格式；后端在 CPU 侧进行转换、校准及重新量化，再交给选定 NPU 管线执行。文件位宽不等于所有运算的执行位宽。</p>
+</blockquote>
+<p>以下大小是公开模型文件的十进制 GB，<strong>不是进程运行内存</strong>。默认映射以实测提交为依据，核验日的上游 README 仍列出相同映射。</p>
+<table><thead><tr><th>文件量化</th><th align="right">文件大小约值</th><th>RK3588 默认硬件管线</th><th>质量、内存与速度的取舍</th></tr></thead><tbody><tr><td>FP16</td><td align="right">3.78GB</td><td><code>W16A16_STANDARD</code></td><td>权重保留精度较高；默认管线和文件均偏大，不作为 8GB 默认配置；没有本文该模型的速度实测</td></tr><tr><td>Q8_0</td><td align="right">2.01GB</td><td><code>W8A8_STANDARD</code></td><td>本文默认选择，作为质量和资源占用的起点；速度仍需 Bench 验证</td></tr><tr><td>Q6_K</td><td align="right">1.56GB</td><td><code>W8A8_STANDARD</code> 与 <code>W4A4_HADAMARD</code> 按层循环</td><td>文件更小，但执行是 INT8/INT4 混合；本文有已有跑分</td></tr><tr><td>Q4_0</td><td align="right">1.20GB</td><td><code>W4A4_HADAMARD</code></td><td>磁盘占用较小，量化质量风险更高；并不保证比 Q8_0 更快</td></tr><tr><td>Q4_K_M</td><td align="right">1.27GB</td><td>实测及核验版默认映射表未单列</td><td>普通 llama.cpp 可用不代表此后端最佳；需检查实际回退或管线行为，不用于本文默认复现</td></tr></tbody></table>
+<p>文件来自社区转换仓库 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FAaryanK%2FQwen3.5-2B-GGUF%2Ftree%2F3b3b8686d74f2ccfff1bcf36f80e114aff1b7881" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/tree/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881" rel="external nofollow noopener noreferrer">AaryanK/Qwen3.5-2B-GGUF</a>，不是 Qwen 官方直接发布的同名 GGUF。量化管线见 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md%23default-mappings" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/README.md#default-mappings" rel="external nofollow noopener noreferrer">实测版本 RKNPU2 README</a> 和 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2Frknpu2%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md%23default-mappings" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/rknpu2/ggml/src/ggml-rknpu2/README.md#default-mappings" rel="external nofollow noopener noreferrer">当前分支说明</a>。</p>
+<p><code>W8A8</code> 表示权重和激活采用 8 位整数量化管线；<code>W4A4</code> 对应 4 位整数；这里 <code>W16A16_STANDARD</code> 对应 FP16 运算。Q6_K 文件不表示 NPU 在执行原生 INT6 乘法。<code>HADAMARD</code> 管线包含用于缓解离群值影响的变换，它还可能引入 CPU 处理开销。</p>
+<p>因此，<strong>普通 llama.cpp 能加载一种 GGUF，不等于 RKNPU2 会按最佳 NPU 路径运行它</strong>。先用 Q8_0 得到稳定基线，再比较 Q6_K、Q4_0 的答案质量、内存和 pp/tg。提高执行位宽无法恢复已经在低位 GGUF 中丢失的信息；不要为了“精度高”把低位文件任意指定到更高精度管线。</p>
+<h2 data-id="heading-19">10. 下载大文件，并验证 SHA256</h2>
+<h3 data-id="heading-20">固定文件版本</h3>
+<p>本文下载使用核验时模型仓库的提交 <code>3b3b8686d74f2ccfff1bcf36f80e114aff1b7881</code>，避免 <code>main</code> 后续替换文件后沿用旧校验值。Q8_0 的公开元数据与实测记录一致：</p>
+<pre><code class="hljs language-text" lang="text">文件名：Qwen3.5-2B.q8_0.gguf
+大小：2012012480 bytes
+SHA256：44bead7f88cb7f904799449fecae257f299f68e948a27858402062ecd9f7be88
+</code></pre>
+<p><a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FAaryanK%2FQwen3.5-2B-GGUF%2Fblob%2F3b3b8686d74f2ccfff1bcf36f80e114aff1b7881%2FQwen3.5-2B.q8_0.gguf" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/blob/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881/Qwen3.5-2B.q8_0.gguf" rel="external nofollow noopener noreferrer">固定版本的 Q8_0 文件信息</a> 中的 SHA256 是完整文件散列；不要把页面上的 Xet hash 当作 SHA256。</p>
+<h3 data-id="heading-21">推荐：电脑下载后上传</h3>
+<p>电脑 PowerShell 执行下载。<code>-L</code> 跟随跳转，<code>--fail</code> 遇到 HTTP 错误返回失败，<code>--retry</code> 处理短暂网络故障，<code>-C -</code> 从已有文件位置续传：</p>
+<pre><code class="hljs language-powershell" lang="powershell">curl.exe -L --fail --retry 20 --retry-delay 3 -C - -o "Qwen3.5-2B.q8_0.gguf" "https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/resolve/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881/Qwen3.5-2B.q8_0.gguf?download=true"
+certutil -hashfile .\Qwen3.5-2B.q8_0.gguf SHA256
+</code></pre>
+<p>这两条单行命令也适用于 CMD。以下上传命令使用第 4 节的 PowerShell 变量：</p>
+<pre><code class="hljs language-powershell" lang="powershell">ssh -p $BoardPort $BoardTarget "mkdir -p '$BoardBase/models'"
+scp -P $BoardPort .\Qwen3.5-2B.q8_0.gguf "$&#123;BoardTarget&#125;:$&#123;BoardBase&#125;/models/"
+</code></pre>
+<p>上传后在开发板运行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/models"</span>
+<span class="hljs-built_in">stat</span> -c <span class="hljs-string">'%n %s bytes'</span> Qwen3.5-2B.q8_0.gguf
+<span class="hljs-built_in">sha256sum</span> Qwen3.5-2B.q8_0.gguf
+<span class="hljs-built_in">printf</span> <span class="hljs-string">'%s  %s\n'</span> \
+  <span class="hljs-string">'44bead7f88cb7f904799449fecae257f299f68e948a27858402062ecd9f7be88'</span> \
+  <span class="hljs-string">'Qwen3.5-2B.q8_0.gguf'</span> | <span class="hljs-built_in">sha256sum</span> -c -
+</code></pre>
+<p>应输出 <code>Qwen3.5-2B.q8_0.gguf: OK</code>。2GB 左右的大文件可能经历中断、续传和多次拷贝；同时比较发布者散列、电脑散列和板端散列，可以区分下载损坏与传输损坏。校验失败就停止推理排障，重新获取正确文件；不能仅凭 <code>ls -lh</code> 看起来“差不多大”继续。</p>
+<h3 data-id="heading-22">可选：开发板直接下载</h3>
+<pre><code class="hljs language-bash" lang="bash">MODEL_DIR=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/models"</span>
+<span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">"<span class="hljs-variable">$MODEL_DIR</span>"</span>
+wget -c \
+  -O <span class="hljs-string">"<span class="hljs-variable">$MODEL_DIR</span>/Qwen3.5-2B.q8_0.gguf"</span> \
+  <span class="hljs-string">'https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/resolve/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881/Qwen3.5-2B.q8_0.gguf?download=true'</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$MODEL_DIR</span>"</span>
+<span class="hljs-built_in">printf</span> <span class="hljs-string">'%s  %s\n'</span> \
+  <span class="hljs-string">'44bead7f88cb7f904799449fecae257f299f68e948a27858402062ecd9f7be88'</span> \
+  <span class="hljs-string">'Qwen3.5-2B.q8_0.gguf'</span> | <span class="hljs-built_in">sha256sum</span> -c -
+</code></pre>
+<p>若换其他提交或转换者，应重新取得对应文件的 SHA256，不能强行套用上述散列。其他量化文件可从同一固定版本文件列表取得，本文不要求全部下载。</p>
+<h2 data-id="heading-23">11. 首次 CLI 推理：把错误限制在最少的层里</h2>
+<p>先退出其他模型实例，再运行：</p>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+BIN=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/rk-llama.cpp/build/bin"</span>
+MODEL=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/models/Qwen3.5-2B.q8_0.gguf"</span>
+
+<p><span class="hljs-built_in">export</span> LD_LIBRARY_PATH&#x3D;<span class="hljs-string">“$BIN<span class="hljs-variable">$&amp;#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&amp;#125;</span>“</span><br><span class="hljs-built_in">export</span> RKNPU_CORES&#x3D;<span class="hljs-string">“0,1,2”</span><br><span class="hljs-built_in">unset</span> RKNPU_HYBRID<br><span class="hljs-built_in">ulimit</span> -n 65536</p>
+<p>taskset -c 4-7 <span class="hljs-string">“<span class="hljs-variable">$BIN</span>&#x2F;llama-cli”</span> <br>  -m <span class="hljs-string">“<span class="hljs-variable">$MODEL</span>“</span> <br>  -t 4 <br>  -c 512 <br>  -n 64 <br>  –single-turn <br>  –reasoning off <br>  –reasoning-budget 0 <br>  -p <span class="hljs-string">‘1+1&#x3D;?’</span> <br>  –no-display-prompt<br></p></code></pre><p></p>
+<p>这条命令保留实测参数：三核 NPU、四个 CPU 线程、512 Token 小上下文，以及单轮短输出。问题使用 ASCII，便于先排除终端中文编码干扰。它应正常完成并输出包含答案 <code>2</code> 的内容，再继续 Bench；这只是通路检查，不是模型能力评测。</p>
+<table><thead><tr><th>设置</th><th>为什么必须关注</th></tr></thead><tbody><tr><td><code>RKNPU_CORES=0,1,2</code></td><td>显式指定三个 NPU Core；它本身不是实际执行证明</td></tr><tr><td><code>taskset -c 4-7</code></td><td>在本文镜像上把进程与后续线程限制到 A76 大核范围</td></tr><tr><td><code>ulimit -n 65536</code></td><td>提高当前 Shell 及其子进程的文件描述符上限，避免运行时句柄耗尽</td></tr><tr><td><code>unset RKNPU_HYBRID</code></td><td>清除先前试验留下的手动管线配置，恢复自动选择</td></tr><tr><td><code>--reasoning off</code> 与 <code>--reasoning-budget 0</code></td><td>沿用本文首次验证的非思考配置，控制测试长度</td></tr></tbody></table>
+<p>文件描述符不限于普通文件，也可能承载设备和缓冲区相关句柄。实测曾出现上限过低导致 <code>Too many open files</code>，伴随 <code>Processing 0%</code>、NPU 无负载或首次推理异常。因此 <code>ulimit</code> 不是无关紧要的调优项。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md%23quick-start" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/README.md#quick-start" rel="external nofollow noopener noreferrer">后端快速入门</a></p>
+<p>若设置失败，先看：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">ulimit</span> -Sn
+<span class="hljs-built_in">ulimit</span> -Hn
+</code></pre>
+<p>普通用户不能把软限制提高到硬限制以上。此时应由管理员调整登录会话限制，再重新登录；不要在失败后继续运行模型，也不要以为另一个 SSH 窗口里执行过 <code>ulimit</code> 就会改变已启动的服务。</p>
+<p><strong>不要照搬 <code>--device RKNPU -ngl 99</code>。</strong> 本文实测命令依赖该分支的自动调度，没有额外强制 offload 参数。CUDA 教程中的层数参数不能机械迁移到另一种后端；后面 Bench 表里的 <code>ngl=99</code> 是其输出字段，不代表你需要向 CLI 或 Server 补上这组参数。</p>
+<h2 data-id="heading-24">12. Bench：区分“读输入的速度”和“吐字的速度”</h2>
+<p>CLI 成功并退出后，运行同一模型的基准测试：</p>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+BIN=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/rk-llama.cpp/build/bin"</span>
+MODEL=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/models/Qwen3.5-2B.q8_0.gguf"</span>
+<span class="hljs-built_in">export</span> LD_LIBRARY_PATH=<span class="hljs-string">"$BIN<span class="hljs-variable">$&#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&#125;</span>"</span>
+<span class="hljs-built_in">export</span> RKNPU_CORES=<span class="hljs-string">"0,1,2"</span>
+<span class="hljs-built_in">unset</span> RKNPU_HYBRID
+<span class="hljs-built_in">ulimit</span> -n 65536
+
+<p><span class="hljs-built_in">set</span> -o pipefail<br>taskset -c 4-7 <span class="hljs-string">“<span class="hljs-variable">$BIN</span>&#x2F;llama-bench”</span> <br>  -m <span class="hljs-string">“<span class="hljs-variable">$MODEL</span>“</span> <br>  -t 4 <br>  -p 128 <br>  -n 32 2&gt;&amp;1 | <span class="hljs-built_in">tee</span> <span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;bench-q8_0-pp128-tg32.log”</span><br></p></code></pre><p></p>
+<p><code>pp128</code> 是 Prompt Processing，即处理 128 个输入 Token 的速度；<code>tg32</code> 是 Text Generation，即逐个生成 32 个 Token 的速度；<code>t/s</code> 是 tokens per second。前者影响长输入预处理和首 Token 等待，后者更接近连续输出时的体验，二者不能互换。</p>
+<h3 data-id="heading-25">本文已有 Q6_K 实测结果</h3>
+<table><thead><tr><th>模型</th><th>Backend</th><th>构建</th><th align="right">CPU 线程</th><th align="right">Prompt Processing</th><th align="right">Text Generation</th></tr></thead><tbody><tr><td>Qwen3.5-2B Q6_K</td><td>RKNPU</td><td>81eff6a</td><td align="right">4</td><td align="right">pp128：42.06 ± 0.84 t/s</td><td align="right">tg32：6.85 ± 0.14 t/s</td></tr></tbody></table>
+<p>原输出同时记录 <code>size=1.44 GiB</code>、<code>params=1.88 B</code>、<code>ngl=99</code>。这些是 Bench 对模型内容的输出口径，与下载页整文件十进制 GB 的口径不同，不应把两个大小字段强行解释为同一种计量。</p>
+<p><strong>以上是本文测试环境下的一次实测记录，不是官方性能承诺，也不代表所有 RK3588 板卡会得到相同数字。</strong><code>42.06 t/s</code> 不能写成“每秒输出 42 个 Token”。Q8_0 是本文默认部署建议，但本文没有给出它的实测速度，不能把 Q6_K 结果挪给 Q8_0。</p>
+<p>要对照 Q6_K，在板端下载并校验：</p>
+<pre><code class="hljs language-bash" lang="bash">MODEL_DIR=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/models"</span>
+wget -c \
+  -O <span class="hljs-string">"<span class="hljs-variable">$MODEL_DIR</span>/Qwen3.5-2B.q6_k.gguf"</span> \
+  <span class="hljs-string">'https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/resolve/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881/Qwen3.5-2B.q6_k.gguf?download=true'</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$MODEL_DIR</span>"</span>
+<span class="hljs-built_in">printf</span> <span class="hljs-string">'%s  %s\n'</span> \
+  <span class="hljs-string">'92e39c352d037f0fe7517e6c8b7c2d3e950ca076c9ab46c7ff38ec6a2e7d9db8'</span> \
+  <span class="hljs-string">'Qwen3.5-2B.q6_k.gguf'</span> | <span class="hljs-built_in">sha256sum</span> -c -
+</code></pre>
+<p>校验通过后，完整执行：</p>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+BIN=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/rk-llama.cpp/build/bin"</span>
+MODEL=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/models/Qwen3.5-2B.q6_k.gguf"</span>
+<span class="hljs-built_in">export</span> LD_LIBRARY_PATH=<span class="hljs-string">"$BIN<span class="hljs-variable">$&#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&#125;</span>"</span>
+<span class="hljs-built_in">export</span> RKNPU_CORES=<span class="hljs-string">"0,1,2"</span>
+<span class="hljs-built_in">unset</span> RKNPU_HYBRID
+<span class="hljs-built_in">ulimit</span> -n 65536
+<span class="hljs-built_in">set</span> -o pipefail
+taskset -c 4-7 <span class="hljs-string">"<span class="hljs-variable">$BIN</span>/llama-bench"</span> \
+  -m <span class="hljs-string">"<span class="hljs-variable">$MODEL</span>"</span> -t 4 -p 128 -n 32 \
+  2&gt;&amp;1 | <span class="hljs-built_in">tee</span> <span class="hljs-string">"<span class="hljs-variable">$BASE</span>/bench-q6_k-pp128-tg32.log"</span>
+</code></pre>
+<p>不要在 Server 运行时另外启动 Bench。记录性能时同时保存源码提交、模型散列、NPU 驱动及实际 Runtime、CPU/NPU 频率、散热条件、Context、Prompt 长度、Batch/UBatch、可用内存和后台进程。原实测记录没有给出这些项目的所有数值，本文不补造；因此历史跑分可作为参考，不能用于严格回归判定。</p>
+<h2 data-id="heading-26">13. 服务化：完整 start.sh 与 stop.sh</h2>
+<p>两份脚本均放在 <code>$HOME/rk_llama_npu_test</code>，而不是源码子目录。<code>start.sh</code> 自动定位部署根目录，检查模型、NPU 权限、端口和文件描述符，记录真实 Server PID，并等待 <code>/health</code>。<code>stop.sh</code> 同时检查 PID 文件和 <code>/proc</code> 中的真实进程，停止后验证端口释放。</p>
+<p>下面是沿用实测参数和启停逻辑的 <strong>1.0.1 文章审核版</strong>：修正 <code>CACHE_REUSE=0</code>、<code>PREDICT=-1</code> 的注释；避免 <code>LD_LIBRARY_PATH</code> 出现尾部空路径项；为后台进程明确指定 <code>/dev/null</code> 标准输入。没有把这些编辑修订表述为一次新的板端实测。</p>
+<h3 data-id="heading-27">start.sh 完整代码</h3>
+<p>执行 <code>cd "$HOME/rk_llama_npu_test"</code>，用 <code>nano start.sh</code> 创建文件，粘贴下列全部内容。默认保持实测脚本的 16K Context；只做普通聊天时，可在跑通后按第 19 节改成 8K。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-meta">#!/usr/bin/env bash</span>
+
+<p><span class="hljs-comment"># RK3588 rk-llama.cpp 启动脚本</span><br><span class="hljs-comment"># 版本：1.0.1（2026-09-09，文章审核版；部署参数沿用实测基线）</span><br><span class="hljs-comment"># 编码：UTF-8；换行：Linux LF</span><br><span class="hljs-built_in">export</span> LANG&#x3D;C.UTF-8<br><span class="hljs-built_in">export</span> LC_ALL&#x3D;C.UTF-8<br><span class="hljs-built_in">set</span> -uo pipefail<br><span class="hljs-built_in">umask</span> 077</p>
+<p><span class="hljs-comment"># &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 用户配置 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span></p>
+<p><span class="hljs-comment"># 脚本应放在部署根目录，目录下包含 rk-llama.cpp&#x2F; 和 models&#x2F;。</span><br>BASE&#x3D;<span class="hljs-string">“<span class="hljs-subst">$(cd – <span class="hljs-string">“<span class="hljs-subst">$(dirname – <span class="hljs-string">“<span class="hljs-variable">$&amp;#123;BASH_SOURCE[0]&amp;#125;</span>“</span>)</span>“</span> &amp;&amp; pwd -P)</span>“</span></p>
+<p><span class="hljs-comment"># 更换模型时修改此处。</span><br>MODEL&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;models&#x2F;Qwen3.5-2B.q8_0.gguf”</span></p>
+<p>HOST&#x3D;<span class="hljs-string">“0.0.0.0”</span>       <span class="hljs-comment"># 监听所有网卡</span><br>PORT&#x3D;<span class="hljs-string">“8080”</span>          <span class="hljs-comment"># Web UI&#x2F;API 端口</span></p>
+<p>THREADS&#x3D;<span class="hljs-string">“4”</span>          <span class="hljs-comment"># 生成阶段 CPU 线程数</span><br>THREADS_BATCH&#x3D;<span class="hljs-string">“4”</span>    <span class="hljs-comment"># 提示词处理 CPU 线程数</span><br>CPU_RANGE&#x3D;<span class="hljs-string">“4-7”</span>      <span class="hljs-comment"># RK3588 四颗 Cortex-A76 大核</span><br>CPU_STRICT&#x3D;<span class="hljs-string">“1”</span>       <span class="hljs-comment"># 1&#x3D;严格限制在 CPU_RANGE</span><br>CPU_PRIORITY&#x3D;<span class="hljs-string">“1”</span>     <span class="hljs-comment"># 0&#x3D;普通，1&#x3D;中等；普通用户不建议 2&#x2F;3</span><br>CPU_POLL&#x3D;<span class="hljs-string">“100”</span>       <span class="hljs-comment"># 0~100；越高延迟越低，但空闲功耗越高</span><br>USE_TASKSET&#x3D;<span class="hljs-string">“1”</span>      <span class="hljs-comment"># 1&#x3D;在操作系统层绑定 CPU_RANGE</span></p>
+<p>CONTEXT_SIZE&#x3D;<span class="hljs-string">“16384”</span> <span class="hljs-comment"># 上下文长度，单位 Token</span><br>PREDICT&#x3D;<span class="hljs-string">“-1”</span>         <span class="hljs-comment"># 服务端不设固定生成上限；调用方仍应传 max_tokens</span><br>BATCH_SIZE&#x3D;<span class="hljs-string">“2048”</span>    <span class="hljs-comment"># 逻辑批大小，单位 Token</span><br>UBATCH_SIZE&#x3D;<span class="hljs-string">“512”</span>    <span class="hljs-comment"># 物理批大小，单位 Token</span><br>PARALLEL&#x3D;<span class="hljs-string">“1”</span>         <span class="hljs-comment"># 并发槽位；8GB 单用户建议 1</span></p>
+<p>CACHE_RAM&#x3D;<span class="hljs-string">“512”</span>      <span class="hljs-comment"># 提示词缓存上限，单位 MiB；0&#x3D;关闭</span><br>CACHE_REUSE&#x3D;<span class="hljs-string">“0”</span>      <span class="hljs-comment"># 0&#x3D;关闭 KV shifting 块复用；不等于关闭前缀缓存</span><br>CACHE_TYPE_K&#x3D;<span class="hljs-string">“f16”</span>   <span class="hljs-comment"># KV Cache 类型</span><br>CACHE_TYPE_V&#x3D;<span class="hljs-string">“f16”</span></p>
+<p>FLASH_ATTN&#x3D;<span class="hljs-string">“auto”</span>    <span class="hljs-comment"># auto&#x2F;on&#x2F;off</span><br>REASONING&#x3D;<span class="hljs-string">“off”</span>      <span class="hljs-comment"># 是否输出思考过程</span><br>REASONING_BUDGET&#x3D;<span class="hljs-string">“0”</span></p>
+<p>NPU_CORES&#x3D;<span class="hljs-string">“0,1,2”</span>    <span class="hljs-comment"># RK3588 三颗 NPU 核心</span><br>NPU_HYBRID&#x3D;<span class="hljs-string">“”</span>        <span class="hljs-comment"># 留空&#x3D;根据 GGUF 类型自动选择 NPU 管线</span><br>LOCK_NPU_FREQ&#x3D;<span class="hljs-string">“0”</span>    <span class="hljs-comment"># 0&#x3D;自动调频，1&#x3D;尝试锁频</span><br>NPU_FREQ&#x3D;<span class="hljs-string">“1000000000”</span> <span class="hljs-comment"># Hz；1000000000&#x3D;1000MHz</span></p>
+<p>ENABLE_MMAP&#x3D;<span class="hljs-string">“1”</span><br>ENABLE_MLOCK&#x3D;<span class="hljs-string">“0”</span>     <span class="hljs-comment"># 8GB 无 Swap 设备建议保持 0</span><br>ENABLE_WARMUP&#x3D;<span class="hljs-string">“1”</span><br>ENABLE_METRICS&#x3D;<span class="hljs-string">“1”</span></p>
+<p>NOFILE_LIMIT&#x3D;<span class="hljs-string">“65536”</span> <span class="hljs-comment"># RKNPU2 需要较高的文件描述符上限</span><br>START_TIMEOUT&#x3D;<span class="hljs-string">“120”</span>  <span class="hljs-comment"># 等待 &#x2F;health 就绪的最长秒数</span></p>
+<p><span class="hljs-comment"># &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 固定路径 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span></p>
+<p>BIN&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;rk-llama.cpp&#x2F;build&#x2F;bin”</span><br>SERVER&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BIN</span>&#x2F;llama-server”</span><br>LOG&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;qwen35_server_<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>.log”</span><br>PIDFILE&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;qwen35_server_<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>.pid”</span><br>LOCKFILE&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;.qwen35_server_<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>.lock”</span><br>NPU_DEVICE&#x3D;<span class="hljs-string">“&#x2F;dev&#x2F;dri&#x2F;by-path&#x2F;platform-fdab0000.npu-render”</span></p>
+<p><span class="hljs-function"><span class="hljs-title">die</span></span>() &amp;#123;<br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">“错误：$*”</span> &gt;&amp;2<br>    <span class="hljs-built_in">exit</span> 1<br>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">require_command</span></span>() &amp;#123;<br>    <span class="hljs-built_in">command</span> -v <span class="hljs-string">“<span class="hljs-variable">$1</span>“</span> &gt;&#x2F;dev&#x2F;null 2&gt;&amp;1 || die <span class="hljs-string">“缺少命令：<span class="hljs-variable">$1</span>“</span><br>&amp;#125;</p>
+<p><span class="hljs-comment"># 读取 &#x2F;proc&#x2F;&lt;PID&gt;&#x2F;cmdline 的原始参数，精确核对程序路径和端口。</span><br><span class="hljs-comment"># 这可以防止 PID 复用，也不会误匹配其他目录或其他端口的服务。</span><br><span class="hljs-function"><span class="hljs-title">is_target_pid</span></span>() &amp;#123;<br>    <span class="hljs-built_in">local</span> pid&#x3D;<span class="hljs-string">“<span class="hljs-variable">$1</span>“</span><br>    <span class="hljs-built_in">local</span> args&#x3D;()<br>    <span class="hljs-built_in">local</span> i</p>
+<pre><code>[[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; =~ ^[0-9]+$ ]] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+[ -r &lt;span class=&quot;hljs-string&quot;&gt;&quot;/proc/&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;/cmdline&quot;&lt;/span&gt; ] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+&lt;span class=&quot;hljs-built_in&quot;&gt;mapfile&lt;/span&gt; -d &lt;span class=&quot;hljs-string&quot;&gt;&#39;&#39;&lt;/span&gt; -t args &amp;lt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;/proc/&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;/cmdline&quot;&lt;/span&gt; 2&amp;gt;/dev/null || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;#args[@]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; -gt 0 ] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+
+[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-subst&quot;&gt;$(readlink -m -- &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[0]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt;)&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-subst&quot;&gt;$(readlink -m -- &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$SERVER&lt;/span&gt;&quot;&lt;/span&gt;)&lt;/span&gt;&quot;&lt;/span&gt; ] ||
+    &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; ((i=&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;; i&amp;lt;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;#args[@]&amp;#125;&lt;/span&gt;; i++)); &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$i]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;--port&quot;&lt;/span&gt; ] &amp;amp;&amp;amp;
+       [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$((i+1))]:-&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$PORT&lt;/span&gt;&quot;&lt;/span&gt; ]; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 0
+    &lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+    [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$i]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;--port=&lt;span class=&quot;hljs-variable&quot;&gt;$PORT&lt;/span&gt;&quot;&lt;/span&gt; ] &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 0
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">find_target_pids</span></span>() &amp;#123;<br>    <span class="hljs-built_in">local</span> proc<br>    <span class="hljs-built_in">local</span> pid</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; proc &lt;span class=&quot;hljs-keyword&quot;&gt;in&lt;/span&gt; /proc/[0-9]*; &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    pid=&lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;proc##*/&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt;
+    is_target_pid &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">port_is_listening</span></span>() &amp;#123;<br>    ss -H -ltn <span class="hljs-string">“sport &#x3D; :<span class="hljs-variable">$PORT</span>“</span> 2&gt;&#x2F;dev&#x2F;null | grep -q .<br>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">terminate_failed_start</span></span>() &amp;#123;<br>    <span class="hljs-built_in">local</span> pids<br>    <span class="hljs-built_in">local</span> remaining<br>    <span class="hljs-built_in">local</span> pid<br>    <span class="hljs-built_in">local</span> i</p>
+<pre><code>pids=$(&lt;span class=&quot;hljs-built_in&quot;&gt;printf&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&#39;%s\n%s\n&#39;&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;SERVER_PID:-&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-subst&quot;&gt;$(find_target_pids)&lt;/span&gt;&quot;&lt;/span&gt; |
+    awk &lt;span class=&quot;hljs-string&quot;&gt;&#39;/^[0-9]+$/ &amp;amp;&amp;amp; !seen[$0]++&#39;&lt;/span&gt;)
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;hljs-built_in&quot;&gt;read&lt;/span&gt; -r pid; &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; [ -n &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; ]; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;kill&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; 2&amp;gt;/dev/null || &lt;span class=&quot;hljs-literal&quot;&gt;true&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt; &amp;lt;&amp;lt;&amp;lt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pids&lt;/span&gt;&quot;&lt;/span&gt;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; [[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;LAUNCH_PID:-&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; =~ ^[0-9]+$ ]]; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;kill&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$LAUNCH_PID&lt;/span&gt;&quot;&lt;/span&gt; 2&amp;gt;/dev/null || &lt;span class=&quot;hljs-literal&quot;&gt;true&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; ((i=&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; i&amp;lt;&lt;span class=&quot;hljs-number&quot;&gt;10&lt;/span&gt;; i++)); &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    remaining=$(find_target_pids)
+    [ -z &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$remaining&lt;/span&gt;&quot;&lt;/span&gt; ] &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;break&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;sleep&lt;/span&gt; 1
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt;
+
+remaining=$(find_target_pids)
+&lt;span class=&quot;hljs-keyword&quot;&gt;while&lt;/span&gt; &lt;span class=&quot;hljs-built_in&quot;&gt;read&lt;/span&gt; -r pid; &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; [ -n &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; ]; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;kill&lt;/span&gt; -9 &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; 2&amp;gt;/dev/null || &lt;span class=&quot;hljs-literal&quot;&gt;true&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt; &amp;lt;&amp;lt;&amp;lt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$remaining&lt;/span&gt;&quot;&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;rm&lt;/span&gt; -f &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$PIDFILE&lt;/span&gt;&quot;&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$PIDFILE&lt;/span&gt;.tmp&quot;&lt;/span&gt;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment"># &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 启动前检查 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span></p>
+<p><span class="hljs-keyword">for</span> cmd <span class="hljs-keyword">in</span> awk curl flock grep <span class="hljs-built_in">nohup</span> <span class="hljs-built_in">readlink</span> ss; <span class="hljs-keyword">do</span><br>    require_command <span class="hljs-string">“<span class="hljs-variable">$cmd</span>“</span><br><span class="hljs-keyword">done</span><br>[ <span class="hljs-string">“<span class="hljs-variable">$USE_TASKSET</span>“</span> &#x3D; <span class="hljs-string">“0”</span> ] || require_command taskset</p>
+<p><span class="hljs-keyword">if</span> ! [[ <span class="hljs-string">“<span class="hljs-variable">$PORT</span>“</span> &#x3D;~ ^[0-9]+$ ]] ||<br>   ! ((<span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span> &gt;&#x3D; <span class="hljs-number">1</span> &amp;&amp; <span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span> &lt;&#x3D; <span class="hljs-number">65535</span>)); <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“PORT 必须为 1<del>65535”</del></span><br><span class="hljs-keyword">fi</span><br><span class="hljs-keyword">if</span> ! [[ <span class="hljs-string">“<span class="hljs-variable">$START_TIMEOUT</span>“</span> &#x3D; ^[0-9]+$ ]] ||<br>   ! ((<span class="hljs-number">10</span>#<span class="hljs-variable">$START_TIMEOUT</span> &gt;&#x3D; <span class="hljs-number">1</span>)); <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“START_TIMEOUT 必须为正整数”</span><br><span class="hljs-keyword">fi</span><br><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$LOCK_NPU_FREQ</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ]; <span class="hljs-keyword">then</span><br>    <span class="hljs-keyword">if</span> ! [[ <span class="hljs-string">“<span class="hljs-variable">$NPU_FREQ</span>“</span> &#x3D;~ ^[0-9]+$ ]] ||<br>       ! ((<span class="hljs-number">10</span>#<span class="hljs-variable">$NPU_FREQ</span> &gt; <span class="hljs-number">0</span>)); <span class="hljs-keyword">then</span><br>        die <span class="hljs-string">“启用锁频时，NPU_FREQ 必须为正整数 Hz”</span><br>    <span class="hljs-keyword">fi</span><br>    NPU_FREQ&#x3D;$((<span class="hljs-number">10</span>#<span class="hljs-variable">$NPU_FREQ</span>))<br><span class="hljs-keyword">fi</span><br>PORT&#x3D;$((<span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span>))<br>START_TIMEOUT&#x3D;$((<span class="hljs-number">10</span>#<span class="hljs-variable">$START_TIMEOUT</span>))</p>
+<p>[ -x <span class="hljs-string">“<span class="hljs-variable">$SERVER</span>“</span> ] || die <span class="hljs-string">“找不到可执行程序：<span class="hljs-variable">$SERVER</span>“</span><br>[ -f <span class="hljs-string">“<span class="hljs-variable">$MODEL</span>“</span> ] || die <span class="hljs-string">“找不到模型：<span class="hljs-variable">$MODEL</span>“</span><br>[ -e <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVICE</span>“</span> ] || die <span class="hljs-string">“找不到 NPU 设备：<span class="hljs-variable">$NPU_DEVICE</span>“</span><br><span class="hljs-keyword">if</span> [ ! -r <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVICE</span>“</span> ] || [ ! -w <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVICE</span>“</span> ]; <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“当前用户无权访问 NPU，请检查 render 组权限”</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-comment"># 防止两个 start.sh&#x2F;stop.sh 同时操作同一服务。</span><br><span class="hljs-built_in">exec</span> 9&gt;<span class="hljs-string">“<span class="hljs-variable">$LOCKFILE</span>“</span><br>flock -n 9 || die <span class="hljs-string">“另一个启动或停止操作正在进行”</span></p>
+<p>EXISTING_PIDS&#x3D;$(find_target_pids)<br>[ -z <span class="hljs-string">“<span class="hljs-variable">$EXISTING_PIDS</span>“</span> ] ||<br>    die <span class="hljs-string">“服务已经运行，PID：<span class="hljs-subst">$(echo <span class="hljs-string">“<span class="hljs-variable">$EXISTING_PIDS</span>“</span> | tr ‘\n’ ‘ ‘)</span>“</span></p>
+<p><span class="hljs-keyword">if</span> port_is_listening; <span class="hljs-keyword">then</span><br>    ss -H -ltnp <span class="hljs-string">“sport &#x3D; :<span class="hljs-variable">$PORT</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>    die <span class="hljs-string">“端口 <span class="hljs-variable">$PORT</span> 已被其他程序占用”</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-keyword">if</span> ! <span class="hljs-built_in">ulimit</span> -n <span class="hljs-string">“<span class="hljs-variable">$NOFILE_LIMIT</span>“</span>; <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“无法把文件描述符限制设置为 <span class="hljs-variable">$NOFILE_LIMIT</span>“</span><br><span class="hljs-keyword">fi</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">“文件描述符限制：<span class="hljs-subst">$(ulimit -n)</span>“</span></p>
+<p><span class="hljs-built_in">export</span> LD_LIBRARY_PATH&#x3D;<span class="hljs-string">“$BIN<span class="hljs-variable">$&amp;#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&amp;#125;</span>“</span><br><span class="hljs-built_in">export</span> RKNPU_CORES&#x3D;<span class="hljs-string">“<span class="hljs-variable">$NPU_CORES</span>“</span></p>
+<p><span class="hljs-keyword">if</span> [ -n <span class="hljs-string">“<span class="hljs-variable">$NPU_HYBRID</span>“</span> ]; <span class="hljs-keyword">then</span><br>    <span class="hljs-built_in">export</span> RKNPU_HYBRID&#x3D;<span class="hljs-string">“<span class="hljs-variable">$NPU_HYBRID</span>“</span><br><span class="hljs-keyword">else</span><br>    <span class="hljs-built_in">unset</span> RKNPU_HYBRID 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-comment"># 锁频是可选优化。没有免密码 sudo 时自动跳过，不影响启动。</span><br><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$LOCK_NPU_FREQ</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ]; <span class="hljs-keyword">then</span><br>    NPU_DEVFREQ&#x3D;<span class="hljs-string">“&#x2F;sys&#x2F;class&#x2F;devfreq&#x2F;fdab0000.npu”</span><br>    <span class="hljs-keyword">if</span> [ -w <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;min_freq”</span> ] &amp;&amp;<br>       [ -w <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;max_freq”</span> ]; <span class="hljs-keyword">then</span><br>        <span class="hljs-keyword">if</span> <span class="hljs-built_in">echo</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_FREQ</span>“</span> &gt; <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;min_freq”</span> &amp;&amp;<br>           <span class="hljs-built_in">echo</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_FREQ</span>“</span> &gt; <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;max_freq”</span>; <span class="hljs-keyword">then</span><br>            <span class="hljs-built_in">echo</span> <span class="hljs-string">“NPU 频率已锁定：<span class="hljs-subst">$((NPU_FREQ &#x2F; 1000000)</span>)MHz”</span><br>        <span class="hljs-keyword">else</span><br>            <span class="hljs-built_in">echo</span> <span class="hljs-string">“警告：NPU 锁频失败，继续使用系统调频”</span><br>        <span class="hljs-keyword">fi</span><br>    <span class="hljs-keyword">elif</span> sudo -n <span class="hljs-literal">true</span> 2&gt;&#x2F;dev&#x2F;null; <span class="hljs-keyword">then</span><br>        <span class="hljs-keyword">if</span> <span class="hljs-built_in">echo</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_FREQ</span>“</span> |<br>           sudo -n <span class="hljs-built_in">tee</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;min_freq”</span> &gt;&#x2F;dev&#x2F;null &amp;&amp;<br>           <span class="hljs-built_in">echo</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_FREQ</span>“</span> |<br>           sudo -n <span class="hljs-built_in">tee</span> <span class="hljs-string">“<span class="hljs-variable">$NPU_DEVFREQ</span>&#x2F;max_freq”</span> &gt;&#x2F;dev&#x2F;null; <span class="hljs-keyword">then</span><br>            <span class="hljs-built_in">echo</span> <span class="hljs-string">“NPU 频率已锁定：<span class="hljs-subst">$((NPU_FREQ &#x2F; 1000000)</span>)MHz”</span><br>        <span class="hljs-keyword">else</span><br>            <span class="hljs-built_in">echo</span> <span class="hljs-string">“警告：NPU 锁频失败，继续使用系统调频”</span><br>        <span class="hljs-keyword">fi</span><br>    <span class="hljs-keyword">else</span><br>        <span class="hljs-built_in">echo</span> <span class="hljs-string">“警告：无可用 sudo 权限，跳过 NPU 锁频”</span><br>    <span class="hljs-keyword">fi</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-comment"># &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 组装参数并启动 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</span></p>
+<p>ARGS&#x3D;(<br>    -m <span class="hljs-string">“<span class="hljs-variable">$MODEL</span>“</span><br>    –host <span class="hljs-string">“<span class="hljs-variable">$HOST</span>“</span><br>    –port <span class="hljs-string">“<span class="hljs-variable">$PORT</span>“</span><br>    -t <span class="hljs-string">“<span class="hljs-variable">$THREADS</span>“</span><br>    -tb <span class="hljs-string">“<span class="hljs-variable">$THREADS_BATCH</span>“</span><br>    –cpu-range <span class="hljs-string">“<span class="hljs-variable">$CPU_RANGE</span>“</span><br>    –cpu-range-batch <span class="hljs-string">“<span class="hljs-variable">$CPU_RANGE</span>“</span><br>    –cpu-strict <span class="hljs-string">“<span class="hljs-variable">$CPU_STRICT</span>“</span><br>    –cpu-strict-batch <span class="hljs-string">“<span class="hljs-variable">$CPU_STRICT</span>“</span><br>    –prio <span class="hljs-string">“<span class="hljs-variable">$CPU_PRIORITY</span>“</span><br>    –prio-batch <span class="hljs-string">“<span class="hljs-variable">$CPU_PRIORITY</span>“</span><br>    –poll <span class="hljs-string">“<span class="hljs-variable">$CPU_POLL</span>“</span><br>    –poll-batch 1<br>    -c <span class="hljs-string">“<span class="hljs-variable">$CONTEXT_SIZE</span>“</span><br>    -n <span class="hljs-string">“<span class="hljs-variable">$PREDICT</span>“</span><br>    -b <span class="hljs-string">“<span class="hljs-variable">$BATCH_SIZE</span>“</span><br>    -ub <span class="hljs-string">“<span class="hljs-variable">$UBATCH_SIZE</span>“</span><br>    –parallel <span class="hljs-string">“<span class="hljs-variable">$PARALLEL</span>“</span><br>    –cache-ram <span class="hljs-string">“<span class="hljs-variable">$CACHE_RAM</span>“</span><br>    –cache-reuse <span class="hljs-string">“<span class="hljs-variable">$CACHE_REUSE</span>“</span><br>    –cache-type-k <span class="hljs-string">“<span class="hljs-variable">$CACHE_TYPE_K</span>“</span><br>    –cache-type-v <span class="hljs-string">“<span class="hljs-variable">$CACHE_TYPE_V</span>“</span><br>    –flash-attn <span class="hljs-string">“<span class="hljs-variable">$FLASH_ATTN</span>“</span><br>    –reasoning <span class="hljs-string">“<span class="hljs-variable">$REASONING</span>“</span><br>    –reasoning-budget <span class="hljs-string">“<span class="hljs-variable">$REASONING_BUDGET</span>“</span><br>)</p>
+<p><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$CACHE_RAM</span>“</span> &#x3D; <span class="hljs-string">“0”</span> ]; <span class="hljs-keyword">then</span><br>    ARGS+&#x3D;(–no-cache-prompt)<br><span class="hljs-keyword">else</span><br>    ARGS+&#x3D;(–cache-prompt)<br><span class="hljs-keyword">fi</span><br><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$ENABLE_MMAP</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ]; <span class="hljs-keyword">then</span><br>    ARGS+&#x3D;(–mmap)<br><span class="hljs-keyword">else</span><br>    ARGS+&#x3D;(–no-mmap)<br><span class="hljs-keyword">fi</span><br>[ <span class="hljs-string">“<span class="hljs-variable">$ENABLE_MLOCK</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ] &amp;&amp; ARGS+&#x3D;(–mlock)<br>[ <span class="hljs-string">“<span class="hljs-variable">$ENABLE_WARMUP</span>“</span> &#x3D; <span class="hljs-string">“0”</span> ] &amp;&amp; ARGS+&#x3D;(–no-warmup)<br>[ <span class="hljs-string">“<span class="hljs-variable">$ENABLE_METRICS</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ] &amp;&amp; ARGS+&#x3D;(–metrics)</p>
+<p>LAUNCH_CMD&#x3D;(<span class="hljs-string">“<span class="hljs-variable">$SERVER</span>“</span>)<br><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$USE_TASKSET</span>“</span> &#x3D; <span class="hljs-string">“1”</span> ]; <span class="hljs-keyword">then</span><br>    LAUNCH_CMD&#x3D;(taskset -c <span class="hljs-string">“<span class="hljs-variable">$CPU_RANGE</span>“</span> <span class="hljs-string">“<span class="hljs-variable">$SERVER</span>“</span>)<br><span class="hljs-keyword">fi</span></p>
+<dl><dt><span class="hljs-comment"># 关闭子进程继承的锁文件描述符，避免脚本退出后仍占用锁。</span></dt><dd>&gt; <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> || die <span class="hljs-string">“无法写入日志：<span class="hljs-variable">$LOG</span>“</span><br><span class="hljs-built_in">chmod</span> 600 <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span></dd></dl><p>LAUNCH_PID&#x3D;<span class="hljs-string">“”</span><br>SERVER_PID&#x3D;<span class="hljs-string">“”</span><br><span class="hljs-built_in">trap</span> <span class="hljs-string">‘echo “启动被中断”; terminate_failed_start; exit 130’</span> INT TERM HUP</p>
+<p><span class="hljs-built_in">nohup</span> <span class="hljs-string">“<span class="hljs-variable">$&amp;#123;LAUNCH_CMD[@]&amp;#125;</span>“</span> <span class="hljs-string">“<span class="hljs-variable">$&amp;#123;ARGS[@]&amp;#125;</span>“</span> &lt; &#x2F;dev&#x2F;null &gt; <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> 2&gt;&amp;1 9&gt;&amp;- &amp;<br>LAUNCH_PID&#x3D;$!</p>
+<p><span class="hljs-comment"># $! 可能是 taskset 等包装进程，因此从 &#x2F;proc 定位真实服务 PID。</span><br><span class="hljs-keyword">for</span> ((i&#x3D;<span class="hljs-number">0</span>; i&lt;<span class="hljs-number">100</span>; i++)); <span class="hljs-keyword">do</span><br>    <span class="hljs-keyword">if</span> is_target_pid <span class="hljs-string">“<span class="hljs-variable">$LAUNCH_PID</span>“</span>; <span class="hljs-keyword">then</span><br>        SERVER_PID&#x3D;<span class="hljs-string">“<span class="hljs-variable">$LAUNCH_PID</span>“</span><br>        <span class="hljs-built_in">break</span><br>    <span class="hljs-keyword">fi</span><br>    SERVER_PID&#x3D;$(find_target_pids | <span class="hljs-built_in">head</span> -n 1)<br>    [ -n <span class="hljs-string">“<span class="hljs-variable">$SERVER_PID</span>“</span> ] &amp;&amp; <span class="hljs-built_in">break</span><br>    <span class="hljs-built_in">sleep</span> 0.1<br><span class="hljs-keyword">done</span></p>
+<p><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">“<span class="hljs-variable">$SERVER_PID</span>“</span> ]; <span class="hljs-keyword">then</span><br>    terminate_failed_start<br>    <span class="hljs-built_in">tail</span> -50 <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>    die <span class="hljs-string">“没有找到真实 llama-server 进程”</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-keyword">if</span> ! <span class="hljs-built_in">printf</span> <span class="hljs-string">‘%s\n’</span> <span class="hljs-string">“<span class="hljs-variable">$SERVER_PID</span>“</span> &gt; <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>.tmp”</span> ||<br>   ! <span class="hljs-built_in">mv</span> -f <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>.tmp”</span> <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span>; <span class="hljs-keyword">then</span><br>    terminate_failed_start<br>    die <span class="hljs-string">“无法写入 PID 文件：<span class="hljs-variable">$PIDFILE</span>“</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-comment"># 只有 &#x2F;health 返回成功后才报告启动完成；进程提前退出则立即报错。</span><br>HEALTH_HOST&#x3D;<span class="hljs-string">“<span class="hljs-variable">$HOST</span>“</span><br>[ <span class="hljs-string">“<span class="hljs-variable">$HOST</span>“</span> &#x3D; <span class="hljs-string">“0.0.0.0”</span> ] &amp;&amp; HEALTH_HOST&#x3D;<span class="hljs-string">“127.0.0.1”</span></p>
+<p>READY&#x3D;<span class="hljs-string">“0”</span><br>DEADLINE&#x3D;$((SECONDS + <span class="hljs-number">10</span>#<span class="hljs-variable">$START_TIMEOUT</span>))<br><span class="hljs-keyword">while</span> ((SECONDS &lt; DEADLINE)); <span class="hljs-keyword">do</span><br>    <span class="hljs-keyword">if</span> ! is_target_pid <span class="hljs-string">“<span class="hljs-variable">$SERVER_PID</span>“</span>; <span class="hljs-keyword">then</span><br>        <span class="hljs-built_in">rm</span> -f <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span><br>        <span class="hljs-built_in">tail</span> -50 <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>        die <span class="hljs-string">“llama-server 在启动期间退出”</span><br>    <span class="hljs-keyword">fi</span></p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; curl -fsS --connect-timeout 1 --max-time 2 \
+   &lt;span class=&quot;hljs-string&quot;&gt;&quot;http://&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;HEALTH_HOST&amp;#125;&lt;/span&gt;:&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;PORT&amp;#125;&lt;/span&gt;/health&quot;&lt;/span&gt; &amp;gt;/dev/null 2&amp;gt;&amp;amp;1; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+    READY=&lt;span class=&quot;hljs-string&quot;&gt;&quot;1&quot;&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;break&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;sleep&lt;/span&gt; 1
+</code></pre>
+<p><span class="hljs-keyword">done</span></p>
+<p><span class="hljs-keyword">if</span> [ <span class="hljs-string">“<span class="hljs-variable">$READY</span>“</span> !&#x3D; <span class="hljs-string">“1”</span> ]; <span class="hljs-keyword">then</span><br>    terminate_failed_start<br>    <span class="hljs-built_in">tail</span> -50 <span class="hljs-string">“<span class="hljs-variable">$LOG</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>    die <span class="hljs-string">“等待服务就绪超时（<span class="hljs-variable">$&amp;#123;START_TIMEOUT&amp;#125;</span>秒）”</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-built_in">trap</span> - INT TERM HUP</p>
+<p><span class="hljs-built_in">echo</span> <span class="hljs-string">“服务已就绪，PID：<span class="hljs-variable">$SERVER_PID</span>“</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">“模型：<span class="hljs-variable">$MODEL</span>“</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">“监听地址：http:&#x2F;&#x2F;<span class="hljs-variable">$&amp;#123;HOST&amp;#125;</span>:<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>&#x2F;“</span><br><span class="hljs-built_in">echo</span> <span class="hljs-string">“日志：<span class="hljs-variable">$LOG</span>“</span><br></p></code></pre><p></p>
+<h3 data-id="heading-28">stop.sh 完整代码</h3>
+<p>在同一部署根目录用 nano stop.sh 创建文件。两份脚本的 PORT 必须相同。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-meta">#!/usr/bin/env bash</span>
+
+<p><span class="hljs-comment"># RK3588 rk-llama.cpp 停止脚本</span><br><span class="hljs-comment"># 版本：1.0.1（2026-09-09，文章审核版；停止逻辑沿用实测基线）</span><br><span class="hljs-comment"># 编码：UTF-8；换行：Linux LF</span><br><span class="hljs-built_in">export</span> LANG&#x3D;C.UTF-8<br><span class="hljs-built_in">export</span> LC_ALL&#x3D;C.UTF-8<br><span class="hljs-built_in">set</span> -uo pipefail<br><span class="hljs-built_in">umask</span> 077</p>
+<p><span class="hljs-comment"># 脚本应与 start.sh 放在同一部署根目录。</span><br>BASE&#x3D;<span class="hljs-string">“<span class="hljs-subst">$(cd – <span class="hljs-string">“<span class="hljs-subst">$(dirname – <span class="hljs-string">“<span class="hljs-variable">$&amp;#123;BASH_SOURCE[0]&amp;#125;</span>“</span>)</span>“</span> &amp;&amp; pwd -P)</span>“</span><br>SERVER&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;rk-llama.cpp&#x2F;build&#x2F;bin&#x2F;llama-server”</span><br>PORT&#x3D;<span class="hljs-string">“8080”</span>          <span class="hljs-comment"># 必须与 start.sh 一致</span><br>STOP_TIMEOUT&#x3D;<span class="hljs-string">“20”</span>    <span class="hljs-comment"># 等待正常退出的最长秒数</span></p>
+<p>PIDFILE&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;qwen35_server_<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>.pid”</span><br>LOCKFILE&#x3D;<span class="hljs-string">“<span class="hljs-variable">$BASE</span>&#x2F;.qwen35_server_<span class="hljs-variable">$&amp;#123;PORT&amp;#125;</span>.lock”</span></p>
+<p><span class="hljs-function"><span class="hljs-title">die</span></span>() &amp;#123;<br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">“错误：$*”</span> &gt;&amp;2<br>    <span class="hljs-built_in">exit</span> 1<br>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">require_command</span></span>() &amp;#123;<br>    <span class="hljs-built_in">command</span> -v <span class="hljs-string">“<span class="hljs-variable">$1</span>“</span> &gt;&#x2F;dev&#x2F;null 2&gt;&amp;1 || die <span class="hljs-string">“缺少命令：<span class="hljs-variable">$1</span>“</span><br>&amp;#125;</p>
+<p><span class="hljs-comment"># 精确匹配程序路径和 –port，避免 PID 复用或误杀其他服务。</span><br><span class="hljs-function"><span class="hljs-title">is_target_pid</span></span>() &amp;#123;<br>    <span class="hljs-built_in">local</span> pid&#x3D;<span class="hljs-string">“<span class="hljs-variable">$1</span>“</span><br>    <span class="hljs-built_in">local</span> args&#x3D;()<br>    <span class="hljs-built_in">local</span> i</p>
+<pre><code>[[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; =~ ^[0-9]+$ ]] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+[ -r &lt;span class=&quot;hljs-string&quot;&gt;&quot;/proc/&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;/cmdline&quot;&lt;/span&gt; ] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+&lt;span class=&quot;hljs-built_in&quot;&gt;mapfile&lt;/span&gt; -d &lt;span class=&quot;hljs-string&quot;&gt;&#39;&#39;&lt;/span&gt; -t args &amp;lt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;/proc/&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;/cmdline&quot;&lt;/span&gt; 2&amp;gt;/dev/null || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;#args[@]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; -gt 0 ] || &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+
+[ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-subst&quot;&gt;$(readlink -m -- &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[0]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt;)&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-subst&quot;&gt;$(readlink -m -- &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$SERVER&lt;/span&gt;&quot;&lt;/span&gt;)&lt;/span&gt;&quot;&lt;/span&gt; ] ||
+    &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; ((i=&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;; i&amp;lt;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;#args[@]&amp;#125;&lt;/span&gt;; i++)); &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$i]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;--port&quot;&lt;/span&gt; ] &amp;amp;&amp;amp;
+       [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$((i+1))]:-&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$PORT&lt;/span&gt;&quot;&lt;/span&gt; ]; &lt;span class=&quot;hljs-keyword&quot;&gt;then&lt;/span&gt;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 0
+    &lt;span class=&quot;hljs-keyword&quot;&gt;fi&lt;/span&gt;
+    [ &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;args[$i]&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt; = &lt;span class=&quot;hljs-string&quot;&gt;&quot;--port=&lt;span class=&quot;hljs-variable&quot;&gt;$PORT&lt;/span&gt;&quot;&lt;/span&gt; ] &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 0
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;return&lt;/span&gt; 1
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">find_target_pids</span></span>() &amp;#123;<br>    <span class="hljs-built_in">local</span> proc<br>    <span class="hljs-built_in">local</span> pid</p>
+<pre><code>&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; proc &lt;span class=&quot;hljs-keyword&quot;&gt;in&lt;/span&gt; /proc/[0-9]*; &lt;span class=&quot;hljs-keyword&quot;&gt;do&lt;/span&gt;
+    pid=&lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$&amp;#123;proc##*/&amp;#125;&lt;/span&gt;&quot;&lt;/span&gt;
+    is_target_pid &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt; &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;echo&lt;/span&gt; &lt;span class=&quot;hljs-string&quot;&gt;&quot;&lt;span class=&quot;hljs-variable&quot;&gt;$pid&lt;/span&gt;&quot;&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;done&lt;/span&gt;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-function"><span class="hljs-title">port_is_listening</span></span>() &amp;#123;<br>    ss -H -ltn <span class="hljs-string">“sport &#x3D; :<span class="hljs-variable">$PORT</span>“</span> 2&gt;&#x2F;dev&#x2F;null | grep -q .<br>&amp;#125;</p>
+<p><span class="hljs-keyword">for</span> cmd <span class="hljs-keyword">in</span> awk flock grep <span class="hljs-built_in">readlink</span> ss; <span class="hljs-keyword">do</span><br>    require_command <span class="hljs-string">“<span class="hljs-variable">$cmd</span>“</span><br><span class="hljs-keyword">done</span><br><span class="hljs-keyword">if</span> ! [[ <span class="hljs-string">“<span class="hljs-variable">$PORT</span>“</span> &#x3D;~ ^[0-9]+$ ]] ||<br>   ! ((<span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span> &gt;&#x3D; <span class="hljs-number">1</span> &amp;&amp; <span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span> &lt;&#x3D; <span class="hljs-number">65535</span>)); <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“PORT 必须为 1<del>65535”</del></span><br><span class="hljs-keyword">fi</span><br><span class="hljs-keyword">if</span> ! [[ <span class="hljs-string">“<span class="hljs-variable">$STOP_TIMEOUT</span>“</span> &#x3D; ^[0-9]+$ ]] ||<br>   ! ((<span class="hljs-number">10</span>#<span class="hljs-variable">$STOP_TIMEOUT</span> &gt;&#x3D; <span class="hljs-number">0</span>)); <span class="hljs-keyword">then</span><br>    die <span class="hljs-string">“STOP_TIMEOUT 必须为非负整数”</span><br><span class="hljs-keyword">fi</span><br>PORT&#x3D;$((<span class="hljs-number">10</span>#<span class="hljs-variable">$PORT</span>))<br>STOP_TIMEOUT&#x3D;$((<span class="hljs-number">10</span>#<span class="hljs-variable">$STOP_TIMEOUT</span>))</p>
+<p><span class="hljs-comment"># 与 start.sh 使用同一把锁，避免启停操作相互竞争。</span><br><span class="hljs-built_in">exec</span> 9&gt;<span class="hljs-string">“<span class="hljs-variable">$LOCKFILE</span>“</span><br>flock -n 9 || die <span class="hljs-string">“另一个启动或停止操作正在进行”</span></p>
+<p>TARGET_PIDS&#x3D;<span class="hljs-string">“”</span><br><span class="hljs-keyword">if</span> [ -f <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span> ]; <span class="hljs-keyword">then</span><br>    SAVED_PID&#x3D;$(<span class="hljs-built_in">cat</span> <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span>)<br>    is_target_pid <span class="hljs-string">“<span class="hljs-variable">$SAVED_PID</span>“</span> &amp;&amp; TARGET_PIDS&#x3D;<span class="hljs-string">“<span class="hljs-variable">$SAVED_PID</span>“</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-comment"># 始终扫描 &#x2F;proc：PID 文件缺失、过期或记录了包装进程时仍能停止。</span><br>SCANNED_PIDS&#x3D;$(find_target_pids)<br>TARGET_PIDS&#x3D;$(<span class="hljs-built_in">printf</span> <span class="hljs-string">‘%s\n%s\n’</span> <span class="hljs-string">“<span class="hljs-variable">$TARGET_PIDS</span>“</span> <span class="hljs-string">“<span class="hljs-variable">$SCANNED_PIDS</span>“</span> |<br>    awk <span class="hljs-string">‘&#x2F;^[0-9]+$&#x2F; &amp;&amp; !seen[$0]++’</span>)</p>
+<p><span class="hljs-keyword">if</span> [ -z <span class="hljs-string">“<span class="hljs-variable">$TARGET_PIDS</span>“</span> ]; <span class="hljs-keyword">then</span><br>    <span class="hljs-built_in">rm</span> -f <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span><br>    <span class="hljs-keyword">if</span> port_is_listening; <span class="hljs-keyword">then</span><br>        ss -H -ltnp <span class="hljs-string">“sport &#x3D; :<span class="hljs-variable">$PORT</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>        die <span class="hljs-string">“未找到目标 llama-server，但端口 <span class="hljs-variable">$PORT</span> 仍被占用”</span><br>    <span class="hljs-keyword">fi</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">“服务未运行，端口 <span class="hljs-variable">$PORT</span> 已释放”</span><br>    <span class="hljs-built_in">exit</span> 0<br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-built_in">echo</span> <span class="hljs-string">“正在停止 llama-server：<span class="hljs-subst">$(echo <span class="hljs-string">“<span class="hljs-variable">$TARGET_PIDS</span>“</span> | tr ‘\n’ ‘ ‘)</span>“</span></p>
+<p><span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r pid; <span class="hljs-keyword">do</span><br>    <span class="hljs-keyword">if</span> [ -n <span class="hljs-string">“<span class="hljs-variable">$pid</span>“</span> ]; <span class="hljs-keyword">then</span><br>        <span class="hljs-built_in">kill</span> <span class="hljs-string">“<span class="hljs-variable">$pid</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>    <span class="hljs-keyword">fi</span><br><span class="hljs-keyword">done</span> &lt;&lt;&lt; <span class="hljs-string">“<span class="hljs-variable">$TARGET_PIDS</span>“</span></p>
+<p><span class="hljs-keyword">for</span> ((i&#x3D;<span class="hljs-number">0</span>; i&lt;STOP_TIMEOUT; i++)); <span class="hljs-keyword">do</span><br>    REMAINING&#x3D;$(find_target_pids)<br>    [ -z <span class="hljs-string">“<span class="hljs-variable">$REMAINING</span>“</span> ] &amp;&amp; <span class="hljs-built_in">break</span><br>    <span class="hljs-built_in">sleep</span> 1<br><span class="hljs-keyword">done</span></p>
+<p>REMAINING&#x3D;$(find_target_pids)<br><span class="hljs-keyword">if</span> [ -n <span class="hljs-string">“<span class="hljs-variable">$REMAINING</span>“</span> ]; <span class="hljs-keyword">then</span><br>    <span class="hljs-built_in">echo</span> <span class="hljs-string">“正常停止超时，强制停止：<span class="hljs-subst">$(echo <span class="hljs-string">“<span class="hljs-variable">$REMAINING</span>“</span> | tr ‘\n’ ‘ ‘)</span>“</span><br>    <span class="hljs-keyword">while</span> <span class="hljs-built_in">read</span> -r pid; <span class="hljs-keyword">do</span><br>        <span class="hljs-keyword">if</span> [ -n <span class="hljs-string">“<span class="hljs-variable">$pid</span>“</span> ]; <span class="hljs-keyword">then</span><br>            <span class="hljs-built_in">kill</span> -9 <span class="hljs-string">“<span class="hljs-variable">$pid</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>        <span class="hljs-keyword">fi</span><br>    <span class="hljs-keyword">done</span> &lt;&lt;&lt; <span class="hljs-string">“<span class="hljs-variable">$REMAINING</span>“</span><br>    <span class="hljs-built_in">sleep</span> 1<br><span class="hljs-keyword">fi</span></p>
+<p>FINAL_PIDS&#x3D;$(find_target_pids)<br>[ -z <span class="hljs-string">“<span class="hljs-variable">$FINAL_PIDS</span>“</span> ] ||<br>    die <span class="hljs-string">“停止失败，仍存在进程：<span class="hljs-subst">$(echo <span class="hljs-string">“<span class="hljs-variable">$FINAL_PIDS</span>“</span> | tr ‘\n’ ‘ ‘)</span>“</span></p>
+<p><span class="hljs-built_in">rm</span> -f <span class="hljs-string">“<span class="hljs-variable">$PIDFILE</span>“</span></p>
+<p><span class="hljs-keyword">if</span> port_is_listening; <span class="hljs-keyword">then</span><br>    ss -H -ltnp <span class="hljs-string">“sport &#x3D; :<span class="hljs-variable">$PORT</span>“</span> 2&gt;&#x2F;dev&#x2F;null || <span class="hljs-literal">true</span><br>    die <span class="hljs-string">“目标进程已退出，但端口 <span class="hljs-variable">$PORT</span> 仍被占用”</span><br><span class="hljs-keyword">fi</span></p>
+<p><span class="hljs-built_in">echo</span> <span class="hljs-string">“服务已停止，端口 <span class="hljs-variable">$PORT</span> 已释放”</span><br></p></code></pre><p></p>
+<h2 data-id="heading-29">14. 启动参数分别控制什么</h2>
+<p>先理解参数，再修改脚本开头的配置区。下面数值是本文沿用的基线配置或明确说明的建议，不是适用于所有镜像的最优参数。</p>
+<table><thead><tr><th>配置</th><th>基线值</th><th>含义与调整边界</th></tr></thead><tbody><tr><td><code>BASE</code></td><td>自动定位</td><td>按脚本自身目录定位源码、模型和日志，不依赖执行命令时所在目录</td></tr><tr><td><code>MODEL</code></td><td>Q8_0 文件</td><td>更换前先停止服务，路径和大小写必须完全一致</td></tr><tr><td><code>HOST</code> / <code>PORT</code></td><td><code>0.0.0.0</code> / <code>8080</code></td><td>IPv4 所有接口监听；端口修改时必须同步 start/stop</td></tr><tr><td><code>THREADS</code> / <code>THREADS_BATCH</code></td><td><code>4</code> / <code>4</code></td><td>生成阶段和提示词处理阶段的 CPU 线程数</td></tr><tr><td><code>CPU_RANGE</code> / <code>USE_TASKSET</code></td><td><code>4-7</code> / <code>1</code></td><td>进程亲和性；程序内部 CPU 参数与 OS 绑定共同作用</td></tr><tr><td><code>CPU_STRICT</code></td><td><code>1</code></td><td>严格限制程序工作线程的 CPU 范围</td></tr><tr><td><code>CPU_PRIORITY</code></td><td><code>1</code></td><td>优先级请求；是否生效受普通用户权限约束，先看启动日志</td></tr><tr><td><code>CPU_POLL</code></td><td><code>100</code></td><td>较积极的线程轮询；可能减少等待，也会增加 CPU 占用与能耗，需实测</td></tr><tr><td><code>CONTEXT_SIZE</code></td><td><code>16384</code></td><td>Context，服务可用上下文规模，单位 Token；普通聊天可降到 8192</td></tr><tr><td><code>PREDICT</code></td><td><code>-1</code></td><td>服务端不设固定生成 Token 上限；请求仍应设置 <code>max_tokens</code>，EOS 等条件也能终止输出</td></tr><tr><td><code>BATCH_SIZE</code></td><td><code>2048</code></td><td>一次逻辑处理允许的 Token 批大小，不是并发用户数</td></tr><tr><td><code>UBATCH_SIZE</code></td><td><code>512</code></td><td>物理计算微批，通常是拆开逻辑批后的实际计算粒度</td></tr><tr><td><code>PARALLEL</code></td><td><code>1</code></td><td>同一服务内会话槽位数；8GB 先采用单槽，增加后需重新核对每槽上下文与内存</td></tr><tr><td><code>CACHE_RAM</code></td><td><code>512</code> MiB</td><td>RAM 中提示词状态缓存预算，不是总内存上限</td></tr><tr><td><code>CACHE_REUSE</code></td><td><code>0</code></td><td>关闭基于 KV shifting 的块复用；普通相同前缀复用由 prompt cache 机制控制</td></tr><tr><td><code>CACHE_TYPE_K</code> / <code>CACHE_TYPE_V</code></td><td><code>f16</code> / <code>f16</code></td><td>K、V 缓存的存储类型；不代表权重也变成 FP16</td></tr><tr><td><code>FLASH_ATTN</code></td><td><code>auto</code></td><td>让程序按可用实现选择 Flash Attention；不代表所有注意力都在 NPU 执行</td></tr><tr><td><code>REASONING</code> / <code>REASONING_BUDGET</code></td><td><code>off</code> / <code>0</code></td><td>沿用首次验证的非思考配置，升级时检查该版本帮助</td></tr><tr><td><code>NPU_CORES</code></td><td><code>0,1,2</code></td><td>脚本配置名，导出为真正环境变量 <code>RKNPU_CORES</code></td></tr><tr><td><code>NPU_HYBRID</code></td><td>空字符串</td><td>不导出自定义 <code>RKNPU_HYBRID</code>，保持自动管线</td></tr><tr><td><code>LOCK_NPU_FREQ</code> / <code>NPU_FREQ</code></td><td><code>0</code> / <code>1000000000</code> Hz</td><td>默认不锁频；1GHz 是可选设置值，不是已验证运行频率</td></tr><tr><td><code>ENABLE_MMAP</code></td><td><code>1</code></td><td>允许文件内存映射；不代表模型或 NPU 缓冲区零内存占用</td></tr><tr><td><code>ENABLE_MLOCK</code></td><td><code>0</code></td><td>不锁住全部可锁页；开启会受内存及 memlock 限制，不建议 8GB 默认开启</td></tr><tr><td><code>ENABLE_WARMUP</code></td><td><code>1</code></td><td>使用预热，尽早执行部分初始化；不保证覆盖所有首次请求的形状和分配</td></tr><tr><td><code>ENABLE_METRICS</code></td><td><code>1</code></td><td>开启指标端点；局域网管理使用，需纳入访问控制</td></tr><tr><td><code>NOFILE_LIMIT</code></td><td><code>65536</code></td><td>设置后由服务子进程继承；设置失败即停止启动</td></tr><tr><td><code>START_TIMEOUT</code> / <code>STOP_TIMEOUT</code></td><td><code>120</code> / <code>20</code> 秒</td><td>等待健康就绪与正常退出；超时看日志，再决定是否调整</td></tr></tbody></table>
+<p>原实测脚本把 <code>CACHE_REUSE=0</code> 注释为“自动”。根据<strong>同一实测提交</strong>的 Server 文档，它实际表示禁用这项 KV shifting 块复用，本文已修正注释，数值保持 0。原脚本对 <code>PREDICT=-1</code> 的解释也补充了调用方仍应传入生成上限的条件。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fcommon%2Farg.cpp" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/common/arg.cpp" rel="external nofollow noopener noreferrer">实测版本参数定义</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Ftools%2Fserver%2FREADME.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/tools/server/README.md" rel="external nofollow noopener noreferrer">Server 文档</a></p>
+<p>脚本默认覆盖同端口的上次日志。准备对比试验前应先另存日志；日志可能包含提示词或模型信息，<code>umask 077</code> 把新文件权限限制在当前用户范围。<code>flock</code> 用于避免同目录、同端口启停竞争，<strong>它不是全系统 NPU 互斥锁</strong>，不能阻止另一个目录或账号启动其他模型。</p>
+<h2 data-id="heading-30">15. 启动服务：编码、真实进程、健康状态都要过关</h2>
+<p>Windows 编辑器保存脚本时选择 UTF-8 和 Linux LF。板端执行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+sed -i <span class="hljs-string">'s/\r$//'</span> start.sh stop.sh
+sed -i <span class="hljs-string">'1s/^\xEF\xBB\xBF//'</span> start.sh stop.sh
+file start.sh stop.sh
+bash -n start.sh
+bash -n stop.sh
+<span class="hljs-built_in">chmod</span> +x start.sh stop.sh
+./start.sh
+</code></pre>
+<p>第一条 <code>sed</code> 去除 CRLF 中的行尾 CR，第二条去除可能影响 shebang 的 UTF-8 BOM。它们不会把已经损坏的中文恢复成正确字符，也不能把任意 GBK 文件自动转换成 UTF-8。<code>bash -n</code> 无输出表示语法通过，不能证明模型参数、驱动和设备都正常。</p>
+<p><code>start.sh</code> 只有发现真实进程并收到 <code>/health</code> 成功响应，才报告“服务已就绪”。首次加载可能较慢，应从日志区分正在转换权重、等待内存和真实异常。</p>
+<pre><code class="hljs language-bash" lang="bash">pgrep -ax llama-server
+ss -ltnp | grep <span class="hljs-string">':8080'</span>
+<span class="hljs-built_in">tail</span> -f <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.log"</span>
+</code></pre>
+<p>日志通常包含 <code>RKNPU model buffer size</code>、<code>RKNPU compute buffer size</code>、模型加载完成与服务监听信息。<code>Ctrl+C</code> 退出 <code>tail -f</code> 只停止查看日志，不停止后台模型。</p>
+<h3 data-id="heading-31">健康检查</h3>
+<pre><code class="hljs language-bash" lang="bash">curl http://127.0.0.1:8080/health
+</code></pre>
+<p>成功响应：</p>
+<pre><code class="hljs language-json" lang="json"><span class="hljs-punctuation">&#123;</span><span class="hljs-attr">"status"</span><span class="hljs-punctuation">:</span><span class="hljs-string">"ok"</span><span class="hljs-punctuation">&#125;</span>
+</code></pre>
+<p>加载期间可能返回 HTTP 503。健康接口证明服务的加载状态，不能代替一条实际生成请求；即使已就绪，也可能在首次复杂请求中触发新的内存分配。</p>
+<h3 data-id="heading-32">Web UI</h3>
+<p>从电脑或手机浏览器访问开发板局域网地址，形式为 <code>http://开发板实际IP:8080/</code>。例如板卡地址若是 <code>192.168.3.100</code>，访问的就是 <a href="https://link.juejin.cn/?target=http%3A%2F%2F192.168.3.100%3A8080%2F" ref="nofollow noopener noreferrer" target="_blank" title="http://192.168.3.100:8080/" rel="external nofollow noopener noreferrer">示例局域网地址</a>。这个示例不是互联网服务地址。</p>
+<p><code>0.0.0.0</code> 表示监听所有 IPv4 接口，不是应该填写到另一台电脑浏览器里的目标 IP。先发一个短文本问题，再看服务日志和 NPU 负载。</p>
+<p>若板端 <code>/health</code> 成功而其他电脑打不开网页，检查监听地址、防火墙、IP 和网络隔离。测试保持在可信局域网；不要直接将 8080 映射到公网。生产接入应配置反向代理、TLS、认证、访问控制与防火墙，或通过 VPN 访问。仅设置 <code>0.0.0.0</code> 不提供任何身份验证。</p>
+<h2 data-id="heading-33">16. OpenAI 兼容 API：把开发板接入应用</h2>
+<p><img class="lazy" alt="客户端经 HTTP 调用 RK3588 上的模型服务" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a265359b063643b4909d22a3b3553092~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=7Y2Logld7Sn0K9pHB3sREa%2FwmZ0%3D"></p>
+<blockquote>
+<p>图 6：PC、Web、Python 或 RAG 应用向本地 llama-server 发请求，服务再调用 rk-llama.cpp 与 RKNPU2；图中不涉及云端模型。</p>
+</blockquote>
+<p>接口兼容的意义是客户端可以沿用常见的聊天请求结构，并不代表全部 OpenAI 产品接口或功能都被实现。先确认模型信息，再请求聊天：<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Ftools%2Fserver%2FREADME.md%23openai-compatible-api-endpoints" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/tools/server/README.md#openai-compatible-api-endpoints" rel="external nofollow noopener noreferrer">实测版本 API 文档</a></p>
+<pre><code class="hljs language-bash" lang="bash">curl -fsS http://127.0.0.1:8080/v1/models
+curl -sS --fail-with-body http://127.0.0.1:8080/v1/chat/completions \
+  -H <span class="hljs-string">'Content-Type: application/json'</span> \
+  -d <span class="hljs-string">'&#123;
+    "model": "Qwen3.5-2B.q8_0.gguf",
+    "messages": [
+      &#123;"role": "system", "content": "你是一个简洁的中文助手。"&#125;,
+      &#123;"role": "user", "content": "请用两句话介绍RK3588。"&#125;
+    ],
+    "max_tokens": 128,
+    "temperature": 0.2,
+    "stream": false
+  &#125;'</span>
+</code></pre>
+<p>上例沿用实测请求中的模型名。客户端如严格核对模型 ID，应使用 <code>/v1/models</code> 的 <code>data[0].id</code>；换模型后也应同步修改。<code>messages</code> 是本次请求的消息及历史，<code>max_tokens</code> 限制此次输出，<code>temperature</code> 控制采样随机性，<code>stream=false</code> 等待完整响应。<code>temperature=0.2</code> 是简短接口验证配置，不是 Qwen 官方的通用质量最优建议。</p>
+<p>以下 Python 使用标准库直接调用同一个、已经核实结构的 HTTP 接口，无需安装 SDK。在开发板运行时保持回环地址；在其他电脑运行时把 <code>BASE_URL</code> 改成板卡地址：</p>
+<pre><code class="hljs language-python" lang="python"><span class="hljs-keyword">import</span> json
+<span class="hljs-keyword">import</span> urllib.error
+<span class="hljs-keyword">import</span> urllib.request
+
+<p>BASE_URL &#x3D; <span class="hljs-string">“<a href="http://127.0.0.1:8080&quot;" rel="external nofollow noopener noreferrer" target="_blank">http://127.0.0.1:8080&quot;</a></span></p>
+<p><span class="hljs-keyword">try</span>:<br>    <span class="hljs-keyword">with</span> urllib.request.urlopen(BASE_URL + <span class="hljs-string">“&#x2F;v1&#x2F;models”</span>, timeout&#x3D;<span class="hljs-number">10</span>) <span class="hljs-keyword">as</span> response:<br>        model_id &#x3D; json.load(response)[<span class="hljs-string">“data”</span>][<span class="hljs-number">0</span>][<span class="hljs-string">“id”</span>]</p>
+<pre><code>payload = &amp;#123;
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;model&quot;&lt;/span&gt;: model_id,
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;messages&quot;&lt;/span&gt;: [
+        &amp;#123;&lt;span class=&quot;hljs-string&quot;&gt;&quot;role&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;system&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&quot;content&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;你是一个简洁的中文助手。&quot;&lt;/span&gt;&amp;#125;,
+        &amp;#123;&lt;span class=&quot;hljs-string&quot;&gt;&quot;role&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;user&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&quot;content&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;请用两句话介绍RK3588。&quot;&lt;/span&gt;&amp;#125;,
+    ],
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;max_tokens&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-number&quot;&gt;128&lt;/span&gt;,
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;temperature&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-number&quot;&gt;0.2&lt;/span&gt;,
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;stream&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-literal&quot;&gt;False&lt;/span&gt;,
+&amp;#125;
+request = urllib.request.Request(
+    BASE_URL + &lt;span class=&quot;hljs-string&quot;&gt;&quot;/v1/chat/completions&quot;&lt;/span&gt;,
+    data=json.dumps(payload, ensure_ascii=&lt;span class=&quot;hljs-literal&quot;&gt;False&lt;/span&gt;).encode(&lt;span class=&quot;hljs-string&quot;&gt;&quot;utf-8&quot;&lt;/span&gt;),
+    headers=&amp;#123;&lt;span class=&quot;hljs-string&quot;&gt;&quot;Content-Type&quot;&lt;/span&gt;: &lt;span class=&quot;hljs-string&quot;&gt;&quot;application/json&quot;&lt;/span&gt;&amp;#125;,
+    method=&lt;span class=&quot;hljs-string&quot;&gt;&quot;POST&quot;&lt;/span&gt;,
+)
+&lt;span class=&quot;hljs-keyword&quot;&gt;with&lt;/span&gt; urllib.request.urlopen(request, timeout=&lt;span class=&quot;hljs-number&quot;&gt;180&lt;/span&gt;) &lt;span class=&quot;hljs-keyword&quot;&gt;as&lt;/span&gt; response:
+    result = json.load(response)
+&lt;span class=&quot;hljs-built_in&quot;&gt;print&lt;/span&gt;(result[&lt;span class=&quot;hljs-string&quot;&gt;&quot;choices&quot;&lt;/span&gt;][&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;][&lt;span class=&quot;hljs-string&quot;&gt;&quot;message&quot;&lt;/span&gt;][&lt;span class=&quot;hljs-string&quot;&gt;&quot;content&quot;&lt;/span&gt;])
+</code></pre>
+<p><span class="hljs-keyword">except</span> urllib.error.HTTPError <span class="hljs-keyword">as</span> error:<br>    <span class="hljs-built_in">print</span>(<span class="hljs-string">“HTTP”</span>, error.code, error.read().decode(<span class="hljs-string">“utf-8”</span>, errors&#x3D;<span class="hljs-string">“replace”</span>))<br>    <span class="hljs-keyword">raise</span><br></p></code></pre><p></p>
+<p>这是按公开接口编写的调用示例，不作为新增板端实测记录。已有 OpenAI 兼容客户端通常填写 API Base URL <code>http://开发板实际IP:8080/v1</code>。示例服务没有启用鉴权；若以后在 Server 或代理层配置认证，客户端须同步携带对应凭据。</p>
+<h2 data-id="heading-34">17. 证明请求确实使用了 NPU：四层证据链</h2>
+<p><img class="lazy" alt="后端、日志、负载、基准测试共同确认 NPU" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/667acdbc836f42cf816aaccfc905ff9d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=g5g%2F3AZ%2FwgPG99p%2F93DAReXiA%2F0%3D"></p>
+<blockquote>
+<p>图 7：设备注册、运行日志、请求期间的三核负载与 Bench 后端信息相互印证。波形为示意，不是新增负载实测曲线。</p>
+</blockquote>
+<h3 data-id="heading-35">证据一：设备注册</h3>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+BIN=<span class="hljs-string">"<span class="hljs-variable">$BASE</span>/rk-llama.cpp/build/bin"</span>
+<span class="hljs-built_in">export</span> LD_LIBRARY_PATH=<span class="hljs-string">"$BIN<span class="hljs-variable">$&#123;LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH&#125;</span>"</span>
+<span class="hljs-string">"<span class="hljs-variable">$BIN</span>/llama-cli"</span> --list-devices
+</code></pre>
+<p>应包含 <code>RKNPU: Rockchip NPU</code>。这一步最好在启动服务前完成，不加载第二个模型。</p>
+<h3 data-id="heading-36">证据二：当前服务的日志</h3>
+<pre><code class="hljs language-bash" lang="bash">grep -Ei <span class="hljs-string">'RKNPU|model buffer|compute buffer'</span> \
+  <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.log"</span>
+</code></pre>
+<p>查找 <code>RKNPU model buffer</code>、<code>RKNPU compute buffer</code> 等输出，并确认该日志对应当前运行的进程和刚发出的请求。日志说明后端建立了相关模型、计算缓冲，但仅有初始化信息仍不等于每次请求都成功完成。</p>
+<h3 data-id="heading-37">证据三：请求期间的三核实际负载</h3>
+<pre><code class="hljs language-bash" lang="bash">sudo watch -n 1 <span class="hljs-built_in">cat</span> /sys/kernel/debug/rknpu/load
+</code></pre>
+<p>在另一个终端或网页里发起一条足够长的文本请求。观察 Core0、Core1、Core2，而不是在空闲时读一次 0% 就下结论。短请求可能被 1 秒采样错过；采样时序、串行等待和调度都可能使各核负载不一致。</p>
+<h3 data-id="heading-38">证据四：llama-bench 的 backend</h3>
+<p>停止 Server，确认进程退出后，再按第 12 节运行 Bench。输出 <code>backend=RKNPU</code>，并完成 pp 和 tg 两种测试。它提供可重复的计算场景；连同负载和日志，能形成比单张 NPU 百分比截图可靠得多的证据。</p>
+<h3 data-id="heading-39">另外核对“生效配置”，别只看脚本</h3>
+<p>服务运行时在板端执行：</p>
+<pre><code class="hljs language-bash" lang="bash">PID=$(<span class="hljs-built_in">cat</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.pid"</span>)
+ps -p <span class="hljs-string">"<span class="hljs-variable">$PID</span>"</span> -o pid,ppid,<span class="hljs-built_in">stat</span>,etime,args
+<span class="hljs-built_in">tr</span> <span class="hljs-string">'\0'</span> <span class="hljs-string">'\n'</span> &lt; <span class="hljs-string">"/proc/<span class="hljs-variable">$PID</span>/environ"</span> | grep <span class="hljs-string">'^RKNPU'</span>
+taskset -pc <span class="hljs-string">"<span class="hljs-variable">$PID</span>"</span>
+grep -i <span class="hljs-string">'open files'</span> <span class="hljs-string">"/proc/<span class="hljs-variable">$PID</span>/limits"</span>
+<span class="hljs-built_in">ls</span> -1 <span class="hljs-string">"/proc/<span class="hljs-variable">$PID</span>/fd"</span> | <span class="hljs-built_in">wc</span> -l
+grep <span class="hljs-string">'librknnrt.so'</span> <span class="hljs-string">"/proc/<span class="hljs-variable">$PID</span>/maps"</span> | <span class="hljs-built_in">head</span> -n 3
+</code></pre>
+<p>应确认 <code>RKNPU_CORES=0,1,2</code>、CPU affinity 为 <code>4-7</code>、文件描述符限制达到 <code>65536</code>。<code>fd</code> 目录计数是瞬时打开描述符数量，不是上限；运行中会变化。最后一条用于查看实际映射的 Runtime 路径，必要时记录该文件 SHA256。</p>
+<p>这些环境变量和亲和性只证明设置已传入，不代替负载证据。若 PID 文件失效，先用 <code>pgrep -ax llama-server</code> 和 <code>ps</code> 确认真实进程，不能对一个过期 PID 的结果做性能判断。</p>
+<h2 data-id="heading-40">18. 停止服务：PID 文件消失，不等于服务消失</h2>
+<p>在某些启动链里，<code>$!</code> 指向的是 wrapper，而真正 Server 已成为它的子进程。只杀 wrapper，会留下继续占用模型内存和端口的服务进程。需要说明，GNU <code>nohup</code> 和 <code>taskset</code> 常见实现会直接 exec 目标程序，并不是“使用这两个命令就一定多一个进程”；要以实际进程树为准。</p>
+<p>上述新版脚本保留了实测排障改进：启动时读取 <code>/proc/PID/cmdline</code>，同时核对程序路径和 <code>--port</code>；停止时不只信任 PID 文件，还扫描目标进程。正常 TERM 等待超时后才对仍匹配的目标强制停止，并再次检查进程和端口。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+./stop.sh
+pgrep -ax llama-server || <span class="hljs-built_in">echo</span> <span class="hljs-string">'没有 llama-server 进程'</span>
+ss -ltnp | grep <span class="hljs-string">':8080'</span> || <span class="hljs-built_in">echo</span> <span class="hljs-string">'8080 端口已释放'</span>
+free -h
+</code></pre>
+<p><code>pgrep</code> 会显示同名的其他服务，需结合路径和端口判断。<code>free -h</code> 中文件页缓存仍可能保留，不能仅凭 <code>used</code> 没有立刻回到原数值就断定泄漏。真正的停止判据是目标进程消失、目标端口释放；内存用于辅助确认。</p>
+<p>如仍有残留：</p>
+<pre><code class="hljs language-bash" lang="bash">ps -eo pid,ppid,pgid,sid,<span class="hljs-built_in">stat</span>,rss,etime,cmd | grep <span class="hljs-string">'[l]lama-server'</span>
+ss -H -ltnp <span class="hljs-string">'sport = :8080'</span>
+</code></pre>
+<p>检查是不是换了部署目录、修改了 start/stop 其中一份端口、或者由另一个用户启动。不要用无范围的 <code>pkill -f</code> 把其他任务一起停止。切换模型的顺序始终是：停止 → 验证退出 → 修改 <code>MODEL</code> → 启动。</p>
+<h2 data-id="heading-41">19. 性能优化：先缩小变量，再放大负载</h2>
+<h3 data-id="heading-42">NPU 不必始终 100%</h3>
+<p>生成每个 Token 需要先准备输入，再执行模型各层计算、读写缓存状态，并采样得到下一个 Token。它不是一次长时间不间断的纯矩阵乘法：</p>
+<pre><code class="hljs language-text" lang="text">CPU 准备与调度
+  → NPU 支持的矩阵计算
+  → CPU 部分算子与采样
+  → 下一 Token
+</code></pre>
+<p>KV Cache 的读取和更新贯穿前向计算，图示并非真实算子级时间表。CPU/NPU 同步、内存访问和串行依赖都会留下间隙，所以负载可能呈脉冲、间歇或不同核心交替。未达到 100% 不能单独证明“没有完整调用 NPU”。</p>
+<p>更有用的指标是：Prompt Processing t/s、Generation t/s、首 Token 延迟、完整回答耗时及连续请求稳定性。首 Token 延迟还受排队、Prompt 长度和是否命中缓存影响，不能只用 Bench 的 pp 速度替代。</p>
+<h3 data-id="heading-43">8GB 应该配置多大 Context</h3>
+<p>Context 是模型一次处理所能使用的 Token 窗口，包含系统提示、历史、检索内容、用户消息和模板开销，还应为输出留出余量。模型卡给出的 262144 Token 原生上下文，是模型能力上限信息，不是 8GB 开发板的默认配置建议。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FQwen%2FQwen3.5-2B%23model-overview" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/Qwen/Qwen3.5-2B#model-overview" rel="external nofollow noopener noreferrer">Qwen3.5-2B 官方模型卡</a></p>
+<p>估计资源时需要考虑：</p>
+<pre><code class="hljs language-text" lang="text">模型权重及后端转换后的表示
+  + KV Cache / 循环状态
+  + Runtime 工作缓冲区
+  + Prompt Cache
+  + 操作系统和其他服务
+  = 共同占用系统 RAM
+</code></pre>
+<p>KV Cache 保存注意力计算中可复用的 Key/Value，避免每个 Token 都重算所有历史。Qwen3.5-2B 使用 Gated DeltaNet 与注意力混合结构，还存在相应状态，因此不宜直接套用“所有层都是普通全注意力”的 KV 内存公式。实际峰值应以这个模型、这个后端的日志和运行测量为准。</p>
+<table><thead><tr><th>使用场景</th><th align="right">建议起点</th><th>注意事项</th></tr></thead><tbody><tr><td>普通聊天</td><td align="right">8192</td><td>先控制历史和输出长度；从实测脚本的 16K 降低时同步记录设置</td></tr><tr><td>长对话 / 轻量 RAG</td><td align="right">16384</td><td>本文脚本基线值，仍需用实际长输入验证峰值内存</td></tr><tr><td>更长上下文试验</td><td align="right">32768</td><td>逐级提高，观察长提示词处理、可用内存和稳定性，不作为默认承诺</td></tr></tbody></table>
+<p>这些是建议配置，不代表 8GB 上任意量化、任意并发都保证可用。<code>PARALLEL</code> 改变后还应检查每槽上下文，不应把多个槽位当作免费增加容量。查看日志中的实际值：</p>
+<pre><code class="hljs language-bash" lang="bash">grep -E <span class="hljs-string">'n_ctx_train|n_ctx +=|n_ctx_seq|KV|buffer size'</span> \
+  <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.log"</span>
+free -h
+vmstat 1
+</code></pre>
+<h3 data-id="heading-44">Batch 与 UBatch</h3>
+<p><code>BATCH_SIZE=2048</code> 是逻辑批大小，<code>UBATCH_SIZE=512</code> 是物理微批大小，二者主要影响输入处理时计算任务的组织和缓冲需求。它们不是模型大小、Context，也不是 2048 个用户同时聊天。</p>
+<p>先保持 2048/512。长输入可<strong>建议测试</strong> UBatch 1024，但需重新观察内存峰值、pp 和稳定性；不要只看 pp 上升就忽略 tg、首 Token 延迟或崩溃。改变微批也不保证会提高单个新 Token 的生成速度。</p>
+<h3 data-id="heading-45">CACHE_RAM 能节约哪些重复工作</h3>
+<p><code>CACHE_RAM=512</code> 为提示词状态缓存提供 512MiB 预算。重复 System Prompt、相同前缀、同一文档连续问答、相同历史上下文，可能复用先前计算，主要减少重复输入处理。</p>
+<p>它不是单 Token 生成速度加速器，也不是磁盘缓存；不命中复用条件时收益有限。脚本设为 0 时同时传入 <code>--no-cache-prompt</code>，因而关闭了脚本控制的这两项缓存设置；不要把这一组合行为误认为上游 <code>--cache-ram 0</code> 单个参数的所有含义。</p>
+<p>原实测教程还给出普通聊天 <code>Context=8192</code>、<code>CACHE_RAM=1024</code> 的可试配置。它适合重复前缀多且剩余内存足够时比较；本文默认继续保留 512MiB，不将更大缓存当作必然更快。</p>
+<h3 data-id="heading-46">CPU 绑定、频率与散热</h3>
+<p>先确认 CPU4～7、四线程、NPU0～2 和 <code>PARALLEL=1</code>，然后比较量化。系统中的 CPU 编号可结合 <code>lscpu -e</code>、各 CPU 的频率策略和厂商设备树核对；Arm 核心型号本身不会规定 Linux 把它编号为几。</p>
+<p>NPU 锁频默认关闭。仅在确认板卡支持的频点和温控策略后考虑，先只读检查：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cat</span> /sys/class/devfreq/fdab0000.npu/available_frequencies
+<span class="hljs-built_in">cat</span> /sys/class/devfreq/fdab0000.npu/cur_freq
+</code></pre>
+<p>脚本中的 1GHz 不代表每块板都支持，也不是本文已记录的实测频率。锁频是可选试验，权限不足会跳过；该脚本不会自动恢复手工改变的 min/max 频点，试验前应记录原值。保持自动调频与有效散热通常更适合先建立稳定基线。</p>
+<p>每次只改一个参数，停止旧模型后再测，保留日志：</p>
+<pre><code class="hljs language-bash" lang="bash">grep -E <span class="hljs-string">'prompt eval time|eval time'</span> \
+  <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.log"</span> | <span class="hljs-built_in">tail</span> -20
+</code></pre>
+<h2 data-id="heading-47">20. RK3588 本地知识库：让检索减轻上下文负担</h2>
+<p>RAG，即检索增强生成，是先找相关材料，再把材料交给模型回答。它能减少“把整篇 PDF 塞给模型”的输入负担，但不会消除模型的知识边界或幻觉。</p>
+<pre><code class="hljs language-text" lang="text">PDF / 文档
+  → 解析与清洗
+  → Chunk 分段
+  → Embedding 向量化
+  → Vector DB 建索引
+
+<p>用户问题 → 向量检索 → Top-K 相关片段<br>                         ↓<br>                 Qwen3.5-2B 文本服务<br>                         ↓<br>                   带来源的回答<br></p></code></pre><p></p>
+<p>将解析和向量化尽量放在离线建库阶段，保留文件名、页码或段落来源。查询时先检索，再按 Token 预算限制片段总长度，为问题、系统提示和输出预留空间；先优化召回与切块，不要把 Context 直接拉到 256K。</p>
+<p>生成模型不会因为能聊天就自动成为合适的 Embedding 模型。向量化组件需要单独选型和验证；若另用 NPU 模型做向量化，必须服从下节的多进程限制。初期可以把 Embedding 放在 CPU 或另一台设备，RK3588 维持单个生成服务。这是工程架构建议，不是一份完成验证的 RAG 配置。</p>
+<h2 data-id="heading-48">21. 常见问题与故障排查</h2>
+<p><img class="lazy" alt="按服务、模型、后端与推理层排查" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/36ab356d42ad48a5aefc02cb5ac5b27f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1790321510&amp;x-signature=hwl603ji8njAdv%2FZvnMvAdFmlk4%3D"></p>
+<blockquote>
+<p>图 8：从最外层连接和服务状态逐步向模型与计算后端收敛；每一层都先用可观察证据定位。</p>
+</blockquote>
+<table><thead><tr><th>现象</th><th>优先怀疑</th><th>检查方法</th><th>处理方式</th></tr></thead><tbody><tr><td>Processing 0%，NPU 也是 0%</td><td>句柄耗尽，或请求根本未进入计算</td><td>搜索 <code>Too many open files</code>、<code>Compute error</code>、<code>failed to convert handle</code>，检查 <code>/proc/PID/limits</code></td><td>确认 65536 真正生效；修正后停止并重新启动，不只刷新网页</td></tr><tr><td>/health 正常，第一次提问进程退出</td><td>请求阶段分配失败、损坏模型、错误管线、内存不足</td><td><code>tail -200</code>、SHA256、open files、内核 OOM 日志</td><td>恢复自动管线和小上下文；处理句柄与内存问题，再 CLI 验证</td></tr><tr><td>找不到模型</td><td>路径、大小写或上传位置不一致</td><td><code>ls -lh models</code>、查看 <code>MODEL=</code></td><td>统一绝对路径与文件名，重新校验文件</td></tr><tr><td>8080 已占用</td><td>旧 Server 或其他服务</td><td><code>ss -H -ltnp 'sport = :8080'</code></td><td>先确认进程归属；目标服务用匹配的 stop.sh，其他服务按其管理方式处理</td></tr><tr><td>别的电脑打不开 Web UI</td><td>监听回环地址、防火墙、错误 IP、网络隔离</td><td>板端 <code>/health</code>、<code>ss</code>、<code>ufw status</code></td><td>改为预期监听地址，仅放行可信客户端，并确认网络可达</td></tr><tr><td>--list-devices 没有 RKNPU</td><td>CMake 开关、动态库路径、Runtime 或权限错误</td><td>CMakeCache、<code>libggml-rknpu2.so</code>、<code>ldd</code>、设备权限</td><td>修复缺失条件后重新编译或运行，勿仅凭 ldconfig 结论</td></tr><tr><td>中文乱码、bad interpreter、命令带奇怪字符</td><td>文件编码、BOM、CRLF 或终端字符集</td><td><code>file</code>、<code>bash -n</code>、编辑器编码设置</td><td>保存 UTF-8/LF，清除 BOM；终端用 UTF-8，乱码内容需重新保存</td></tr><tr><td>Images require a vision-capable model</td><td>本文文本路径未启用视觉组件</td><td>查看当前模型能力及启动参数</td><td>仅发文本；需要视觉时另行验证模型、视觉编码组件及对应支持</td></tr><tr><td>Request exceeds context size</td><td>历史、文档、模板和输出预算超限</td><td>日志中的实际 Context，检查请求 Token 规模</td><td>清理历史、压缩或检索内容；内存允许再逐步增加 Context</td></tr><tr><td>多模型同时请求后卡死或 IOMMU 异常</td><td>独立进程同时操作 NPU，触及驱动/域限制</td><td>进程列表、内核日志、是否同时执行 CLI/Bench/Server</td><td>保持一次一个 NPU 推理进程；先停止并验证旧进程</td></tr><tr><td>恢复开发板后网页仍有旧会话</td><td>访问端浏览器 IndexedDB</td><td>同地址用无痕窗口对照</td><td>删除该站点会话或站点数据；不是继续删除模型目录</td></tr><tr><td>stop.sh 后仍占大量内存</td><td>wrapper PID、不同路径/端口、其他服务，或仅页缓存保留</td><td><code>pgrep -ax</code>、完整进程树、端口、<code>free -h</code></td><td>用完整停止脚本定位目标，检查真实进程和端口，不只删除 PID 文件</td></tr></tbody></table>
+<h3 data-id="heading-49">Processing 0% 与首次崩溃的恢复顺序</h3>
+<p>先取证：</p>
+<pre><code class="hljs language-bash" lang="bash">LOG=<span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test/qwen35_server_8080.log"</span>
+grep -E <span class="hljs-string">'Too many open files|Compute error|failed to convert handle|failed to malloc npu memory'</span> <span class="hljs-string">"<span class="hljs-variable">$LOG</span>"</span>
+<span class="hljs-built_in">tail</span> -200 <span class="hljs-string">"<span class="hljs-variable">$LOG</span>"</span>
+sudo dmesg -T | grep -Ei <span class="hljs-string">'rknpu|rknn|iommu|out of memory|oom|killed process'</span> | <span class="hljs-built_in">tail</span> -80
+</code></pre>
+<p><code>Too many open files</code> 说明描述符资源耗尽，<strong>不能由这句话反推出上限一定是 1024</strong>；1024 是原实测中遇到的限制，其他会话值可能不同。以真实进程的 limits 为准。</p>
+<p>若硬限制不足，可由管理员为实际登录用户配置 PAM limits，例如在板端创建配置，用户名从当前登录用户取得：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">printf</span> <span class="hljs-string">'%s soft nofile 65536\n%s hard nofile 65536\n'</span> <span class="hljs-string">"<span class="hljs-variable">$USER</span>"</span> <span class="hljs-string">"<span class="hljs-variable">$USER</span>"</span> \
+  | sudo <span class="hljs-built_in">tee</span> /etc/security/limits.d/90-rknpu-nofile.conf
+</code></pre>
+<p>这适用于启用 PAM limits 的登录会话；重新登录后检查 <code>ulimit -Sn</code>、<code>ulimit -Hn</code>。若后续改为 systemd 服务，应在服务单元中设置 <code>LimitNOFILE=65536</code>，不能假设 SSH 会话配置会被服务继承。</p>
+<p>修正后先停止旧进程，恢复 <code>NPU_HYBRID=""</code>，用校验通过的模型和小 Context 重新验证。原实测经验是：若句柄耗尽后已出现大量 RKNN 分配失败、随后首次推理仍段错误，仅重启进程可能无法恢复。保存日志、停止服务后，再考虑：</p>
+<pre><code class="hljs language-bash" lang="bash">sudo reboot
+</code></pre>
+<p>重启用于恢复可能异常的驱动运行状态，不是替代根因修复。再次上线仍需确认限制、权限、散列和单进程条件。</p>
+<h3 data-id="heading-50">网页不可达：从回环地址到局域网</h3>
+<pre><code class="hljs language-bash" lang="bash">curl -fsS http://127.0.0.1:8080/health
+ss -H -ltnp <span class="hljs-string">'sport = :8080'</span>
+ip -br addr
+sudo ufw status
+</code></pre>
+<p>若没有安装 UFW，<code>ufw</code> 命令缺失不表示防火墙已放行，应按该镜像实际使用的防火墙检查。UFW 已启用且需要放行某台客户端时，可用受限规则：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">read</span> -r -p <span class="hljs-string">'输入允许访问的客户端 IPv4 地址：'</span> CLIENT_IP
+sudo ufw allow from <span class="hljs-string">"<span class="hljs-variable">$CLIENT_IP</span>"</span> to any port 8080 proto tcp
+</code></pre>
+<p>原实测教程给出全来源放行 8080 的规则；这里改成显式输入可信客户端地址，以配合局域网部署边界。不要通过关闭整个防火墙来排除所有问题。</p>
+<h3 data-id="heading-51">多个独立 NPU 模型进程的风险</h3>
+<p>实测及核验版 RKNPU2 README 均说明：每个 IOMMU domain 存在 4GB 限制，并警告在分配自定义 domain 后，多个独立进程同时访问 NPU，可能导致内核崩溃或系统冻结。这个限制不能等同于“整块 NPU 总共只能使用 4GB”或“整个模型进程只能使用 4GB”。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2Frknpu2%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md%23faq" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/rknpu2/ggml/src/ggml-rknpu2/README.md#faq" rel="external nofollow noopener noreferrer">后端多实例说明</a></p>
+<p>对新部署最可靠的操作约束是：只运行一个模型推理进程；Bench 与 Server 不重叠；切换模型先停止并检查。给两个进程选择不同 NPU Core，或把端口改成两个值，都不是已经证明有效的隔离措施。</p>
+<h3 data-id="heading-52">浏览器为什么还记得旧会话</h3>
+<p>实测版本 Web UI 使用 IndexedDB，数据库名为 <code>LlamacppWebui</code>。浏览器按照协议、主机和端口区分站点数据；恢复板卡系统，通常不会删除电脑或手机浏览器中的会话。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Ftools%2Fserver%2Fwebui%2Fsrc%2Flib%2Fservices%2Fdatabase.service.ts" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/tools/server/webui/src/lib/services/database.service.ts" rel="external nofollow noopener noreferrer">对应版本数据库实现</a></p>
+<p>先用同地址的无痕窗口验证。需要清理时，使用 Web UI 删除会话，或清除该站点数据；Chrome/Edge 也可在开发者工具的 Application → IndexedDB 删除 <code>LlamacppWebui</code>。清除前保留需要的记录，这会删除浏览器侧历史。升级后的数据库结构可能变化，应以对应 Web UI 实现为准。</p>
+<h2 data-id="heading-53">22. 已完成编译后的最短启动流程</h2>
+<p>前提是已经按全文完成依赖、权限、编译、模型校验与脚本创建：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/rk_llama_npu_test"</span>
+bash -n start.sh
+bash -n stop.sh
+<span class="hljs-built_in">chmod</span> +x start.sh stop.sh
+./start.sh
+curl http://127.0.0.1:8080/health
+<span class="hljs-built_in">tail</span> -f qwen35_server_8080.log
+</code></pre>
+<p>浏览器访问 <code>http://开发板实际IP:8080/</code>。退出日志查看后停止：</p>
+<pre><code class="hljs language-bash" lang="bash">./stop.sh
+pgrep -ax llama-server || <span class="hljs-built_in">echo</span> <span class="hljs-string">'没有 llama-server 进程'</span>
+ss -ltnp | grep <span class="hljs-string">':8080'</span> || <span class="hljs-built_in">echo</span> <span class="hljs-string">'8080 端口已释放'</span>
+</code></pre>
+<h2 data-id="heading-54">参考资料</h2>
+<p>以下链接用于追溯技术事实，核验日期为 2026-09-09；标明固定提交的资料优先用于复现。</p>
+<table><thead><tr><th>名称</th><th>链接与用途</th></tr></thead><tbody><tr><td>rk-llama.cpp 仓库</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp" rel="external nofollow noopener noreferrer">项目首页</a>：核实与 llama.cpp 的派生关系</td></tr><tr><td>rknpu2 分支</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Ftree%2Frknpu2" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/tree/rknpu2" rel="external nofollow noopener noreferrer">当前分支</a>：查看持续维护状态</td></tr><tr><td>实测版 RKNPU2 README</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/README.md" rel="external nofollow noopener noreferrer">固定提交说明</a>：构建、默认管线、核心选择和多进程限制</td></tr><tr><td>当前版 RKNPU2 README</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2Frknpu2%2Fggml%2Fsrc%2Fggml-rknpu2%2FREADME.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/rknpu2/ggml/src/ggml-rknpu2/README.md" rel="external nofollow noopener noreferrer">分支说明</a>：与实测版本作差异对照</td></tr><tr><td>当前量化更新</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fcommit%2F50e7865092d7a518869c84c138ae2c7029f58e8f" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/commit/50e7865092d7a518869c84c138ae2c7029f58e8f" rel="external nofollow noopener noreferrer">50e7865 提交</a>：核实 per-channel 更新</td></tr><tr><td>Server 参数和接口</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Ftools%2Fserver%2FREADME.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/tools/server/README.md" rel="external nofollow noopener noreferrer">固定版本文档</a>：健康状态、缓存、模型列表、聊天接口</td></tr><tr><td>参数解析与链接库</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fcommon%2Farg.cpp" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/common/arg.cpp" rel="external nofollow noopener noreferrer">arg.cpp</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Fggml%2Fsrc%2Fggml-rknpu2%2FCMakeLists.txt" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/ggml/src/ggml-rknpu2/CMakeLists.txt" rel="external nofollow noopener noreferrer">后端 CMake</a>：核对脚本开关与 Runtime 链接</td></tr><tr><td>Qwen 官方模型</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FQwen%2FQwen3.5-2B" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/Qwen/Qwen3.5-2B" rel="external nofollow noopener noreferrer">Qwen3.5-2B 模型卡</a>：模型架构、视觉组件与上下文能力</td></tr><tr><td>本文 GGUF 文件</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fhuggingface.co%2FAaryanK%2FQwen3.5-2B-GGUF%2Ftree%2F3b3b8686d74f2ccfff1bcf36f80e114aff1b7881" ref="nofollow noopener noreferrer" target="_blank" title="https://huggingface.co/AaryanK/Qwen3.5-2B-GGUF/tree/3b3b8686d74f2ccfff1bcf36f80e114aff1b7881" rel="external nofollow noopener noreferrer">固定版本文件列表</a>：文件名、体积和 SHA256</td></tr><tr><td>Rockchip 官方工具链</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fairockchip%2Frknn-toolkit2" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/airockchip/rknn-toolkit2" rel="external nofollow noopener noreferrer">RKNN-Toolkit2</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fairockchip%2Frknn-llm" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/airockchip/rknn-llm" rel="external nofollow noopener noreferrer">RKLLM</a>：区分 Runtime 与模型转换路线</td></tr><tr><td>llama.cpp</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Fggml-org%2Fllama.cpp" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/ggml-org/llama.cpp" rel="external nofollow noopener noreferrer">上游项目</a>：理解 GGUF、ggml、工具和后端生态</td></tr><tr><td>RK3588 与 A76</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.rock-chips.com%2Fa%2Fcn%2Fnews%2Frockchip%2F2022%2F0303%2F1544.html" ref="nofollow noopener noreferrer" target="_blank" title="https://www.rock-chips.com/a/cn/news/rockchip/2022/0303/1544.html" rel="external nofollow noopener noreferrer">Rockchip 介绍</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.arm.com%2Fproducts%2Fsilicon-ip-cpu%2Fcortex-a%2Fcortex-a76" ref="nofollow noopener noreferrer" target="_blank" title="https://www.arm.com/products/silicon-ip-cpu/cortex-a/cortex-a76" rel="external nofollow noopener noreferrer">Arm Cortex-A76</a>：CPU、GPU、NPU 与 CPU 核心背景</td></tr><tr><td>Linux 与 Bash</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.kernel.org%2Fdoc%2Fhtml%2Flatest%2Fgpu%2Fdrm-uapi.html%23render-nodes" ref="nofollow noopener noreferrer" target="_blank" title="https://www.kernel.org/doc/html/latest/gpu/drm-uapi.html#render-nodes" rel="external nofollow noopener noreferrer">DRM render nodes</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwww.gnu.org%2Fsoftware%2Fbash%2Fmanual%2Fbash.html%23index-ulimit" ref="nofollow noopener noreferrer" target="_blank" title="https://www.gnu.org/software/bash/manual/bash.html#index-ulimit" rel="external nofollow noopener noreferrer">Bash 手册</a>：设备权限和进程资源限制</td></tr><tr><td>Web UI 数据存储</td><td><a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2Finvisiofficial%2Frk-llama.cpp%2Fblob%2F81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62%2Ftools%2Fserver%2Fwebui%2Fsrc%2Flib%2Fservices%2Fdatabase.service.ts" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/invisiofficial/rk-llama.cpp/blob/81eff6a45c6abbb99e26907ef7fe8f7bf3ed2c62/tools/server/webui/src/lib/services/database.service.ts" rel="external nofollow noopener noreferrer">固定版本 database.service.ts</a>：确认浏览器 IndexedDB 会话存储</td></tr></tbody></table>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="RK3588 使用 rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战" href="https://juejin.cn/post/7686688669901766706" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">RK3588 使用 rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span><span class="desc fs12">https://juejin.cn/post/7686688669901766706</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/d7ef1a68.html">8月音乐精选：有限的生命里，要听得再任性一点！<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/30b23b70.html">马斯克又睡工地了！这次直接开着房车：亲自监工xAI新数据中心建设<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/908a1c89.html" title="DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9019"></div><span class="title">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本</span></a><a class="item" href="/rss/b4c5ecd5.html" title="CSS Grid 布局实战指南，看这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8766"></div><span class="title">CSS Grid 布局实战指南，看这篇就够了</span></a><a class="item" href="/rss/f9dc35c0.html" title="MCP 架构概览"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=992"></div><span class="title">MCP 架构概览</span></a><a class="item" href="/rss/6c3bf74a.html" title="RHCE 考试通过率提升:核心考点、实验环境与排错技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5831"></div><span class="title">RHCE 考试通过率提升:核心考点、实验环境与排错技巧</span></a><a class="item" href="/rss/98141922.html" title="Nginx 反向代理配置指南，看完这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6187"></div><span class="title">Nginx 反向代理配置指南，看完这篇就够了</span></a><a class="item" href="/rss/6a9bed7.html" title="《潮水漫过十七岁》开学了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6488"></div><span class="title">《潮水漫过十七岁》开学了</span></a><a class="item" href="/rss/ff43a132.html" title="《潮水漫过十七岁》爸爸最近很忙"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6068"></div><span class="title">《潮水漫过十七岁》爸爸最近很忙</span></a><a class="item" href="/rss/e90f99c2.html" title="从 Windows 换到 Mac 三个月，我真香了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/962f2972579f4eb595e23889202ccfee~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oCV5rWq54yr:q75.awebp?rk3s=f64ab15b&x-expires=1790410500&x-signature=zSsIIe4s2ibVz5%2FCwqr7pECTFCg%3D"></div><span class="title">从 Windows 换到 Mac 三个月，我真香了</span></a><a class="item" href="/rss/93bb2588.html" title="从挂科到高分通过:RHCE快速拿证的10个提分技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7623"></div><span class="title">从挂科到高分通过:RHCE快速拿证的10个提分技巧</span></a><a class="item" href="/rss/1a69a272.html" title="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2435"></div><span class="title">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></a><a class="item" href="/rss/54325595.html" title="手写一个 Mini HashMap，彻底搞懂哈希表原理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5010"></div><span class="title">手写一个 Mini HashMap，彻底搞懂哈希表原理</span></a><a class="item" href="/rss/54b87b7d.html" title="红帽RHCE从挂科边缘到一次过，我做对了什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">红帽RHCE从挂科边缘到一次过，我做对了什么</span></a><a class="item" href="/rss/13d83a1d.html" title="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1445"></div><span class="title">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></a><a class="item" href="/rss/f966d59.html" title="视野修炼第133期 | Native 回春了?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/67ebbc355bbc4866909964e3daf59359~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790409305&x-signature=GlJRe0TzJTyAaozLNu2IgLwRtqs%3D"></div><span class="title">视野修炼第133期 | Native 回春了?</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>手写一个 Mini HashMap，彻底搞懂哈希表原理 - RSSBOX</title>
+
+  
+    <meta name="description" content="HashMap 的核心就三件事：哈希函数把任意 key 映射成数组下标、冲突处理保证不同 key 不互相覆盖、动态扩容在元素增多时维持 O(1) 的查询效率。Java 的 HashMap 用的是链地址法 + 红黑树 + 0.75 负载因子扩容，本文用 JS 从零实现一个 mini 版本，把这三件事逐个拆开看。 哈希表到底在干嘛 说白了，哈希表就是一个&quot;数组 + 哈希函数&quot;的组合。你想存一组键值对">
+<meta property="og:type" content="article">
+<meta property="og:title" content="手写一个 Mini HashMap，彻底搞懂哈希表原理">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/54325595.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="HashMap 的核心就三件事：哈希函数把任意 key 映射成数组下标、冲突处理保证不同 key 不互相覆盖、动态扩容在元素增多时维持 O(1) 的查询效率。Java 的 HashMap 用的是链地址法 + 红黑树 + 0.75 负载因子扩容，本文用 JS 从零实现一个 mini 版本，把这三件事逐个拆开看。 哈希表到底在干嘛 说白了，哈希表就是一个&quot;数组 + 哈希函数&quot;的组合。你想存一组键值对">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-17T03:44:31.000Z">
+<meta property="article:modified_time" content="2026-09-17T03:44:31.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">哈希表到底在干嘛</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">哈希冲突：绕不开的核心问题</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">链地址法：每个槽挂一条链表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">开放寻址法：冲突了就往下找</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">扩容：什么时候扩，怎么扩</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">完整实现：一个能跑的 mini HashMap</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">最后</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-17T03:44:31.000Z">2026-09-17</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>手写一个 Mini HashMap，彻底搞懂哈希表原理</span></h1>
+<div>
+<p>HashMap 的核心就三件事：哈希函数把任意 key 映射成数组下标、冲突处理保证不同 key 不互相覆盖、动态扩容在元素增多时维持 O(1) 的查询效率。Java 的 <code>HashMap</code> 用的是链地址法 + 红黑树 + 0.75 负载因子扩容，本文用 JS 从零实现一个 mini 版本，把这三件事逐个拆开看。</p>
+<h2 data-id="heading-0">哈希表到底在干嘛</h2>
+<p>说白了，哈希表就是一个"数组 + 哈希函数"的组合。你想存一组键值对，但数组只能用数字下标访问。哈希函数干的事情，就是把任意类型的 key 转成一个数组下标。</p>
+<p>比如 key 是 <code>"name"</code>，哈希函数算出 <code>hash("name") = 3</code>，那你就把值塞到 <code>array[3]</code>。取的时候同理，算一遍哈希，直接定位到那个位置，O(1) 搞定。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 最朴素的哈希表雏形</span>
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">TinyMap</span> &#123;
+  <span class="hljs-title function_">constructor</span>(<span class="hljs-params"></span>) &#123;
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(<span class="hljs-number">8</span>); <span class="hljs-comment">// 底层数组，初始容量 8</span>
+  &#125;
+
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 哈希函数：把 key 转成合法下标</span><br>  <span class="hljs-title function_">hash</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> h &#x3D; <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">const</span> str &#x3D; <span class="hljs-title class_">String</span>(key); <span class="hljs-comment">&#x2F;&#x2F; 统一转字符串</span><br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; str.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      h &#x3D; (h * <span class="hljs-number">31</span> + str.<span class="hljs-title function_">charCodeAt</span>(i)) | <span class="hljs-number">0</span>; <span class="hljs-comment">&#x2F;&#x2F; 经典多项式哈希</span><br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">abs</span>(h) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>; <span class="hljs-comment">&#x2F;&#x2F; 取模映射到数组范围</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">set</span>(<span class="hljs-params">key, value</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key); <span class="hljs-comment">&#x2F;&#x2F; 算出下标</span><br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index] &#x3D; value;  <span class="hljs-comment">&#x2F;&#x2F; 直接存，先不管冲突</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">get</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">return</span> <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];   <span class="hljs-comment">&#x2F;&#x2F; 直接取</span><br>  &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-keyword">const</span> m &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">TinyMap</span>();<br>m.<span class="hljs-title function_">set</span>(<span class="hljs-string">“name”</span>, <span class="hljs-string">“张三”</span>);  <span class="hljs-comment">&#x2F;&#x2F; hash(“name”) -&gt; 某个下标</span><br>m.<span class="hljs-title function_">set</span>(<span class="hljs-string">“age”</span>, <span class="hljs-number">25</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(m.<span class="hljs-title function_">get</span>(<span class="hljs-string">“name”</span>)); <span class="hljs-comment">&#x2F;&#x2F; “张三”</span><br></p></code></pre><p></p>
+<p>看着挺好使对吧？但有个致命问题——两个不同的 key 算出了同一个下标，后存的会把前存的覆盖掉。这就是哈希冲突。</p>
+<h2 data-id="heading-1">哈希冲突：绕不开的核心问题</h2>
+<p>两个 key 哈希到同一个位置，太正常了。数组就 8 个槽，你存 100 个键值对，必撞。学术界管这叫鸽巢原理，工程上你得想办法解决。</p>
+<p>主流方案有两种：<strong>链地址法</strong>和<strong>开放寻址法</strong>。Java 的 HashMap 用的是链地址法，Python 的 dict 用的是开放寻址法。我把两种都实现一下，你对比着看。</p>
+<h3 data-id="heading-2">链地址法：每个槽挂一条链表</h3>
+<p>思路很直白——冲突了？没关系，同一个位置挂一串，用链表串起来。查找的时候遍历链表，逐个比 key。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 链地址法实现</span>
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">ChainMap</span> &#123;
+  <span class="hljs-title function_">constructor</span>(<span class="hljs-params">size = <span class="hljs-number">8</span></span>) &#123;
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(size);
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i = <span class="hljs-number">0</span>; i &lt; size; i++) &#123;
+      <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[i] = []; <span class="hljs-comment">// 每个槽是一个数组（当链表用）</span>
+    &#125;
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> = <span class="hljs-number">0</span>; <span class="hljs-comment">// 记录元素个数，扩容要用</span>
+  &#125;
+
+<p>  <span class="hljs-title function_">hash</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> h &#x3D; <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">const</span> str &#x3D; <span class="hljs-title class_">String</span>(key);<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; str.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      h &#x3D; (h * <span class="hljs-number">31</span> + str.<span class="hljs-title function_">charCodeAt</span>(i)) | <span class="hljs-number">0</span>;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">abs</span>(h) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>;<br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">set</span>(<span class="hljs-params">key, value</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">const</span> bucket &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 先找有没有相同 key，有就覆盖&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;let&lt;/span&gt; i = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; i &amp;lt; bucket.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt;; i++) &amp;#123;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (bucket[i][&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] === key) &amp;#123;
+    bucket[i][&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = value; &lt;span class=&quot;hljs-comment&quot;&gt;// 更新旧值&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+  &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 没有就追加到链表尾部&lt;/span&gt;
+bucket.&lt;span class=&quot;hljs-title function_&quot;&gt;push&lt;/span&gt;([key, value]); &lt;span class=&quot;hljs-comment&quot;&gt;// [key, value] 存一对&lt;/span&gt;
+&lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;size&lt;/span&gt;++;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 负载因子超过 0.75 就扩容&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (&lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;size&lt;/span&gt; / &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;buckets&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt; &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0.75&lt;/span&gt;) &amp;#123;
+  &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;resize&lt;/span&gt;();
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">get</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">const</span> bucket &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; bucket.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      <span class="hljs-keyword">if</span> (bucket[i][<span class="hljs-number">0</span>] &#x3D;&#x3D;&#x3D; key) &amp;#123;<br>        <span class="hljs-keyword">return</span> bucket[i][<span class="hljs-number">1</span>]; <span class="hljs-comment">&#x2F;&#x2F; 找到了，返回值</span><br>      &amp;#125;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">undefined</span>; <span class="hljs-comment">&#x2F;&#x2F; 没找到</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">resize</span>(<span class="hljs-params"></span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> oldBuckets &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(oldBuckets.<span class="hljs-property">length</span> * <span class="hljs-number">2</span>); <span class="hljs-comment">&#x2F;&#x2F; 容量翻倍</span><br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[i] &#x3D; []; <span class="hljs-comment">&#x2F;&#x2F; 初始化新数组</span><br>    &amp;#125;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> &#x3D; <span class="hljs-number">0</span>;</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 把所有旧数据重新哈希到新数组&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; bucket &lt;span class=&quot;hljs-keyword&quot;&gt;of&lt;/span&gt; oldBuckets) &amp;#123;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; [key, value] &lt;span class=&quot;hljs-keyword&quot;&gt;of&lt;/span&gt; bucket) &amp;#123;
+    &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;set&lt;/span&gt;(key, value); &lt;span class=&quot;hljs-comment&quot;&gt;// 重新插入，hash 会自动落到新位置&lt;/span&gt;
+  &amp;#125;
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>Java HashMap 在 JDK 8 之后还有个优化：链表长度超过 8 且数组长度超过 64 时，链表转红黑树，查询从 O(n) 降到 O(log n)。我们用 JS 写 mini 版本就不搞这么复杂了，但思路你得知道。</p>
+<h3 data-id="heading-3">开放寻址法：冲突了就往下找</h3>
+<p>另一种思路——数组里不放链表。冲突了？沿着某个规则继续往后找空位，找到就塞进去。查找也一样，算出下标后发现不是你要的 key，就按同样的规则继续找。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 开放寻址法（线性探测）</span>
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">OpenMap</span> &#123;
+  <span class="hljs-title function_">constructor</span>(<span class="hljs-params">size = <span class="hljs-number">8</span></span>) &#123;
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(size);
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> = <span class="hljs-number">0</span>;
+  &#125;
+
+<p>  <span class="hljs-title function_">hash</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> h &#x3D; <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">const</span> str &#x3D; <span class="hljs-title class_">String</span>(key);<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; str.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      h &#x3D; (h * <span class="hljs-number">31</span> + str.<span class="hljs-title function_">charCodeAt</span>(i)) | <span class="hljs-number">0</span>;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">abs</span>(h) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>;<br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">set</span>(<span class="hljs-params">key, value</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">while</span> (<span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index] !&#x3D;&#x3D; <span class="hljs-literal">undefined</span>) &amp;#123;<br>      <span class="hljs-comment">&#x2F;&#x2F; 槽被占了，看看是不是同一个 key</span><br>      <span class="hljs-keyword">if</span> (<span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index][<span class="hljs-number">0</span>] &#x3D;&#x3D;&#x3D; key) &amp;#123;<br>        <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index][<span class="hljs-number">1</span>] &#x3D; value; <span class="hljs-comment">&#x2F;&#x2F; 覆盖旧值</span><br>        <span class="hljs-keyword">return</span>;<br>      &amp;#125;<br>      index &#x3D; (index + <span class="hljs-number">1</span>) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>; <span class="hljs-comment">&#x2F;&#x2F; 线性探测：往下挪一格</span><br>    &amp;#125;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index] &#x3D; [key, value]; <span class="hljs-comment">&#x2F;&#x2F; 找到空位，塞进去</span><br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span>++;<br>    <span class="hljs-keyword">if</span> (<span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> &#x2F; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span> &gt; <span class="hljs-number">0.75</span>) &amp;#123;<br>      <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">resize</span>();<br>    &amp;#125;<br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">get</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">while</span> (<span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index] !&#x3D;&#x3D; <span class="hljs-literal">undefined</span>) &amp;#123;<br>      <span class="hljs-keyword">if</span> (<span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index][<span class="hljs-number">0</span>] &#x3D;&#x3D;&#x3D; key) &amp;#123;<br>        <span class="hljs-keyword">return</span> <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index][<span class="hljs-number">1</span>]; <span class="hljs-comment">&#x2F;&#x2F; 找到了</span><br>      &amp;#125;<br>      index &#x3D; (index + <span class="hljs-number">1</span>) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>.<span class="hljs-property">length</span>; <span class="hljs-comment">&#x2F;&#x2F; 继续探测</span><br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">undefined</span>; <span class="hljs-comment">&#x2F;&#x2F; 碰到空位还没找到，说明不存在</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">resize</span>(<span class="hljs-params"></span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> old &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(old.<span class="hljs-property">length</span> * <span class="hljs-number">2</span>);<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> &#x3D; <span class="hljs-number">0</span>;<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> entry <span class="hljs-keyword">of</span> old) &amp;#123;<br>      <span class="hljs-keyword">if</span> (entry !&#x3D;&#x3D; <span class="hljs-literal">undefined</span>) &amp;#123;<br>        <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">set</span>(entry[<span class="hljs-number">0</span>], entry[<span class="hljs-number">1</span>]); <span class="hljs-comment">&#x2F;&#x2F; 重新哈希</span><br>      &amp;#125;<br>    &amp;#125;<br>  &amp;#125;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>两种方案各有优劣，放一张表你直观感受下：</p>
+<table><thead><tr><th>对比维度</th><th>链地址法</th><th>开放寻址法（线性探测）</th></tr></thead><tbody><tr><td>冲突处理</td><td>每个槽挂链表</td><td>冲突后按规则探测下一个空位</td></tr><tr><td>内存占用</td><td>需要额外存链表节点指针</td><td>全在数组里，没有额外开销</td></tr><tr><td>删除操作</td><td>直接删链表节点，简单</td><td>需要特殊标记（tombstone），麻烦</td></tr><tr><td>缓存友好</td><td>链表节点分散，缓存命中率低</td><td>数据连续，缓存命中率高</td></tr><tr><td>典型代表</td><td>Java HashMap</td><td>Python dict</td></tr><tr><td>最坏情况</td><td>所有 key 哈希到同一位置，退化成链表</td><td>聚集效应导致探测链越来越长</td></tr></tbody></table>
+<p>实际项目里选哪种，得看你的场景。数据量大、频繁删除，链地址法稳；内存敏感、缓存敏感，开放寻址法更合适。</p>
+<h2 data-id="heading-4">扩容：什么时候扩，怎么扩</h2>
+<p>前面代码里你可能注意到了 <code>resize()</code> 方法。这个扩容机制是 HashMap 性能的关键。</p>
+<p>核心概念叫<strong>负载因子</strong>（load factor），就是 <code>元素个数 / 数组容量</code>。Java HashMap 默认负载因子阈值是 0.75——意思是数组用到四分之三的时候，就该扩了。扩容就是容量翻倍，然后把所有数据重新哈希到新数组。</p>
+<p>为什么是 0.75？这是个经验值。太低浪费内存，太高冲突概率飙升。0.75 是时间和空间的折中点。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-comment">// 扩容过程的单独拆解，看得更清楚</span>
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">resizeDemo</span>(<span class="hljs-params"></span>) &#123;
+  <span class="hljs-keyword">const</span> oldCapacity = <span class="hljs-number">8</span>;
+  <span class="hljs-keyword">const</span> newCapacity = oldCapacity * <span class="hljs-number">2</span>; <span class="hljs-comment">// 16，翻倍</span>
+  <span class="hljs-keyword">const</span> oldBuckets = [[], [], [], [], [[<span class="hljs-string">"a"</span>, <span class="hljs-number">1</span>]], [[<span class="hljs-string">"b"</span>, <span class="hljs-number">2</span>]], [], []];
+
+<p>  <span class="hljs-keyword">const</span> newBuckets &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(newCapacity);<br>  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; newCapacity; i++) &amp;#123;<br>    newBuckets[i] &#x3D; []; <span class="hljs-comment">&#x2F;&#x2F; 初始化新数组</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 关键：重新哈希！因为取模的分母变了</span><br>  <span class="hljs-comment">&#x2F;&#x2F; 原来 % 8，现在 % 16，所有元素的下标都可能变</span><br>  <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> bucket <span class="hljs-keyword">of</span> oldBuckets) &amp;#123;<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">const</span> [key, value] <span class="hljs-keyword">of</span> bucket) &amp;#123;<br>      <span class="hljs-keyword">const</span> newIndex &#x3D; <span class="hljs-title function_">hash</span>(key) % newCapacity; <span class="hljs-comment">&#x2F;&#x2F; 注意这里用新容量</span><br>      newBuckets[newIndex].<span class="hljs-title function_">push</span>([key, value]);<br>    &amp;#125;<br>  &amp;#125;<br>  <span class="hljs-keyword">return</span> newBuckets;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>扩容的代价不小——要遍历所有元素重新哈希，时间复杂度 O(n)。所以 Java HashMap 有个优化：扩容时 2 的幂次特性让元素要么留在原位，要么挪到 <code>原位 + 旧容量</code> 的位置，不用重新算哈希。我们 mini 版本做了简化，直接重新算。</p>
+<p>还有一个容易忽略的点：<strong>如果你提前知道要存多少数据，初始化时直接给够容量</strong>，能避免运行中多次扩容。Java 里 <code>new HashMap&lt;&gt;(128)</code> 就是这个意思。</p>
+<h2 data-id="heading-5">完整实现：一个能跑的 mini HashMap</h2>
+<p>把上面的东西合在一起，这是一个功能完整的 mini HashMap：</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">class</span> <span class="hljs-title class_">MiniHashMap</span> &#123;
+  <span class="hljs-title function_">constructor</span>(<span class="hljs-params">initialCapacity = <span class="hljs-number">8</span></span>) &#123;
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span> = initialCapacity;  <span class="hljs-comment">// 当前数组容量</span>
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> = <span class="hljs-number">0</span>;                    <span class="hljs-comment">// 已存元素个数</span>
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">loadFactor</span> = <span class="hljs-number">0.75</span>;           <span class="hljs-comment">// 负载因子阈值</span>
+    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(<span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span>);
+    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span>; i++) &#123;
+      <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[i] = [];           <span class="hljs-comment">// 链地址法：每个槽一个数组</span>
+    &#125;
+  &#125;
+
+<p>  <span class="hljs-comment">&#x2F;&#x2F; 哈希函数：DJB2 变体，比简单累加分布更均匀</span><br>  <span class="hljs-title function_">hash</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">let</span> h &#x3D; <span class="hljs-number">5381</span>;                     <span class="hljs-comment">&#x2F;&#x2F; DJB2 的初始种子值</span><br>    <span class="hljs-keyword">const</span> str &#x3D; <span class="hljs-title class_">String</span>(key);<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; str.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      h &#x3D; ((h &lt;&lt; <span class="hljs-number">5</span>) + h + str.<span class="hljs-title function_">charCodeAt</span>(i)) | <span class="hljs-number">0</span>; <span class="hljs-comment">&#x2F;&#x2F; h*33 + charCode</span><br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-title class_">Math</span>.<span class="hljs-title function_">abs</span>(h) % <span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span>;<br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">set</span>(<span class="hljs-params">key, value</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">const</span> bucket &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];</p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 遍历链表，看 key 是否已存在&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;let&lt;/span&gt; i = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;; i &amp;lt; bucket.&lt;span class=&quot;hljs-property&quot;&gt;length&lt;/span&gt;; i++) &amp;#123;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (bucket[i][&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] === key) &amp;#123;
+    bucket[i][&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = value;        &lt;span class=&quot;hljs-comment&quot;&gt;// key 存在，更新 value&lt;/span&gt;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt;;
+  &amp;#125;
+&amp;#125;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// key 不存在，追加到链表&lt;/span&gt;
+bucket.&lt;span class=&quot;hljs-title function_&quot;&gt;push&lt;/span&gt;([key, value]);
+&lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;size&lt;/span&gt;++;
+
+&lt;span class=&quot;hljs-comment&quot;&gt;// 检查是否需要扩容&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;if&lt;/span&gt; (&lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;size&lt;/span&gt; / &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;capacity&lt;/span&gt; &amp;gt; &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-property&quot;&gt;loadFactor&lt;/span&gt;) &amp;#123;
+  &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;_resize&lt;/span&gt;();
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">get</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">const</span> bucket &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; bucket.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      <span class="hljs-keyword">if</span> (bucket[i][<span class="hljs-number">0</span>] &#x3D;&#x3D;&#x3D; key) &amp;#123;<br>        <span class="hljs-keyword">return</span> bucket[i][<span class="hljs-number">1</span>];         <span class="hljs-comment">&#x2F;&#x2F; 找到返回 value</span><br>      &amp;#125;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">undefined</span>;                 <span class="hljs-comment">&#x2F;&#x2F; 没找到</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">delete</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> index &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">hash</span>(key);<br>    <span class="hljs-keyword">const</span> bucket &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[index];<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; bucket.<span class="hljs-property">length</span>; i++) &amp;#123;<br>      <span class="hljs-keyword">if</span> (bucket[i][<span class="hljs-number">0</span>] &#x3D;&#x3D;&#x3D; key) &amp;#123;<br>        bucket.<span class="hljs-title function_">splice</span>(i, <span class="hljs-number">1</span>);          <span class="hljs-comment">&#x2F;&#x2F; 从链表中删除该节点</span><br>        <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span>–;<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>      &amp;#125;<br>    &amp;#125;<br>    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;                     <span class="hljs-comment">&#x2F;&#x2F; 没找到要删的</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">has</span>(<span class="hljs-params">key</span>) &amp;#123;<br>    <span class="hljs-keyword">return</span> <span class="hljs-variable language_">this</span>.<span class="hljs-title function_">get</span>(key) !&#x3D;&#x3D; <span class="hljs-literal">undefined</span>; <span class="hljs-comment">&#x2F;&#x2F; 判断 key 是否存在</span><br>  &amp;#125;</p>
+<p>  <span class="hljs-title function_">_resize</span>(<span class="hljs-params"></span>) &amp;#123;<br>    <span class="hljs-keyword">const</span> oldBuckets &#x3D; <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span> *&#x3D; <span class="hljs-number">2</span>;               <span class="hljs-comment">&#x2F;&#x2F; 容量翻倍</span><br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span> &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">Array</span>(<span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span>);<br>    <span class="hljs-keyword">for</span> (<span class="hljs-keyword">let</span> i &#x3D; <span class="hljs-number">0</span>; i &lt; <span class="hljs-variable language_">this</span>.<span class="hljs-property">capacity</span>; i++) &amp;#123;<br>      <span class="hljs-variable language_">this</span>.<span class="hljs-property">buckets</span>[i] &#x3D; [];           <span class="hljs-comment">&#x2F;&#x2F; 初始化新桶</span><br>    &amp;#125;<br>    <span class="hljs-variable language_">this</span>.<span class="hljs-property">size</span> &#x3D; <span class="hljs-number">0</span>;                    <span class="hljs-comment">&#x2F;&#x2F; 重置计数</span></p>
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 重新哈希所有旧数据&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; bucket &lt;span class=&quot;hljs-keyword&quot;&gt;of&lt;/span&gt; oldBuckets) &amp;#123;
+  &lt;span class=&quot;hljs-keyword&quot;&gt;for&lt;/span&gt; (&lt;span class=&quot;hljs-keyword&quot;&gt;const&lt;/span&gt; [key, value] &lt;span class=&quot;hljs-keyword&quot;&gt;of&lt;/span&gt; bucket) &amp;#123;
+    &lt;span class=&quot;hljs-variable language_&quot;&gt;this&lt;/span&gt;.&lt;span class=&quot;hljs-title function_&quot;&gt;set&lt;/span&gt;(key, value);         &lt;span class=&quot;hljs-comment&quot;&gt;// 复用 set，自动落到新位置&lt;/span&gt;
+  &amp;#125;
+&amp;#125;
+</code></pre>
+<p>  &amp;#125;<br>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 跑一下试试</span><br><span class="hljs-keyword">const</span> map &#x3D; <span class="hljs-keyword">new</span> <span class="hljs-title class_">MiniHashMap</span>();<br>map.<span class="hljs-title function_">set</span>(<span class="hljs-string">“name”</span>, <span class="hljs-string">“张三”</span>);<br>map.<span class="hljs-title function_">set</span>(<span class="hljs-string">“age”</span>, <span class="hljs-number">25</span>);<br>map.<span class="hljs-title function_">set</span>(<span class="hljs-string">“city”</span>, <span class="hljs-string">“杭州”</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(map.<span class="hljs-title function_">get</span>(<span class="hljs-string">“name”</span>));  <span class="hljs-comment">&#x2F;&#x2F; “张三”</span><br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(map.<span class="hljs-title function_">has</span>(<span class="hljs-string">“age”</span>));   <span class="hljs-comment">&#x2F;&#x2F; true</span><br>map.<span class="hljs-title function_">delete</span>(<span class="hljs-string">“city”</span>);<br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(map.<span class="hljs-title function_">has</span>(<span class="hljs-string">“city”</span>));  <span class="hljs-comment">&#x2F;&#x2F; false</span><br><span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(map.<span class="hljs-property">size</span>);         <span class="hljs-comment">&#x2F;&#x2F; 2</span><br></p></code></pre><p></p>
+<p>跑起来没问题。这个实现包含了哈希表最核心的三个机制：哈希函数、链地址法解决冲突、负载因子触发扩容。</p>
+<h2 data-id="heading-6">最后</h2>
+<p>手写一遍 HashMap，比看十篇原理分析都管用。几个关键 takeaway：</p>
+<ul>
+<li>哈希表的本质就是 <strong>数组 + 哈希函数</strong>，哈希函数把 key 映射成数组下标</li>
+<li>哈希冲突避不开，链地址法和开放寻址法是两大主流方案</li>
+<li>负载因子 0.75 是时间和空间的平衡点，触发扩容时所有数据要重新哈希</li>
+<li>扩容代价是 O(n)，能避免就避免，提前预估容量是好习惯</li>
+<li>Java HashMap 的链表转红黑树优化（阈值 8）是工程上的极致打磨</li>
+<li>哈希函数的设计直接影响冲突概率，DJB2 比简单累加好用得多</li>
+</ul>
+<p>你面试的时候被问过手写 HashMap 吗？欢迎评论区聊聊你的经历。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="手写一个 mini HashMap，彻底搞懂哈希表原理" href="https://juejin.cn/post/7686047891354976290" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">手写一个 mini HashMap，彻底搞懂哈希表原理</span><span class="desc fs12">https://juejin.cn/post/7686047891354976290</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/6874d746.html">一个小创意的诞生：BeatBox 雪漫天外壳定制指南<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/b4c5ecd5.html">CSS Grid 布局实战指南，看这篇就够了<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/908a1c89.html" title="DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9019"></div><span class="title">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本</span></a><a class="item" href="/rss/b4c5ecd5.html" title="CSS Grid 布局实战指南，看这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8766"></div><span class="title">CSS Grid 布局实战指南，看这篇就够了</span></a><a class="item" href="/rss/f9dc35c0.html" title="MCP 架构概览"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=992"></div><span class="title">MCP 架构概览</span></a><a class="item" href="/rss/6c3bf74a.html" title="RHCE 考试通过率提升:核心考点、实验环境与排错技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5831"></div><span class="title">RHCE 考试通过率提升:核心考点、实验环境与排错技巧</span></a><a class="item" href="/rss/98141922.html" title="Nginx 反向代理配置指南，看完这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6187"></div><span class="title">Nginx 反向代理配置指南，看完这篇就够了</span></a><a class="item" href="/rss/6a9bed7.html" title="《潮水漫过十七岁》开学了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6488"></div><span class="title">《潮水漫过十七岁》开学了</span></a><a class="item" href="/rss/ff43a132.html" title="《潮水漫过十七岁》爸爸最近很忙"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6068"></div><span class="title">《潮水漫过十七岁》爸爸最近很忙</span></a><a class="item" href="/rss/80175ce7.html" title="RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1790321510&x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D"></div><span class="title">RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span></a><a class="item" href="/rss/e90f99c2.html" title="从 Windows 换到 Mac 三个月，我真香了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/962f2972579f4eb595e23889202ccfee~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oCV5rWq54yr:q75.awebp?rk3s=f64ab15b&x-expires=1790410500&x-signature=zSsIIe4s2ibVz5%2FCwqr7pECTFCg%3D"></div><span class="title">从 Windows 换到 Mac 三个月，我真香了</span></a><a class="item" href="/rss/93bb2588.html" title="从挂科到高分通过:RHCE快速拿证的10个提分技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7623"></div><span class="title">从挂科到高分通过:RHCE快速拿证的10个提分技巧</span></a><a class="item" href="/rss/1a69a272.html" title="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2435"></div><span class="title">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></a><a class="item" href="/rss/54b87b7d.html" title="红帽RHCE从挂科边缘到一次过，我做对了什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">红帽RHCE从挂科边缘到一次过，我做对了什么</span></a><a class="item" href="/rss/13d83a1d.html" title="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1445"></div><span class="title">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></a><a class="item" href="/rss/f966d59.html" title="视野修炼第133期 | Native 回春了?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/67ebbc355bbc4866909964e3daf59359~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790409305&x-signature=GlJRe0TzJTyAaozLNu2IgLwRtqs%3D"></div><span class="title">视野修炼第133期 | Native 回春了?</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Nginx 反向代理配置指南，看完这篇就够了 - RSSBOX</title>
+
+  
+    <meta name="description" content="刚工作的时候，&quot;Nginx&quot;对我来说就是一个黑盒——运维配好我就用，出了问题只会重启。直到有一次线上 HTTPS 证书过期，整个排查过程我插不上手，才下决心自己学了一遍。 Nginx 是干什么的 简单说就三件事：  静态文件服务：直接返回 HTML&#x2F;CSS&#x2F;JS&#x2F;图片 反向代理：把请求转发给后端服务（Tomcat、Node、Go 等） 负载均衡：多个后端实例，Nginx 帮你分发请求  大部分项">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nginx 反向代理配置指南，看完这篇就够了">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/98141922.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="刚工作的时候，&quot;Nginx&quot;对我来说就是一个黑盒——运维配好我就用，出了问题只会重启。直到有一次线上 HTTPS 证书过期，整个排查过程我插不上手，才下决心自己学了一遍。 Nginx 是干什么的 简单说就三件事：  静态文件服务：直接返回 HTML&#x2F;CSS&#x2F;JS&#x2F;图片 反向代理：把请求转发给后端服务（Tomcat、Node、Go 等） 负载均衡：多个后端实例，Nginx 帮你分发请求  大部分项">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-17T06:19:15.000Z">
+<meta property="article:modified_time" content="2026-09-17T06:19:15.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Nginx 是干什么的</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">核心配置文件结构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">反向代理配置</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">按路径转发到不同后端</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">HTTPS 配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">负载均衡</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">常用运维命令</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">踩坑：proxy_pass 末尾的斜杠</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-17T06:19:15.000Z">2026-09-17</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Nginx 反向代理配置指南，看完这篇就够了</span></h1>
+<div>
+<p>刚工作的时候，"Nginx"对我来说就是一个黑盒——运维配好我就用，出了问题只会重启。直到有一次线上 HTTPS 证书过期，整个排查过程我插不上手，才下决心自己学了一遍。</p>
+<h2 data-id="heading-0">Nginx 是干什么的</h2>
+<p>简单说就三件事：</p>
+<ul>
+<li><strong>静态文件服务</strong>：直接返回 HTML/CSS/JS/图片</li>
+<li><strong>反向代理</strong>：把请求转发给后端服务（Tomcat、Node、Go 等）</li>
+<li><strong>负载均衡</strong>：多个后端实例，Nginx 帮你分发请求</li>
+</ul>
+<p>大部分项目里，Nginx 同时干这三件事。</p>
+<h2 data-id="heading-1">核心配置文件结构</h2>
+<pre><code class="hljs language-nginx" lang="nginx"># nginx.conf 主配置
+worker_processes  auto;        # 工作进程数，auto = CPU 核数
+
+<p>events &amp;#123;<br>    worker_connections  1024;  # 每个进程最大连接数<br>&amp;#125;</p>
+<p>http &amp;#123;<br>    include       mime.types;<br>    sendfile      on;          # 零拷贝传输，静态文件必开<br>    keepalive_timeout  65;</p>
+<pre><code># 虚拟主机 1
+server &amp;#123;
+    listen       80;
+    server_name  example.com;
+
+    location / &amp;#123;
+        root   /var/www/html;
+        index  index.html;
+    &amp;#125;
+&amp;#125;
+
+# 虚拟主机 2（反向代理）
+server &amp;#123;
+    listen       80;
+    server_name  api.example.com;
+
+    location / &amp;#123;
+        proxy_pass http://127.0.0.1:8080;
+    &amp;#125;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><code>http</code> → <code>server</code> → <code>location</code> 三层嵌套，每一层都可以有独立的配置。</p>
+<h2 data-id="heading-2">反向代理配置</h2>
+<p>最基本的一条：</p>
+<pre><code class="hljs language-nginx" lang="nginx">server &#123;
+    listen 80;
+    server_name api.example.com;
+
+<pre><code>location / &amp;#123;
+    proxy_pass http://127.0.0.1:8080;
+
+    # 传递真实客户端信息给后端
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><code>proxy_set_header</code> 这四行基本是固定写法，不加的话后端拿到的 IP 全是 Nginx 的 127.0.0.1。</p>
+<h3 data-id="heading-3">按路径转发到不同后端</h3>
+<pre><code class="hljs language-nginx" lang="nginx">server &#123;
+    listen 80;
+    server_name example.com;
+
+<pre><code># API 请求 → Java 后端
+location /api/ &amp;#123;
+    proxy_pass http://127.0.0.1:8080;
+&amp;#125;
+
+# WebSocket → Node 服务
+location /ws/ &amp;#123;
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection &quot;upgrade&quot;;
+&amp;#125;
+
+# 静态文件 → 直接返回
+location / &amp;#123;
+    root /var/www/frontend/dist;
+    try_files $uri $uri/ /index.html;  # SPA 路由兜底
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><code>try_files</code> 那行是 SPA 标配——前端用 Vue Router / React Router 的 history 模式时，所有路径都要返回 index.html，否则刷新就 404。</p>
+<h2 data-id="heading-4">HTTPS 配置</h2>
+<pre><code class="hljs language-nginx" lang="nginx">server &#123;
+    listen 443 ssl;
+    server_name example.com;
+
+<pre><code>ssl_certificate     /etc/nginx/ssl/example.com.pem;
+ssl_certificate_key /etc/nginx/ssl/example.com.key;
+ssl_protocols       TLSv1.2 TLSv1.3;
+ssl_ciphers         HIGH:!aNULL:!MD5;
+
+location / &amp;#123;
+    proxy_pass http://127.0.0.1:8080;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<h1 id="HTTP-自动跳转-HTTPS"><a href="#HTTP-自动跳转-HTTPS" class="headerlink" title="HTTP 自动跳转 HTTPS"></a>HTTP 自动跳转 HTTPS</h1><p>server &amp;#123;<br>    listen 80;<br>    server_name example.com;<br>    return 301 https:&#x2F;&#x2F;$host$request_uri;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>证书用 Let's Encrypt 免费申请，<code>certbot</code> 一行命令搞定续期。</p>
+<h2 data-id="heading-5">负载均衡</h2>
+<pre><code class="hljs language-nginx" lang="nginx">upstream backend &#123;
+    # 默认轮询
+    server 192.168.1.10:8080 weight=3;  # 权重高的分更多请求
+    server 192.168.1.11:8080 weight=1;
+    server 192.168.1.12:8080 backup;    # 备用，前两台挂了才用
+
+<pre><code># 也可以用 ip_hash（同一 IP 始终打到同一台，解决 session 问题）
+# ip_hash;
+
+# 或者 least_conn（请求最少的优先）
+# least_conn;
+</code></pre>
+<p>&amp;#125;</p>
+<p>server &amp;#123;<br>    listen 80;<br>    server_name api.example.com;</p>
+<pre><code>location / &amp;#123;
+    proxy_pass http://backend;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<table><thead><tr><th>策略</th><th>说明</th><th>适用场景</th></tr></thead><tbody><tr><td>轮询 (默认)</td><td>按顺序依次分发</td><td>后端实例性能一致</td></tr><tr><td>weight</td><td>按权重比例分发</td><td>后端性能不一致</td></tr><tr><td>ip_hash</td><td>同一 IP 固定到同一台</td><td>有 session 依赖</td></tr><tr><td>least_conn</td><td>优先分给连接数最少的</td><td>请求处理时间差异大</td></tr></tbody></table>
+<h2 data-id="heading-6">常用运维命令</h2>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 测试配置文件语法</span>
+nginx -t
+
+<p><span class="hljs-comment"># 重新加载配置（不中断服务）</span><br>nginx -s reload</p>
+<p><span class="hljs-comment"># 查看 Nginx 进程</span><br>ps aux | grep nginx</p>
+<p><span class="hljs-comment"># 查看当前连接数</span><br>netstat -nlp | grep nginx<br></p></code></pre><p></p>
+<p>改完配置一定要先 <code>nginx -t</code> 测一下语法，再 <code>nginx -s reload</code>。直接 restart 会短暂中断连接。</p>
+<h2 data-id="heading-7">踩坑：proxy_pass 末尾的斜杠</h2>
+<pre><code class="hljs language-nginx" lang="nginx"># 有斜杠：/api/users → http://backend/users（去掉了 /api）
+location /api/ &#123;
+    proxy_pass http://backend/;
+&#125;
+
+<h1 id="没斜杠：-x2F-api-x2F-users-→-http-backend-api-users（保留-x2F-api）"><a href="#没斜杠：-x2F-api-x2F-users-→-http-backend-api-users（保留-x2F-api）" class="headerlink" title="没斜杠：&#x2F;api&#x2F;users → http://backend/api/users（保留 &#x2F;api）"></a>没斜杠：&#x2F;api&#x2F;users → <a target="_blank" rel="external nofollow noopener noreferrer" href="http://backend/api/users%EF%BC%88%E4%BF%9D%E7%95%99">http://backend/api/users（保留</a> &#x2F;api）</h1><p>location &#x2F;api&#x2F; &amp;#123;<br>    proxy_pass <a target="_blank" rel="external nofollow noopener noreferrer" href="http://backend/">http://backend</a>;<br>&amp;#125;<br></p></code></pre><p></p>
+<p>这个坑我见过不下三次，前后端联调的时候路径对不上，排查半天发现是斜杠的问题。记住：<code>proxy_pass</code> 后面有路径（哪怕只是一个 <code>/</code>），就会替换掉 <code>location</code> 的匹配部分。</p>
+<h2 data-id="heading-8">总结</h2>
+<p>Nginx 日常用到的就是：反向代理（<code>proxy_pass</code>）、静态文件（<code>root</code> + <code>try_files</code>）、HTTPS（<code>ssl_certificate</code>）、负载均衡（<code>upstream</code>）。配完记得 <code>nginx -t</code> 测语法，<code>proxy_pass</code> 注意斜杠。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Nginx 反向代理配置指南，看完这篇就够了" href="https://juejin.cn/post/7686327615728681010" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Nginx 反向代理配置指南，看完这篇就够了</span><span class="desc fs12">https://juejin.cn/post/7686327615728681010</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/869c43a3.html">🔥 优化及缺陷修复：开源 AI 无代码平台 NocoBase<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/908a1c89.html">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/908a1c89.html" title="DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9019"></div><span class="title">DeepSeek V4.1 Flash 现已上线 DigitalOcean：更强 Agent，更低推理成本</span></a><a class="item" href="/rss/b4c5ecd5.html" title="CSS Grid 布局实战指南，看这篇就够了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8766"></div><span class="title">CSS Grid 布局实战指南，看这篇就够了</span></a><a class="item" href="/rss/f9dc35c0.html" title="MCP 架构概览"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=992"></div><span class="title">MCP 架构概览</span></a><a class="item" href="/rss/6c3bf74a.html" title="RHCE 考试通过率提升:核心考点、实验环境与排错技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5831"></div><span class="title">RHCE 考试通过率提升:核心考点、实验环境与排错技巧</span></a><a class="item" href="/rss/6a9bed7.html" title="《潮水漫过十七岁》开学了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6488"></div><span class="title">《潮水漫过十七岁》开学了</span></a><a class="item" href="/rss/ff43a132.html" title="《潮水漫过十七岁》爸爸最近很忙"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6068"></div><span class="title">《潮水漫过十七岁》爸爸最近很忙</span></a><a class="item" href="/rss/80175ce7.html" title="RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4f0ce92fd124d4b90bda8551ac61eb6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1790321510&x-signature=Cr9TDxbElpvK%2FkDT%2FfRLK5lksvc%3D"></div><span class="title">RK3588 使用 Rk-llama.cpp + RKNPU2 部署 Qwen3.5：从零开始的 NPU 本地大模型实战</span></a><a class="item" href="/rss/e90f99c2.html" title="从 Windows 换到 Mac 三个月，我真香了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/962f2972579f4eb595e23889202ccfee~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oCV5rWq54yr:q75.awebp?rk3s=f64ab15b&x-expires=1790410500&x-signature=zSsIIe4s2ibVz5%2FCwqr7pECTFCg%3D"></div><span class="title">从 Windows 换到 Mac 三个月，我真香了</span></a><a class="item" href="/rss/93bb2588.html" title="从挂科到高分通过:RHCE快速拿证的10个提分技巧"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7623"></div><span class="title">从挂科到高分通过:RHCE快速拿证的10个提分技巧</span></a><a class="item" href="/rss/1a69a272.html" title="别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2435"></div><span class="title">别再用「死板 RAG」！手把手实现会思考、会纠错、会联网的 Agentic RAG（LangGraph 实战）</span></a><a class="item" href="/rss/54325595.html" title="手写一个 Mini HashMap，彻底搞懂哈希表原理"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5010"></div><span class="title">手写一个 Mini HashMap，彻底搞懂哈希表原理</span></a><a class="item" href="/rss/54b87b7d.html" title="红帽RHCE从挂科边缘到一次过，我做对了什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">红帽RHCE从挂科边缘到一次过，我做对了什么</span></a><a class="item" href="/rss/13d83a1d.html" title="把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1445"></div><span class="title">把《天龙八部》喂进 AI：从 MySQL LIKE 到倒排索引再到向量召回，RAG 的「检索底座」到底该怎么搭？</span></a><a class="item" href="/rss/f966d59.html" title="视野修炼第133期 | Native 回春了?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/67ebbc355bbc4866909964e3daf59359~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790409305&x-signature=GlJRe0TzJTyAaozLNu2IgLwRtqs%3D"></div><span class="title">视野修炼第133期 | Native 回春了?</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
