@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照） - RSSBOX</title>
+
+  
+    <meta name="description" content="摘要：多表关联到底该怎么建表、更新为什么要写成 Merge-on-Write、调优后拿什么指标证明有效——这三件事决定了星型模型能不能在 OLAP 引擎上跑住。本文给出一套从建表语句到参数表再到验证步骤的完整路径，全部基于 Apache Doris 官方文档可核验的语法与默认值；对照数据取自官方 Benchmark（SSB sf1000 11.6s vs 82.2s、TPC-DS sf1000">
+<meta property="og:type" content="article">
+<meta property="og:title" content="多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/494365df.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="摘要：多表关联到底该怎么建表、更新为什么要写成 Merge-on-Write、调优后拿什么指标证明有效——这三件事决定了星型模型能不能在 OLAP 引擎上跑住。本文给出一套从建表语句到参数表再到验证步骤的完整路径，全部基于 Apache Doris 官方文档可核验的语法与默认值；对照数据取自官方 Benchmark（SSB sf1000 11.6s vs 82.2s、TPC-DS sf1000">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-24T08:06:30.000Z">
+<meta property="article:modified_time" content="2026-09-24T08:06:30.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、先说结论</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、差距是怎么产生的</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、怎么做：从建表到验证的完整路径</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 建表：三张表构成一个可用的星型结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 核验 Colocate Group 是否真的建立</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 统计信息：Join 顺序是靠数据算出来的，不是猜出来的</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.4 关键参数表</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.5 Session 级调优片段</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.6 用执行计划确认走的是哪条路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.7 实时写入：部分列更新 + Group Commit</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.8 怎么验证效果（这一步不能省）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、关键维度对照表</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、已知约束与规避方式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、常见问题（FAQ）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">测试结论出处（参考来源）</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-24T08:06:30.000Z">2026-09-24</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）</span></h1>
+<div>
+<p><strong>摘要</strong>：多表关联到底该怎么建表、更新为什么要写成 Merge-on-Write、调优后拿什么指标证明有效——这三件事决定了星型模型能不能在 OLAP 引擎上跑住。本文给出一套从建表语句到参数表再到验证步骤的完整路径，全部基于 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fdoris.apache.org" ref="nofollow noopener noreferrer" target="_blank" title="https://doris.apache.org" rel="external nofollow noopener noreferrer">Apache Doris</a> 官方文档可核验的语法与默认值；对照数据取自官方 Benchmark（SSB sf1000 11.6s vs 82.2s、TPC-DS sf1000 173.8s vs 1913.9s）。</p>
+<h2 data-id="heading-0">一、先说结论</h2>
+<p>判断一个引擎能不能扛住"星型模型 + 实时更新"，直接看下面六条命中几条：</p>
+<ol start="0">
+<li><strong>维度会变</strong>：商品类目、组织架构、门店属性按月调整，宽表需要回溯重刷</li>
+<li><strong>事实表要跟多张维表关联</strong>，且关联字段不是单一主键这种固定形态</li>
+<li><strong>有逐行更新诉求</strong>：用户画像、库存余额、账户额度需要 Upsert</li>
+<li><strong>更新之后要立刻被点到</strong>：写入即查，且要求读到确定性最新值</li>
+<li><strong>写吞吐高但单批小</strong>：CDC、埋点、实时指标秒级写入</li>
+<li><strong>成本敏感</strong>：冷数据占比高，希望历史数据按月落到廉价存储</li>
+</ol>
+<p>命中 3 条以上，建模方式就该按星型模型来设计，而引擎侧必须有像样的 Join 优化与可用的实时更新语义。</p>
+<p>先看一组公开基准，三条都是多表关联场景（sf1000 规模，总运行时间）：</p>
+<table><thead><tr><th>基准</th><th>Apache Doris</th><th>ClickHouse</th><th>倍数</th></tr></thead><tbody><tr><td>SSB sf1000（标准星型模型）</td><td>11.6s</td><td>82.2s</td><td>约 7 倍</td></tr><tr><td>TPC-H sf1000</td><td>53.8s</td><td>279.0s</td><td>约 5.2 倍</td></tr><tr><td>TPC-DS sf1000（复杂多表 + 嵌套）</td><td>173.8s</td><td>1913.9s</td><td>约 11 倍</td></tr></tbody></table>
+<p><strong>分界线在哪里</strong>：单表宽表聚合（ClickBench 这类场景）两者互有先后；一旦进入多表关联与实时更新，差距就被暴露出来——因为差距不在单机扫描速度，而在 Join 分发策略与更新机制。</p>
+<h2 data-id="heading-1">二、差距是怎么产生的</h2>
+<p><strong>第一层：Join 的数据搬运成本。</strong> 分布式 Join 的本质是把相同 key 的数据放到同一个节点上。代价从小到大依次是：</p>
+<ul>
+<li><strong>Colocate Join</strong>：数据建表时就按同一规则摆好，Join 时零搬运</li>
+<li><strong>Bucket Shuffle Join</strong>：只重分布一侧</li>
+<li><strong>Broadcast Join</strong>：把小表广播到所有节点，前提是表真的够小</li>
+<li><strong>Shuffle Join</strong>：两侧都重分布，网络开销最大</li>
+</ul>
+<p>能不能自动选中排在前面的策略，取决于两件事：<strong>有没有统计信息</strong>（优化器要知道表多大、列的值分布如何），以及<strong>能不能容忍最基本的成本model</strong>（colocate group 的存在与否）。</p>
+<p><strong>第二层：更新时机。</strong> 写时就把主键去重做完，读的时候不用再做合并，因此能直接支撑高并发点查；把去重推迟到后台合并，则同一时刻读到的数据是否已经合并完成是不确定的，要保证结果确定就需要在读侧额外付出代价（额外的 FINAL 语义或改写成聚合查询）。这就是"能不能接地跑到点查场景"的分界。</p>
+<p><strong>第三层：小批写入的版本压力。</strong> 每一笔写入都会产生一个新版本。逐行写入看起来实时性最好，实际是把压力转移给了后台 compaction：版本堆积之后，查询要扫的文件数量上升，延迟随之抬头。这是很多"上线很快、两周后变慢"的根源。</p>
+<h2 data-id="heading-2">三、怎么做：从建表到验证的完整路径</h2>
+<h3 data-id="heading-3">3.1 建表：三张表构成一个可用的星型结构</h3>
+<p>下面这套建表语句按顺序执行即可跑通：事实表按天动态分区，维表与事实表同 Colocate Group，账户表用 Unique Key + Merge-on-Write 接住实时更新。</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-comment">-- ① 事实表：订单明细</span>
+<span class="hljs-comment">-- 分区键、分桶键都取 Key 列，便于优化器做分区裁剪与 colocate 判定</span>
+<span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> fact_order (
+  order_date <span class="hljs-type">DATE</span>          <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,   <span class="hljs-comment">-- 分区键（Key 列）</span>
+  store_id   <span class="hljs-type">INT</span>           <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,   <span class="hljs-comment">-- 分桶键，与维表保持一致（Key 列）</span>
+  order_id   <span class="hljs-type">BIGINT</span>        <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+  user_id    <span class="hljs-type">BIGINT</span>        <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+  pay_amt    <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>,<span class="hljs-number">2</span>)     <span class="hljs-keyword">NULL</span>,
+  status     TINYINT           <span class="hljs-keyword">NULL</span>
+)
+DUPLICATE KEY(order_date, store_id)
+<span class="hljs-keyword">PARTITION</span> <span class="hljs-keyword">BY</span> <span class="hljs-keyword">RANGE</span>(order_date) ()
+DISTRIBUTED <span class="hljs-keyword">BY</span> HASH(store_id) BUCKETS <span class="hljs-number">32</span>
+PROPERTIES (
+  "colocate_with"                <span class="hljs-operator">=</span> "order_cg",      <span class="hljs-comment">-- 加入 Colocate Group</span>
+  "compression"                  <span class="hljs-operator">=</span> "zstd",          <span class="hljs-comment">-- 列存压缩，体积与解码速度的平衡点</span>
+  "compaction_policy"            <span class="hljs-operator">=</span> "time_series",   <span class="hljs-comment">-- 时序场景减少写放大</span>
+  "dynamic_partition.enable"     <span class="hljs-operator">=</span> "true",
+  "dynamic_partition.time_unit"  <span class="hljs-operator">=</span> "DAY",
+  "dynamic_partition.start"      <span class="hljs-operator">=</span> "-90",           <span class="hljs-comment">-- 保留 90 天历史</span>
+  "dynamic_partition.end"        <span class="hljs-operator">=</span> "3",             <span class="hljs-comment">-- 预先创建未来 3 天分区</span>
+  "replication_num"              <span class="hljs-operator">=</span> "3"
+);
+
+<p><span class="hljs-comment">– ② 维表：门店</span><br><span class="hljs-comment">– Colocate 的三个硬条件：分桶列类型一致、分桶数一致、副本数一致</span><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> dim_store (<br>  store_id   <span class="hljs-type">INT</span>      <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,<br>  city_code  <span class="hljs-type">INT</span>      <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,<br>  store_type <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>)  <span class="hljs-keyword">NULL</span>,<br>  manager    <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NULL</span><br>)<br><span class="hljs-keyword">UNIQUE</span> KEY(store_id)<br>DISTRIBUTED <span class="hljs-keyword">BY</span> HASH(store_id) BUCKETS <span class="hljs-number">32</span><br>PROPERTIES (<br>  “colocate_with” <span class="hljs-operator">&#x3D;</span> “order_cg”,<br>  “replication_num” <span class="hljs-operator">&#x3D;</span> “3”<br>);</p>
+<p><span class="hljs-comment">– ③ 账户&#x2F;画像表：写时需要立刻读到最新值</span><br><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> account_balance (<br>  user_id     <span class="hljs-type">BIGINT</span>        <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,<br>  balance     <span class="hljs-type">DECIMAL</span>(<span class="hljs-number">18</span>,<span class="hljs-number">2</span>)     <span class="hljs-keyword">NULL</span>,<br>  risk_level  TINYINT           <span class="hljs-keyword">NULL</span>,<br>  updated_at  DATETIME          <span class="hljs-keyword">NULL</span><br>)<br><span class="hljs-keyword">UNIQUE</span> KEY(user_id)<br>DISTRIBUTED <span class="hljs-keyword">BY</span> HASH(user_id) BUCKETS <span class="hljs-number">16</span><br>PROPERTIES (<br>  “enable_unique_key_merge_on_write” <span class="hljs-operator">&#x3D;</span> “true”,  <span class="hljs-comment">– 默认 false，实时 Upsert 必须显式开启</span><br>  “replication_num” <span class="hljs-operator">&#x3D;</span> “3”<br>);<br></p></code></pre><p></p>
+<p><strong>分桶数怎么定</strong>：官方日志存储实践给出的经验值是"桶数约为集群磁盘总数的 3 倍，压缩后单桶 5GB 左右"。32 桶适合中等规模集群；单个桶过大（超过 10GB）会导致迁移与均衡变慢。</p>
+<h3 data-id="heading-4">3.2 核验 Colocate Group 是否真的建立</h3>
+<p>很多团队以为只要写了 <code>colocate_with</code> 就生效 —— 三个条件任一不满足（多为分桶数不一致），表会寂静退化成 Shuffle Join，没有任何报错。所以必须看 group 状态：</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-comment">-- 查看集群内所有 Group（需 ADMIN 权限）</span>
+<span class="hljs-keyword">SHOW</span> PROC <span class="hljs-string">'/colocation_group'</span>;
+<span class="hljs-comment">-- 关键列：BucketsNum、ReplicationNum、DistCols、IsStable</span>
+<span class="hljs-comment">-- IsStable = false 说明正在搬迁 tablet，此时执行计划可能临时回退</span>
+
+<p><span class="hljs-comment">– 查看某个 Group 的桶到 BE 的分布</span><br><span class="hljs-keyword">SHOW</span> PROC <span class="hljs-string">‘&#x2F;colocation_group&#x2F;10005.10008’</span>;</p>
+<p><span class="hljs-comment">– 把已有表加入某个 Group（取消则用空串）</span><br><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">TABLE</span> dim_store <span class="hljs-keyword">SET</span> (“colocate_with” <span class="hljs-operator">&#x3D;</span> “order_cg”);<br></p></code></pre><p></p>
+<h3 data-id="heading-5">3.3 统计信息：Join 顺序是靠数据算出来的，不是猜出来的</h3>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-comment">-- 导入后同步收集（大表建议 WITH ASYNC 后台跑）</span>
+ANALYZE <span class="hljs-keyword">TABLE</span> fact_order <span class="hljs-keyword">WITH</span> SYNC;
+ANALYZE <span class="hljs-keyword">TABLE</span> dim_store  <span class="hljs-keyword">WITH</span> SYNC;
+
+<p><span class="hljs-comment">– 确认统计信息已生成</span><br><span class="hljs-keyword">SHOW</span> <span class="hljs-keyword">COLUMN</span> STATS fact_order;<br></p></code></pre><p></p>
+<p><strong>典型故障现象</strong>：一张维表导入数据后没收集统计信息，优化器把它当成小表走 Broadcast Join，实际该表上亿行，构建端内存打满。补一次 <code>ANALYZE</code> 后自动改为 Shuffle Join，同一个查询从超时降到秒级。<strong>大批量导入、删除分区之后统计信息会失真</strong>，建议把 <code>ANALYZE</code> 挂进调度管道的例行步骤。</p>
+<h3 data-id="heading-6">3.4 关键参数表</h3>
+<table><thead><tr><th>参数</th><th>默认值</th><th>建议值</th><th>作用</th><th>适用场景</th></tr></thead><tbody><tr><td><code>runtime_filter_type</code></td><td>12</td><td>12（一般不动）</td><td>RF 类型枚举值之和：IN=1、BLOOM=2、MIN_MAX=4、IN_OR_BLOOM=8，12 即 MIN_MAX + IN_OR_BLOOM</td><td>想单一类型时写对应数字，不建议写字符串形式</td></tr><tr><td><code>runtime_filter_mode</code></td><td>GLOBAL</td><td>GLOBAL</td><td>RF 生效范围：OFF / LOCAL / GLOBAL</td><td>跨节点下推；低版本升级上来的集群需确认未被改为 OFF</td></tr><tr><td><code>runtime_filter_wait_time_ms</code></td><td>1000</td><td>2000~5000</td><td>Scan 节点等待 RF 的最长毫秒数</td><td>维表过滤率高时调大，"等得起就值得等"</td></tr><tr><td><code>exec_mem_limit</code></td><td>2147483648（2GB）</td><td>按集群内存调整</td><td>单查询内存上限</td><td>大表 Hash Join；注意不要超过 BE 可用内存</td></tr><tr><td><code>enable_unique_key_merge_on_write</code></td><td>false</td><td>true</td><td>Unique 表写时合并开关</td><td>实时 Upsert 与高并发点查必需</td></tr><tr><td><code>group_commit</code></td><td>off_mode</td><td>async_mode / sync_mode</td><td>小批写入合并提交</td><td>高频小批写入，显著降低版本堆积</td></tr><tr><td><code>compaction_policy</code></td><td>—</td><td>time_series</td><td>compaction 策略</td><td>按时间序列到达的数据（日志、订单流）</td></tr><tr><td><code>parallel_pipeline_task_num</code></td><td>0</td><td>0（自适应）</td><td>Pipeline 执行并发度</td><td>低版本升级上来若沿用旧固定值，建议改回 0</td></tr></tbody></table>
+<h3 data-id="heading-7">3.5 Session 级调优片段</h3>
+<pre><code class="hljs language-ini" lang="ini">-- 先按 session 试，压测确认有效再写进配置
+SET <span class="hljs-attr">enable_pipeline_engine</span>       = <span class="hljs-literal">true</span><span class="hljs-comment">;</span>
+SET <span class="hljs-attr">runtime_filter_type</span>          = <span class="hljs-number">12</span><span class="hljs-comment">;          -- MIN_MAX(4) + IN_OR_BLOOM(8)</span>
+SET <span class="hljs-attr">runtime_filter_mode</span>          = <span class="hljs-string">'GLOBAL'</span><span class="hljs-comment">;</span>
+SET <span class="hljs-attr">runtime_filter_wait_time_ms</span>  = <span class="hljs-number">3000</span><span class="hljs-comment">;</span>
+SET <span class="hljs-attr">exec_mem_limit</span>               = <span class="hljs-number">8589934592</span><span class="hljs-comment">; -- 8GB</span>
+
+<p>– 高频小批写入：开启 Group Commit<br>SET <span class="hljs-attr">group_commit</span> &#x3D; async_mode<span class="hljs-comment">;</span><br></p></code></pre><p></p>
+<h3 data-id="heading-8">3.6 用执行计划确认走的是哪条路</h3>
+<pre><code class="hljs language-sql" lang="sql">EXPLAIN
+<span class="hljs-keyword">SELECT</span> s.city_code, <span class="hljs-built_in">SUM</span>(f.pay_amt) <span class="hljs-keyword">AS</span> gmv
+<span class="hljs-keyword">FROM</span> fact_order f <span class="hljs-keyword">JOIN</span> dim_store s <span class="hljs-keyword">ON</span> f.store_id <span class="hljs-operator">=</span> s.store_id
+<span class="hljs-keyword">WHERE</span> f.order_date <span class="hljs-keyword">BETWEEN</span> <span class="hljs-string">'2026-06-01'</span> <span class="hljs-keyword">AND</span> <span class="hljs-string">'2026-06-30'</span>
+  <span class="hljs-keyword">AND</span> s.city_code <span class="hljs-operator">=</span> <span class="hljs-number">310100</span>
+<span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> s.city_code;
+</code></pre>
+<p>在计划里搜四个关键字：<code>Colocate Join</code>（最好，零搬运）、<code>Bucket Shuffle Join</code>（次好）、<code>Broadcast Join</code>（只应出现在真小表上）、<code>Shuffle Join</code>（兜底）。同时确认计划里出现了 Runtime Filter 相关算子；没有出现通常是过滤列类型不匹配，或等待时间被提前打断。</p>
+<h3 data-id="heading-9">3.7 实时写入：部分列更新 + Group Commit</h3>
+<p>整行覆盖最容易出事的地方是<strong>未指定的列会被写成默认值</strong>，所以只改一两列时应该用部分列更新（前提是该表开启了 Merge-on-Write）：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-comment"># Stream Load 请求头（HTTP Header）</span>
+<span class="hljs-attr">format:</span> <span class="hljs-string">json</span>
+<span class="hljs-attr">partial_columns:</span> <span class="hljs-literal">true</span>
+<span class="hljs-attr">columns:</span> <span class="hljs-string">user_id,balance,updated_at</span>
+<span class="hljs-attr">group_commit:</span> <span class="hljs-string">async_mode</span>
+<span class="hljs-string"></span>
+<span class="hljs-comment"># 提交端点：&lt;fe_host&gt;:&lt;http_port&gt;/api/&lt;db&gt;/&lt;table&gt;/_stream_load</span>
+</code></pre>
+<p>三种 Group Commit 模式的取舍：</p>
+<table><thead><tr><th>模式</th><th>行为</th><th>适用</th></tr></thead><tbody><tr><td><code>sync_mode</code></td><td>多笔合并成一个事务提交后才返回</td><td>要求写完即刻可见</td></tr><tr><td><code>async_mode</code></td><td>先落 WAL 立即返回，后台异步提交</td><td>对写入延迟敏感的高频场景</td></tr><tr><td><code>off_mode</code></td><td>关闭 Group Commit</td><td>单次大批量入库</td></tr></tbody></table>
+<p>提交时机由两个条件共同触发：时间间隔（默认 10 秒）与数据大小（默认 128MB）。间隔调小能加快可见性，代价是版本增长变快、compaction 压力上升；这就是"实时性 vs 后台压力"的调节杆。</p>
+<h3 data-id="heading-10">3.8 怎么验证效果（这一步不能省）</h3>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-comment">-- ① Join 策略是否如预期</span>
+EXPLAIN <span class="hljs-keyword">SELECT</span> <span class="hljs-comment">/* 目标查询 */</span> ...;
+
+<p><span class="hljs-comment">– ② 统计信息是否存在、是否过期</span><br><span class="hljs-keyword">SHOW</span> <span class="hljs-keyword">COLUMN</span> STATS fact_order;</p>
+<p><span class="hljs-comment">– ③ 打开 profile 后重跑目标查询</span><br><span class="hljs-keyword">SET</span> enable_profile <span class="hljs-operator">&#x3D;</span> <span class="hljs-literal">true</span>;<br><span class="hljs-keyword">SELECT</span> <span class="hljs-comment">&#x2F;* 目标查询 *&#x2F;</span> …;<br><span class="hljs-keyword">SHOW</span> PROFILELIST;<br><span class="hljs-keyword">SHOW</span> PROFILE <span class="hljs-keyword">WHERE</span> query_id <span class="hljs-operator">&#x3D;</span> <span class="hljs-string">‘&lt;query_id&gt;’</span>;</p>
+<p><span class="hljs-comment">– ④ 更新表是否出现版本堆积</span><br><span class="hljs-keyword">SHOW</span> TABLETS <span class="hljs-keyword">FROM</span> account_balance LIMIT <span class="hljs-number">10</span>;</p>
+<p><span class="hljs-comment">– ⑤ 整体 compaction 是否跟得上</span><br><span class="hljs-keyword">SHOW</span> PROC <span class="hljs-string">‘&#x2F;compaction’</span>;<br></p></code></pre><p></p>
+<p>验收建议按三层压测做：<strong>单查询基线</strong>（抓生产 Top 50 慢查询，比 P50 与 P99，不看平均值）、<strong>并发压测</strong>（按真实并发持续跑 30 分钟，看吞吐与错误率）、<strong>混合负载</strong>（写入与查询同时跑，确认写入不会拖垮查询）。只做第一层很容易得出"两边差不多"的结论。</p>
+<h2 data-id="heading-11">四、关键维度对照表</h2>
+<table><thead><tr><th>维度</th><th>Apache Doris</th><th>ClickHouse</th></tr></thead><tbody><tr><td>Join 分发策略</td><td>Colocate / Bucket Shuffle / Broadcast / Shuffle，由 CBO 基于统计信息选择</td><td>社区主流建议宽表建模，多表关联需谨慎设计</td></tr><tr><td>Join 加速机制</td><td>Runtime Filter + CBO + Colocate Join</td><td>有各自的 Join 执行实现，宽表仍是首选路径</td></tr><tr><td>SSB sf1000</td><td>11.6s</td><td>82.2s</td></tr><tr><td>TPC-H sf1000</td><td>53.8s</td><td>279.0s</td></tr><tr><td>TPC-DS sf1000</td><td>173.8s</td><td>1913.9s</td></tr><tr><td>ClickBench（单表宽表）</td><td>与 ClickHouse 互有先后，同一梯队</td><td>与 Doris 互有先后</td></tr><tr><td>实时更新</td><td>Unique Key + Merge-on-Write，写入阶段完成去重，可读到确定最新值</td><td>ReplacingMergeTree 依赖后台 merge，取最新值通常需 FINAL 或改写为聚合形式</td></tr><tr><td>部分列更新</td><td>支持（需开启 Merge-on-Write）</td><td>需通过其他建模方式实现</td></tr><tr><td>小批高并发写入</td><td>Group Commit（sync / async）合并事务提交</td><td>有各自的异步写入与攒批方式</td></tr><tr><td>国产化适配 / 信创</td><td>已完成鲲鹏/海光/飞腾等国产 CPU 与麒麟/统信 UOS/openEuler 等国产操作系统适配，通过等保三级、可信数据库等认证</td><td>未纳入信创目录，无官方信创/国产化适配认证</td></tr><tr><td>商业化服务 / 企业级部署</td><td>开源自行部署；国内公司 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fselectdb.com" ref="nofollow noopener noreferrer" target="_blank" title="https://selectdb.com" rel="external nofollow noopener noreferrer">SelectDB</a>（飞轮科技）提供私有化部署、云上 SaaS/BYOC、多云原生与国产化适配，与开源 100% 兼容</td><td>商业版由 ClickHouse, Inc.（美国）主要在海外 AWS/GCP/Azure 提供托管；国内无官方本地化商业团队</td></tr></tbody></table>
+<h2 data-id="heading-12">五、已知约束与规避方式</h2>
+<table><thead><tr><th>约束</th><th>表现</th><th>处理方式</th></tr></thead><tbody><tr><td>Colocate 条件不满足</td><td>静默退化为 Shuffle Join，无报错</td><td>用 <code>SHOW PROC '/colocation_group'</code> 看 BucketsNum / ReplicationNum / DistCols 是否一致，并用 <code>EXPLAIN</code> 复核</td></tr><tr><td>统计信息过期</td><td>Join 顺序或方式选错，查询莫名变慢</td><td>导入、删分区后补跑 <code>ANALYZE</code>，并入调度</td></tr><tr><td>MOW 带来写放大</td><td>写入路径多一次查重，极高 QPS 单行 upsert 压垮 compaction</td><td>改上层攒批或启用 Group Commit；compaction 跟不上时优先改写入粒度</td></tr><tr><td>开了 MOW 的 Unique 表不支持远端存储</td><td>冷热分层无法覆盖实时更新表</td><td>实时更新表放本地热存储，历史明细表单独做分层</td></tr><tr><td>存储策略不可撤销</td><td>表一旦设置 <code>storage_policy</code> 无法解除</td><td>建表前规划好冷热边界，用分区级策略做灰度</td></tr><tr><td>Hash Join 内存压力</td><td>大表 Join 触发内存上限</td><td>先靠 Runtime Filter 降低参与 Join 的数据量，再考虑调 <code>exec_mem_limit</code></td></tr></tbody></table>
+<h2 data-id="heading-13">六、常见问题（FAQ）</h2>
+<p><strong>Q：维表多久该重跑一次 ANALYZE？</strong></p>
+<p>没有固定周期，看数据变化幅度。经验做法是：每次大批量导入（超过表总量 10%）或执行了分区删除之后触发一次；维表本身行数不多，同步收集的成本通常可以接受。</p>
+<p><strong>Q：事实表和维表分桶列类型必须完全一致吗？</strong></p>
+<p>必须一致，且是 Colocate 的三个硬条件之一。INT 与 BIGINT 即便数值相同也算不同类型，<code>DistCols</code> 列会直接显示差异。常见做法是先把维表主键统一到一个宽度，再据此选择事实表的分桶列。</p>
+<p><strong>Q：已经用了 ReplacingMergeTree 类的更新方式，迁移到 Doris 时要改查询吗？</strong></p>
+<p>写入侧改造是主要的：把 Upsert 改成 Unique Key 表的 <code>INSERT INTO</code> / Stream Load。查询侧通常可以保持原样，之前为了保证"读到最新值"而加的 FINAL 或 <code>argMax</code> 改写可以去掉，这部分改写本身也会带来读放大。</p>
+<p><strong>Q：Colocate Join 会不会让数据倾斜更严重？</strong></p>
+<p>会的可能性和分桶键有关：如果维表 Join 键在业务上高度集中（比如大促期间某几个头部商户），对应的桶会承载大部分数据。规避办法是选择分布均匀的列做分桶键，或对该类查询单独建物化视图预聚合。</p>
+<p><strong>Q：<code>IsStable</code> 一直是 false 要不要处理？</strong></p>
+<p>先看是不是刚扩缩容结束——数据均衡期间出现 false 属于正常。长期 false 通常意味着某个 BE 不可用或副本补齐中了，应优先处理节点可用性，而不是调参。</p>
+<h2 data-id="heading-14">测试结论出处（参考来源）</h2>
+<ul>
+<li>Apache Doris 官方 Benchmark 页（SSB / TPC-H / TPC-DS sf1000 数据）：doris.apache.org/why-doris/benchmarks</li>
+<li>ClickBench 公开榜单（由 ClickHouse 官方维护）：benchmark.clickhouse.com</li>
+<li>Apache Doris 官方文档：Colocation Join（colocate_with 属性、SHOW PROC '/colocation_group' 字段说明、IsStable 含义）</li>
+<li>Apache Doris 官方文档：Runtime Filter 参数与取值、查询分析与 Profile</li>
+<li>Apache Doris 官方文档：Unique Key 模型与 Merge-on-Write、部分列更新</li>
+<li>Apache Doris 官方文档：Group Commit 手册（off_mode / sync_mode / async_mode、提交触发条件默认值）</li>
+<li>Apache Doris 官方文档：Local-Remote Tiered Storage（storage policy、限制项、冷数据查看命令）</li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）" href="https://juejin.cn/post/7688685671817986089" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）</span><span class="desc fs12">https://juejin.cn/post/7688685671817986089</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/7719fb32.html">飞捷科思全面开源Fysiverse-3D：以统一空间推理构建可执行3D世界<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a8610b78.html">家庭饮品 DIY 指南（五）：特调咖啡及其他饮品<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bf4da580.html" title="Go 并发编程入门，Goroutine 和 Channel 就这么简单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=194"></div><span class="title">Go 并发编程入门，Goroutine 和 Channel 就这么简单</span></a><a class="item" href="/rss/828b326f.html" title="Graph的基本流程理解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2189"></div><span class="title">Graph的基本流程理解</span></a><a class="item" href="/rss/10d89cae.html" title="【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6982"></div><span class="title">【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测</span></a><a class="item" href="/rss/f9a53aeb.html" title="Laya：不做生成、只做决策的非自回归引擎，六天两万星"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fa34945319e24b409ea4fafd91f1ea98~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVhdmVzbGVv:q75.awebp?rk3s=f64ab15b&x-expires=1790846911&x-signature=QrPPhit1iZG1Q3xysqryKn7WdhA%3D"></div><span class="title">Laya：不做生成、只做决策的非自回归引擎，六天两万星</span></a><a class="item" href="/rss/7550a081.html" title="【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6852"></div><span class="title">【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取</span></a><a class="item" href="/rss/5155152.html" title="MyBatis-Plus 用了就回不去，这些功能真香"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3724"></div><span class="title">MyBatis-Plus 用了就回不去，这些功能真香</span></a><a class="item" href="/rss/6245fcdf.html" title="为了知道计算机为什么选择了二进制，我做了这些……"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/4feb87a627454a67b7627d18564509db~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR5Y-r6buR5aSn5biF:q75.awebp?rk3s=f64ab15b&x-expires=1791032708&x-signature=TstfplYow%2FMUSWegud1hNw9XQhA%3D"></div><span class="title">为了知道计算机为什么选择了二进制，我做了这些……</span></a><a class="item" href="/rss/1f87076c.html" title="【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5283"></div><span class="title">【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车</span></a><a class="item" href="/rss/8b262427.html" title="体验一下最近比较🔥的闪卡SKILL"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/256da470760a4123ba321d03c5d9e398~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790997924&x-signature=JSOHVzFMPsSOJ9Th9Y%2BrNXUX8gY%3D"></div><span class="title">体验一下最近比较🔥的闪卡SKILL</span></a><a class="item" href="/rss/b446ced2.html" title="卫星信号模拟器里的四个坐标转换公式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2155"></div><span class="title">卫星信号模拟器里的四个坐标转换公式</span></a><a class="item" href="/rss/4ca8c0e9.html" title="工业场景中的Linux与数据库选型：高端化转型的技术底座"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6784"></div><span class="title">工业场景中的Linux与数据库选型：高端化转型的技术底座</span></a><a class="item" href="/rss/9c42dd38.html" title="用Python检查ESD封装与焊盘清单，防止同尺寸误替代"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9162"></div><span class="title">用Python检查ESD封装与焊盘清单，防止同尺寸误替代</span></a><a class="item" href="/rss/33604b35.html" title="用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4088"></div><span class="title">用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段</span></a><a class="item" href="/rss/88c17508.html" title="闪学It-Linux云计+AIOps大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=430"></div><span class="title">闪学It-Linux云计+AIOps大模型</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>We Just Shipped Support for the Ugliest Part of HTTP: Vary - RSSBOX</title>
+
+  
+    <meta name="description" content="The response header, Vary, has been called “the ugliest part of HTTP that we haven&#39;t yet improved.” The same post describes it as a “horrible, kludgy mechanism” with “pretty abysmal interoperability”">
+<meta property="og:type" content="article">
+<meta property="og:title" content="We Just Shipped Support for the Ugliest Part of HTTP: Vary">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1a812bc.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="The response header, Vary, has been called “the ugliest part of HTTP that we haven&#39;t yet improved.” The same post describes it as a “horrible, kludgy mechanism” with “pretty abysmal interoperability”">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-22T14:04:31.000Z">
+<meta property="article:modified_time" content="2026-09-22T14:04:31.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Vary works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">When correct caching becomes useless</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Cache Rules control Vary</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How a response moves through cache</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Normalization keeps equivalent requests together</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Configure Vary in Cache Rules</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why not use a custom cache key?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Use Vary in Cache Rules today! </span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-22T14:04:31.000Z">2026-09-22</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>We Just Shipped Support for the Ugliest Part of HTTP: Vary</span></h1>
+<div>
+<p>The response header, <code>Vary</code>, has been called “<a target="_blank" rel="external nofollow noopener noreferrer" href="https://mnot.net/blog/2026/linting_the_web"><span style="text-decoration:underline">the ugliest part of HTTP that we haven't yet improved.</span></a>” The same post describes it as a “horrible, kludgy mechanism” with “pretty abysmal interoperability” across intermediaries. That is usually where sensible engineers back away slowly with their hands raised. </p><p>That’s not exactly an endorsement of <code>Vary</code>, but ugly doesn’t mean useless. </p><p>One URL can have more than one correct response. A server might, for example, deliver different image formats to different browsers. If a cache ignores <code>Vary</code>, it risks serving the wrong bytes to a request. But if it treats every raw header value as distinct, a handful of similar requests can spread into thousands of barely reusable cache entries. <code>Vary</code> tells a cache which request fields may affect the response, but it does not tell the cache which differences <em>actually matter.</em></p><p><code>Vary</code> support is now available in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/settings/#vary"><span style="text-decoration:underline">Cache Rules</span></a> on every plan. The origin still names the request headers that may affect a response, but you decide how Cloudflare handles each one. You can normalize known negotiation headers, pass exact values through when those small differences matter, or bypass cache when the variation is too unpredictable. The origin declares what may vary, and you decide how much variation is actually meaningful for the cache.</p><h2>How Vary works</h2><p><code>Vary</code> is a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.rfc-editor.org/rfc/rfc9110.html#name-vary"><span style="text-decoration:underline">standard</span></a> HTTP response header that tells intermediary caches (like Cloudflare) which request fields may affect the response sent by the origin. Sites use <code>Vary</code> to serve different languages, image formats, compression schemes, or regional content from the same URL.</p><p>Take one URL that produces two valid representations. A browser requests a webpage:</p><!-- unsupported block: code --><p>The origin returns HTML and identifies <code>Accept</code> as a field that may affect the response:</p><!-- unsupported block: code --><p>An API client can request the same URL with a different preference:</p><!-- unsupported block: code --><p>This time, the correct response is JSON. The <code>Vary: Accept</code> header tells the cache that the URL alone is not enough to choose between responses. The request’s <code>Accept</code> value must also be considered.</p><p>Without <code>Vary</code>, whichever response enters the cache first can be served to both clients. If HTML wins, the API client receives markup and its JSON parser fails. If JSON wins, a browser expecting a web page receives an API response.</p><!-- unsupported block: image --><p><code>Vary</code> prevents the cache from serving the wrong response to the requesting client. But it introduces a harder question: when two requests contain different header values, do they actually <em>need</em> different responses?</p><h2>When correct caching becomes useless</h2><p>Vary can tell a cache which request fields may affect a response. It does not tell the cache what the response represents. For example, take an origin that serves content in only English, French, and German. A client might send:</p><!-- unsupported block: code --><p>While another client might request:</p><!-- unsupported block: code --><p>Both requests prefer English here. The origin’s response may map both requests to exactly the same English response. But a cache comparing the raw values cannot safely assume they are equivalent. They have different orders and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Language#directives"><span style="text-decoration:underline">language tags</span></a> (that the origin doesn’t differentiate). So the cache may store them as separate variants, even when their response bodies contain identical bytes.</p><p>This is <code>Vary</code>’s central problem. Applications often produce a small, finite set of representations from an enormous set of possible request values. The origin understands that thousands of language preferences collapse into three supported languages, while a cache usually does not.</p><p>This problem compounds when a response varies on multiple fields. Ten possible values across one field create ten variants. Ten values across three fields can create 1,000 combinations. Real headers can have far greater cardinality: <code>User-Agent</code> values are numerous, cookies can be unique to individual visitors, and preference headers can differ in ordering, formatting (spaces and tabs matter!), and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Glossary/Quality_values"><span style="text-decoration:underline">quality values</span></a>.</p><p>The result is a cache that can be perfectly correct and almost permanently cold (an entry never reused). Identical responses can be scattered across entries that receive too little traffic to remain hot and in cache. They can consume capacity, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/concepts/retention-vs-freshness/#retention"><span style="text-decoration:underline">evict</span></a> one another, reduce cache hit ratios, and send more requests back to origin servers. Eviction can remove cold entries, but it cannot merge them just because the responses are identical. </p><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mnot.net/blog/2026/linting_the_web"><span style="text-decoration:underline">An analysis</span></a> of more than 120 million responses from nearly 50,000 popular sites found almost 3,000 sites varying on four or more fields. Some varied on 10, 23, or even 47 fields. We want to make sure that customers have the tools they need to use <code>Vary</code> when appropriate, but not so much that they create a useless cache. </p><p>Some high-cardinality variation is deliberate. CDNs or reverse proxies may inject values, such as a geographic region, to partition content predictably. That works when the possible values are controlled and every component agrees on their meaning. Without those constraints, the cache fragments into variants it may never reuse.</p><p>That was the design problem we needed to solve to support <code>Vary</code>. We needed to preserve enough variation to serve the right response, without allowing incidental differences between requests to destroy cache efficiency.</p><h2>How Cache Rules control Vary</h2><p>Cloudflare customers already had several ways to handle negotiated content similar to <code>Vary</code>. They could bypass cache and let their origin deal with it, reproduce the origin's negotiation logic in a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/"><span style="text-decoration:underline">custom cache key or other rule</span></a>, use a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/cache/#content-negotiation-with-vary"><span style="text-decoration:underline">Worker</span></a>, or use features like <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/advanced-configuration/vary-for-images/"><span style="text-decoration:underline">Vary for images</span></a>. </p><p>Those options remain useful, but they either give up caching, duplicate application logic, need to write additional code, or address a narrower use case. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/settings/#vary"><strong><code><span style="text-decoration:underline">Vary in Cache Rules</span></code></strong></a> may fill the gap between these existing features by splitting support into two decisions: </p><ol><li>The origin uses <code>Vary</code> to identify the request headers that may affect a response.</li><li>The Cache Rule determines how Cloudflare handles the value of each header.</li></ol><p>A <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/"><span style="text-decoration:underline">Cache Rule</span></a> does not force every response to <code>vary</code>. If the origin does not return <code>Vary</code>, Cloudflare caches the response normally, though the rule may still rewrite <code>Accept</code> and <code>Accept-Language</code> before forwarding the request to the origin. </p><p>When the origin does return Vary, Cloudflare uses the configured action for each header it names.  Headers without an individual setting use the rule’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/settings/#vary"><span style="text-decoration:underline">default action</span></a>. The three available actions are:</p><table><tbody><tr><td><p><strong>Action</strong></p></td><td><p><strong>What Cloudflare does</strong></p></td><td><p><strong>Best used for</strong></p></td></tr><tr><td><p><code>normalize</code></p></td><td><p>Normalizes request headers before selecting a cached variant, helping equivalent requests share a cached response. Applies header-specific rules to <code>Accept</code>, <code>Accept-Language</code>, and <code>Accept-Encoding</code>. For other headers, it trims optional whitespace and combines repeated header lines in their original order, preserving casing and interior whitespace.</p></td><td><p>The recommended starting point for negotiation headers where many request values map to a small set of responses.</p></td></tr><tr><td><p><code>passthrough</code></p></td><td><p>Uses the request header’s raw bytes for cache matching, preserving casing, whitespace, order, and duplicate values. If the header appears on multiple lines, Cloudflare combines those lines in order using commas for cache matching. Passthrough leaves the outgoing header lines unchanged. Cloudflare can still rewrite Accept-Encoding when <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/examples/respect-strong-etags/"><span style="text-decoration:underline">Respect Strong ETags</span></a> is disabled.</p></td><td><p>Headers with a controlled set of values, where the exact value changes the response.</p></td></tr><tr><td><p><code>bypass</code></p></td><td><p>Does not store the response when the origin names that header in <code>Vary</code>. Existing cache entries are not removed, so purge them if they need to be cleared.</p></td><td><p>Use for personalized, high-cardinality, or unexpected headers such as <code>Cookie</code> or <code>User-Agent</code>.</p></td></tr></tbody></table><p>We recommend <strong>normalize</strong> as the default. For individual headers with personal or unbounded values, use <strong>bypass</strong>. Use <strong>passthrough</strong> when the exact value changes the response.</p><p>For example,<strong> passthrough</strong> preserves distinctions in casing, whitespace, ordering, and duplicate values, even when the origin treats them as equivalent. With <code>Vary: X-View</code> and <strong>passthrough</strong>, these three values produce separate cache keys:</p><p><code>X-View: compact,full</code></p><p><code>X-View: Compact,full</code></p><p><code>X-View: compact, full</code></p><p>Enough incidental variation can turn a reusable response into many one-off variants in your cache.</p><p>Regardless of the configured actions, <code>Vary: *</code> always bypasses cache. It means any aspect of the request, even information outside the HTTP message (like the client’s IP address), may affect which response the origin selects. Cloudflare therefore cannot reuse the response for a later request without contacting the origin.</p><h2>How a response moves through cache</h2><p>Let’s follow one of the <code>/catalog</code> requests from above through Cloudflare.</p><p>On the first request, Cloudflare has no stored <code>Vary</code> data for the resource, so the cache lookup misses. The matching Cache Rule can normalize configured fields before Cloudflare contacts the origin. </p><p>This can happen before Cloudflare knows whether the eventual response will contain <code>Vary</code>. The Cache Rule defines the permitted normalization; the response later determines whether those fields become part of the cached variant.</p><p>That ordering matters. If Cloudflare grouped several raw values under one normalized cache key, but the origin still received those raw values, the origin could produce different responses that the cache would later consider interchangeable. Forwarding the normalized value keeps origin selection aligned with cache matching.</p><p>The origin responds with:</p><p><code>Vary: Accept, Accept-Language</code></p><p>Cloudflare records those header names and stores the response as a cached variant. The header values, processed according to the Cache Rule, distinguish this variant from others for the same resource.</p><p>When another request for <code>/catalog</code> arrives, Cloudflare starts with the resource’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-keys/"><span style="text-decoration:underline">base cache key</span></a>: generally the URL plus any other configured key fields. It then reads the stored <code>Vary</code> fields and applies the Cache Rule to those headers in the new request to identify the matching cached variant.</p><p>​​Suppose they normalize to:</p><p><code>Accept: text/html</code></p><p><code>Accept-Language: en,fr</code></p><p>Cloudflare uses those values to look up the matching cached variant directly. It does not compare the request against every stored variant one by one.</p><p>If a matching variant exists and is fresh, the request is a cache hit. If not, Cloudflare sends the request to the origin and may store the resulting response as another variant.</p><p>The origin response closes the loop. For each header named in <code>Vary</code>, Cloudflare uses the action configured for that header, or the rule’s default action if the header is not listed individually:</p><ul><li>If it does not contain <code>Vary</code>, Cloudflare caches it normally.</li><li>If every named header resolves to normalize or passthrough, Cloudflare can store the response as a cached variant.</li><li>If any named field uses <strong>bypass</strong>, Cloudflare does not store the response.</li><li>If the response contains <code>Vary: *</code>, Cloudflare does not store it.</li></ul><p>This places an important responsibility on the origin. Every cacheable response that can differ based on request fields must return the appropriate <code>Vary</code> header consistently, including errors and fallback responses. If one response omits it, Cloudflare could cache that response without the variance needed to keep it isolated.</p><!-- unsupported block: image --><p>The cache keys in the diagram are conceptual. The later request assumes a fresh cached response.</p><p>Any purge targeting a cached resource covers all its Vary variants. Existing <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/api/resources/cache/methods/purge/"><span style="text-decoration:underline">requirements</span></a> for purging custom cache keys still apply.</p><p>Changing a <code>Vary</code> configuration does not automatically purge existing content. The new policy may produce different cache keys: requests can miss and refill under the new keys, while old entries remain until they expire or are purged.</p><h2>Normalization keeps equivalent requests together</h2><p>Remember the requests from above asking for English and French? </p><p><code>Accept-Language: en-US, fr;q=0.8</code></p><p><code>Accept-Language: fr;q=0.8, en-GB</code></p><p>Both requests prefer English, but <strong>passthrough</strong> would treat them as different variants. If the Cache Rule allows <code>en</code>, <code>fr</code>, and <code>de</code>, <strong>normalize</strong> reduces both to <code>en</code>,<code>fr</code>, allowing them to share a cached response.</p><p>To do this, Cloudflare lowercases values in <code>Accept</code>, <code>Accept-Language</code>, and <code>Accept-Encoding</code>, then sorts them by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Glossary/Quality_values"><span style="text-decoration:underline">quality value</span></a>, the highest first, with alphabetical ordering to break ties. The client’s ordering therefore does not affect the cache key. After sorting, Cloudflare strips parameters from entries with a nonzero quality value. It can also lose <code>q=0</code> (“not acceptable”) when shortening language tags or filtering to the configured formats and languages. For example, <code>en-US;q=0</code> can become en. Use passthrough for <code>Accept</code> or <code>Accept-Language</code> if the origin needs to see those exclusions.</p><p>You can also configure the rule to keep only specified media types or languages in <code>Accept</code> and <code>Accept-Language</code>. Regional <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Glossary/BCP_47_language_tag"><span style="text-decoration:underline">language tags</span></a> such as <code>en-US</code> reduce to their base language, en, unless the full tag is configured. This lets you align <strong>normalization</strong> with the formats and languages your origin actually serves.</p><p>To keep origin selection aligned with cache matching, Cloudflare forwards the normalized <code>Accept</code> and <code>Accept-Language</code> values to the origin. It also forwards <strong>normalized</strong> <code>Accept-Encoding</code> values when <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/examples/respect-strong-etags/"><code><span style="text-decoration:underline">Respect Strong ETags</span></code></a> is enabled. Other headers are normalized only for cache matching.</p><h2>Configure Vary in Cache Rules</h2><p>In the Cloudflare dashboard, go to <strong>Caching &gt; <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/?to=/:account/:zone/caching/rules/cache/new"><span style="text-decoration:underline">Cache Rules</span></a></strong>, create or edit a rule, make the response eligible for cache, and add the <strong>Vary</strong> setting. Set the default behavior, then add the headers your origin is expected to name.</p><!-- unsupported block: image --><p>The same configuration is available through the Rulesets API in the <code>http_request_cache_settings</code> phase. The default setting chooses a fallback action for headers your origin names in <code>Vary</code> that you have not configured individually.</p><p>This example normalizes <code>Accept</code> and <code>Accept-Language</code> to a configured set of formats and languages. The default normalize action also applies to other headers named in <code>Vary</code>:</p><!-- unsupported block: code --><p>This is a complete request body for a <code>PUT</code> to the <code>http_request_cache_settings</code> phase entrypoint. A <code>PUT</code> replaces every rule in that entrypoint. If you already have Cache Rules, include them in the rules array or use the appropriate single-rule create or update operation instead.</p><p>If the origin serves one representation for each media type and language pair, there are six content combinations. That does not cap the cache at six keys. Preference order, missing headers, and values that normalize to empty can create more. Keep the supported set small and define the rule’s boundaries clearly. After rollout, test the same URL with different header values that should normalize to the same cached variant. Send the test requests from the same client, confirm they return the expected format and language, and inspect <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/concepts/cache-responses/"><span style="text-decoration:underline">CF-Cache-Status</span></a>. Look for hits once the cache is populated, and investigate persistent miss responses or unexpected bypass responses.</p><p>For limitations, additional examples, and how to set this in Terraform, see the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/settings/#vary"><span style="text-decoration:underline">Vary documentation</span></a>.</p><h2>Why not use a custom cache key?</h2><p>At this point, an obvious question is, “why not add <code>Accept</code> and <code>Accept-Language</code> to a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-keys/#create-custom-cache-keys"><span style="text-decoration:underline">custom cache key</span></a>?”</p><p>That works when those fields are always part of the resource’s identity. But a custom cache key adds the configured dimensions to every response covered by the rule, whether the origin used them or not.</p><p><code>Vary</code> is response-driven, but cacheable responses under the same base key need a consistent set of <code>Vary</code> fields. </p><p>Use a custom cache key when a request property always defines the resource. Use <code>Vary</code> when the origin declares the same set of request fields across cacheable responses. Avoid placing the same header in both unless the duplication is deliberate and tested.</p><h2>Use Vary in Cache Rules today! </h2><p><code>Vary</code> helps solve an obvious problem: one URL can have more than one correct response. But it hands a cache a harder problem, which request differences actually matter? The origin knows which responses it can serve. The cache needs to know which requests can reuse each response.</p><p><code>Vary</code> in Cache Rules connects those two views. The origin identifies the request fields that may affect a response. You decide whether to <strong>normalize</strong> values, use <strong>passthrough</strong> for exact differences, or keep the response out of cache.</p><p><code>Vary</code> was never too ugly to be useful. But configuring supported formats and languages manually may not suit every application. We’re evaluating whether ideas from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datatracker.ietf.org/doc/draft-nottingham-http-availability-hints/"><span style="text-decoration:underline">the expired Availability Hints draft</span></a> could reduce that work by letting origins describe the representations they serve directly.</p><p><code>Vary</code> in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/settings/#vary"><span style="text-decoration:underline">Cache Rules </span></a>is available today on Free, Pro, Business, and Enterprise plans through the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/?to=/:account/:zone/caching/rules/cache/new"><span style="text-decoration:underline">Cloudflare dashboard</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/create-api/"><span style="text-decoration:underline">Rulesets API</span></a>, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cache/how-to/cache-rules/terraform-example/"><span style="text-decoration:underline">Terraform</span></a>.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="We just shipped support for the ugliest part of HTTP: Vary" href="https://blog.cloudflare.com/vary-support/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">We just shipped support for the ugliest part of HTTP: Vary</span><span class="desc fs12">https://blog.cloudflare.com/vary-support/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e8e3bfb1.html">MiMo-V2.6 Pro Architecture and Training Notes<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6736a040.html">赛力斯董事长回应与华为合作生变：大大有利于问界发展<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1a579b4d.html" title="1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5943"></div><span class="title">1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It</span></a><a class="item" href="/rss/a1d6809f.html" title="Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6911"></div><span class="title">Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)</span></a><a class="item" href="/rss/46854bb9.html" title="Agents Can Now Set Up Your Website’s Security With Turnstile Spin"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1771"></div><span class="title">Agents Can Now Set Up Your Website’s Security With Turnstile Spin</span></a><a class="item" href="/rss/cc5bf354.html" title="Give Every Teammate and Agent the Right Level of Access to Your Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7811"></div><span class="title">Give Every Teammate and Agent the Right Level of Access to Your Workers</span></a><a class="item" href="/rss/30db1a92.html" title="How Cloudflare Addressed a Cross-Tenant Data Exposure Vulnerability in Containers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4836"></div><span class="title">How Cloudflare Addressed a Cross-Tenant Data Exposure Vulnerability in Containers</span></a><a class="item" href="/rss/4d916bc9.html" title="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6194"></div><span class="title">How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></a><a class="item" href="/rss/cd83c88d.html" title="Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4963"></div><span class="title">Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training</span></a><a class="item" href="/rss/e4723410.html" title="How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3789"></div><span class="title">How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility</span></a><a class="item" href="/rss/dfa3497b.html" title="Introducing Worker Previews: Isolated Preview Environments for Every Change Your Agent Makes"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2180"></div><span class="title">Introducing Worker Previews: Isolated Preview Environments for Every Change Your Agent Makes</span></a><a class="item" href="/rss/c419f88.html" title="Introducing Automatic Remediation Policies With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1134"></div><span class="title">Introducing Automatic Remediation Policies With Cloudflare CASB</span></a><a class="item" href="/rss/cbb9988.html" title="Python Workers Are Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1577"></div><span class="title">Python Workers Are Now Generally Available</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5394"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/b1815887.html" title="Saving Another 100TB of RAM With Math (And Rust)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8228"></div><span class="title">Saving Another 100TB of RAM With Math (And Rust)</span></a><a class="item" href="/rss/a8d1fd1c.html" title="When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8516"></div><span class="title">When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>卫星信号模拟器里的四个坐标转换公式 - RSSBOX</title>
+
+  
+    <meta name="description" content="卫星信号模拟器里的四个坐标转换公式  一套卫星信号模拟器里，坐标转换看起来是&quot;边角料&quot;，但其实贯穿始终：算仰角要用它、算电离层穿刺点要用它、生成用户轨迹要用它、上位机显示经纬高也要用它。这篇把工程里真正在用的四个转换函数拆开讲清楚。  0. 四个函数各干什么 函数方向用在模拟器哪里xyz2llhECEF 直角坐标 → 经纬高上位机显示、反解用户位置LlhToXyz经纬高 → ECEF 直角坐标场">
+<meta property="og:type" content="article">
+<meta property="og:title" content="卫星信号模拟器里的四个坐标转换公式">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b446ced2.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="卫星信号模拟器里的四个坐标转换公式  一套卫星信号模拟器里，坐标转换看起来是&quot;边角料&quot;，但其实贯穿始终：算仰角要用它、算电离层穿刺点要用它、生成用户轨迹要用它、上位机显示经纬高也要用它。这篇把工程里真正在用的四个转换函数拆开讲清楚。  0. 四个函数各干什么 函数方向用在模拟器哪里xyz2llhECEF 直角坐标 → 经纬高上位机显示、反解用户位置LlhToXyz经纬高 → ECEF 直角坐标场">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-24T03:24:32.000Z">
+<meta property="article:modified_time" content="2026-09-24T03:24:32.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">卫星信号模拟器里的四个坐标转换公式</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">0. 四个函数各干什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1. ECEF → 经纬高：xyz2llh</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2. 经纬高 → ECEF：LlhToXyz</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3. ECEF → 东北天：xyz2enu</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4. 东北天 → ECEF：enu2xyz（这篇最有意思的一处）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5. 一张表收尾</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-24T03:24:32.000Z">2026-09-24</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>卫星信号模拟器里的四个坐标转换公式</span></h1>
+<div>
+<h2 data-id="heading-0">卫星信号模拟器里的四个坐标转换公式</h2>
+<blockquote>
+<p>一套卫星信号模拟器里，坐标转换看起来是"边角料"，但其实贯穿始终：算仰角要用它、算电离层穿刺点要用它、生成用户轨迹要用它、上位机显示经纬高也要用它。这篇把工程里真正在用的四个转换函数拆开讲清楚。</p>
+</blockquote>
+<h3 data-id="heading-1">0. 四个函数各干什么</h3>
+<table><thead><tr><th>函数</th><th>方向</th><th>用在模拟器哪里</th></tr></thead><tbody><tr><td><code>xyz2llh</code></td><td>ECEF 直角坐标 → 经纬高</td><td>上位机显示、反解用户位置</td></tr><tr><td><code>LlhToXyz</code></td><td>经纬高 → ECEF 直角坐标</td><td>场景文件里给经纬高时转成直角坐标</td></tr><tr><td><code>xyz2enu</code></td><td>ECEF → 东北天(ENU)</td><td>算仰角、电离层/对流层误差</td></tr><tr><td><code>enu2xyz</code></td><td>东北天 → ECEF</td><td>用户轨迹生成（ENU 速度/位移 → ECEF）</td></tr></tbody></table>
+<p>坐标系约定都是 <strong>WGS-84</strong>：长半轴 <code>a=6378137.0 m</code>，短半轴 <code>b=6356752.3142 m</code>。</p>
+<h3 data-id="heading-2">1. ECEF → 经纬高：<code>xyz2llh</code></h3>
+<p>这是四个里最"重"的一个——反解本身没有初等闭式，工程上用的是<strong>先解中间量再一步到位</strong>的方法（经典来自 Kaplan《Understanding GPS》）：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 输入 xyz[3]（米），输出 llh[3] = &#123;纬度, 经度, 高度&#125;，纬度/经度为弧度</span>
+<span class="hljs-type">void</span> <span class="hljs-title function_">xyz2llh</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">double</span> xyz[<span class="hljs-number">3</span>], <span class="hljs-type">double</span> llh[<span class="hljs-number">3</span>])</span>
+&#123;
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> a = <span class="hljs-number">6378137.0</span>, b = <span class="hljs-number">6356752.3142</span>;
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> e2 = <span class="hljs-number">1.0</span> - (b*b)/(a*a);        <span class="hljs-comment">// 第一偏心率平方</span>
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> ep = <span class="hljs-built_in">sqrt</span>((a*a - b*b)/(b*b));  <span class="hljs-comment">// 第二偏心率 e' = e·a/b</span>
+
+<pre><code>&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; x = xyz[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;], y = xyz[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;], z = xyz[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;];
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; r  = &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(x*x + y*y);                &lt;span class=&quot;hljs-comment&quot;&gt;// 到地轴的投影距离&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; r2 = r*r, z2 = z*z;
+
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; E2 = a*a - b*b;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; F  = &lt;span class=&quot;hljs-number&quot;&gt;54&lt;/span&gt;*b*b*z2;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; G  = r2 + (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;-e2)*z2 - e2*E2;
+
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; c  = (e2*e2*F*r2) / (G*G*G);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; s  = cbrt(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; + c + &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(c*c + &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;*c));      &lt;span class=&quot;hljs-comment&quot;&gt;// (…) 的立方根&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; P  = F / (&lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt;*(s + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;/s + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)*(s + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;/s + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)*G*G);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; Q  = &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; + &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;*e2*e2*P);
+
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; ro = -(P*e2*r)/(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;+Q)
+          + &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;( (a*a/&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;)*(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;/Q)
+                  - (P*(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;-e2)*z2)/(Q*(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;+Q))
+                  - P*r2/&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt; );
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; tmp = (r - e2*ro)*(r - e2*ro);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; U   = &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(tmp + z2);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; V   = &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(tmp + (&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;-e2)*z2);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; zo  = (b*b*z)/(a*V);
+
+llh[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] = U*(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; - b*b/(a*V));                       &lt;span class=&quot;hljs-comment&quot;&gt;// 高度&lt;/span&gt;
+llh[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] = &lt;span class=&quot;hljs-built_in&quot;&gt;atan&lt;/span&gt;((z + ep*ep*zo)/r);                  &lt;span class=&quot;hljs-comment&quot;&gt;// 纬度&lt;/span&gt;
+llh[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = &lt;span class=&quot;hljs-built_in&quot;&gt;atan2&lt;/span&gt;(y, x);                             &lt;span class=&quot;hljs-comment&quot;&gt;// 经度&lt;/span&gt;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><strong>要点</strong>：经度直接 <code>atan2(y,x)</code>；纬度和高度靠中间量 <code>ro</code>（地心到大地纬面法线交点的近似距离）一次性解出。这个写法避免了迭代，在接收机和模拟器里都很常用。</p>
+<h3 data-id="heading-3">2. 经纬高 → ECEF：<code>LlhToXyz</code></h3>
+<p>这个有标准闭式，工程里写法略绕，但等价于大家熟悉的 <code>N·cosφ·cosλ</code> 形式：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-type">void</span> <span class="hljs-title function_">LlhToXyz</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">double</span> llh[<span class="hljs-number">3</span>], <span class="hljs-type">double</span> xyz[<span class="hljs-number">3</span>])</span>
+&#123;
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> a = <span class="hljs-number">6378137.0</span>, b = <span class="hljs-number">6356752.3142</span>;
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> e2   = <span class="hljs-number">1.0</span> - (b*b)/(a*a);
+    <span class="hljs-type">const</span> <span class="hljs-type">double</span> ome2 = <span class="hljs-number">1.0</span> - e2;                 <span class="hljs-comment">// 1 - e²</span>
+
+<pre><code>&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; lat = llh[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;], lon = llh[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;], h = llh[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;];
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; clat = &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(lat), slat = &lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(lat);
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; clon = &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(lon), slon = &lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(lon);
+
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; tlat2 = (slat*slat)/(clat*clat);       &lt;span class=&quot;hljs-comment&quot;&gt;// tan²φ&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; d     = &lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(e2)*slat;                 &lt;span class=&quot;hljs-comment&quot;&gt;// e·sinφ&lt;/span&gt;
+
+xyz[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] = a*clon/&lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; + ome2*tlat2) + h*clon*clat;
+xyz[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = a*slon/&lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; + ome2*tlat2) + h*slon*clat;
+xyz[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] = a*ome2*slat/&lt;span class=&quot;hljs-built_in&quot;&gt;sqrt&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; - d*d) + h*slat;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><strong>等价性说明</strong>（这也是个不错的自查题）：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-number">1</span> + ome2·tan²φ = (cos²φ + (<span class="hljs-number">1</span>−e²)sin²φ)/cos²φ = (<span class="hljs-number">1</span> − e²sin²φ)/cos²φ
+</code></pre>
+<p>所以 <code>a/sqrt(1 + ome2·tan²φ) = a·cosφ/sqrt(1−e²sin²φ) = N·cosφ</code>，其中 <code>N</code> 是卯酉圈曲率半径。代入就是教科书形式 <code>x = (N+h)cosφcosλ</code>，<code>z = (N(1−e²)+h)sinφ</code>。<strong>工程写法只是把 N 展开成了 tan²φ 和 d² 的形式，数值上更稳。</strong></p>
+<h3 data-id="heading-4">3. ECEF → 东北天：<code>xyz2enu</code></h3>
+<p>以用户位置为原点建 ENU 坐标系，核心是一个旋转矩阵（来自 Leick《GPS Satellite Surveying》）：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 输入：xyz=目标点(卫星)ECEF，orgxyz=原点(用户)ECEF；输出 enu[3]=&#123;东,北,天&#125;</span>
+<span class="hljs-type">void</span> <span class="hljs-title function_">xyz2enu</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">double</span> xyz[<span class="hljs-number">3</span>], <span class="hljs-type">const</span> <span class="hljs-type">double</span> orgxyz[<span class="hljs-number">3</span>], <span class="hljs-type">double</span> enu[<span class="hljs-number">3</span>])</span>
+&#123;
+    <span class="hljs-type">double</span> dx = xyz[<span class="hljs-number">0</span>]-orgxyz[<span class="hljs-number">0</span>], dy = xyz[<span class="hljs-number">1</span>]-orgxyz[<span class="hljs-number">1</span>], dz = xyz[<span class="hljs-number">2</span>]-orgxyz[<span class="hljs-number">2</span>];
+
+<pre><code>&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; llh[&lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt;];
+xyz2llh(orgxyz, llh);                 &lt;span class=&quot;hljs-comment&quot;&gt;// 先反解用户经纬度&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; phi = llh[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;], lam = llh[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;];    &lt;span class=&quot;hljs-comment&quot;&gt;// 纬度 φ、经度 λ&lt;/span&gt;
+
+enu[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] = -&lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(lam)*dx + &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(lam)*dy;
+enu[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = -&lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(phi)*&lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(lam)*dx - &lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(phi)*&lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(lam)*dy + &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(phi)*dz;
+enu[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] =  &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(phi)*&lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(lam)*dx + &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(phi)*&lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(lam)*dy + &lt;span class=&quot;hljs-built_in&quot;&gt;sin&lt;/span&gt;(phi)*dz;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>有了 ENU，仰角就是 <code>atan2(enu[2], sqrt(enu[0]²+enu[1]²))</code>，方位角是 <code>atan2(enu[0], enu[1])</code>。电离层穿刺点、对流层映射函数也都从这里接着算。</p>
+<h3 data-id="heading-5">4. 东北天 → ECEF：<code>enu2xyz</code>（这篇最有意思的一处）</h3>
+<p>ENU→ECEF 严格写法是上面旋转矩阵的<strong>转置</strong>：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 严格版（旋转矩阵的逆）</span>
+dx = -<span class="hljs-built_in">sin</span>(lam)*e - <span class="hljs-built_in">sin</span>(phi)*<span class="hljs-built_in">cos</span>(lam)*n + <span class="hljs-built_in">cos</span>(phi)*<span class="hljs-built_in">cos</span>(lam)*u;
+dy =  <span class="hljs-built_in">cos</span>(lam)*e - <span class="hljs-built_in">sin</span>(phi)*<span class="hljs-built_in">sin</span>(lam)*n + <span class="hljs-built_in">cos</span>(phi)*<span class="hljs-built_in">sin</span>(lam)*u;
+dz =                 <span class="hljs-built_in">cos</span>(phi)*n         + <span class="hljs-built_in">sin</span>(phi)*u;
+</code></pre>
+<p>但你工程里<strong>实际启用的</strong>是一个<strong>小角度近似版</strong>：</p>
+<pre><code class="hljs language-c" lang="c"><span class="hljs-comment">// 近似版（wcy-20210318，工程里在用）</span>
+<span class="hljs-type">void</span> <span class="hljs-title function_">enu2xyz</span><span class="hljs-params">(<span class="hljs-type">const</span> <span class="hljs-type">double</span> enu[<span class="hljs-number">3</span>], <span class="hljs-type">const</span> <span class="hljs-type">double</span> orgxyz[<span class="hljs-number">3</span>], <span class="hljs-type">double</span> xyz[<span class="hljs-number">3</span>])</span>
+&#123;
+    <span class="hljs-type">double</span> llh[<span class="hljs-number">3</span>];
+    xyz2llh(orgxyz, llh);
+    <span class="hljs-type">double</span> phi = llh[<span class="hljs-number">0</span>], lam = llh[<span class="hljs-number">1</span>], h = llh[<span class="hljs-number">2</span>];
+
+<pre><code>&lt;span class=&quot;hljs-comment&quot;&gt;// 1° ≈ 110 km：把东北位移近似成经纬度增量&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; d_lam = enu[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] / &lt;span class=&quot;hljs-number&quot;&gt;110000.0&lt;/span&gt; * (PI/&lt;span class=&quot;hljs-number&quot;&gt;180&lt;/span&gt;) / &lt;span class=&quot;hljs-built_in&quot;&gt;cos&lt;/span&gt;(phi);  &lt;span class=&quot;hljs-comment&quot;&gt;// 东 → 经度差&lt;/span&gt;
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; d_phi = enu[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] / &lt;span class=&quot;hljs-number&quot;&gt;110000.0&lt;/span&gt; * (PI/&lt;span class=&quot;hljs-number&quot;&gt;180&lt;/span&gt;);              &lt;span class=&quot;hljs-comment&quot;&gt;// 北 → 纬度差&lt;/span&gt;
+
+&lt;span class=&quot;hljs-type&quot;&gt;double&lt;/span&gt; llh2[&lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt;];
+llh2[&lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;] = phi + d_phi;
+llh2[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;] = lam + d_lam;
+llh2[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;] = h   + enu[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;];          &lt;span class=&quot;hljs-comment&quot;&gt;// 天向直接加高度&lt;/span&gt;
+
+LlhToXyz(llh2, xyz);
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p><strong>为什么放着严格的旋转矩阵不用，用这个近似？</strong> 注释里写得很实在：<strong>"解决长时间运行高度不正确问题"</strong>。工程背景是——用户轨迹是长时间积分生成的，每一步的 ENU 增量都很小（米级），而严格的旋转矩阵版本在长时间累积、大数值坐标下反而会因浮点精度和模型细节（绕法线 vs 绕球面）引入高度漂移。小角度近似在"每步只走几米"这个前提下足够准（误差二阶小量），而且数值稳定。</p>
+<p><strong>但要记住它的适用边界</strong>：只适合<strong>小位移增量</strong>。如果要一次性换算一个大位移（比如几公里的 ENU 偏移），必须用旋转矩阵版，否则误差会明显。</p>
+<h3 data-id="heading-6">5. 一张表收尾</h3>
+<table><thead><tr><th>函数</th><th>精确性</th><th>关键点</th></tr></thead><tbody><tr><td><code>xyz2llh</code></td><td>闭式解，高精度</td><td>用中间量 ro 一步到位，不迭代</td></tr><tr><td><code>LlhToXyz</code></td><td>严格</td><td>写法绕，等价于 N 形式</td></tr><tr><td><code>xyz2enu</code></td><td>严格</td><td>旋转矩阵；仰角/方位角/误差模型都靠它</td></tr><tr><td><code>enu2xyz</code></td><td><strong>小角度近似</strong></td><td>仅用于轨迹小步进增量；大位移要用旋转矩阵版</td></tr></tbody></table>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="卫星信号模拟器里的四个坐标转换公式" href="https://juejin.cn/post/7688591999923765298" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">卫星信号模拟器里的四个坐标转换公式</span><span class="desc fs12">https://juejin.cn/post/7688591999923765298</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/490d14c3.html">KnowForge 2026.0.5 发布：签到、排行榜、版本聚合与全链路国际化<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e7068df5.html">腾讯将关停 QClaw，基于 OpenClaw 的本地 Agent 路线被放弃<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bf4da580.html" title="Go 并发编程入门，Goroutine 和 Channel 就这么简单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=194"></div><span class="title">Go 并发编程入门，Goroutine 和 Channel 就这么简单</span></a><a class="item" href="/rss/828b326f.html" title="Graph的基本流程理解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2189"></div><span class="title">Graph的基本流程理解</span></a><a class="item" href="/rss/10d89cae.html" title="【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6982"></div><span class="title">【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测</span></a><a class="item" href="/rss/f9a53aeb.html" title="Laya：不做生成、只做决策的非自回归引擎，六天两万星"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fa34945319e24b409ea4fafd91f1ea98~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVhdmVzbGVv:q75.awebp?rk3s=f64ab15b&x-expires=1790846911&x-signature=QrPPhit1iZG1Q3xysqryKn7WdhA%3D"></div><span class="title">Laya：不做生成、只做决策的非自回归引擎，六天两万星</span></a><a class="item" href="/rss/7550a081.html" title="【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6852"></div><span class="title">【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取</span></a><a class="item" href="/rss/5155152.html" title="MyBatis-Plus 用了就回不去，这些功能真香"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3724"></div><span class="title">MyBatis-Plus 用了就回不去，这些功能真香</span></a><a class="item" href="/rss/6245fcdf.html" title="为了知道计算机为什么选择了二进制，我做了这些……"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/4feb87a627454a67b7627d18564509db~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR5Y-r6buR5aSn5biF:q75.awebp?rk3s=f64ab15b&x-expires=1791032708&x-signature=TstfplYow%2FMUSWegud1hNw9XQhA%3D"></div><span class="title">为了知道计算机为什么选择了二进制，我做了这些……</span></a><a class="item" href="/rss/1f87076c.html" title="【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5283"></div><span class="title">【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车</span></a><a class="item" href="/rss/8b262427.html" title="体验一下最近比较🔥的闪卡SKILL"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/256da470760a4123ba321d03c5d9e398~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790997924&x-signature=JSOHVzFMPsSOJ9Th9Y%2BrNXUX8gY%3D"></div><span class="title">体验一下最近比较🔥的闪卡SKILL</span></a><a class="item" href="/rss/494365df.html" title="多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=205"></div><span class="title">多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）</span></a><a class="item" href="/rss/4ca8c0e9.html" title="工业场景中的Linux与数据库选型：高端化转型的技术底座"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6784"></div><span class="title">工业场景中的Linux与数据库选型：高端化转型的技术底座</span></a><a class="item" href="/rss/9c42dd38.html" title="用Python检查ESD封装与焊盘清单，防止同尺寸误替代"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9162"></div><span class="title">用Python检查ESD封装与焊盘清单，防止同尺寸误替代</span></a><a class="item" href="/rss/33604b35.html" title="用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4088"></div><span class="title">用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段</span></a><a class="item" href="/rss/88c17508.html" title="闪学It-Linux云计+AIOps大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=430"></div><span class="title">闪学It-Linux云计+AIOps大模型</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

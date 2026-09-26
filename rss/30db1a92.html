@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How Cloudflare Addressed a Cross-Tenant Data Exposure Vulnerability in Containers - RSSBOX</title>
+
+  
+    <meta name="description" content="On September 4, 2026, Oren Yomtov, a security researcher from Accomplish, responsibly reported a vulnerability affecting Cloudflare Containers and Cloudflare Sandboxes (which is built on Containers),">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How Cloudflare Addressed a Cross-Tenant Data Exposure Vulnerability in Containers">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/30db1a92.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="On September 4, 2026, Oren Yomtov, a security researcher from Accomplish, responsibly reported a vulnerability affecting Cloudflare Containers and Cloudflare Sandboxes (which is built on Containers),">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-24T15:00:00.000Z">
+<meta property="article:modified_time" content="2026-09-24T15:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How container storage allocation works </span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How the exploit worked</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How the vulnerability was validated </span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Impact </span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How we mitigated the vulnerability</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">No evidence of exploitation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Cloudflare customers are protected</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Moving quickly with transparency </span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Timeline</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-24T15:00:00.000Z">2026-09-24</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How Cloudflare Addressed a Cross-Tenant Data Exposure Vulnerability in Containers</span></h1>
+<div>
+<p>On September 4, 2026, Oren Yomtov, a security researcher from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://accomplish.ai/"><span style="text-decoration:underline">Accomplish</span></a>, responsibly reported a vulnerability affecting <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/containers/"><span style="text-decoration:underline">Cloudflare Containers</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/sandbox/"><span style="text-decoration:underline">Cloudflare Sandboxes</span></a> (which is built on Containers), through Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare?type=team"><span style="text-decoration:underline">bug bounty program</span></a>. Cloudflare has fully remediated the vulnerability, and we have no evidence that customer data has been compromised. </p><p>This post was prepared in collaboration with Oren Yomtov and the Accomplish security research team, whose detailed report and controlled testing helped us validate the issue and respond quickly.</p><p>Cloudflare Containers run workloads on multi-tenant infrastructure and automatically assign them to eligible servers; customers cannot select the underlying host. The researchers demonstrated that a customer with a Workers Paid account could recover residual disk blocks previously used by Containers on the same host. The technique could not target a particular customer, workload, host, or data, and residual data was not guaranteed to be present.</p><p>Cloudflare applied a fix across the Containers fleet, with no customer-side configuration changes required. Within the historical disk-I/O telemetry available to us, we identified no evidence of malicious exploitation. Activity we could attribute to the reported technique came from the researchers and Cloudflare engineers conducting authorized validation.</p><p>Here, we explain the underlying storage behavior, its potential impact, our investigation, and the actions we took in response.</p><h2>How container storage allocation works </h2><p>Cloudflare Containers use Linux device mapper thin provisioning (dm-thin) to provide each container with a writable root disk. Each container lives inside a dedicated virtual machine powered by the Firecracker virtual machine monitor. Firecracker presents this disk to the virtual machine as /dev/vdc.</p><p>Thin provisioning allocates physical storage only when a virtual disk writes to a previously unmapped region. The affected storage pools used a 64 KiB thin-block size. When the thin volume backing a container's root disk was deleted, its physical blocks were returned to a pool that served workloads belonging to multiple customer accounts.</p><p>The affected pool configuration included the following option:</p><p><code>skip_block_zeroing</code></p><p>With this option configured, dm-thin skips zeroing newly allocated blocks before making them accessible. Consequently, when a previously-used 64 KiB block was reassigned, a full-block write replaced its previous contents, but a smaller write changed only the written portion. The remainder could retain data from the block’s previous owner.</p><h2>How the exploit worked</h2><p>Reading an unmapped region of a new thin disk did not reveal residual data. For an unmapped region of the thin device, <code>dm-thin</code> returned zeroes without allocating a physical block.</p><p>The proof of concept identified 64 KiB-aligned regions corresponding to free space in the guest’s ext4 filesystem and wrote one aligned 4 KiB block into each region.</p><p>When such a write reached an unmapped thin block, dm-thin allocated a physical 64 KiB block from the shared pool. The 4 KiB write replaced only that portion of the block, and because block zeroing was disabled, the remaining 60 KiB could retain data from a previous container.</p><p>A subsequent raw-device read could therefore observe bytes that the new container had never written.</p><p>The proof of concept performed the following steps:</p><ol><li>Create a container using a Workers Paid account.</li><li>Open the writable root disk at <code>/dev/vdc</code>.</li><li>Read the disk and record a baseline.</li><li>Write one 4 KiB block into each selected 64 KiB region corresponding to ext4 free space.</li><li>Read the resulting blocks again.</li><li>Examine only the portions not overwritten by the new container.</li></ol><p>The submission included counts, block offsets, sizes, checksum results, and truncated hash prefixes. Although the researchers recovered raw blocks to validate the issue, the materials provided to Cloudflare contained no third-party filenames, identifiers, credentials, hostnames, addresses, or recovered content values. As described below, the researchers have also confirmed that they securely deleted the recovered data.</p><h2>How the vulnerability was validated </h2><p>The researchers used ext4 directory block checksums to distinguish blocks belonging to their own test filesystem created for the proof of concept from blocks originating from other filesystems.</p><p>When ext4 uses the <code>metadata_csum</code> feature, directory block checksums incorporate values associated with the filesystem and inode. </p><p>Across six production placements, the researchers reported:</p><ul><li>All 5,614 testable directory blocks.</li><li>Zero of those blocks were attributed to the researchers’ filesystem. </li><li>2,700 distinct foreign directory inodes identified through checksum analysis.</li></ul><p>To validate the method, the researchers tested it against blocks they had deliberately created and deleted in the controlled test filesystem used for the proof of concept. The method correctly attributed all 162 blocks to that filesystem.</p><p>The researchers ultimately observed residual material on 18 of 24 placements and 20 of 22 underlying nodes across four continents. The recovered block types included directory structures, database pages, and structurally complete SQLite databases. The researchers reported using scripts that output only aggregate counts and format checks, not recovered file contents. The materials submitted to Cloudflare contained no recovered content values or third-party identifiers. The researchers subsequently confirmed that recovered data under their control remained confidential and was securely deleted following submission, consistent with Cloudflare’s HackerOne disclosure policy.</p><h2>Impact </h2><p>The vulnerability would potentially have allowed for a customer with a Workers Paid account to recover residual data from storage blocks previously used by other customers’ Containers on the same underlying host.</p><p>A successful exploitation would have crossed the tenant-isolation boundary and could disclose filesystem metadata, directory structures, database pages, and application data.</p><p>However, an attacker could not select a particular victim or access an actively attached disk. Exposure depended on Cloudflare’s workload placement and which previously released blocks <code>dm-thin</code> reassigned. Moreover, the researchers <strong>did not</strong> demonstrate modification of another customer’s active data or impact to workload availability.</p><h2>How we mitigated the vulnerability</h2><p>Our first mitigation was to remove <code>skip_block_zeroing</code> from the <code>dm-thin</code> pool configuration across the fleet. This restored <code>dm-thin</code>’s default behavior of clearing newly allocated blocks before exposing them to a container. It stopped the reported technique, in which a small write triggered allocation and a larger read recovered residual data from the remainder of the block. The researchers independently confirmed that their proof of concept no longer worked after this change.</p><p>Zeroing new allocations did not sanitize blocks already mapped into existing thin devices. These mappings existed in running container disks and in each host’s cache of prepared dm-thin snapshots for OCI image layers. A new container could inherit mappings from a cached layer without allocating those blocks again, allowing residual bytes in unused regions, including ext4 free space, to remain readable through raw reads of <code>/dev/vdc</code>.</p><p>We therefore also retired all running container disks and removed cached image snapshots created before the mitigation. We drained hosts during off-peak hours, restarted the VMs on each host, and cleared each host's image cache so that disks and cached layers were recreated using zeroed allocations. We have completed this cleanup across the Containers fleet.</p><h2>No evidence of exploitation</h2><p>As part of our response, we investigated whether other workloads showed activity consistent with the reported exploitation technique. We reviewed retained historical disk-I/O telemetry from our container infrastructure, using the researchers’ proof of concept and our internal reproduction as reference activity.</p><p>The proof of concept produced a characteristic relationship between writes and reads. When a 4 KiB write reached a previously unmapped region, it could trigger allocation of a reused 64 KiB storage block. With zeroing disabled, the remaining 60 KiB could retain data from a previous container. Subsequent reads could therefore recover substantially more data than the new container had overwritten.</p><p>Using these characteristics, we developed detection signatures and applied them to the historical telemetry available to us. We identified activity attributable to the researchers and Cloudflare engineers conducting authorized validation, and did not identify additional activity consistent with the reported technique.</p><p>We saw no evidence that this specific attack vector was exploited by anyone else.  </p><h2>Cloudflare customers are protected</h2><p>As we noted above, Cloudflare has patched this vulnerability and remediation does not require any further action by Cloudflare customers. In addition, we found no evidence of any malicious actor abusing this vulnerability.</p><h2>Moving quickly with transparency </h2><p>We thank Oren Yomtov and the Accomplish security research team for their thorough research, responsible disclosure, and collaboration on this post. We encourage the Cloudflare community to submit any identified vulnerabilities to help us continually improve the security posture of our products and platform.</p><p>We also recognize that the trust you place in us is paramount to the success of your infrastructure on Cloudflare. We take these vulnerabilities very seriously and will continue to do everything in our power to mitigate impact. We deeply appreciate your continued support and trust in our platform, and remain committed not only to prioritizing security in all we do, but also acting swiftly and transparently whenever an issue arises.</p><h2>Timeline</h2><ul><li>September 4, 15:26 UTC: Oren Yomtov from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://accomplish.ai/"><span style="text-decoration:underline">Accomplish</span></a> reported the issue through <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/reports/3997565"><span style="text-decoration:underline">HackerOne</span></a>.</li><li>September 4, 18:45 UTC: Cloudflare opened a security incident and confirmed the production setup that caused the flaw.</li><li>September 4, 21:27 UTC: Cloudflare merged the runtime fix and its reuse test.</li><li>September 4, 22:03 UTC: Cloudflare merged the changes for new and live pools.</li><li>September 4, 23:15 UTC: Cloudflare started rolling out the changes.</li><li>September 7, 06:13 UTC: Cloudflare completed rolling out the changes and began clearing old pool data. </li><li>September 14, 10:50 UTC: The researchers reported that their proof of concept had stopped working.</li><li>September 14, 12:52 UTC: Cloudflare awarded the researcher a bounty.</li><li>September 19, 15:03 UTC: Cloudflare completed cleanup of all pre-mitigation cached snapshots across the affected fleet.</li></ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How Cloudflare addressed a cross-tenant data exposure vulnerability in Containers" href="https://blog.cloudflare.com/containers-cross-tenant-vulnerability/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How Cloudflare addressed a cross-tenant data exposure vulnerability in Containers</span><span class="desc fs12">https://blog.cloudflare.com/containers-cross-tenant-vulnerability/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/af74f9df.html">Accelerating Vision-Language Models With LFM2.5-VL-DSpark<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6aca45d0.html">Note on 24th September 2026<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1a579b4d.html" title="1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5943"></div><span class="title">1.1.1.1 Now Supports Post-Quantum DNSSEC, All 2,420 Bytes of It</span></a><a class="item" href="/rss/a1d6809f.html" title="Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6911"></div><span class="title">Automatic Key Exchange: Faster, Post-Quantum Secure Origin Handshakes for 45 Billion Daily Connections (And Counting)</span></a><a class="item" href="/rss/46854bb9.html" title="Agents Can Now Set Up Your Website’s Security With Turnstile Spin"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1771"></div><span class="title">Agents Can Now Set Up Your Website’s Security With Turnstile Spin</span></a><a class="item" href="/rss/cc5bf354.html" title="Give Every Teammate and Agent the Right Level of Access to Your Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7811"></div><span class="title">Give Every Teammate and Agent the Right Level of Access to Your Workers</span></a><a class="item" href="/rss/4d916bc9.html" title="How We Could Save Petabytes of Cache Storage With Zstandard and Pingora"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6194"></div><span class="title">How We Could Save Petabytes of Cache Storage With Zstandard and Pingora</span></a><a class="item" href="/rss/cd83c88d.html" title="Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4963"></div><span class="title">Have It Both Ways: Stay Discoverable in Search While Disallowing AI Training</span></a><a class="item" href="/rss/e4723410.html" title="How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3789"></div><span class="title">How We Rebuilt Cloudflare Workers’ Module Registry for Node.js Compatibility</span></a><a class="item" href="/rss/dfa3497b.html" title="Introducing Worker Previews: Isolated Preview Environments for Every Change Your Agent Makes"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2180"></div><span class="title">Introducing Worker Previews: Isolated Preview Environments for Every Change Your Agent Makes</span></a><a class="item" href="/rss/c419f88.html" title="Introducing Automatic Remediation Policies With Cloudflare CASB"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1134"></div><span class="title">Introducing Automatic Remediation Policies With Cloudflare CASB</span></a><a class="item" href="/rss/cbb9988.html" title="Python Workers Are Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1577"></div><span class="title">Python Workers Are Now Generally Available</span></a><a class="item" href="/rss/b00c8cd3.html" title="Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5394"></div><span class="title">Introducing Context-Aware Vulnerability Discovery and Remediation With Cloudflare Managed Defense and OpenAI Daybreak Models</span></a><a class="item" href="/rss/b1815887.html" title="Saving Another 100TB of RAM With Math (And Rust)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8228"></div><span class="title">Saving Another 100TB of RAM With Math (And Rust)</span></a><a class="item" href="/rss/1a812bc.html" title="We Just Shipped Support for the Ugliest Part of HTTP: Vary"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7911"></div><span class="title">We Just Shipped Support for the Ugliest Part of HTTP: Vary</span></a><a class="item" href="/rss/a8d1fd1c.html" title="When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8516"></div><span class="title">When Scanners Miss the Attack: How Cloudflare Client-Side Security Protects Storefronts</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

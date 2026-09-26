@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Graph的基本流程理解 - RSSBOX</title>
+
+  
+    <meta name="description" content="# 完整代码 from typing import TypedDict from langgraph.graph import StateGraph, START, END  ## 定义状态class MyState(TypedDict, total&#x3D;False):    node1: str    node2: str  TypedDict：说明这个类是「类型描述字典」，用来约定st">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Graph的基本流程理解">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/828b326f.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="# 完整代码 from typing import TypedDict from langgraph.graph import StateGraph, START, END  ## 定义状态class MyState(TypedDict, total&#x3D;False):    node1: str    node2: str  TypedDict：说明这个类是「类型描述字典」，用来约定st">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-26T03:53:25.000Z">
+<meta property="article:modified_time" content="2026-09-26T03:53:25.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">运行过程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">疑惑自解</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">概念区分（重点）</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-26T03:53:25.000Z">2026-09-26</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Graph的基本流程理解</span></h1>
+<div>
+<pre><code class="hljs language-py" lang="py"><span class="hljs-comment"># 完整代码</span>
+<span class="hljs-keyword">from</span> typing <span class="hljs-keyword">import</span> TypedDict
+<span class="hljs-keyword">from</span> langgraph.graph <span class="hljs-keyword">import</span> StateGraph, START, END
+
+<p><span class="hljs-comment">## 定义状态</span><br><span class="hljs-keyword">class</span> <span class="hljs-title class_">MyState</span>(TypedDict, total&#x3D;<span class="hljs-literal">False</span>):<br>    node1: <span class="hljs-built_in">str</span><br>    node2: <span class="hljs-built_in">str</span><br></p></code></pre><p></p>
+<ul>
+<li><code>TypedDict</code>：说明这个类是「类型描述字典」，用来约定state的数据结构，给IDE类型提示。</li>
+<li><code>total=False</code> ：默认情况下 TypedDict 要求你必须提供所有字段；<code>total=False</code> 意思：<strong>字段可选，可以不存在</strong>。</li>
+<li><code>node1</code>和<code>node2</code>：state中的<strong>通道（channel）</strong> ，是state字典里的key，用来存放数据。⚠️ 注意：不是运行节点，这里只是刚好和节点同名，容易混淆。</li>
+</ul>
+<pre><code class="hljs language-py" lang="py"><span class="hljs-comment">## 实例化图</span>
+workflow = StateGraph(MyState)
+</code></pre>
+<p>这句代码的意思是告诉graph：整个工作流所依据的数据容器，必须符合 MyState 这个结构。</p>
+<pre><code class="hljs language-py" lang="py"><span class="hljs-comment">## 定义节点</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">node1</span>(<span class="hljs-params">state: MyState</span>):
+    <span class="hljs-keyword">return</span> &#123;<span class="hljs-string">"node1"</span>: <span class="hljs-string">"node1 result"</span>&#125;
+
+<p><span class="hljs-keyword">def</span> <span class="hljs-title function_">node2</span>(<span class="hljs-params">state: MyState</span>):<br>    <span class="hljs-keyword">return</span> &amp;#123;<span class="hljs-string">“node2”</span>: <span class="hljs-string">“node2 result”</span>&amp;#125;<br></p></code></pre><p></p>
+<ul>
+<li><code>state</code>：<strong>当前最新的状态字典</strong>。图运行到这个节点时，框架自动把当前 state 传给函数。</li>
+<li><code>return</code>：返回的字典<strong>不是完整新 state，是增量补丁 patch</strong>。只会更新指定通道，不会覆盖整个state。</li>
+</ul>
+<pre><code class="hljs language-py" lang="py"><span class="hljs-comment">## 添加节点和边</span>
+(
+workflow.add_node(<span class="hljs-string">"node1"</span>, node1)
+.add_node(<span class="hljs-string">"node2"</span>, node2)
+.add_edge(START, <span class="hljs-string">"node1"</span>)
+.add_edge(<span class="hljs-string">"node1"</span>, <span class="hljs-string">"node2"</span>)
+.add_edge(<span class="hljs-string">"node2"</span>, END)
+)
+</code></pre>
+<p>这个workflow的工作流为：START —— node1 —— node2 —— END。</p>
+<pre><code class="hljs language-py" lang="py"><span class="hljs-comment">## 编译及运行</span>
+graph = workflow.<span class="hljs-built_in">compile</span>()
+result = graph.invoke(&#123;&#125;)
+</code></pre>
+<h2 data-id="heading-0">运行过程</h2>
+<ol>
+<li>invoke 传入初始 state：<code>&#123;&#125;</code></li>
+<li>START 触发，进入节点 node1</li>
+<li>node1 收到 state<code>&#123;&#125;</code>，返回 patch <code>&#123;"node1": "node1 result"&#125;</code></li>
+<li>LangGraph 合并，state 变成<code>&#123;"node1": "node1 result"&#125;</code></li>
+<li>静态边流转，走到节点 node2</li>
+<li>node2 收到 state <code>&#123;"node1": "node1 result"&#125;</code>，返回 patch <code>&#123;"node2": "node2 result"&#125;</code></li>
+<li>LangGraph 合并，state 变成<code>&#123;"node1": "node1 result", "node2": "node2 result"&#125;</code></li>
+<li>node2 执行完，走到 END，图终止，返回最终 state</li>
+</ol>
+<h2 data-id="heading-1">疑惑自解</h2>
+<p>Q1： node节点在定义时，要传参state，但是workflow在add_node时，传入的node并没有带state参。 A1：<code>workflow.add_node("node1", node1)</code>，这段代码，将node1函数在workflow进行登记，并将该节点命名为"node1"。 至于node1执行的时机，是在执行<code>graph.invoke(&#123;&#125;)</code>，图开始执行时：</p>
+<ol>
+<li>LangGraph 拿到当前全局 state</li>
+<li>找到要执行的节点对应的函数（也就是我们注册进去的 <code>node1</code>）</li>
+<li><strong>LangGraph 自动调用 <code>node1(state)</code></strong> ，把当前 state 当做第一个参数塞进去。</li>
+</ol>
+<blockquote>
+<p>核心区分：</p>
+<ul>
+<li>构建期：add_node只是登记函数，不执行，不需要传state</li>
+<li>运行期：invoke启动图，框架自动调用节点函数并传入state</li>
+</ul>
+</blockquote>
+<h2 data-id="heading-2">概念区分（重点）</h2>
+<ul>
+<li>
+<p>节点（Node）：<code>def node1</code> 这个函数，代表一段业务逻辑</p>
+</li>
+<li>
+<p>通道（Channel）：state里的key，<code>node1</code>/<code>node2</code>，用来存储数据</p>
+<blockquote>
+<p>本示例只是名字碰巧一样，二者完全不是同一个东西。</p>
+</blockquote>
+</li>
+</ul>
+<hr>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Graph的基本流程理解" href="https://juejin.cn/post/7689018123111104552" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Graph的基本流程理解</span><span class="desc fs12">https://juejin.cn/post/7689018123111104552</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/354d23bb.html">陈文清：守护好人民群众“舌尖上的安全”<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/b462d7a.html">高盛测算：“AI第二阶段”的“资本缺口”要怎么补？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/bf4da580.html" title="Go 并发编程入门，Goroutine 和 Channel 就这么简单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=194"></div><span class="title">Go 并发编程入门，Goroutine 和 Channel 就这么简单</span></a><a class="item" href="/rss/10d89cae.html" title="【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6982"></div><span class="title">【Python 量化取数指南 #09】Python 拿港股通数据：港股通成交与港股财报实测</span></a><a class="item" href="/rss/f9a53aeb.html" title="Laya：不做生成、只做决策的非自回归引擎，六天两万星"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fa34945319e24b409ea4fafd91f1ea98~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVhdmVzbGVv:q75.awebp?rk3s=f64ab15b&x-expires=1790846911&x-signature=QrPPhit1iZG1Q3xysqryKn7WdhA%3D"></div><span class="title">Laya：不做生成、只做决策的非自回归引擎，六天两万星</span></a><a class="item" href="/rss/7550a081.html" title="【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6852"></div><span class="title">【Python 量化取数指南 #13】Python 把行情落库：Sqlite 一键存，回测随用随取</span></a><a class="item" href="/rss/5155152.html" title="MyBatis-Plus 用了就回不去，这些功能真香"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3724"></div><span class="title">MyBatis-Plus 用了就回不去，这些功能真香</span></a><a class="item" href="/rss/6245fcdf.html" title="为了知道计算机为什么选择了二进制，我做了这些……"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/4feb87a627454a67b7627d18564509db~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR5Y-r6buR5aSn5biF:q75.awebp?rk3s=f64ab15b&x-expires=1791032708&x-signature=TstfplYow%2FMUSWegud1hNw9XQhA%3D"></div><span class="title">为了知道计算机为什么选择了二进制，我做了这些……</span></a><a class="item" href="/rss/1f87076c.html" title="【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5283"></div><span class="title">【Python 量化取数指南 #14】Python 清洗行情数据：复权停牌对齐，回测不翻车</span></a><a class="item" href="/rss/8b262427.html" title="体验一下最近比较🔥的闪卡SKILL"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/256da470760a4123ba321d03c5d9e398~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1790997924&x-signature=JSOHVzFMPsSOJ9Th9Y%2BrNXUX8gY%3D"></div><span class="title">体验一下最近比较🔥的闪卡SKILL</span></a><a class="item" href="/rss/b446ced2.html" title="卫星信号模拟器里的四个坐标转换公式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2155"></div><span class="title">卫星信号模拟器里的四个坐标转换公式</span></a><a class="item" href="/rss/494365df.html" title="多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=205"></div><span class="title">多表 Join 与实时更新：Apache Doris 建表、调优与验证全流程（附 ClickHouse 对照）</span></a><a class="item" href="/rss/4ca8c0e9.html" title="工业场景中的Linux与数据库选型：高端化转型的技术底座"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6784"></div><span class="title">工业场景中的Linux与数据库选型：高端化转型的技术底座</span></a><a class="item" href="/rss/9c42dd38.html" title="用Python检查ESD封装与焊盘清单，防止同尺寸误替代"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9162"></div><span class="title">用Python检查ESD封装与焊盘清单，防止同尺寸误替代</span></a><a class="item" href="/rss/33604b35.html" title="用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4088"></div><span class="title">用TypeScript校验TVS参数条件：VRWM、IR和VC不能缺少测试字段</span></a><a class="item" href="/rss/88c17508.html" title="闪学It-Linux云计+AIOps大模型"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=430"></div><span class="title">闪学It-Linux云计+AIOps大模型</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
