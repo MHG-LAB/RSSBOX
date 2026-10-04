@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题 - RSSBOX</title>
+
+  
+    <meta name="description" content="摘要：这篇是我在 Agent 可观测场景把日志底座从 ELK 换成 Apache Doris 的落地笔记，只写能直接复制的部分：怎么建表、Stream Load 怎么发、写进去之后怎么确认倒排索引真的在干活，以及一条 SQL 同时做检索和 token 成本聚合。两组关键数字先放在这——AgentLogsBench（1 亿行 observation、AWS m6i.8xlarge 32 vCPU">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/bd42a837.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="摘要：这篇是我在 Agent 可观测场景把日志底座从 ELK 换成 Apache Doris 的落地笔记，只写能直接复制的部分：怎么建表、Stream Load 怎么发、写进去之后怎么确认倒排索引真的在干活，以及一条 SQL 同时做检索和 token 成本聚合。两组关键数字先放在这——AgentLogsBench（1 亿行 observation、AWS m6i.8xlarge 32 vCPU">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-29T07:05:05.000Z">
+<meta property="article:modified_time" content="2026-09-29T07:05:05.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、先说结论</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、现象：慢在哪、贵在哪</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 同一个字段，5 KB 和 1 MB 混在一列里</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 子列膨胀先撑爆的是 Footer，不是数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 检索和聚合中间隔着一条同步链路</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、怎么做：命令与排错</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 建表：把不稳定部分整个交给 VARIANT</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 写入：Stream Load 与三个当场踩出来的问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 一条 SQL 走完：检索 + token 成本聚合</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.4 怎么确认倒排索引真的生效</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.5 trace 回放：让分布键替你干活</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.6 这次动过的开关清单</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、关键维度对照表</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、已知约束与规避方式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、常见问题（FAQ）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">测试结论出处（参考来源）</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-29T07:05:05.000Z">2026-09-29</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题</span></h1>
+<div>
+<blockquote>
+<p>摘要：这篇是我在 Agent 可观测场景把日志底座从 ELK 换成 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fdoris.apache.org" ref="nofollow noopener noreferrer" target="_blank" title="https://doris.apache.org" rel="external nofollow noopener noreferrer">Apache Doris</a> 的落地笔记，只写能直接复制的部分：怎么建表、Stream Load 怎么发、写进去之后怎么确认倒排索引真的在干活，以及一条 SQL 同时做检索和 token 成本聚合。两组关键数字先放在这——AgentLogsBench（1 亿行 observation、AWS m6i.8xlarge 32 vCPU / 128 GiB / gp3、20 个固定查询、2026 年 5 月结果，基准定期更新）上 Doris 综合榜 1.28，hot 场景 x1.14；同样这 1 亿行数据，Doris 落盘 57.94 GiB。文末附全部命令的出处。</p>
+</blockquote>
+<h2 data-id="heading-0">一、先说结论</h2>
+<p>判断要不要换底座，我之前用过三条线，命中两条以上就该试一版：</p>
+<ol start="0">
+<li><strong>单条记录体积抖动极大。</strong> 一条 observation 的 input 正文可能是 5 KB，也可能是 1 MB（长上下文、工具返回、RAG 片段都在里面）。"一条日志几百字节"这个假设在 Agent 场景不成立。</li>
+<li><strong>JSON 路径按周新增。</strong> 加一个工具、换一个模型、改一版 Prompt，就带进来一批新路径。而且模型和工具还在反复调整的阶段，没人有空跟着同步维护一遍 mapping。</li>
+<li><strong>排查动作形成了固定套路。</strong> 先按关键词捞出可疑 trace，再按模型 / 工具 / 会话维度算成功率和 token 消耗。这两步在传统架构里是两个系统、一条同步链路、一个时间差。</li>
+</ol>
+<p>满足条件之后，最短落地路径只有四步：</p>
+<ul>
+<li><code>input</code> / <code>output</code> 用 <strong>VARIANT</strong> 存，不要提前摊平，也不要塞 STRING；</li>
+<li>对 VARIANT 列建<strong>倒排索引</strong>，这是全文检索的入口，也是这里唯一需要提前规划的东西；</li>
+<li>写入走 <strong>Stream Load 攒批</strong>，配上 group commit，让服务端去合并事务；</li>
+<li>查询用 <strong><code>search()</code>（4.0 起提供、4.1 增强）</strong> 做谓词，同一个 <code>WHERE</code> 后面直接 <code>GROUP BY</code> 算钱。</li>
+</ul>
+<p>第三条是我最想讲的：<strong>检索和聚合不需要换引擎</strong>。过去我们是从 ES 里捞出 50 条 trace_id，粘贴进另一个系统的 SQL 里再统计，bad case 分析被拖成小时级。</p>
+<h2 data-id="heading-1">二、现象：慢在哪、贵在哪</h2>
+<h3 data-id="heading-2">2.1 同一个字段，5 KB 和 1 MB 混在一列里</h3>
+<p>传统应用日志的形态很规则：时间戳、级别、一行 message。Agent Trace 不是。一条 observation 要留下完整现场——Prompt、Completion、工具入参、工具返回、检索到的上下文。体积最大的部分恰恰是不能丢的部分。</p>
+<h3 data-id="heading-3">2.2 子列膨胀先撑爆的是 Footer，不是数据</h3>
+<p>为了避免每次查询都整段解析 JSON，分析型系统会按路径把 JSON 拆成可独立读取的子列：</p>
+<pre><code class="hljs language-css" lang="css">user<span class="hljs-selector-class">.name</span>
+user<span class="hljs-selector-class">.location</span><span class="hljs-selector-class">.country</span>
+steps<span class="hljs-selector-attr">[0]</span><span class="hljs-selector-class">.tool</span>
+steps<span class="hljs-selector-attr">[0]</span><span class="hljs-selector-class">.status</span>
+</code></pre>
+<p>麻烦在于，路径会一直长出来。当结构足够复杂时，一个字段能展开成数百甚至数千个子列，而对存储引擎来说，子列和普通列没有区别——每个都要自己的位置、编码、统计信息和索引描述。</p>
+<p>这些元数据写在列式文件的 Footer 里（可以理解为文件目录）。原来几十 KB 的 Footer，随子列膨胀到数 MB 甚至数十 MB。于是<strong>数据已经按需读了，元数据却仍然要全量处理</strong>：只想查模型名称和工具耗时，也要先把几千列的元数据读进内存反序列化一遍。</p>
+<p>官方 4.x 文档给了一组极端宽表测试：7000 列、共 10000 个 Segment，V2 格式打开 Segment 约 65 秒、峰值内存 60 GB；V3 降至约 4 秒、不足 1 GB。这部分开销跟查询有没有用到那些列无关，是纯的上车成本。</p>
+<h3 data-id="heading-4">2.3 检索和聚合中间隔着一条同步链路</h3>
+<p>ES 存原文做检索 + 某个 OLAP 存结构化字段做聚合，中间一条同步链路串起来，是很多团队的现实方案。能跑，但有三笔账：两份存储（文本那份通常更贵）、一条要长期维护的同步链路（schema 变更两头改）、以及排查时的时间差。</p>
+<h2 data-id="heading-5">三、怎么做：命令与排错</h2>
+<h3 data-id="heading-6">3.1 建表：把不稳定部分整个交给 VARIANT</h3>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> agent_observations (
+    log_time DATETIME <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    trace_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    observation_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    seq_no <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    session_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>),
+    model_name <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">64</span>),
+    status <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">32</span>),
+    prompt_tokens <span class="hljs-type">INT</span>,
+    completion_tokens <span class="hljs-type">INT</span>,
+    latency_ms <span class="hljs-type">INT</span>,
+    input VARIANT,          <span class="hljs-comment">-- Prompt、工具入参、检索上下文，结构不稳定</span>
+    output VARIANT,         <span class="hljs-comment">-- Completion 与工具返回，体积大且结构不稳定</span>
+    INDEX idx_input (input) <span class="hljs-keyword">USING</span> INVERTED PROPERTIES("parser" <span class="hljs-operator">=</span> "unicode"),
+    INDEX idx_output (output) <span class="hljs-keyword">USING</span> INVERTED PROPERTIES("parser" <span class="hljs-operator">=</span> "unicode"),
+    INDEX idx_trace (trace_id) <span class="hljs-keyword">USING</span> INVERTED PROPERTIES("parser" <span class="hljs-operator">=</span> "none")
+)
+ENGINE <span class="hljs-operator">=</span> OLAP
+DUPLICATE KEY(trace_id, observation_id, seq_no)
+AUTO <span class="hljs-keyword">PARTITION</span> <span class="hljs-keyword">BY</span> <span class="hljs-keyword">RANGE</span>(date_trunc(log_time, <span class="hljs-string">'day'</span>)) ()
+DISTRIBUTED <span class="hljs-keyword">BY</span> HASH(trace_id) BUCKETS <span class="hljs-number">32</span>
+PROPERTIES (
+    "inverted_index_storage_format" <span class="hljs-operator">=</span> "V3",
+    "storage_format" <span class="hljs-operator">=</span> "V3"
+);
+</code></pre>
+<p>三个决定是针对 Agent 场景做的：</p>
+<ul>
+<li><strong><code>input</code> / <code>output</code> 走 VARIANT。</strong> 写入时自动识别 JSON 里的字段名和类型、拆成子列列式存储，热路径提升为 typed subcolumn，长尾路径稀疏存储。新增工具带来新字段不用改表。高频且稳定的字段（trace_id、model_name、status、token 数）仍然建成固定列。</li>
+<li><strong><code>trace_id</code> 的 <code>parser</code> 用 <code>none</code>。</strong> 它是标识符，要的是精确匹配而不是分词，用 <code>none</code> 可以避免无意义的词项膨胀，点查也更快。正常正文用 <code>unicode</code> 处理多语言。</li>
+<li><strong><code>storage_format</code> 直接指定 V3。</strong> 官方给的适用判据是符合任一场景建议开：宽表（几百至几千列）、含 VARIANT 列的表、部署在对象存储或分层存储上；普通表（几十列以内）无需切换，Segment 打开开销本来就可忽略。Agent Trace 表通常同时命中前两条，建表时就写上，省得后面重写数据。V3 自 <strong>4.1.0</strong> 起支持。</li>
+</ul>
+<h3 data-id="heading-7">3.2 写入：Stream Load 与三个当场踩出来的问题</h3>
+<p>先给命令。注意这条命令<strong>故意没有指定 label</strong>，原因见现场一：</p>
+<pre><code class="hljs language-bash" lang="bash">curl --location-trusted -u root: \
+  -H <span class="hljs-string">"Expect:100-continue"</span> \
+  -H <span class="hljs-string">"format:json"</span> \
+  -H <span class="hljs-string">"read_json_by_line:true"</span> \
+  -H <span class="hljs-string">"group_commit:async_mode"</span> \
+  -H <span class="hljs-string">"max_filter_ratio:0.01"</span> \
+  -T trace_batch.jsonl \
+  http://fe_host:8030/api/agent_obs/agent_observations/_stream_load
+</code></pre>
+<p>返回结果大致是这种结构（字段含义：总行数 / 成功行数 / 质量不合格行数 / 被 where 过滤行数 / 字节数 / 耗时）：</p>
+<pre><code class="hljs language-json" lang="json"><span class="hljs-punctuation">&#123;</span>
+    <span class="hljs-attr">"TxnId"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1003</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"Label"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"group_commit_a145ce07f1c972fc-bd2c54597052a9ad"</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"Status"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"Success"</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"Message"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"OK"</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"NumberTotalRows"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1000000</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"NumberLoadedRows"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1000000</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"NumberFilteredRows"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">0</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"NumberUnselectedRows"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">0</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"LoadBytes"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">40888898</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"LoadTimeMs"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2144</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">"CommitAndPublishTimeMs"</span><span class="hljs-punctuation">:</span> <span class="hljs-number">106</span>
+<span class="hljs-punctuation">&#125;</span>
+</code></pre>
+<p><strong>现场一：自己指定了 label，group commit 悄悄没生效。</strong> 这是我卡得最久的一个。官方文档里列了 group commit 的 fallback 条件，<strong>用户显式指定 Label</strong> 是其中之一——这种请求会直接走普通导入路径，不做合并。判断依据很简单：返回的 <code>Label</code> 字段不是以 <code>group_commit</code> 开头，就说明这次压根没走 group commit。想要服务端攒批，就别自己带 label；需要幂等重试语义的场景，反过来用普通路径 + 自定义 label。</p>
+<p><strong>现场二：<code>"Status": "Label Already Exists"</code>。</strong> 表现是这次请求不会真的再导一遍（这正是 label 的 At-Most-Once 语义在起作用），同时返回结果里多出来一个 <code>ExistingJobStatus</code>：值为 <code>RUNNING</code> 表示同 label 的作业还在跑，等着就行、别重发；<code>FINISHED</code> 表示这批数据早成功了，不用重试，要导新数据请换一个新 label。另外，label 默认保留三天（<code>label_keep_max_second</code> 可调），所以"上周用过的 label"也可能撞上。</p>
+<p><strong>现场三：批次到底攒多大。</strong> 我一开始按 5 MB 一批发，版本数涨得飞快、compaction 追不上。后来参照公开实践往上调——阶跃星辰 StepTrace（底座基于 Apache Doris 内核，2026 年 6 月公开分享，属商业化部署环境数据）给出的口径是：单次请求可承载 500 MB 大批次，Stream Load p99 延迟在 1 秒以内，GB/s 级写入吞吐下保持秒级可见。注意 <code>async_mode</code> 有个自动保护：单次导入数据量较大时会自动切换成 <code>sync_mode</code>，避免 WAL 占满磁盘，这是预期行为不是 bug。</p>
+<p>三个模式怎么选，官方口径很干脆：写完后要求立即看到数据 → <code>sync_mode</code>；对写入延迟敏感、追求高频 → <code>async_mode</code>；不需要攒批 → <code>off_mode</code>。表级属性 <code>group_commit_mode</code> 自 4.1.0 起支持，Stream Load 的 <code>group_commit</code> header 优先级高于表属性。</p>
+<h3 data-id="heading-8">3.3 一条 SQL 走完：检索 + token 成本聚合</h3>
+<p>这是我觉得最省事的一点。<code>search()</code> 返回的是 BOOLEAN 谓词，可以直接写进 <code>WHERE</code>，也能参与 JOIN、子查询和窗口函数。所以"捞可疑 trace"和"算这批 trace 花了多少 token"天然是同一条语句：</p>
+<pre><code class="hljs language-scss" lang="scss">SELECT model_name,
+       <span class="hljs-built_in">COUNT</span>(DISTINCT trace_id)                       AS bad_trace_cnt,
+       <span class="hljs-built_in">COUNT</span>(*)                                       AS obs_cnt,
+       <span class="hljs-built_in">SUM</span>(prompt_tokens)                             AS prompt_tokens_sum,
+       <span class="hljs-built_in">SUM</span>(completion_tokens)                         AS completion_tokens_sum,
+       <span class="hljs-built_in">SUM</span>(prompt_tokens + completion_tokens) / <span class="hljs-built_in">COUNT</span>(DISTINCT trace_id) AS tokens_per_trace,
+       <span class="hljs-built_in">PERCENTILE_APPROX</span>(latency_ms, <span class="hljs-number">0.99</span>)            AS p99_latency
+FROM agent_observations
+WHERE <span class="hljs-built_in">search</span>('output:"根据政策无法退款" AND NOT status:success')
+  AND log_time &gt;= <span class="hljs-built_in">NOW</span>() - INTERVAL <span class="hljs-number">6</span> HOUR
+GROUP BY model_name
+<span class="hljs-attribute">ORDER</span> BY tokens_per_trace DESC;
+</code></pre>
+<p>不用导出到别的地方，也不用等同步。同一批 trace 里，哪个模型的失败样本更烧 token、p99 延迟更高，一条语句出来就是一张可以直接贴到日报里的表。</p>
+<p>在 AgentLogsBench 上这类混合负载的差距是量级性的（同上前提：1 亿行 / m6i.8xlarge 32 vCPU 128 GiB gp3 / 2026 年 5 月结果）：动态 payload 过滤的 Q16 / Q17 hot 场景，Doris 是 0.078 s / 0.030 s，Elasticsearch 是 0.802 s / 0.053 s；JSON Path 查询集（Q07 / Q10 / Q12 / Q16 / Q17 / Q18 / Q20）里，ES / OpenSearch 的平均延迟约为 Doris 的 2.4 倍。</p>
+<p>如果要炼 VARIANT 内部某个路径，<code>search()</code> 支持点号路径写法：</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-keyword">SELECT</span> trace_id, session_id, latency_ms
+<span class="hljs-keyword">FROM</span> agent_observations
+<span class="hljs-keyword">WHERE</span> <span class="hljs-keyword">search</span>(<span class="hljs-string">'input.tool_name:code_exec AND status:error'</span>)
+  <span class="hljs-keyword">AND</span> log_time <span class="hljs-operator">&gt;=</span> NOW() <span class="hljs-operator">-</span> <span class="hljs-type">INTERVAL</span> <span class="hljs-number">1</span> <span class="hljs-keyword">DAY</span>
+<span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> latency_ms <span class="hljs-keyword">DESC</span>
+LIMIT <span class="hljs-number">50</span>;
+</code></pre>
+<h3 data-id="heading-9">3.4 怎么确认倒排索引真的生效</h3>
+<p>索引建了不等于在干活。我一般按这个顺序验：</p>
+<pre><code class="hljs language-sql" lang="sql"><span class="hljs-comment">-- 1. 先看 search() 条件有没有被下推到 Scan 节点</span>
+EXPLAIN <span class="hljs-keyword">SELECT</span> trace_id <span class="hljs-keyword">FROM</span> agent_observations
+<span class="hljs-keyword">WHERE</span> <span class="hljs-keyword">search</span>(<span class="hljs-string">'output:"根据政策无法退款"'</span>);
+
+<p><span class="hljs-comment">– 2. 开 profile，跑一次真实查询，再去 FE 的 QueryProfile 页面翻这条查询</span><br><span class="hljs-keyword">SET</span> enable_profile <span class="hljs-operator">&#x3D;</span> <span class="hljs-literal">true</span>;<br><span class="hljs-keyword">SELECT</span> trace_id <span class="hljs-keyword">FROM</span> agent_observations<br><span class="hljs-keyword">WHERE</span> <span class="hljs-keyword">search</span>(<span class="hljs-string">‘output:”根据政策无法退款”‘</span>);<br></p></code></pre><p></p>
+<p>SegmentIterator 那一段里看四个指标，含义分别是：<strong><code>RowsInvertedIndexFiltered</code></strong>（被倒排索引过滤掉的行数，跟其他 Rows 值一起比，能直接看出过滤效果）、<strong><code>InvertedIndexFilterTime</code></strong>（倒排索引消耗的时间）、<strong><code>InvertedIndexSearcherOpenTime</code></strong>（打开索引耗时）、<strong><code>InvertedIndexSearcherSearchTime</code></strong>（索引内部查询耗时）。</p>
+<p>想要更硬的证据就做 A/B：会话变量 <code>enable_inverted_index_query</code> 默认为 true，把它关掉再跑一次对比耗时，差值就是索引贡献。</p>
+<pre><code class="hljs language-ini" lang="ini">SET <span class="hljs-attr">enable_inverted_index_query</span> = <span class="hljs-literal">false</span><span class="hljs-comment">;</span>
+-- 再跑同一条查询，对比 profile
+</code></pre>
+<p>最后还有一种情况是"能查但查不准"，多半是分词不一致：索引建的是 <code>unicode</code> 分词，但中文短语没被切成你以为的那样。用 <code>TOKENIZE</code> 先把索引侧的分词结果打出来确认（3.1 起推荐用 <code>built_in_analyzer</code> 指定分词器，返回结果带 token 与位置信息；<code>parser</code> 写法仍向后兼容）：</p>
+<pre><code class="hljs language-ini" lang="ini">SELECT TOKENIZE('根据政策无法退款，请核对订单状态', '<span class="hljs-attr">"built_in_analyzer"</span>=<span class="hljs-string">"unicode"</span><span class="hljs-string">');
+-- 若需要位置信息用于短语匹配，加上 support_phrase
+SELECT TOKENIZE('</span>根据政策无法退款，请核对订单状态<span class="hljs-string">', '</span><span class="hljs-string">"built_in_analyzer"</span>=<span class="hljs-string">"unicode"</span>,<span class="hljs-string">"support_phrase"</span>=<span class="hljs-string">"true"</span><span class="hljs-string">');
+</span></code></pre>
+<h3 data-id="heading-10">3.5 trace 回放：让分布键替你干活</h3>
+<p>排查单个 bad case 时最常见的操作，是把某个 trace_id 的所有 observation 按 seq_no 拉出来看。因为建表时是 <code>HASH(trace_id)</code> 分布 + <code>DUPLICATE KEY(trace_id, observation_id, seq_no)</code>，同一个 trace 的数据落在同一 tablet 内、flush 时按 seq_no 排序，回放就退化成一次顺序读：</p>
+<pre><code class="hljs language-vbnet" lang="vbnet"><span class="hljs-keyword">SELECT</span> seq_no, observation_id, status, latency_ms, input, output
+<span class="hljs-keyword">FROM</span> agent_observations
+<span class="hljs-keyword">WHERE</span> trace_id = <span class="hljs-comment">'a1b2c3d4e5f6'</span>
+<span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span> seq_no;
+</code></pre>
+<p>AgentLogsBench 里 trace 回放 hot 场景 Q03 / Q04，Doris 是 0.020 s / 0.036 s（同一基准，1 亿行 / m6i.8xlarge / 2026 年 5 月）。</p>
+<h3 data-id="heading-11">3.6 这次动过的开关清单</h3>
+<table><thead><tr><th>名称</th><th>我用的值</th><th>作用</th><th>适用场景</th></tr></thead><tbody><tr><td><code>group_commit</code>（HTTP header）</td><td><code>async_mode</code></td><td>写 WAL 后立即返回，后台合并提交</td><td>延迟敏感、高频小批写入</td></tr><tr><td><code>group_commit</code>（HTTP header）</td><td><code>sync_mode</code></td><td>合并为一个事务，提交后才返回</td><td>要求写完立即可见</td></tr><tr><td><code>group_commit_mode</code>（表属性，4.1.0 起）</td><td><code>async_mode</code></td><td>表级默认模式，header 优先级更高</td><td>统一管控表级写入形态</td></tr><tr><td><code>group_commit_interval_ms</code>（表属性）</td><td>默认 10 秒</td><td>攒批刷写的触发间隔</td><td>控制 async 模式的可见延迟</td></tr><tr><td><code>group_commit_data_bytes</code>（表属性）</td><td>默认 128 MB</td><td>攒批刷写的触发数据量</td><td>高吞吐写入</td></tr><tr><td><code>label</code>（HTTP header）</td><td>由服务端生成</td><td>幂等去重，抢数据时惹 fall back</td><td>需幂等重试时手动指定；用 group commit 时不要带</td></tr><tr><td><code>max_filter_ratio</code>（HTTP header）</td><td><code>0.01</code></td><td>容忍的脏数据比例，默认 0</td><td>Trace 采集允许少量丢样本</td></tr><tr><td><code>read_json_by_line</code>（HTTP header）</td><td><code>true</code></td><td>每行一个 JSON 对象</td><td>jsonl 格式的 Trace 落盘</td></tr><tr><td><code>storage_format</code>（表属性）</td><td><code>V3</code></td><td>列元数据按需加载</td><td>宽表、VARIANT 表、对象存储</td></tr><tr><td><code>parser</code>（倒排索引属性）</td><td><code>unicode</code> / <code>none</code></td><td>分词方式 / 不分词</td><td>多语言正文 / trace_id 等标识符</td></tr><tr><td><code>enable_profile</code>（会话变量）</td><td><code>true</code></td><td>记录查询 profile</td><td>验收索引是否生效</td></tr><tr><td><code>enable_inverted_index_query</code>（会话变量）</td><td><code>false</code></td><td>临时关闭倒排索引</td><td>A/B 对比索引收益</td></tr></tbody></table>
+<h2 data-id="heading-12">四、关键维度对照表</h2>
+<table><thead><tr><th>维度</th><th>Apache Doris</th><th>Elasticsearch</th></tr></thead><tbody><tr><td>单次排查要不要换引擎</td><td>倒排索引与列存在同一份数据上，检索谓词和 <code>GROUP BY</code> 写在同一条 SQL</td><td>query DSL 成熟，复杂聚合通常需要外接分析侧再统计</td></tr><tr><td>半结构化数据</td><td>VARIANT 自动拆子列，热路径提升为 typed subcolumn、长尾稀疏存储，新增路径不改表</td><td>依赖 dynamic mapping，字段类型冲突需人工干预，映射模板随迭代膨胀</td></tr><tr><td>成本分析链路</td><td>命中结果直接进入聚合算子，无中间同步</td><td>命中结果需导出到分析侧，中间隔着一条同步链路存在时间差</td></tr><tr><td>trace 回放</td><td><code>HASH(trace_id)</code> + 有序 DUPLICATE KEY，回放退化为顺序读</td><td>依赖文档 ID 二次查询，回放需多次随机读</td></tr><tr><td>写入形态</td><td>Stream Load 攒批 + group commit 服务端合并事务</td><td>近实时写入，refresh 间隔影响可见延迟</td></tr><tr><td>宽表元数据</td><td>4.1 起 Segment V3 将列元数据移出 Footer 按需加载</td><td>无同类机制，宽 mapping 下元数据开销随列数增长</td></tr><tr><td>存储占用（AgentLogsBench，1 亿行）</td><td>57.94 GiB，且保留 input / output 完整倒排索引</td><td>提供可比文本检索能力需 3~4 倍更多存储</td></tr><tr><td>国产化适配 / 信创</td><td>已完成鲲鹏 / 海光 / 飞腾等国产 CPU 与麒麟 / 统信 UOS / openEuler 等国产操作系统适配，通过等保三级、可信数据库等认证</td><td>由 Elastic（美国）运营；未见面向国产 CPU 与国产操作系统的官方信创适配认证</td></tr><tr><td>商业化服务 / 企业级部署</td><td>开源自行部署；商业化由国内公司 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fselectdb.com" ref="nofollow noopener noreferrer" target="_blank" title="https://selectdb.com" rel="external nofollow noopener noreferrer">SelectDB</a>（飞轮科技）提供私有化部署、云上 SaaS / BYOC、多云原生与国产化适配（信创），与开源 100% 兼容</td><td>开源版本受 ELv2 / SSPL 条款约束；Elastic Cloud 由 Elastic 提供，国内缺少本地化信创与等保适配团队</td></tr></tbody></table>
+<h2 data-id="heading-13">五、已知约束与规避方式</h2>
+<p><strong>1. cold 场景下的长文本短语搜索，Elasticsearch 更快。</strong> AgentLogsBench 的 Q05（长文本短语搜索，cold）：Elasticsearch 0.757 s，Doris 11.3 s（1 亿行 observation / AWS m6i.8xlarge 32 vCPU 128 GiB gp3 / 2026 年 5 月结果）。若业务里绝大多数请求都是冷启动的长文本短语搜索，这一项要单独立项压测，别只看综合榜；以 hot 访问为主、或查询集中在动态 payload 过滤与 trace 回放的负载，则更接近综合榜呈现的格局。</p>
+<p><strong>2. <code>score()</code> 不能直接用于聚合。</strong> 它只在 <code>ORDER BY score() DESC</code> + <code>LIMIT</code> 的 Top-K 查询里有意义。要回答"命中的文档有多少"，用 <code>COUNT(*)</code>。</p>
+<p><strong>3. 要关联维表时，先在子查询里完成检索。</strong> 把 <code>search()</code> 过滤放在直接作用于单表扫描的子查询里，再做 JOIN 和聚合，保证谓词能下推。</p>
+<p><strong>4. 分词索引下的正则不等同于原文 REGEXP。</strong> <code>/cuda.*error/</code> 一类作用于索引词项，不保证匹配跨多个 Token 的文本。要精确匹配标识符，就单独建一个 <code>parser = "none"</code> 的索引。</p>
+<p><strong>5. 宽表格式不是万能开关。</strong> 官方明确写了几十列以内的普通表无需切换 V3，Segment 打开开销本来就可忽略。别给所有表都加上。</p>
+<p><strong>6. OTel GenAI 语义约定仍在演进。</strong> OpenTelemetry 社区正在推进 GenAI 相关的语义约定和遥测数据标准化，字段名与稳定性仍在变化中（部分属性存在重命名）。建议在采集侧做一层字段映射，把外部约定映射成自己的宽表列名，别让上游改个名把下游全打穿。</p>
+<h2 data-id="heading-14">六、常见问题（FAQ）</h2>
+<p><strong>Q1：<code>search()</code> 和早期的 <code>MATCH_ALL</code> / <code>MATCH_PHRASE</code> 是什么关系？</strong> 是演进关系，不是替代关系。倒排索引 2.0 引入后陆续补了 <code>MATCH_ALL</code> / <code>MATCH_ANY</code> / <code>MATCH_PHRASE</code> / <code>MATCH_PHRASE_PREFIX</code> / <code>MATCH_REGEXP</code>，3.1 支持自定义分词，4.0 起 <code>search()</code> 作为统一全文检索入口提供并引入 BM25 相关性评分，4.1 进一步增强（Lucene 模式、<code>NESTED</code> 操作符、多字段策略）。新写的查询建议直接用 <code>search()</code>。</p>
+<p><strong>Q2：async_mode 写完多久能查到？</strong> 由表属性 <code>group_commit_interval_ms</code> 控制，默认 10 秒；也可以通过 <code>group_commit_data_bytes</code>（默认 128 MB）按数据量触发提前刷写。看完板类场景如果对延迟敏感，换 <code>sync_mode</code>，代价是请求要等到事务提交才返回。</p>
+<p><strong>Q3：token 成本字段要不要提前摊平成固定列？</strong> 看稳定性。<code>prompt_tokens</code> / <code>completion_tokens</code> 这类每次都写、结构不变的字段建成 INT 固定列，聚合效率和可控性都更好；工具入参、检索上下文、评估分数这类路径持续新增的部分交给 VARIANT。我们最后是两者并存——算钱的列在左边，会变的列在右边。</p>
+<p><strong>Q4：中文短语搜不到，第一步查什么？</strong> 先验分词而不是先验 SQL。用 <code>TOKENIZE</code> 把索引侧的分词结果打出来看，确认短语是不是被切成了预期形态，再去核对建表时的 <code>parser</code> 配置。索引属性和查询时期望不一致是最常见的原因。</p>
+<p><strong>Q5：这套对版本有什么要求？</strong> <code>search()</code> 从 4.0 起提供、4.1 增强；宽表存储格式 V3 自 4.1.0 起支持；<code>group_commit_mode</code> 表属性同样自 4.1.0 起支持。要完整用上这篇里的写法，建议 4.1 及以上。</p>
+<h2 data-id="heading-15">测试结论出处（参考来源）</h2>
+<ul>
+<li>AgentLogsBench（1 亿行 observation、20 个查询、四类访问模式的混合负载对比；仓库与脚本开放可复现）：velodb.github.io/agentlogsbench</li>
+<li>Apache Doris 官方 4.x 文档 · SEARCH 函数（DSL 语法、运算符、JSON 选项）：doris.apache.org/docs/4.x/table-design/index/inverted-index/search-function</li>
+<li>Apache Doris 官方 4.x 文档 · 宽表存储格式 V3（列元数据按需加载、7000 列宽表测试与适用判据）：doris.apache.org/docs/4.x/table-design/storage-format</li>
+<li>Apache Doris 官方 4.x 文档 · 倒排索引总览（2.0 引入 / 3.1 自定义分词 / 4.0 BM25 与 SEARCH 的演进）：doris.apache.org/docs/dev/table-design/index/inverted-index/overview</li>
+<li>Apache Doris 4.1.0 Release Notes（Lucene 模式、NESTED 操作符、Segment V3、稀疏列优化）</li>
+<li>阶跃星辰基于 Apache Doris 内核构建 PB 级 Agent 可观测平台（StepTrace）实践分享，2026 年 6 月公开发布（Stream Load 写入延迟与批次数据来自商业化部署环境）</li>
+<li>OpenTelemetry GenAI 语义约定（LLM 与 Agent 相关遥测字段标准化，仍在持续演进）</li>
+<li>Apache Doris 官方 dev 文档 · Group Commit（三种模式、fallback 条件、<code>group_commit_interval_ms</code> 与 <code>group_commit_data_bytes</code> 默认值）：doris.apache.org/docs/dev/key-features/group-commit</li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Agent 日志检索慢、存储还贵？search() + VARIANT 的落地命令和几个当场踩出来的问题" href="https://juejin.cn/post/7690528462130610195" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Agent 日志检索慢、存储还贵？search() + VARIANT 的落地命令和几个当场踩出来的问题</span><span class="desc fs12">https://juejin.cn/post/7690528462130610195</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/a5ccdfb3.html">可塑的白昼：ColorOS17 深度评测<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/b92ebe35.html">更懂你的心，也更懂你：Apple Watch Series 12 体验<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/cf1f1f07.html" title="2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f187d4a17abf42a3b94bbbda9491d142~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y-v5Y-v6K-06K-B5LqL:q75.awebp?rk3s=f64ab15b&x-expires=1791299926&x-signature=L7CesWQT6rf7pztdl1%2Bj9NTsK2o%3D"></div><span class="title">2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样</span></a><a class="item" href="/rss/4c34aff9.html" title="Phase a · Step 2：预训练权重与 Pipeline 验证准备"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b08535edc09b4ef0947d9c986100fc70~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&x-expires=1791183859&x-signature=5DkCfDsxjY3E5RzgOojFJO89MgY%3D"></div><span class="title">Phase a · Step 2：预训练权重与 Pipeline 验证准备</span></a><a class="item" href="/rss/89dae16f.html" title="Spring Boot 自动配置原理，看完终于不慌了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4220"></div><span class="title">Spring Boot 自动配置原理，看完终于不慌了</span></a><a class="item" href="/rss/4ef0f36b.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3269"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通</span></a><a class="item" href="/rss/6b1f9f34.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4753"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全</span></a><a class="item" href="/rss/530bceaa.html" title="一份用" 工程师思维"写的人生指南：472 条建议，每条都标了证据等级"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=158"></div><span class="title">一份用"工程师思维"写的人生指南：472 条建议，每条都标了证据等级</span></a><a class="item" href="/rss/c6aefb98.html" title="使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6236"></div><span class="title">使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透</span></a><a class="item" href="/rss/a9b3119c.html" title="光催化氧化循环水设备实景净化效果展示"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2d5eb1b86c2b49e886f0810ca1dbdfca~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3ODMxMTE2MTg0NjE=:q75.awebp?rk3s=f64ab15b&x-expires=1791274300&x-signature=KoMIsXiJ8cwWXcSByVpuaIGvkdU%3D"></div><span class="title">光催化氧化循环水设备实景净化效果展示</span></a><a class="item" href="/rss/d099cb10.html" title="制造强国底座：Linux与数据库驱动的新型工业基础设施"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=660"></div><span class="title">制造强国底座：Linux与数据库驱动的新型工业基础设施</span></a><a class="item" href="/rss/9fe726da.html" title="数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/304f3a2e1ede40278bf8aa17b0480c18~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiA5pyd6I2356yg:q75.awebp?rk3s=f64ab15b&x-expires=1791277254&x-signature=GzC0rWE%2BZN61gsNKp9cukjObpjw%3D"></div><span class="title">数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥</span></a><a class="item" href="/rss/ec7f0aa9.html" title="智能工厂背后：Linux在跑，数据库在扛，高端制造在加速"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3302"></div><span class="title">智能工厂背后：Linux在跑，数据库在扛，高端制造在加速</span></a><a class="item" href="/rss/5723aa17.html" title="测试金字塔与自动化分层"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1123"></div><span class="title">测试金字塔与自动化分层</span></a><a class="item" href="/rss/61d25a2a.html" title="新品发布前，三维动画怎么排期才不挤在最后一周？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1517531d8f944cbc908bcff3fdd44c67~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgVHlydmlzaW9u:q75.awebp?rk3s=f64ab15b&x-expires=1791302268&x-signature=9%2BlSFuBVb7%2BKigC6T71P7kOyUks%3D"></div><span class="title">新品发布前，三维动画怎么排期才不挤在最后一周？</span></a><a class="item" href="/rss/d368db09.html" title="视野修炼-技术周刊第134期 | 豆豆眼头像"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a5024237a38942f5b7173293fca1bf6c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1791113695&x-signature=QnCNpJhefk1DoS9j9sqJ52uLbEw%3D"></div><span class="title">视野修炼-技术周刊第134期 | 豆豆眼头像</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

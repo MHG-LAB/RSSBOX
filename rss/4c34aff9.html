@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Phase a · Step 2：预训练权重与 Pipeline 验证准备 - RSSBOX</title>
+
+  
+    <meta name="description" content="目标 在 没有自己的数据集 的前提下，准备一个可用的 YOLO26 预训练权重， 用于打通「PC 导出 ONNX → 板端 ATC → 板端 ACL 推理」整条 pipeline。 注意：这一步不是用预训练权重去检测无人机（Ultralytics 官方权重是 COCO 80 类，不含 drone）， 只是借它的网络结构 &#x2F; 张量形状，把整条工程链路先跑通。等到 08 数据集准备 + 09 模型训">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Phase a · Step 2：预训练权重与 Pipeline 验证准备">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/4c34aff9.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="目标 在 没有自己的数据集 的前提下，准备一个可用的 YOLO26 预训练权重， 用于打通「PC 导出 ONNX → 板端 ATC → 板端 ACL 推理」整条 pipeline。 注意：这一步不是用预训练权重去检测无人机（Ultralytics 官方权重是 COCO 80 类，不含 drone）， 只是借它的网络结构 &#x2F; 张量形状，把整条工程链路先跑通。等到 08 数据集准备 + 09 模型训">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b08535edc09b4ef0947d9c986100fc70~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=5DkCfDsxjY3E5RzgOojFJO89MgY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/74121bc04c964321b142d32a745ebeb0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=OCz%2B%2FZnCM4Cb57O1FSS%2F8LB8pME%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/df41b5432c34431f93ebf01d1d85e4e0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=hF67PeSMx9SmdEBA9XQQpm81Tqk%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2d957b99dbf94487942ee544d3731f41~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=02iicqy2IvUIjO1TaAG1P9PPqGM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b680d9f62ee243d092bae35e476def28~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=20iZohfpej389LqP8bCQHMcC%2Bw4%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b9217b702df7450186f71050ca2a70a6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=r8J5Lpy4xb3BcSgyom5GmFkF7iA%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/0d8df891b1fc43fb95c52c89d8077d6d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=kK%2BJmkciR24uh3Xvdk5LoRqvjKg%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f826c3db0da245e7bb8eaf4f960e988d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=PjY99QSOUJAxgjGIpmvPWIltVxY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58d649405297431f8fd23c839ef9d6a1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=zqWWk7j%2BGW2XAJa0tjE%2FlxyoIfE%3D">
+<meta property="article:published_time" content="2026-09-28T07:04:20.000Z">
+<meta property="article:modified_time" content="2026-09-28T07:04:20.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b08535edc09b4ef0947d9c986100fc70~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=5DkCfDsxjY3E5RzgOojFJO89MgY%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">目标</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么要先走 pipeline 验证？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前提条件</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">步骤</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 下载预训练权重</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 Sanity check：用预训练权重做一次推理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 准备一张真实的测试图（推荐）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.4 预训练权重在 Pipeline 中的角色</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">注意事项</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-28T07:04:20.000Z">2026-09-28</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Phase a · Step 2：预训练权重与 Pipeline 验证准备</span></h1>
+<div>
+<h2 data-id="heading-0">目标</h2>
+<p>在 <strong>没有自己的数据集</strong> 的前提下，准备一个可用的 YOLO26 预训练权重， 用于打通「PC 导出 ONNX → 板端 ATC → 板端 ACL 推理」整条 pipeline。</p>
+<p><strong>注意</strong>：这一步<strong>不是</strong>用预训练权重去检测无人机（Ultralytics 官方权重是 COCO 80 类，不含 drone）， 只是借它的网络结构 / 张量形状，把整条工程链路先跑通。等到 <a href="https://link.juejin.cn/?target=..%2F08_%25E6%2595%25B0%25E6%258D%25AE%25E9%259B%2586%25E5%2587%2586%25E5%25A4%2587%2F08_%25E6%2595%25B0%25E6%258D%25AE%25E9%259B%2586%25E5%2587%2586%25E5%25A4%2587.md" ref="nofollow noopener noreferrer" target="_blank" title="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/../08_%E6%95%B0%E6%8D%AE%E9%9B%86%E5%87%86%E5%A4%87/08_%E6%95%B0%E6%8D%AE%E9%9B%86%E5%87%86%E5%A4%87.md" rel="external nofollow noopener noreferrer">08 数据集准备</a> + <a href="https://link.juejin.cn/?target=..%2F09_%25E6%25A8%25A1%25E5%259E%258B%25E8%25AE%25AD%25E7%25BB%2583%2F09_%25E6%25A8%25A1%25E5%259E%258B%25E8%25AE%25AD%25E7%25BB%2583.md" ref="nofollow noopener noreferrer" target="_blank" title="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/../09_%E6%A8%A1%E5%9E%8B%E8%AE%AD%E7%BB%83/09_%E6%A8%A1%E5%9E%8B%E8%AE%AD%E7%BB%83.md" rel="external nofollow noopener noreferrer">09 模型训练</a> 完成后，<strong>只需重新训练，再用新权重重跑 03 → 07 即可</strong>，pipeline 部分完全不用改。</p>
+<h2 data-id="heading-1">为什么要先走 pipeline 验证？</h2>
+<p>数据集准备（08）是整个流程里<strong>最慢、最不可控</strong>的一环 —— 收集图片、标注、QA， 搞一周很正常。如果 pipeline 本身有 bug（ATC 算子不兼容、ACL API 用法错、板端 环境问题等），等到训完模型才发现，所有训练时间都浪费了。</p>
+<p>正确策略：</p>
+<pre><code class="hljs language-bash" lang="bash">Pipeline 验证（用预训练权重，1-2 小时）→ 板端链路全跑通
+       ↓
+同步进行：数据集准备（08）
+       ↓
+数据集到位 → 模型训练（09）→ 重跑 03 → 07
+</code></pre>
+<h2 data-id="heading-2">前提条件</h2>
+<ul>
+<li>已完成 <a href="https://link.juejin.cn/?target=..%2F01_%25E7%258E%25AF%25E5%25A2%2583%25E5%2587%2586%25E5%25A4%2587_PC%2F01_%25E7%258E%25AF%25E5%25A2%2583%25E5%2587%2586%25E5%25A4%2587_PC.md" ref="nofollow noopener noreferrer" target="_blank" title="https://cors.mhuig.top/?r=https://juejin.cn&url=https://juejin.cn/../01_%E7%8E%AF%E5%A2%83%E5%87%86%E5%A4%87_PC/01_%E7%8E%AF%E5%A2%83%E5%87%86%E5%A4%87_PC.md" rel="external nofollow noopener noreferrer">01 PC 环境准备</a></li>
+<li><code>yolo26</code> conda 环境已激活</li>
+<li>磁盘剩余 ≥ 2GB（预训练权重 + 中间产物）</li>
+</ul>
+<h2 data-id="heading-3">步骤</h2>
+<h3 data-id="heading-4">2.1 下载预训练权重</h3>
+<p>Ultralytics 提供多种规模的 YOLO26 权重：</p>
+<table><thead><tr><th>权重</th><th>体积</th><th>适用场景</th></tr></thead><tbody><tr><td>yolo26n.pt</td><td>~5 MB</td><td>推荐先用这个，最小最快，验证 pipeline 够用</td></tr><tr><td>yolo26s.pt</td><td>~20 MB</td><td>中等规模，pipeline 验证也很快</td></tr><tr><td>yolo26m.pt / yolo26l.pt / yolo26x.pt</td><td>50-150 MB</td><td>留到真实训练阶段按需选用</td></tr></tbody></table>
+<p>先激活环境</p>
+<pre><code class="hljs language-bash" lang="bash">conda activate yolo26
+</code></pre>
+<p>如果一直激活不了环境，可以使用下面命令初始化</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 先用 cmd 或 Anaconda Prompt 运行一次初始化（注意：用你自己的 shell 名字）</span>
+conda init powershell
+</code></pre>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b08535edc09b4ef0947d9c986100fc70~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=5DkCfDsxjY3E5RzgOojFJO89MgY%3D"></p>
+<p>初始化后成功激活环境</p>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/74121bc04c964321b142d32a745ebeb0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=OCz%2B%2FZnCM4Cb57O1FSS%2F8LB8pME%3D"></p>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/df41b5432c34431f93ebf01d1d85e4e0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=hF67PeSMx9SmdEBA9XQQpm81Tqk%3D"></p>
+<p>在项目根目录（建议新建 <code>weights/</code> 目录避免污染）执行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">mkdir</span> -p weights
+</code></pre>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2d957b99dbf94487942ee544d3731f41~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=02iicqy2IvUIjO1TaAG1P9PPqGM%3D"></p>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b680d9f62ee243d092bae35e476def28~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=20iZohfpej389LqP8bCQHMcC%2Bw4%3D"></p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> weights
+</code></pre>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b9217b702df7450186f71050ca2a70a6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=r8J5Lpy4xb3BcSgyom5GmFkF7iA%3D"></p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 自动下载 yolo26n.pt 到当前目录</span>
+python -c <span class="hljs-string">"from ultralytics import YOLO; m = YOLO('yolo26n.pt'); print('downloaded')"</span>
+</code></pre>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/0d8df891b1fc43fb95c52c89d8077d6d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=kK%2BJmkciR24uh3Xvdk5LoRqvjKg%3D"></p>
+<p>成功下载</p>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f826c3db0da245e7bb8eaf4f960e988d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=PjY99QSOUJAxgjGIpmvPWIltVxY%3D"></p>
+<p>第一次运行会从 GitHub release 下载 <code>yolo26n.pt</code>（约 5 MB）到 <code>weights/</code>。 <strong>国内网络可能慢</strong>，若超时：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 手动从镜像下载（需确认 Ultralytics 当前 release URL）</span>
+<span class="hljs-comment"># 或者用代理：</span>
+HTTP_PROXY=http://127.0.0.1:7890 python -c <span class="hljs-string">"from ultralytics import YOLO; m = YOLO('yolo26n.pt'); print('OK')"</span>
+</code></pre>
+<h3 data-id="heading-5">2.2 Sanity check：用预训练权重做一次推理</h3>
+<p>确认权重文件本身没坏、能正常加载 + 推理：</p>
+<p>在weights/目录下新建 <code>test.py</code>：</p>
+<pre><code class="hljs language-python" lang="python"><span class="hljs-comment"># weights/test.py</span>
+<span class="hljs-keyword">from</span> ultralytics <span class="hljs-keyword">import</span> YOLO
+<span class="hljs-keyword">from</span> PIL <span class="hljs-keyword">import</span> Image
+<span class="hljs-keyword">import</span> numpy <span class="hljs-keyword">as</span> np
+
+<p><span class="hljs-comment"># 构造一张随机测试图（640x640 RGB）</span><br>img &#x3D; (np.random.rand(<span class="hljs-number">640</span>, <span class="hljs-number">640</span>, <span class="hljs-number">3</span>) * <span class="hljs-number">255</span>).astype(<span class="hljs-string">‘uint8’</span>)<br>Image.fromarray(img).save(<span class="hljs-string">‘_dummy.jpg’</span>)</p>
+<p><span class="hljs-comment"># 加载预训练权重</span><br>model &#x3D; YOLO(<span class="hljs-string">‘yolo26n.pt’</span>)</p>
+<p><span class="hljs-comment"># 推理</span><br>results &#x3D; model(<span class="hljs-string">‘_dummy.jpg’</span>, imgsz&#x3D;<span class="hljs-number">640</span>, verbose&#x3D;<span class="hljs-literal">False</span>)<br><span class="hljs-built_in">print</span>(<span class="hljs-string">f”Detected <span class="hljs-subst">&amp;#123;<span class="hljs-built_in">len</span>(results[<span class="hljs-number">0</span>].boxes)&amp;#125;</span> objects (随机图应为 0)”</span>)</p>
+<p><span class="hljs-comment"># 检查输出张量形状（确认是 1x3x640x640 输入）</span><br><span class="hljs-built_in">print</span>(<span class="hljs-string">f”Model task: <span class="hljs-subst">&amp;#123;model.task&amp;#125;</span>“</span>)<br><span class="hljs-built_in">print</span>(<span class="hljs-string">f”Model names: <span class="hljs-subst">&amp;#123;model.names&amp;#125;</span>“</span>)   <span class="hljs-comment"># COCO 80 类</span><br></p></code></pre><p></p>
+<p>运行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> weights
+python test.py
+</code></pre>
+<p>预期输出（部分）：</p>
+<p><img class="lazy" alt="alt text" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58d649405297431f8fd23c839ef9d6a1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1791183859&amp;x-signature=zqWWk7j%2BGW2XAJa0tjE%2FlxyoIfE%3D"></p>
+<p>看到 <code>Model names</code> 打印出 COCO 80 类（person、bicycle、car...）即代表权重可用。</p>
+<h3 data-id="heading-6">2.3 准备一张真实的测试图（推荐）</h3>
+<p>随机图能验证加载，但验证不了推理逻辑。准备 <strong>1-3 张真实的户外/天空图</strong>（JPG/PNG 均可）放到：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">mkdir</span> -p weights/test_images
+<span class="hljs-comment"># 把测试图复制/下载到 weights/test_images/</span>
+</code></pre>
+<p>可以用手机随手拍一张天空、或者从 Unsplash / Pexels 下载一张。</p>
+<p>后续 03 导出 ONNX、05 ATC、06 ACL 时都会用到 <code>test_images/</code> 里的图。</p>
+<h3 data-id="heading-7">2.4 预训练权重在 Pipeline 中的角色</h3>
+<p>后续步骤里，<strong>预训练权重 <code>yolo26n.pt</code> 会临时充当 <code>best.pt</code></strong>：</p>
+<table><thead><tr><th>步骤</th><th>用预训练权重的位置</th></tr></thead><tbody><tr><td>03 模型导出 ONNX</td><td>yolo export model=weights/yolo26n.pt format=onnx ...</td></tr><tr><td>05 ATC 模型转换</td><td>喂入上面导出的 .onnx</td></tr><tr><td>06 ACL 推理部署</td><td>加载 .om 推理，输入 test_images/ 里的图</td></tr><tr><td>07 端到端验证</td><td>smoke test：能跑出非空结果（即使类别是 bird）就视为 pipeline 通过</td></tr></tbody></table>
+<h2 data-id="heading-8">注意事项</h2>
+<ul>
+<li><strong>不要把 <code>weights/</code> 提交到 git</strong>：在项目根加 <code>.gitignore</code>：weights/<em>.pt weights/</em>.onnx weights/test_images/</li>
+<li><strong>预训练权重 + 模型产物会持续增大</strong>，注意定期清理</li>
+<li><strong>不要在 PC 端用预训练权重去推断业务场景</strong> —— 它检测不出无人机，做了也白做</li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Phase A · Step 2：预训练权重与 Pipeline 验证准备" href="https://juejin.cn/post/7690381076950302760" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Phase A · Step 2：预训练权重与 Pipeline 验证准备</span><span class="desc fs12">https://juejin.cn/post/7690381076950302760</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/f3b00ee5.html">The Lenfest Institute Grows Landmark Program With Expanded OpenAI Support<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6583ac6e.html">我吃到了那颗梦寐以求的小药丸<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/cf1f1f07.html" title="2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f187d4a17abf42a3b94bbbda9491d142~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y-v5Y-v6K-06K-B5LqL:q75.awebp?rk3s=f64ab15b&x-expires=1791299926&x-signature=L7CesWQT6rf7pztdl1%2Bj9NTsK2o%3D"></div><span class="title">2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样</span></a><a class="item" href="/rss/bd42a837.html" title="Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7628"></div><span class="title">Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题</span></a><a class="item" href="/rss/89dae16f.html" title="Spring Boot 自动配置原理，看完终于不慌了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4220"></div><span class="title">Spring Boot 自动配置原理，看完终于不慌了</span></a><a class="item" href="/rss/4ef0f36b.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3269"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通</span></a><a class="item" href="/rss/6b1f9f34.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4753"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全</span></a><a class="item" href="/rss/530bceaa.html" title="一份用" 工程师思维"写的人生指南：472 条建议，每条都标了证据等级"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=158"></div><span class="title">一份用"工程师思维"写的人生指南：472 条建议，每条都标了证据等级</span></a><a class="item" href="/rss/c6aefb98.html" title="使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6236"></div><span class="title">使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透</span></a><a class="item" href="/rss/a9b3119c.html" title="光催化氧化循环水设备实景净化效果展示"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2d5eb1b86c2b49e886f0810ca1dbdfca~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3ODMxMTE2MTg0NjE=:q75.awebp?rk3s=f64ab15b&x-expires=1791274300&x-signature=KoMIsXiJ8cwWXcSByVpuaIGvkdU%3D"></div><span class="title">光催化氧化循环水设备实景净化效果展示</span></a><a class="item" href="/rss/d099cb10.html" title="制造强国底座：Linux与数据库驱动的新型工业基础设施"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=660"></div><span class="title">制造强国底座：Linux与数据库驱动的新型工业基础设施</span></a><a class="item" href="/rss/9fe726da.html" title="数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/304f3a2e1ede40278bf8aa17b0480c18~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiA5pyd6I2356yg:q75.awebp?rk3s=f64ab15b&x-expires=1791277254&x-signature=GzC0rWE%2BZN61gsNKp9cukjObpjw%3D"></div><span class="title">数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥</span></a><a class="item" href="/rss/ec7f0aa9.html" title="智能工厂背后：Linux在跑，数据库在扛，高端制造在加速"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3302"></div><span class="title">智能工厂背后：Linux在跑，数据库在扛，高端制造在加速</span></a><a class="item" href="/rss/5723aa17.html" title="测试金字塔与自动化分层"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1123"></div><span class="title">测试金字塔与自动化分层</span></a><a class="item" href="/rss/61d25a2a.html" title="新品发布前，三维动画怎么排期才不挤在最后一周？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1517531d8f944cbc908bcff3fdd44c67~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgVHlydmlzaW9u:q75.awebp?rk3s=f64ab15b&x-expires=1791302268&x-signature=9%2BlSFuBVb7%2BKigC6T71P7kOyUks%3D"></div><span class="title">新品发布前，三维动画怎么排期才不挤在最后一周？</span></a><a class="item" href="/rss/d368db09.html" title="视野修炼-技术周刊第134期 | 豆豆眼头像"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a5024237a38942f5b7173293fca1bf6c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1791113695&x-signature=QnCNpJhefk1DoS9j9sqJ52uLbEw%3D"></div><span class="title">视野修炼-技术周刊第134期 | 豆豆眼头像</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

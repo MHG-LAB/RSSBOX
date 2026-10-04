@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Spring Boot 自动配置原理，看完终于不慌了 - RSSBOX</title>
+
+  
+    <meta name="description" content="用了两年 Spring Boot，@SpringBootApplication 一加就什么都能用。但一直不知道背后到底发生了什么。直到最近面试被深挖，才认真看了一遍源码。 从一个注解开始 @SpringBootApplication public class Application &amp;#123;     public static void main(String[] args) &amp;#123;">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring Boot 自动配置原理，看完终于不慌了">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/89dae16f.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="用了两年 Spring Boot，@SpringBootApplication 一加就什么都能用。但一直不知道背后到底发生了什么。直到最近面试被深挖，才认真看了一遍源码。 从一个注解开始 @SpringBootApplication public class Application &amp;#123;     public static void main(String[] args) &amp;#123;">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-09-28T09:31:22.000Z">
+<meta property="article:modified_time" content="2026-09-28T09:31:22.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">从一个注解开始</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">@EnableAutoConfiguration</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">以 DataSource 为例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">条件注解家族</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">自定义自动配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">怎么排查自动配置</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-09-28T09:31:22.000Z">2026-09-28</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Spring Boot 自动配置原理，看完终于不慌了</span></h1>
+<div>
+<p>用了两年 Spring Boot，<code>@SpringBootApplication</code> 一加就什么都能用。但一直不知道背后到底发生了什么。直到最近面试被深挖，才认真看了一遍源码。</p>
+<h2 data-id="heading-0">从一个注解开始</h2>
+<pre><code class="hljs language-java" lang="java"><span class="hljs-meta">@SpringBootApplication</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">Application</span> &#123;
+    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">main</span><span class="hljs-params">(String[] args)</span> &#123;
+        SpringApplication.run(Application.class, args);
+    &#125;
+&#125;
+</code></pre>
+<p><code>@SpringBootApplication</code> 其实是个组合注解：</p>
+<pre><code class="hljs language-java" lang="java"><span class="hljs-meta">@SpringBootConfiguration</span>      <span class="hljs-comment">// 就是 @Configuration，标记配置类</span>
+<span class="hljs-meta">@EnableAutoConfiguration</span>      <span class="hljs-comment">// 核心：开启自动配置</span>
+<span class="hljs-meta">@ComponentScan</span>                <span class="hljs-comment">// 扫描当前包及子包的 @Component</span>
+</code></pre>
+<p>重点在 <code>@EnableAutoConfiguration</code>。</p>
+<h2 data-id="heading-1">@EnableAutoConfiguration</h2>
+<pre><code class="hljs language-java" lang="java"><span class="hljs-meta">@Import(AutoConfigurationImportSelector.class)</span>
+<span class="hljs-keyword">public</span> <span class="hljs-meta">@interface</span> EnableAutoConfiguration &#123;
+&#125;
+</code></pre>
+<p>它通过 <code>@Import</code> 导入了 <code>AutoConfigurationImportSelector</code>，这个类会去读一个文件：</p>
+<pre><code class="hljs language-bash" lang="bash">META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+</code></pre>
+<p>这个文件里列出了所有自动配置类的全限定名，大概长这样：</p>
+<pre><code class="hljs language-erlang" lang="erlang">org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration
+org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+org.springframework.boot.autoconfigure.redis.RedisAutoConfiguration
+org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration
+...
+</code></pre>
+<p>Spring Boot 启动的时候，把这些配置类全部加载进来。</p>
+<h2 data-id="heading-2">以 DataSource 为例</h2>
+<pre><code class="hljs language-java" lang="java"><span class="hljs-meta">@AutoConfiguration</span>
+<span class="hljs-meta">@ConditionalOnClass(&#123; DataSource.class, EmbeddedDatabaseType.class &#125;)</span>  <span class="hljs-comment">// classpath 下有这些类才生效</span>
+<span class="hljs-meta">@EnableConfigurationProperties(DataSourceProperties.class)</span>              <span class="hljs-comment">// 绑定 application.yml 的配置</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">DataSourceAutoConfiguration</span> &#123;
+
+<pre><code>&lt;span class=&quot;hljs-meta&quot;&gt;@Bean&lt;/span&gt;
+&lt;span class=&quot;hljs-meta&quot;&gt;@ConditionalOnMissingBean&lt;/span&gt;                                           &lt;span class=&quot;hljs-comment&quot;&gt;// 用户没自己定义才创建&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;public&lt;/span&gt; DataSource &lt;span class=&quot;hljs-title function_&quot;&gt;dataSource&lt;/span&gt;&lt;span class=&quot;hljs-params&quot;&gt;(DataSourceProperties properties)&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; properties.initializeDataSourceBuilder().build();
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>逻辑很清晰：</p>
+<ol>
+<li><code>@ConditionalOnClass</code>：classpath 下有 <code>DataSource</code> 类才激活（你引入了 mysql-connector 就有）</li>
+<li><code>@ConditionalOnMissingBean</code>：如果你自己定义了 <code>DataSource</code> Bean，就不创建了</li>
+<li><code>DataSourceProperties</code>：从 <code>application.yml</code> 里读 <code>spring.datasource.*</code> 配置</li>
+</ol>
+<p>所以你只要在 yml 里配了数据库信息，Spring Boot 就自动帮你创建 DataSource。不需要写任何 Java 代码。</p>
+<h2 data-id="heading-3">条件注解家族</h2>
+<table><thead><tr><th>注解</th><th>含义</th></tr></thead><tbody><tr><td><code>@ConditionalOnClass</code></td><td>classpath 有某个类才生效</td></tr><tr><td><code>@ConditionalOnMissingClass</code></td><td>classpath 没有某个类才生效</td></tr><tr><td><code>@ConditionalOnBean</code></td><td>容器里有某个 Bean 才生效</td></tr><tr><td><code>@ConditionalOnMissingBean</code></td><td>容器里没有某个 Bean 才创建</td></tr><tr><td><code>@ConditionalOnProperty</code></td><td>配置属性满足条件才生效</td></tr><tr><td><code>@ConditionalOnWebApplication</code></td><td>是 Web 应用才生效</td></tr></tbody></table>
+<p>这些条件注解是自动配置的核心——满足条件就生效，不满足就跳过。所以引入一堆 starter 也不会冲突。</p>
+<h2 data-id="heading-4">自定义自动配置</h2>
+<p>你也可以写自己的 starter：</p>
+<pre><code class="hljs language-java" lang="java"><span class="hljs-comment">// 1. 定义配置属性</span>
+<span class="hljs-meta">@ConfigurationProperties(prefix = "myservice")</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MyServiceProperties</span> &#123;
+    <span class="hljs-keyword">private</span> String apiKey;
+    <span class="hljs-keyword">private</span> <span class="hljs-type">int</span> <span class="hljs-variable">timeout</span> <span class="hljs-operator">=</span> <span class="hljs-number">5000</span>;
+    <span class="hljs-comment">// getter/setter</span>
+&#125;
+
+<p><span class="hljs-comment">&#x2F;&#x2F; 2. 写自动配置类</span><br><span class="hljs-meta">@AutoConfiguration</span><br><span class="hljs-meta">@ConditionalOnClass(MyClient.class)</span><br><span class="hljs-meta">@EnableConfigurationProperties(MyServiceProperties.class)</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">MyServiceAutoConfiguration</span> &amp;#123;</p>
+<pre><code>&lt;span class=&quot;hljs-meta&quot;&gt;@Bean&lt;/span&gt;
+&lt;span class=&quot;hljs-meta&quot;&gt;@ConditionalOnMissingBean&lt;/span&gt;
+&lt;span class=&quot;hljs-keyword&quot;&gt;public&lt;/span&gt; MyClient &lt;span class=&quot;hljs-title function_&quot;&gt;myClient&lt;/span&gt;&lt;span class=&quot;hljs-params&quot;&gt;(MyServiceProperties properties)&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-keyword&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;hljs-keyword&quot;&gt;new&lt;/span&gt; &lt;span class=&quot;hljs-title class_&quot;&gt;MyClient&lt;/span&gt;(properties.getApiKey(), properties.getTimeout());
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p><span class="hljs-comment">&#x2F;&#x2F; 3. 注册到 imports 文件</span><br><span class="hljs-comment">&#x2F;&#x2F; META-INF&#x2F;spring&#x2F;org.springframework.boot.autoconfigure.AutoConfiguration.imports</span><br>com.example.MyServiceAutoConfiguration<br></p></code></pre><p></p>
+<p>别人引入你的 starter 依赖后，配一下 <code>myservice.api-key</code> 就能直接用了。</p>
+<h2 data-id="heading-5">怎么排查自动配置</h2>
+<p>启动时加参数，看哪些自动配置生效了、哪些被跳过了：</p>
+<pre><code class="hljs language-bash" lang="bash">java -jar app.jar --debug
+</code></pre>
+<p>或者在 <code>application.yml</code> 里：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">debug:</span> <span class="hljs-literal">true</span>
+</code></pre>
+<p>输出里会有 <code>CONDITIONS EVALUATION REPORT</code>，列出每个配置类的匹配/不匹配条件：</p>
+<pre><code class="hljs language-sql" lang="sql">Positive <span class="hljs-keyword">matches</span>:
+   DataSourceAutoConfiguration matched:
+      <span class="hljs-operator">-</span> <span class="hljs-variable">@ConditionalOnClass</span> found required classes
+
+<p>Negative <span class="hljs-keyword">matches</span>:<br>   RedisAutoConfiguration did <span class="hljs-keyword">not</span> <span class="hljs-keyword">match</span>:<br>      <span class="hljs-operator">-</span> <span class="hljs-variable">@ConditionalOnClass</span> did <span class="hljs-keyword">not</span> find required class <span class="hljs-string">‘redis.clients.jedis.Jedis’</span><br></p></code></pre><p></p>
+<h2 data-id="heading-6">总结</h2>
+<p>Spring Boot 自动配置的原理就是：<code>@EnableAutoConfiguration</code> → 读取 imports 文件 → 加载所有配置类 → 每个配置类用条件注解判断是否生效。满足条件就自动创建 Bean，不满足就跳过。你只需要引入 starter + 配 yml，剩下的框架帮你搞定。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Spring Boot 自动配置原理，看完终于不慌了" href="https://juejin.cn/post/7690381076951613480" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Spring Boot 自动配置原理，看完终于不慌了</span><span class="desc fs12">https://juejin.cn/post/7690381076951613480</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/787ae934.html">Highlights From Git 2.56<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/c722fd1f.html">Holo4: Powering Generalist Computer-Use Agents<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/cf1f1f07.html" title="2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f187d4a17abf42a3b94bbbda9491d142~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5Y-v5Y-v6K-06K-B5LqL:q75.awebp?rk3s=f64ab15b&x-expires=1791299926&x-signature=L7CesWQT6rf7pztdl1%2Bj9NTsK2o%3D"></div><span class="title">2026秋招库存管理分析岗：SQL和Python只是加分项，真正门槛是这三样</span></a><a class="item" href="/rss/bd42a837.html" title="Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7628"></div><span class="title">Agent 日志检索慢、存储还贵？Search() + VARIANT 的落地命令和几个当场踩出来的问题</span></a><a class="item" href="/rss/4c34aff9.html" title="Phase a · Step 2：预训练权重与 Pipeline 验证准备"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b08535edc09b4ef0947d9c986100fc70~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3MTQwMzYwNTgxOTM4Mw==:q75.awebp?rk3s=f64ab15b&x-expires=1791183859&x-signature=5DkCfDsxjY3E5RzgOojFJO89MgY%3D"></div><span class="title">Phase a · Step 2：预训练权重与 Pipeline 验证准备</span></a><a class="item" href="/rss/4ef0f36b.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3269"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #06】Python实时行情总报错？五档盘口+逐笔一次跑通</span></a><a class="item" href="/rss/6b1f9f34.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4753"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #02】涨停跌停与特色股池：5类股池接口一次拉全</span></a><a class="item" href="/rss/530bceaa.html" title="一份用" 工程师思维"写的人生指南：472 条建议，每条都标了证据等级"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=158"></div><span class="title">一份用"工程师思维"写的人生指南：472 条建议，每条都标了证据等级</span></a><a class="item" href="/rss/c6aefb98.html" title="使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6236"></div><span class="title">使用 Cloudflare Tunnel（本地管理隧道）搭配 DigitalPlat 免费域名实现内网穿透</span></a><a class="item" href="/rss/a9b3119c.html" title="光催化氧化循环水设备实景净化效果展示"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2d5eb1b86c2b49e886f0810ca1dbdfca~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3ODMxMTE2MTg0NjE=:q75.awebp?rk3s=f64ab15b&x-expires=1791274300&x-signature=KoMIsXiJ8cwWXcSByVpuaIGvkdU%3D"></div><span class="title">光催化氧化循环水设备实景净化效果展示</span></a><a class="item" href="/rss/d099cb10.html" title="制造强国底座：Linux与数据库驱动的新型工业基础设施"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=660"></div><span class="title">制造强国底座：Linux与数据库驱动的新型工业基础设施</span></a><a class="item" href="/rss/9fe726da.html" title="数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/304f3a2e1ede40278bf8aa17b0480c18~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LiA5pyd6I2356yg:q75.awebp?rk3s=f64ab15b&x-expires=1791277254&x-signature=GzC0rWE%2BZN61gsNKp9cukjObpjw%3D"></div><span class="title">数据+知识“双治理”，中翰软件想帮普通企业搭一座通往AI的桥</span></a><a class="item" href="/rss/ec7f0aa9.html" title="智能工厂背后：Linux在跑，数据库在扛，高端制造在加速"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3302"></div><span class="title">智能工厂背后：Linux在跑，数据库在扛，高端制造在加速</span></a><a class="item" href="/rss/5723aa17.html" title="测试金字塔与自动化分层"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1123"></div><span class="title">测试金字塔与自动化分层</span></a><a class="item" href="/rss/61d25a2a.html" title="新品发布前，三维动画怎么排期才不挤在最后一周？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1517531d8f944cbc908bcff3fdd44c67~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgVHlydmlzaW9u:q75.awebp?rk3s=f64ab15b&x-expires=1791302268&x-signature=9%2BlSFuBVb7%2BKigC6T71P7kOyUks%3D"></div><span class="title">新品发布前，三维动画怎么排期才不挤在最后一周？</span></a><a class="item" href="/rss/d368db09.html" title="视野修炼-技术周刊第134期 | 豆豆眼头像"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a5024237a38942f5b7173293fca1bf6c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1791113695&x-signature=QnCNpJhefk1DoS9j9sqJ52uLbEw%3D"></div><span class="title">视野修炼-技术周刊第134期 | 豆豆眼头像</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
