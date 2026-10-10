@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Streamline: Custom Video Pipelines With Cloudflare Stream and Workers - RSSBOX</title>
+
+  
+    <meta name="description" content="Cloudflare Stream is a powerful broadcasting platform that, for many of our customers, just works. But what if you wanted to render dynamic annotations on a livestream or create an alternate version">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Streamline: Custom Video Pipelines With Cloudflare Stream and Workers">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/4de16f3d.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Cloudflare Stream is a powerful broadcasting platform that, for many of our customers, just works. But what if you wanted to render dynamic annotations on a livestream or create an alternate version">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-02T16:13:45.000Z">
+<meta property="article:modified_time" content="2026-10-02T16:13:45.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Architecture</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Application </span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Container lifecycle and session management</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">API</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Defining and running a video processing pipeline</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Video-on-demand input via HLS</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Sending video to Streamline</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Animated overlay</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Receiving preview video from Streamline</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Currently supported operations</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Security</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Playground and open source</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Where we go from here</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-02T16:13:45.000Z">2026-10-03</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Streamline: Custom Video Pipelines With Cloudflare Stream and Workers</span></h1>
+<div>
+<p>Cloudflare Stream is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/products/stream/"><span style="text-decoration:underline">a powerful broadcasting platform</span></a> that, for many of our customers, just works. But what if you wanted to render dynamic annotations on a livestream or create an alternate version of a hosted video with burned-in subtitles? You would need to run a custom video pipeline.</p><p>Today, we’re releasing a new developer playground, Streamline, that demonstrates how you can build a system to deliver these bespoke video experiences on Cloudflare’s Developer Platform. We’ll walk you through how Streamline leverages Workers, Containers, and several media protocols to modify video — and immediately publish that output as livestream or new hosted video. You’ll also have the opportunity to try it for your projects.</p><p>A processing pipeline needs a durable, long-running environment that can run specialized, compiled code with predictable memory and CPU capacity. Video streams can run for minutes or hours, so the media process needs a lifecycle independent of the request that started it. An application should be able to start a pipeline, send its input, inspect it, and stop it without needing to keep a single request open for the entire duration.</p><p>Cloudflare provides the primitives we need. Containers are long-lived runtimes suitable for media processing. Durable Objects help with orchestration. Finally, Workers are perfect for control signaling and monitoring.</p><p>For Streamline, we built a media engine running in a Container to handle media processing in real-time. The Container is controlled by a Worker exposing control, preview, and testing to an agent or user. Processing will continue even if the Worker disconnects. We've architected Streamline with modular components so that the media engine could be replaced with dedicated encoding products in the future.</p><!-- unsupported block: image --><h2><strong>Architecture</strong></h2><p>A Streamline deployment consists of two components: the <strong>Media Engine</strong>, which handles media input/output and processing, and a controlling <strong>Application</strong>, which creates, configures, observes, and stops media sessions.</p><!-- unsupported block: image --><p><strong>Media Engine</strong></p><p>The Media Engine has two components:</p><ul><li><strong>Controller.</strong> This is a control harness written in Go that implements an HTTP server, receives incoming requests, and translates them into operations that can be executed by the media engine.</li><li><strong>Processor </strong>that performs the actual media processing. The current implementation uses FFmpeg, but that is an internal implementation detail rather than part of the user-facing API.</li></ul><p>The Media Engine is hosted in a Container, and handles all media input/output as well as processing. It can pull RTMPS playback over the network from one Stream Live input and publish RTMPS output to another Stream Live input. It can pull a Cloudflare Stream HLS manifest and its segments to use hosted videos as input. It can accept video input from a source supplied by the controlling application, for example a webcam. It can publish preview video over an outbound WebSocket to a Durable Object relay. An application that needs preview can connect to that relay through its own WebSocket.</p><h3><strong>Application </strong></h3><p>The application is built using Workers, and can be a full-stack browser application, an agent, or an embedded system. It consists of:</p><ul><li><strong>User interface (UI)</strong> including client logic, identity and access policy. This post uses a browser application as its concrete example, so it also includes a browser interface.</li><li><strong>Orchestrator</strong> coordinates the session, the Container lifecycle, and preview relay. The orchestrator is implemented by a Durable Object.</li></ul><p>It is possible to run the system locally during development, in which case the container is just a local Docker instance and the Durable Object is not used: there is a single user, the controlling application does not require authorization for local access, and the video preview can connect directly to a WebSocket on localhost.</p><p>When these components are deployed to Cloudflare, an authorized user or agent can visit the Worker to start a new session. This spins up a new Streamline container if needed, manages its lifecycle automatically, exposes an API to perform a number of video manipulation operations, and routes inputs from and outputs back to Cloudflare Stream.</p><p>Time for a technical deep dive on how the system works.</p><h2><strong>Container lifecycle and session management</strong></h2><p>The controlling Worker application initiates a long-running media processing session. After starting the session, the application can disconnect and reconnect safely, while the Container continues processing until the controlling application stops it. We also include a maximum duration to ensure a session is always eventually closed down and can’t run indefinitely, even without external control. While a media processing session is running, the container instance is unavailable for other applications to use.</p><p>A Cloudflare Container will automatically sleep if it has not received any incoming requests since a defined interval. However, in our case, once the pipeline is running, it must continue even if the controlling application disconnects and it receives no requests. We can implement this behavior by overriding the <code>onActivityExpired()</code> callback on the container. If the expiry time has not been reached, then we renew the activity, otherwise we destroy the container.</p><!-- unsupported block: code --><h2><strong>API</strong></h2><p>The HTTP server implemented by the Go harness and the Durable Object associated with the Container together define the low-level interface to the system. However, we wanted to provide an abstraction over this, so the system is as agnostic as possible to who or what is controlling the session and any unnecessary details of the backend implementation.</p><p>We implement this by exporting two packages from Streamline:</p><ul><li><code>@cloudflare/streamline/client</code> Defines a high-level, session-based API.</li><li><code>@cloudflare/streamline/</code> Exposes the Durable Object base class associated with the container. This routes the API requests, implements the preview relay server described below, and provides hooks for security and access policy.</li></ul><p>In a remote deployment, the controlling Worker is expected to import <code>@streamline/cloudflare</code> and define a concrete subclass of the Durable Object exposed by the container that can be used for application-specific logic and storage.</p><p>In local mode, where there is no Durable Object, the frontend defines a thin adapter layer that maintains the session-based API, but connects directly to the local Docker instance with no access controls, etc.</p><p>The example below shows how the controlling application can use the API to access Streamline, prepare a session, and start a video processing pipeline.</p><!-- unsupported block: code --><p><code>config</code> is a JSON object that defines the processing pipeline to be executed, described more in subsequent sections.</p><p>The table below shows the complete list of all API calls.</p><table><tbody><tr><td><p>Client method</p></td><td><p>Function</p></td></tr><tr><td><p><code>createStreamline()</code></p></td><td><p>Creates a new Streamline instance.</p></td></tr><tr><td><p><code>streamline.sessions.create()</code></p></td><td><p>Creates a new processing session.</p></td></tr><tr><td><p><code>streamline.sessions.resume(id)</code></p></td><td><p>Reconnects to an existing session.</p></td></tr><tr><td><p><code>session.start(config)</code></p></td><td><p>Starts a new processing pipeline.</p></td></tr><tr><td><p><code>session.ingest(chunk)</code></p></td><td><p>Sends a chunk of video data in “webcam” mode.</p></td></tr><tr><td><p><code>session.annotation(png)</code></p></td><td><p>Updates the transparent annotation overlay.</p></td></tr><tr><td><p><code>session.metrics()</code></p></td><td><p>Receives metrics about the current session.</p></td></tr><tr><td><p><code>session.stop()</code></p></td><td><p>Stops the processing in the current session.</p></td></tr></tbody></table><h2><strong>Defining and running a video processing pipeline</strong></h2><p><code>session.start()</code> constructs and runs a processing pipeline. It takes a single argument which is a JSON configuration object defining the processing to be performed:</p><ul><li>Input(s)</li><li>Operations</li><li>Output</li></ul><p>The example below starts a pipeline that takes an RTMP (real-time messaging protocol) broadcast as input (for example, a feed of a Stream Live input receiving an inbound livestream), applies an overlay image with transparency, and sends the output to an RTMP destination (for example, to another Stream Live input for recording or broadcast). This allows the Worker application to create a modified version of a livestream in real time.</p><!-- unsupported block: code --><h2><strong>Video-on-demand input via HLS</strong></h2><p>Streamline can also ingest streaming video input via HLS (HTTP live streaming), for example a video hosted on Cloudflare Stream. The example below shows how a Worker application could run a pipeline that ingests a Stream video, reads the embedded closed caption subtitles and renders them as text on the video, and sends the output via RTMP, for example to a Stream Live Input for broadcasting or recording of the modified version.</p><!-- unsupported block: code --><h2><strong>Sending video to Streamline</strong></h2><p>It’s often useful to be able to quickly preview a processing pipeline by sending video data directly to Streamline, for example from a webcam. An agent or embedded device application may also want to use this capability, for example to send footage from factory cameras for AI analysis, or to combine multiple camera feeds into a composite view.</p><p>The example below creates a pipeline that expects input from the Worker application and produces a preview video output available over a WebSocket (we’ll talk more about the WebSocket preview video below). It applies two filters and an “annotation,” which is an overlay specified as a PNG image that can be updated while the processing is running, for example to implement an animated graphic.</p><!-- unsupported block: code --><p>The code snippet above just starts the pipeline. The controlling Worker is not sending any media to Streamline yet. We’ll discuss the <code>openViewer()</code> function below.</p><p>The Worker application sends video data to Streamline using the <code>session.ingest()</code> call. The example below shows how a web browser application might receive chunks from the webcam and forward them to Streamline.</p><!-- unsupported block: code --><h2><strong>Animated overlay</strong></h2><p>The annotation overlay can be updated using the <code>session.annotation()</code> call. The example below shows how the Worker application could snapshot a canvas and send it to Streamline. This could be done on an animation loop, although the update rate may be limited in practice by the size of the PNG overlay images, the available bandwidth, and processing power.</p><!-- unsupported block: code --><h2><strong>Receiving preview video from Streamline</strong></h2><p>Streamline can also produce preview video output, by specifying <code>output: &#123; mode: 'websocket' &#125;</code>.</p><p>Streamline uses WebSockets for low-latency preview video delivery back to the controlling application: the container publishes fMP4 fragments to the Durable Object, which forwards them to an output relay available over a WebSocket on the URL <code>/relay/view</code>, relative to the application origin. The application must connect a WebSocket to this URL, and will then receive video data pushed to it as it becomes available from Streamline. The code snippet below shows how a web browser application might display the preview video feed.</p><!-- unsupported block: code --><p>A production MediaSource player must queue fragments while SourceBuffer.updating is true. In local development, the browser or other controlling application simply opens a WebSocket connection directly on the local container.</p><h2><strong>Currently supported operations</strong></h2><p>In the configuration object passed to <code>session.start()</code> in the examples above, <code>pipeline</code> is an array of operations from the set supported by the underlying media engine. The operation order is currently fixed by the engine; the order specified in the array is not significant. The list of currently supported operations and the order in which they are applied is below.</p><table><tbody><tr><td><p>Operation name</p></td><td><p>Function</p></td></tr><tr><td><p><code>filter</code></p></td><td><p>Applies filtering operations, e.g. blur, saturation.</p></td></tr><tr><td><p><code>overlay</code></p></td><td><p>Overlays an image referenced by URL or a binary PNG specified separately in a call to <code>annotation()</code>.</p></td></tr><tr><td><p><code>subtitle</code></p></td><td><p>Burns in subtitles.</p></td></tr><tr><td><p><code>encode</code></p></td><td><p>Specifies output encoding parameters.</p></td></tr></tbody></table><h2><strong>Security</strong></h2><p>This is Cloudflare, so it is important that security is part of the design rather than an addition at the end. We need to ensure that only authorized users can create a new session or take control of an existing one, and that sessions are isolated from each other. We must treat Stream RTMPS input/output keys as secrets that shouldn’t be leaked to the controlling application. We must ensure that resource use is bounded.</p><p>The owner deployment is kept private using Workers’ <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/configuration/cloudflare-access/"><span style="text-decoration:underline">Access integration</span></a>. The configured owner identity and other allowed users can edit the same shared profiles and start a session while the singleton is idle. The Worker verifies the Access session before accepting control requests and binds the active session to the verified principal. Only one session can run at a time, and a different principal cannot stop or replace the active session.</p><p>Stream Live Input keys are stored in Worker secrets or as write-only shared overrides in Durable Object storage. They are never returned by the settings API or placed in browser storage. The controlling application specifies RTMPS input and output by referring to a named profile. The Worker resolves the profile before contacting the container.</p><p>The preview video stream has two credentials with separate purposes. A Cloudflare Access service token authenticates the container workload to the publisher endpoint. A random per-session capability authorizes publishing only for the currently active relay. The service token is injected by the container's outbound Worker and never enters container memory. The initial deployment uses a temporary path-specific Access Bypass while the per-session capability remains enforced; after deployment and a successful smoke test, the rollout replaces Bypass with Service Auth.</p><p>The owner deployment is intentionally private and singleton-routed. It is not the security model for a public multi-user service.</p><h2><strong>Playground and open source</strong></h2><p>We want you to try out Streamline and start building! So together with this post, we are releasing the system as open source and deploying a public playground.</p><p>The Streamline container can be run locally or deployed on your account. It exports the Worker API for your control application to use.</p><p>There is also an example Worker application with an Astro web frontend that demonstrates Streamline functionality with a few common use cases, including overlays, subtitle decoding, filters and picture-in-picture. There is probe functionality that provides performance metrics and system tracing, and can be useful for debugging the system when developing new features. The example application can be run on a local Astro server, or is set up to be deployed behind Cloudflare Access, so you can control who has access to your Streamline instance.</p><p>Both repositories are available as open source on Cloudflare’s GitHub:</p><ul><li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/streamline">https://github.com/cloudflare/streamline</a> - Media engine, and package exports for applications.</li><li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/cloudflare/streamline-demo">https://github.com/cloudflare/streamline-demo</a> - Example application Worker, Astro frontend, deployment profiles, and Access tooling.</li></ul><p>We have published a public playground deployment of the example application. This is also something a user can deploy if desired. It uses its own Access configuration, one container identity per verified user, one active session per user, global admission control, concurrency, media and session limits, and no ability for one user to replace another user's session.</p><p>You can try the public playground at:</p><ul><li><a target="_blank" rel="external nofollow noopener noreferrer" href="https://playground.streamline-video.workers.dev">https://playground.streamline-video.workers.dev</a></li></ul><h2><strong>Where we go from here</strong></h2><p>Streamline demonstrates one way to combine existing managed services, like Stream, with lower-level primitives to build highly customizable media pipelines. In this iteration, Streamline uses Container CPU for media processing, which introduces a bottleneck at higher qualities or frame-rates.</p><p>Moving forward, we’re excited to see how we and our developer community can extend this architecture to  build new support for computer vision pipelines, hardware-accelerated media processing, realtime experiences with next generation protocols like WebRTC and MoQ, and ultimately video encoding and decoding primitives natively in Workers.</p><p>Today, we invite you to check out our hosted demo of Streamline to see how powerful these tools can be. From there, check out the codebases we’ve open sourced to see how easy it is to deploy Streamline into your own account and use it to create your own experiences.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Streamline: custom video pipelines with Cloudflare Stream and Workers" href="https://blog.cloudflare.com/streamline/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Streamline: custom video pipelines with Cloudflare Stream and Workers</span><span class="desc fs12">https://blog.cloudflare.com/streamline/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/206153b1.html">The Latest AI News We Announced in September 2026<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6b4fca55.html">8 Major Updates to Cloudflare Observability<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/816614ff.html" title="Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7879"></div><span class="title">Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure</span></a><a class="item" href="/rss/6b4fca55.html" title="8 Major Updates to Cloudflare Observability"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6022"></div><span class="title">8 Major Updates to Cloudflare Observability</span></a><a class="item" href="/rss/32840b98.html" title="Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9156"></div><span class="title">Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign</span></a><a class="item" href="/rss/e0895928.html" title="Deno Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8765"></div><span class="title">Deno Is Joining Cloudflare</span></a><a class="item" href="/rss/c347ba35.html" title="Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4637"></div><span class="title">Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare</span></a><a class="item" href="/rss/21e39187.html" title="Follow the Thread: A New Dashboard to Investigate Account Abuse"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=355"></div><span class="title">Follow the Thread: A New Dashboard to Investigate Account Abuse</span></a><a class="item" href="/rss/a658d7e7.html" title="Everything We Launched During Birthday Week 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7255"></div><span class="title">Everything We Launched During Birthday Week 2026</span></a><a class="item" href="/rss/e4ae02d4.html" title="Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3963"></div><span class="title">Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash</span></a><a class="item" href="/rss/7ea8163c.html" title="Introducing Cloudflare Traces: Follow Requests Through Our Entire Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9996"></div><span class="title">Introducing Cloudflare Traces: Follow Requests Through Our Entire Platform</span></a><a class="item" href="/rss/58ad2f62.html" title="Introducing Web Search API via AI Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=377"></div><span class="title">Introducing Web Search API via AI Gateway</span></a><a class="item" href="/rss/9cdb99c2.html" title="Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9073"></div><span class="title">Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects</span></a><a class="item" href="/rss/3400f056.html" title="One Year Later: The Power of 1.1.1.1 Interns"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9945"></div><span class="title">One Year Later: The Power of 1.1.1.1 Interns</span></a><a class="item" href="/rss/b2afd7b3.html" title="The Keys to the Internet Change on October 11. Are You Ready?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9397"></div><span class="title">The Keys to the Internet Change on October 11. Are You Ready?</span></a><a class="item" href="/rss/5bf8ea70.html" title="Updates on Our Pledge to Make Cloudflare Features Accessible to Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=687"></div><span class="title">Updates on Our Pledge to Make Cloudflare Features Accessible to Everyone</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

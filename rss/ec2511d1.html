@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>终端审批体系怎么搭？从模板配置到业务连续性 - RSSBOX</title>
+
+  
+    <meta name="description" content="前言 做过内网终端运维的同学大多遇见过这类真实场景： 研发人员在内网隔离环境调试程序，需要解密一份涉密文档，但网络断开无法提交在线审批；普通行政人员临时需要 U 盘拷贝会议资料，却要经过多层审批，耽误紧急会议；业务部门频繁提交打印免水印申请，全部由安全管理员单人处理，工单堆积如山。 市面上不少传统桌面管控、EDR 产品的审批功能普遍存在设计缺陷：  流程一刀切：不分风险等级，所有申请复用同一套审">
+<meta property="og:type" content="article">
+<meta property="og:title" content="终端审批体系怎么搭？从模板配置到业务连续性">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/ec2511d1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="前言 做过内网终端运维的同学大多遇见过这类真实场景： 研发人员在内网隔离环境调试程序，需要解密一份涉密文档，但网络断开无法提交在线审批；普通行政人员临时需要 U 盘拷贝会议资料，却要经过多层审批，耽误紧急会议；业务部门频繁提交打印免水印申请，全部由安全管理员单人处理，工单堆积如山。 市面上不少传统桌面管控、EDR 产品的审批功能普遍存在设计缺陷：  流程一刀切：不分风险等级，所有申请复用同一套审">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-10T02:29:10.000Z">
+<meta property="article:modified_time" content="2026-10-10T02:29:10.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">1 审批模板：搭建可复用的流程底座</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.1 两种审批模式适配不同风险业务</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">1.2 配套的工程化能力</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">2 策略下发：实现业务场景与审批流程精准匹配</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3 离线自我备案，解决内网断网场景的业务痛点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4 运维落地的避坑总结（实战踩坑）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">5 通用审批体系建设方法论（可迁移，不局限单一产品）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">6 总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-10T02:29:10.000Z">2026-10-10</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>终端审批体系怎么搭？从模板配置到业务连续性</span></h1>
+<div>
+<h2 data-id="heading-0">前言</h2>
+<p>做过内网终端运维的同学大多遇见过这类真实场景：</p>
+<p>研发人员在内网隔离环境调试程序，需要解密一份涉密文档，但网络断开无法提交在线审批；普通行政人员临时需要 U 盘拷贝会议资料，却要经过多层审批，耽误紧急会议；业务部门频繁提交打印免水印申请，全部由安全管理员单人处理，工单堆积如山。</p>
+<p>市面上不少传统桌面管控、EDR 产品的审批功能普遍存在设计缺陷：</p>
+<ol>
+<li><strong>流程一刀切</strong>：不分风险等级，所有申请复用同一套审批链路，低风险普通操作也要多层复核，业务体验差；</li>
+<li><strong>离线直接阻断</strong>：一旦终端和服务器网络断开，审批链路直接失效，业务操作全部禁止，内网网络分区、网线故障场景下直接造成工作停滞；</li>
+<li><strong>审批入口单一</strong>：只能登录管控大平台处理工单，审批人不在工位就无法处理申请；</li>
+<li><strong>缺少闭环审计</strong>：只关注 “审批是否通过”，对于操作后行为缺少完整日志留存，无法满足等保、保密审查溯源要求。</li>
+</ol>
+<p>一套优秀的终端申请审批体系，核心目标不是 “把所有操作管住”，而是实现<strong>风险分级、流程弹性、异常可兜底、操作全留痕</strong>。下面结合实际落地经验，拆解整套审批体系的建设要点，其中部分能力以迪康端点安全一体化管理系统作为案例演示，这些设计思路同样可以迁移到其他安全平台建设当中。</p>
+<h2 data-id="heading-1">1 审批模板：搭建可复用的流程底座</h2>
+<p>审批模板是整个审批体系的根基，所有终端发起的外设使用、文档处理、软件安装类申请，全部基于预设模板流转。在该系统中，模板统一维护在「工具箱 - 审批流程库」，管理员可以提前根据业务风险等级预制多套模板，避免重复配置。</p>
+<h3 data-id="heading-2">1.1 两种审批模式适配不同风险业务</h3>
+<p>在新建审批模板时，可以自由增加多个审批环节，每个环节指定对应审批责任人。平台提供<strong>严格审批、简单审批</strong>两种模式，这也是实现分级管控的关键。</p>
+<ul>
+<li><strong>严格审批模式</strong>：该环节内<strong>全部审批人同意</strong>，工单才可以流转到下一环节。</li>
+</ul>
+<blockquote>
+<p>业务场景：高密级文档解密、高危外设启用、核心终端软件卸载。这类操作安全影响大，需要多角色交叉复核，规避单人审批带来的风险。</p>
+</blockquote>
+<ul>
+<li><strong>简单审批模式</strong>：本环节<strong>任意一位审批人通过</strong>即可完成本环节审核。</li>
+</ul>
+<blockquote>
+<p>业务场景：普通 U 盘临时使用、短时间暂停打印水印、普通办公软件安装。面向高频低风险申请，减少审批等待时长，释放安全管理员的工单压力。</p>
+</blockquote>
+<h3 data-id="heading-3">1.2 配套的工程化能力</h3>
+<p>仅仅只有流程模板还不够，工程化细节直接决定运维体验：</p>
+<ol>
+<li><strong>审批权限委托</strong>：可以将审批权限委托至普通客户端账号，审批人不用登录服务器管控平台，在日常办公电脑客户端即可处理工单，适配管理员异地办公场景；</li>
+<li><strong>多渠道消息通知</strong>：支持对接钉钉、飞书、企业微信推送审批提醒，避免工单淹没在系统后台无人处理；</li>
+<li><strong>客户端自主撤销</strong>：终端用户提交申请后，如果业务变更，可以在本地小助手主动撤销未办结工单，减少无效审批流转。</li>
+</ol>
+<blockquote>
+<p>小提示：委托审批权限需要做好权限最小化，只授予对应岗位人员，不能大范围开放。</p>
+</blockquote>
+<h2 data-id="heading-4">2 策略下发：实现业务场景与审批流程精准匹配</h2>
+<p>模板制作完成不等于落地生效，需要通过安全策略模块，将审批模板下发给终端、用户、部门对象。</p>
+<p>这里一个很实用的设计是<strong>支持密级匹配审批模板</strong>：</p>
+<ol>
+<li>高密级文件相关操作，自动调用严格审批模板；</li>
+<li>普通低风险业务，自动匹配简单审批模板；</li>
+<li>没有匹配密级规则的申请，走全局预设的默认审批流程。</li>
+</ol>
+<p>举个现实例子：企业内部文档分为内部公开、秘密、机密三个等级。机密文档解密强制走严格审批，需要部门负责人 + 保密员双重同意；内部公开文档解密使用简单审批，直属领导一人审批即可。</p>
+<p>很多企业运维容易踩坑：直接一套审批模板全单位下发，完全不区分业务风险。最后的结果要么是安全管控形同虚设，要么业务部门怨声载道，大量员工想办法寻找绕过管控的手段。</p>
+<blockquote>
+<p>核心思想：高风险严管、低风险快通，不要用同一套标准约束全部业务。</p>
+</blockquote>
+<h2 data-id="heading-5">3 离线自我备案，解决内网断网场景的业务痛点</h2>
+<p>内网环境经常会遇到网络分区、物理断网、服务器维护等情况。终端和管理服务器网络断开之后，常规在线审批链路完全失效。如果直接一刀切阻断所有操作，会直接打断现场调试、应急处置等重要业务。</p>
+<p><strong>离线自我备案机制就是针对该场景的兜底方案。</strong></p>
+<p>在审批流程策略中，针对指定业务类型开启自我备案。当终端处于离线状态时：</p>
+<ol>
+<li>用户不需要等待线上审批，可以优先完成业务操作；</li>
+<li>系统完整记录全部操作行为、操作人、操作时间；</li>
+<li>当网络恢复连通之后，所有备案日志自动上报管理平台，后续管理员再完成追溯审计。</li>
+</ol>
+<p>典型适用场景：隔离网内研发调试解密文档、现场运维需要临时使用 U 盘拷贝工具。</p>
+<p>⚠️重点澄清：离线自我备案≠无限制放行。
+备案只是<strong>审批时序后置，而不是取消管控</strong>。全部操作都会完整留存审计日志，网络恢复后统一上传平台，管理员可以事后复核、追溯违规行为，兼顾业务连续性和安全审计要求。</p>
+<h2 data-id="heading-6">4 运维落地的避坑总结（实战踩坑）</h2>
+<p>不管功能设计多么完善，不合理配置依旧会带来安全隐患，整理几个真实落地过程中高频踩过的坑：</p>
+<ol>
+<li>❌坑点 1：全员全部开启离线自我备案</li>
+</ol>
+<blockquote>
+<p>风险：所有终端都可以离线绕过实时审批，备案日志仅仅事后审计，会增加泄密风险，同时海量日志会造成服务器存储压力暴涨。
+✅正确做法：只对确实经常面临断网、物理隔离的岗位定向开放，普通办公终端不开启。</p>
+</blockquote>
+<ol start="2">
+<li>❌坑点 2：密级标签配置混乱，高风险操作匹配简易审批模板</li>
+</ol>
+<blockquote>
+<p>风险：机密级文档解密，流转到简单审批流程，单人即可通过，造成重大安全漏洞。
+✅正确做法：配置完成密级匹配规则后，做功能测试验证，模拟不同密级操作，校验工单是否流转到预期模板。</p>
+</blockquote>
+<ol start="3">
+<li>❌坑点 3：滥用委托审批权限，大范围下放审批权限</li>
+</ol>
+<blockquote>
+<p>风险：过多人员拥有审批权限，权限扩散，难以审计谁完成的风险操作。
+✅正确做法：遵循权限最小化原则，一个审批环节尽量控制少量审批人，定期复核委托审批权限清单。</p>
+</blockquote>
+<ol start="4">
+<li>❌坑点 4：只关注审批通过与否，忽略事后审计复盘</li>
+</ol>
+<blockquote>
+<p>风险：审批流程跑通就完事，从不回看审批日志、离线备案记录，审批体系沦为形式化工具。
+✅正确做法：定期梳理审批日志，统计高频申请。如果某一类申请量巨大，要评估是不是管控策略过于严苛，适当调整安全策略，从源头减少工单数量。</p>
+</blockquote>
+<h2 data-id="heading-7">5 通用审批体系建设方法论（可迁移，不局限单一产品）</h2>
+<p>即便不使用迪康端点安全一体化管理系统，这些设计思路也可以作为选型、建设终端审批体系的参考标准：</p>
+<ol>
+<li><strong>流程可模板化</strong>：支持自定义多套审批模板，区分简单 / 严格审批模式，适配不同风险等级业务；</li>
+<li><strong>策略可精准下发</strong>：支持按部门、用户、密级做流程匹配，拒绝全局一刀切；</li>
+<li><strong>具备离线兜底能力</strong>：网络断开场景要有备案机制，不能直接卡死业务；</li>
+<li><strong>多入口审批</strong>：不能只能在管控平台处理工单，支持委托审批、第三方 IM 消息通知；</li>
+<li><strong>完整审计闭环</strong>：申请、审核、驳回、离线备案全部留痕，日志可检索、可导出，满足合规审查；</li>
+<li><strong>权限最小化</strong>：审批权限可以精细分配，支持定期权限回收复核。</li>
+</ol>
+<h2 data-id="heading-8">6 总结</h2>
+<p>终端安全管控的终极目标，不是尽可能限制员工操作，而是在满足合规、保密要求的前提下，最大程度降低安全机制对正常业务的阻碍。</p>
+<p>弹性的审批体系是平衡安全与业务效率非常关键的一环：通过多模板、分级审批实现风险差异化管控；依靠密级匹配让不同业务流转对应流程；借助离线自我备案处理内网断网这类异常场景；最后依托完整审计日志完成闭环。</p>
+<p>安全运维人员在落地时，切忌照搬默认配置，需要结合单位业务场景梳理风险清单，持续迭代调优审批规则，最终达成 “安全不缺位，业务不停步” 的效果。</p>
+<blockquote>
+<p>声明：本文仅为技术学习与运维实践笔记，文中提到产品仅作为案例，不存在商业推广目的。</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="终端审批体系怎么搭？从模板配置到业务连续性" href="https://juejin.cn/post/7694628974492155955" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">终端审批体系怎么搭？从模板配置到业务连续性</span><span class="desc fs12">https://juejin.cn/post/7694628974492155955</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/84bff9b2.html">App+1｜专注星空：让「少刷手机」这件事更愉悦一点<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e8702e19.html">1546.2万人次！国庆假期中外游客“双向奔赴”活力涌动<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/b31a751e.html" title="外交部：暂无中国公民在巴拿马地震中伤亡报告"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2484"></div><span class="title">外交部：暂无中国公民在巴拿马地震中伤亡报告</span></a><a class="item" href="/rss/38e44ac3.html" title="FDE：深入客户，走向产品"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c318e9d59bd845279d60b6ee9fc65dbe~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgY29sb3JrbmlnaHQ=:q75.awebp?rk3s=f64ab15b&x-expires=1792205180&x-signature=YM%2BjGz3o37%2BuEAJH1FRfx4BB4o0%3D"></div><span class="title">FDE：深入客户，走向产品</span></a><a class="item" href="/rss/b8df7238.html" title="Redis 内存打满、连接数飙红？运维排查四步法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4508"></div><span class="title">Redis 内存打满、连接数飙红？运维排查四步法</span></a><a class="item" href="/rss/eeda350b.html" title="【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #25】北交所财务技术指标难搞？12个接口，报表+MACD全拿"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3999"></div><span class="title">【别再到处找免费股票数据API了：官方204个接口，32篇一次讲透 #25】北交所财务技术指标难搞？12个接口，报表+MACD全拿</span></a><a class="item" href="/rss/8b4f36d5.html" title="从 0 设计历史专题资料汇编的 AI Agent 编排架构——六轮真实任务复盘"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7015"></div><span class="title">从 0 设计历史专题资料汇编的 AI Agent 编排架构——六轮真实任务复盘</span></a><a class="item" href="/rss/ee0ad81e.html" title="同一张街拍，两种表达：用 Awaking 试一次高对比黑白"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ee5099dd90e04db4adde7058248d0229~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792073957&x-signature=pqDx5WdcgIxRJU5RoTNXcbkwwRA%3D"></div><span class="title">同一张街拍，两种表达：用 Awaking 试一次高对比黑白</span></a><a class="item" href="/rss/ed4eae1f.html" title="全栈自造 Status Deck（四）：硬件终于到了，从点亮屏幕到跑通第一个 Demo"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/bd0f56af4b5649be9d2ab5e19ecbab10~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgRWF0RmFucw==:q75.awebp?rk3s=f64ab15b&x-expires=1792133657&x-signature=DNMz2dSDzuUI018aBFzwWy36noY%3D"></div><span class="title">全栈自造 Status Deck（四）：硬件终于到了，从点亮屏幕到跑通第一个 Demo</span></a><a class="item" href="/rss/5da39ea4.html" title="如何打造真正的数字化工厂？需从Red Hat到数据库底层打捞基石"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5300"></div><span class="title">如何打造真正的数字化工厂？需从Red Hat到数据库底层打捞基石</span></a><a class="item" href="/rss/3449e2ad.html" title="将已存在的Git仓库移动到新建的父仓库下"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6677"></div><span class="title">将已存在的Git仓库移动到新建的父仓库下</span></a><a class="item" href="/rss/985d8dfe.html" title="晚霞要多暖？用 Awaking 只改色温做一次取舍"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d8fc105c377041a5972c9530c107cec4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792202066&x-signature=7lDi%2BTPFjAciA66sxB3GXKS2Hts%3D"></div><span class="title">晚霞要多暖？用 Awaking 只改色温做一次取舍</span></a><a class="item" href="/rss/ff5e2a97.html" title="液冷机组冷却设备，接触器怎么选？一个电气设计的一线记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4214"></div><span class="title">液冷机组冷却设备，接触器怎么选？一个电气设计的一线记录</span></a><a class="item" href="/rss/ec4f2753.html" title="液冷机组冷却设备，接触器怎么选？三大系列参数与工程校核要点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4611"></div><span class="title">液冷机组冷却设备，接触器怎么选？三大系列参数与工程校核要点</span></a><a class="item" href="/rss/e8dee91f.html" title="照片边缘太抢眼？用 Awaking 做一次 1:1 裁切"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8eae6ccc14544aecab26687728740c80~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792115451&x-signature=E3i1hvy%2BmLt8a4Tui6o5EDG6w1k%3D"></div><span class="title">照片边缘太抢眼？用 Awaking 做一次 1:1 裁切</span></a><a class="item" href="/rss/37f19f3c.html" title="裁员裁掉了那个干了14年的人：我这才看清职场的5条潜规则"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4215"></div><span class="title">裁员裁掉了那个干了14年的人：我这才看清职场的5条潜规则</span></a><a class="item" href="/rss/534880b7.html" title="网络链路备份与高可用技术详解：从 Dual-WAN、LACP 到 SD-WAN 与 MPTCP"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/99e8ad188e9946309a27f1e723a330d0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1792202733&x-signature=9ITFeU2i71zNv54tQW4H6y65DSk%3D"></div><span class="title">网络链路备份与高可用技术详解：从 Dual-WAN、LACP 到 SD-WAN 与 MPTCP</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,3118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Building Git Infrastructure for Agent-Scale Development - RSSBOX</title>
+
+  
+    <meta name="description" content="Every day on GitHub, millions of developers build the products their customers rely on, contribute to open source, and pursue personal projects. GitHub’s architecture has changed steadily over the">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Building Git Infrastructure for Agent-Scale Development">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/606d77b8.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Every day on GitHub, millions of developers build the products their customers rely on, contribute to open source, and pursue personal projects. GitHub’s architecture has changed steadily over the">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-07T07:19:50.000Z">
+<meta property="article:modified_time" content="2026-10-07T07:19:50.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Github">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#h-where-today-s-architecture-meets-new-demands"><span class="toc-text">Where today’s architecture meets new demands</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-built-for-the-busiest-better-for-everyone"><span class="toc-text">Built for the busiest, better for everyone</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-the-approach"><span class="toc-text">The approach</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#h-minimize-coordination"><span class="toc-text">Minimize coordination</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#h-decouple-storage-from-compute"><span class="toc-text">Decouple storage from compute</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#h-what-comes-next"><span class="toc-text">What comes next</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/github/">Github</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-07T07:19:50.000Z">2026-10-07</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Building Git Infrastructure for Agent-Scale Development</span></h1>
+<div>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">
+
+<html><body><p class="wp-block-paragraph">Every day on GitHub, millions of developers build the products their customers rely on, contribute to open source, and pursue personal projects. GitHub’s architecture has changed steadily over the years to support that work and the growing demands of the developers and organizations who depend on it.</p>
+<p class="wp-block-paragraph">Agentic software development is driving the next architectural shift. With developers and agents working concurrently in repositories that receive millions of commits a day, these workloads demand a different Git architecture. We’re rebuilding GitHub’s Git infrastructure to support them. This post explores the demands shaping that work and the design principles behind it.</p>
+<p class="wp-block-paragraph">Today’s highest-volume workloads show the scale we’re building for. The gap between a typical repository and the busiest ones is wider than most people expect. Here’s a rough picture of the monthly repository activity distribution on GitHub from August 2026:</p>
+<style data-wp-block-html="css">
+.ghchart &#123;
+  /* Theme tokens */
+  --ghc-text: #1f2328;
+  --ghc-muted: #656d76;
+  --ghc-grid: #d0d7de;
+  --ghc-axis: #59636e;
+  --ghc-card-bg: #ffffff;
+  --ghc-card-border: #d0d7de;
+  --ghc-canvas: #f2f5f3;
+  --ghc-divider: #b6bfb8;
+  --ghc-guide: #afb8c1;
+
+<p>  &#x2F;* GitHub brand font — matches the github.blog stack (Mona Sans, with<br>     the blog’s metric fallback) so it renders identically in-context. *&#x2F;<br>  font-family: “Mona Sans”, “Mona Sans Fallback”, -apple-system, “system-ui”,<br>    “Segoe UI”, Helvetica, Arial, sans-serif;<br>  -webkit-font-smoothing: antialiased;<br>  text-rendering: optimizeLegibility;</p>
+<p>  position: relative;<br>  box-sizing: border-box;<br>  width: 100%;<br>  max-width: 699px;<br>  margin: 0 auto;<br>  color: var(–ghc-text);<br>  line-height: 1.4;<br>&amp;#125;</p>
+<p>.ghchart *,<br>.ghchart *::before,<br>.ghchart *::after &amp;#123; box-sizing: border-box; &amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Header + legend                                                     <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__header &amp;#123;<br>  display: flex;<br>  justify-content: flex-end;<br>  align-items: center;<br>  min-height: 24px;<br>  margin-bottom: 4px;<br>&amp;#125;</p>
+<p>.ghchart__legend &amp;#123;<br>  display: flex;<br>  align-items: center;<br>  gap: 20px;<br>  flex-wrap: wrap;<br>  justify-content: flex-end;<br>&amp;#125;</p>
+<p>.ghchart__legend-item &amp;#123;<br>  display: inline-flex;<br>  align-items: center;<br>  gap: 8px;<br>  font-size: clamp(14px, 1.9vw, 17px);<br>  font-weight: 600;<br>  color: var(–ghc-muted);<br>  white-space: nowrap;<br>&amp;#125;</p>
+<p>.ghchart__swatch &amp;#123;<br>  width: 14px;<br>  height: 14px;<br>  border-radius: 4px;<br>  flex: 0 0 auto;<br>&amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Plot (SVG)                                                          <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__plot &amp;#123;<br>  display: block;<br>  width: 100%;<br>  height: auto;<br>  overflow: visible;<br>  touch-action: pan-y;<br>&amp;#125;</p>
+<p>.ghchart__gridline &amp;#123;<br>  stroke: var(–ghc-grid);<br>  stroke-width: 1;<br>  stroke-dasharray: 2 6;<br>  stroke-linecap: round;<br>  opacity: 0.9;<br>&amp;#125;</p>
+<p>.ghchart__axislabel &amp;#123;<br>  fill: var(–ghc-axis);<br>  font-size: 22px;<br>  font-weight: 500;<br>&amp;#125;<br>.ghchart__axislabel–x &amp;#123; font-weight: 600; &amp;#125;</p>
+<p>.ghchart__line &amp;#123;<br>  fill: none;<br>  stroke-linecap: round;<br>  stroke-linejoin: round;<br>&amp;#125;</p>
+<p>&#x2F;* Trailing partial&#x2F;incomplete segment of a line (e.g. a month still in<br>   progress) — dashed so it reads as “not final yet” without a legend. *&#x2F;<br>.ghchart__line–dashed &amp;#123;<br>  stroke-dasharray: 7 6;<br>&amp;#125;</p>
+<p>.ghchart__dot &amp;#123; transition: r 0.12s ease; &amp;#125;</p>
+<p>&#x2F;* Dashed threshold line (e.g. a target&#x2F;reference level) + floating label.<br>   Stroke color is set inline per chart; dash + label styling live here. *&#x2F;<br>.ghchart__threshold &amp;#123;<br>  stroke-width: 2;<br>  stroke-dasharray: 7 6;<br>  stroke-linecap: round;<br>  opacity: 0.9;<br>&amp;#125;<br>.ghchart__threshold-label &amp;#123;<br>  font-size: 20px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>&amp;#125;</p>
+<p>&#x2F;* Hatched band marking a partial &#x2F; projected trailing region. *&#x2F;<br>.ghchart__projection &amp;#123; pointer-events: none; &amp;#125;</p>
+<p>.ghchart__guide &amp;#123;<br>  stroke: var(–ghc-guide);<br>  stroke-width: 1.5;<br>  stroke-dasharray: 4 4;<br>  opacity: 0;<br>  transition: opacity 0.12s ease;<br>&amp;#125;</p>
+<p>.ghchart__hit &amp;#123; fill: transparent; &amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Scatter plot                                                        <em>&#x2F;<br>&#x2F;</em> —————————————————————— <em>&#x2F;<br>.ghchart__gridline–v &amp;#123; &#x2F;</em> vertical gridlines reuse the dashed grid style *&#x2F; &amp;#125;</p>
+<p>.ghchart__axistitle &amp;#123;<br>  fill: var(–ghc-muted);<br>  font-size: 20px;<br>  font-weight: 600;<br>  letter-spacing: -0.01em;<br>&amp;#125;</p>
+<p>&#x2F;* Dotted reference crosshair through the “reference” point. Stroke color<br>   is set inline (tracks the reference series color). *&#x2F;<br>.ghchart__crosshair &amp;#123;<br>  stroke-width: 2;<br>  stroke-dasharray: 2 7;<br>  stroke-linecap: round;<br>  opacity: 0.85;<br>  pointer-events: none;<br>&amp;#125;</p>
+<p>.ghchart__halo &amp;#123; opacity: 0.18; pointer-events: none; &amp;#125;<br>.ghchart__pt &amp;#123; transition: r 0.12s ease; &amp;#125;</p>
+<p>.ghchart__pt-label &amp;#123;<br>  fill: var(–ghc-muted);<br>  font-size: 19px;<br>  font-weight: 600;<br>  letter-spacing: -0.01em;<br>  pointer-events: none;<br>&amp;#125;<br>.ghchart__pt-label–strong &amp;#123; font-size: 21px; font-weight: 700; &amp;#125;</p>
+<p>.ghchart__pthit &amp;#123; fill: transparent; cursor: default; outline: none; &amp;#125;<br>.ghchart__pthit:focus-visible &amp;#123;<br>  outline: 2px solid var(–ghc-axis);<br>  outline-offset: 1px;<br>&amp;#125;</p>
+<p>.ghchart__swatch–dot &amp;#123; border-radius: 50%; &amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Trend chart (dated time-series with narrative headline)             <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__headline &amp;#123;<br>  font-size: clamp(17px, 2.3vw, 20px);<br>  line-height: 1.32;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>  color: var(–ghc-text);<br>  margin: 0 0 8px;<br>&amp;#125;</p>
+<p>&#x2F;* Trend legend sits left-aligned under the headline&#x2F;subtitle. *&#x2F;<br>.ghchart__legend–trend &amp;#123;<br>  justify-content: flex-start;<br>  margin: 2px 0 14px;<br>&amp;#125;<br>.ghchart__glyph &amp;#123; flex: 0 0 auto; &amp;#125;<br>.ghchart__glyph–square &amp;#123;<br>  width: 13px; height: 13px; border-radius: 2px;<br>&amp;#125;<br>.ghchart__glyph–diamond &amp;#123;<br>  width: 12px; height: 12px; border: 1.5px solid; transform: rotate(45deg);<br>&amp;#125;<br>.ghchart__glyph–line &amp;#123;<br>  width: 20px; height: 0; border-top: 2px dashed; border-radius: 0;<br>&amp;#125;</p>
+<p>&#x2F;* Phase background columns + separators + top labels. *&#x2F;<br>.ghchart__phase &amp;#123; fill: #f6f8fa; opacity: 0.55; &amp;#125;<br>.ghchart__phase–alt &amp;#123; fill: #ffffff; opacity: 0; &amp;#125;<br>.ghchart__phase-sep &amp;#123;<br>  stroke: var(–ghc-grid); stroke-width: 1; stroke-dasharray: 2 5; opacity: 0.8;<br>&amp;#125;<br>.ghchart__phase-label &amp;#123;<br>  fill: var(–ghc-muted);<br>  font-size: 15px;<br>  font-weight: 700;<br>  letter-spacing: 0.06em;<br>&amp;#125;<br>.ghchart__phase-avg &amp;#123;<br>  font-size: 16px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>&amp;#125;</p>
+<p>&#x2F;* Dashed trend line + ± noise band + slope label. *&#x2F;<br>.ghchart__trendband &amp;#123; opacity: 0.12; pointer-events: none; &amp;#125;<br>.ghchart__trendline &amp;#123;<br>  stroke-width: 2.5;<br>  stroke-dasharray: 8 6;<br>  stroke-linecap: round;<br>  fill: none;<br>&amp;#125;<br>.ghchart__slope &amp;#123;<br>  font-size: 20px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>&amp;#125;</p>
+<p>&#x2F;* Horizontal reference line + label. *&#x2F;<br>.ghchart__refline &amp;#123;<br>  stroke-width: 2;<br>  stroke-dasharray: 7 6;<br>  stroke-linecap: round;<br>  opacity: 0.85;<br>&amp;#125;<br>.ghchart__reflabel &amp;#123;<br>  font-size: 16px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>&amp;#125;</p>
+<p>&#x2F;* Data squares — values reveal on hover only. *&#x2F;<br>.ghchart__square &amp;#123; transition: width 0.12s ease, height 0.12s ease, x 0.12s ease, y 0.12s ease; &amp;#125;<br>.ghchart__squarehit &amp;#123; fill: transparent; cursor: default; outline: none; &amp;#125;<br>.ghchart__squarehit:focus-visible &amp;#123;<br>  outline: 2px solid var(–ghc-axis);<br>  outline-offset: 1px;<br>&amp;#125;</p>
+<p>&#x2F;* Invalid-run markers + leader-line annotations. <em>&#x2F;<br>.ghchart__invalid &amp;#123; stroke-width: 2; &amp;#125;<br>.ghchart__invalid-x &amp;#123; stroke-width: 2; stroke-linecap: round; &amp;#125;<br>.ghchart__leader &amp;#123; stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.8; &amp;#125;<br>.ghchart__leader–callout &amp;#123; stroke-dasharray: none; opacity: 0.6; &amp;#125;<br>.ghchart__anno-title &amp;#123;<br>  font-size: 15px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>&amp;#125;<br>.ghchart__anno-sub &amp;#123;<br>  fill: var(–ghc-muted);<br>  font-size: 13px;<br>  font-weight: 500;<br>&amp;#125;<br>&#x2F;</em> Final-callout labels read a touch larger than the invalid-run notes. *&#x2F;<br>.ghchart__anno-title–callout &amp;#123; font-size: 17px; &amp;#125;<br>.ghchart__anno-sub–callout &amp;#123; font-size: 14px; &amp;#125;</p>
+<p>&#x2F;* Bracket span annotation. *&#x2F;<br>.ghchart__bracket &amp;#123; stroke: var(–ghc-axis); stroke-width: 1.5; opacity: 0.75; &amp;#125;<br>.ghchart__bracket-label &amp;#123;<br>  fill: var(–ghc-muted);<br>  font-size: 13px;<br>  font-weight: 700;<br>  letter-spacing: 0.04em;<br>&amp;#125;</p>
+<p>&#x2F;* Final callout ring. *&#x2F;<br>.ghchart__callout-ring &amp;#123; fill: none; stroke-width: 2; &amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Title + divider                                                     <em>&#x2F;<br>&#x2F;</em> —————————————————————— <em>&#x2F;<br>.ghchart__title &amp;#123;<br>  &#x2F;</em> Matches the github.blog H2 (.wp-block-heading) exactly *&#x2F;<br>  display: block;<br>  font-size: 32px;<br>  line-height: 40px;<br>  font-weight: 700;<br>  letter-spacing: -0.18px;<br>  color: var(–ghc-text);<br>&amp;#125;</p>
+<p>.ghchart__rule &amp;#123;<br>  height: 1.5px;<br>  border-radius: 1.5px;<br>  background: var(–ghc-divider);<br>  margin: 10px 0 18px;<br>&amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Bar chart: subtitle, panels, bars, caption                          <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__subtitle &amp;#123;<br>  margin: -6px 0 20px;<br>  font-size: clamp(13px, 1.6vw, 15px);<br>  line-height: 1.5;<br>  color: var(–ghc-muted);<br>&amp;#125;</p>
+<p>.ghchart__panel &amp;#123; margin-top: 30px; &amp;#125;<br>.ghchart__panel:first-of-type &amp;#123; margin-top: 6px; &amp;#125;</p>
+<p>.ghchart__panel-title &amp;#123;<br>  margin: 0 0 6px;<br>  font-size: clamp(15px, 1.9vw, 18px);<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>  color: var(–ghc-text);<br>&amp;#125;</p>
+<p>.ghchart__plot–bar &amp;#123; touch-action: pan-y; &amp;#125;</p>
+<p>.ghchart__axisline &amp;#123;<br>  stroke: var(–ghc-axis);<br>  stroke-width: 1.25;<br>  opacity: 0.35;<br>&amp;#125;</p>
+<p>.ghchart__bar &amp;#123; transition: opacity 0.12s ease; &amp;#125;<br>.ghchart__barhit &amp;#123; fill: transparent; &amp;#125;</p>
+<p>&#x2F;* Always-on value labels above selected bars. *&#x2F;<br>.ghchart__barvalue &amp;#123;<br>  fill: var(–ghc-text);<br>  font-size: 20px;<br>  font-weight: 700;<br>  font-variant-numeric: tabular-nums;<br>  pointer-events: none;<br>&amp;#125;</p>
+<p>&#x2F;* Anchor annotation: dotted reference line + floating pill. *&#x2F;<br>.ghchart__anno-line &amp;#123;<br>  stroke: #8b949e;<br>  stroke-width: 1.5;<br>  stroke-dasharray: 4 3;<br>  stroke-linecap: round;<br>  pointer-events: none;<br>&amp;#125;<br>.ghchart__anno-chip &amp;#123;<br>  fill: #ffebe9;<br>  stroke: #ffcecb;<br>  stroke-width: 1;<br>  pointer-events: none;<br>&amp;#125;<br>.ghchart__anno-chip-text &amp;#123;<br>  fill: #a0111f;<br>  font-weight: 700;<br>  pointer-events: none;<br>&amp;#125;</p>
+<p>.ghchart__caption &amp;#123;<br>  margin-top: 22px;<br>  padding-top: 12px;<br>  border-top: 1px solid var(–ghc-card-border);<br>  font-size: 12.5px;<br>  line-height: 1.55;<br>  color: var(–ghc-muted);<br>&amp;#125;<br>.ghchart__caption b &amp;#123; color: var(–ghc-text); font-weight: 700; &amp;#125;<br>.ghchart__caption code &amp;#123;<br>  font-family: ui-monospace, SFMono-Regular, “SF Mono”, Menlo, Consolas, monospace;<br>  font-size: 0.92em;<br>  padding: 1px 5px;<br>  background: #f6f8fa;<br>  border: 1px solid var(–ghc-card-border);<br>  border-radius: 5px;<br>&amp;#125;<br>.ghchart__tag &amp;#123;<br>  display: inline-block;<br>  font-size: 10px;<br>  font-weight: 650;<br>  letter-spacing: 0.03em;<br>  text-transform: uppercase;<br>  padding: 2px 7px;<br>  border-radius: 999px;<br>  border: 1px solid #aceebb;<br>  color: #0a5223;<br>  background: #dafbe1;<br>  white-space: nowrap;<br>  vertical-align: middle;<br>&amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Distribution dashboard (segmented mix bar + ranked bar panels)      <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__dist-section &amp;#123; margin-top: 28px; &amp;#125;<br>.ghchart__dist-section:first-of-type &amp;#123; margin-top: 12px; &amp;#125;</p>
+<p>.ghchart–panel-cards &amp;#123; padding: 24px; background: var(–ghc-canvas); &amp;#125;<br>.ghchart–panel-cards .ghchart__dist-cols &amp;#123; gap: 24px; &amp;#125;<br>.ghchart–panel-cards .ghchart__dist-cols .ghchart__dist-section &amp;#123;<br>  min-width: 0;<br>  margin: 0;<br>  padding: 24px;<br>  border: 1px solid var(–ghc-card-border);<br>  border-radius: 8px;<br>  background: var(–ghc-card-bg);<br>&amp;#125;<br>@media (max-width: 480px) &amp;#123;<br>  .ghchart–panel-cards,<br>  .ghchart–panel-cards .ghchart__dist-cols .ghchart__dist-section &amp;#123; padding: 16px; &amp;#125;<br>&amp;#125;</p>
+<p>&#x2F;* Segmented proportional “mix” bar: name inside, count&#x2F;percent below.<br>   Separators are 2px inside borders (box-sizing:border-box) rather than a<br>   flex gap, so the three segments sum to exactly 100% with no overflow. <em>&#x2F;<br>.ghchart__seg &amp;#123;<br>  display: flex;<br>  width: 100%;<br>  height: 42px;<br>  margin-top: 2px;<br>  border-radius: 7px;<br>  overflow: hidden;<br>&amp;#125;<br>.ghchart__seg-cell &amp;#123;<br>  display: flex;<br>  align-items: center;<br>  justify-content: center;<br>  min-width: 0;<br>  color: #ffffff;<br>  font-size: 15px;<br>  font-weight: 700;<br>  letter-spacing: -0.01em;<br>  white-space: nowrap;<br>  overflow: hidden;<br>&amp;#125;<br>.ghchart__seg-cell + .ghchart__seg-cell &amp;#123; border-left: 2px solid var(–ghc-card-bg); &amp;#125;<br>.ghchart__seg-note-row &amp;#123;<br>  display: flex;<br>  width: 100%;<br>  margin-top: 8px;<br>&amp;#125;<br>.ghchart__seg-note &amp;#123;<br>  min-width: 0;<br>  text-align: center;<br>  font-size: 12.5px;<br>  color: var(–ghc-muted);<br>  font-variant-numeric: tabular-nums;<br>  white-space: nowrap;<br>&amp;#125;<br>&#x2F;</em> Keep the outer notes from spilling past the chart edges. *&#x2F;<br>.ghchart__seg-note:first-child &amp;#123; text-align: left; &amp;#125;<br>.ghchart__seg-note:last-child &amp;#123; text-align: right; &amp;#125;<br>.ghchart__seg-note b &amp;#123; color: var(–ghc-text); font-weight: 700; &amp;#125;</p>
+<p>&#x2F;* Ranked horizontal bar list: [category | bar track | value].<br>   The list is the grid and rows use display:contents, so the category,<br>   bar, and value columns line up across every row in a panel. *&#x2F;<br>.ghchart__dist-list &amp;#123;<br>  display: grid;<br>  grid-template-columns: max-content 1fr max-content;<br>  align-items: center;<br>  column-gap: 12px;<br>  row-gap: 10px;<br>  margin-top: 4px;<br>&amp;#125;<br>.ghchart__dist-row &amp;#123; display: contents; &amp;#125;<br>.ghchart__dist-cat &amp;#123;<br>  text-align: right;<br>  font-size: 13px;<br>  line-height: 1.25;<br>  color: var(–ghc-text);<br>  white-space: nowrap;<br>&amp;#125;<br>.ghchart__dist-track &amp;#123; width: 100%; &amp;#125;<br>.ghchart__dist-bar &amp;#123;<br>  height: 15px;<br>  min-width: 2px;<br>  border-radius: 3px;<br>&amp;#125;<br>.ghchart__dist-val &amp;#123;<br>  font-size: 12.5px;<br>  color: var(–ghc-muted);<br>  font-variant-numeric: tabular-nums;<br>  white-space: nowrap;<br>&amp;#125;<br>.ghchart__dist-val b &amp;#123; color: var(–ghc-text); font-weight: 700; &amp;#125;</p>
+<p>.ghchart__dist-stats &amp;#123; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; margin: 0; &amp;#125;<br>.ghchart__dist-stat &amp;#123; display: flex; flex-direction: column; gap: 4px; &amp;#125;<br>.ghchart__dist-stat dt &amp;#123; color: var(–ghc-muted); font-size: 13px; &amp;#125;<br>.ghchart__dist-stat dd &amp;#123; order: -1; margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; &amp;#125;</p>
+<p>.ghchart__comparison-row &amp;#123; display: grid; grid-template-columns: 145px minmax(0, 1fr); gap: 20px; padding: 14px 0; &amp;#125;<br>.ghchart__comparison-label &amp;#123; align-self: center; font-size: 15px; font-weight: 600; &amp;#125;<br>.ghchart__comparison-plot &amp;#123; position: relative; padding: 6px 0; display: grid; gap: 8px; &amp;#125;<br>.ghchart__comparison-grid &amp;#123;<br>  position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(–ghc-grid);<br>  transform: translateX(-50%); pointer-events: none;<br>&amp;#125;<br>.ghchart__comparison-zero &amp;#123; border-left: 2px solid var(–ghc-axis); z-index: 1; &amp;#125;<br>.ghchart__comparison-track &amp;#123; position: relative; height: 28px; &amp;#125;<br>.ghchart__comparison-bar &amp;#123;<br>  position: absolute; top: 0; height: 28px;<br>  border-radius: 0 2px 2px 0;<br>  pointer-events: none;<br>&amp;#125;<br>.ghchart__comparison-bar–negative &amp;#123; border-radius: 2px 0 0 2px; &amp;#125;<br>.ghchart__comparison-value &amp;#123;<br>  position: absolute;<br>  top: 4px;<br>  z-index: 2;<br>  width: max-content;<br>  color: var(–ghc-text);<br>  font-size: 13px;<br>  font-weight: 600;<br>  line-height: 20px;<br>  font-variant-numeric: tabular-nums;<br>  white-space: nowrap;<br>&amp;#125;<br>.ghchart__comparison-track–stacked .ghchart__comparison-value &amp;#123;<br>  position: relative;<br>  top: 0;<br>  width: 100%;<br>  white-space: normal;<br>  overflow-wrap: anywhere;<br>  background: var(–ghc-card-bg);<br>&amp;#125;<br>.ghchart__comparison-axis &amp;#123; position: relative; height: 24px; &amp;#125;<br>.ghchart__comparison-tick &amp;#123; position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 12px; color: var(–ghc-axis); &amp;#125;<br>@media (max-width: 480px) &amp;#123;<br>  .ghchart__comparison-row &amp;#123; grid-template-columns: minmax(0, 1fr); gap: 8px; &amp;#125;<br>  .ghchart__comparison-tick &amp;#123; font-size: 11px; &amp;#125;<br>&amp;#125;</p>
+<p>&#x2F;* Two-up panel grid (collapses to one column on narrow screens).<br>   minmax(0,1fr) lets columns shrink so long labels never force overflow. *&#x2F;<br>.ghchart__dist-cols &amp;#123;<br>  margin-top: 26px;<br>  display: grid;<br>  grid-template-columns: repeat(2, minmax(0, 1fr));<br>  gap: 24px 30px;<br>&amp;#125;<br>.ghchart__dist-cols .ghchart__dist-section &amp;#123; margin-top: 0; &amp;#125;<br>.ghchart__dist-cols–stack &amp;#123; grid-template-columns: 1fr; &amp;#125;<br>.ghchart__dist-cols–stack .ghchart__dist-section &amp;#123; margin-top: 28px; &amp;#125;<br>.ghchart__dist-cols–stack .ghchart__dist-section:first-child &amp;#123; margin-top: 0; &amp;#125;</p>
+<p>&#x2F;* Tighten the label&#x2F;value type a touch in the 2-up layout so the bars<br>   keep room at the 699px blog width. *&#x2F;<br>.ghchart__dist-cols:not(.ghchart__dist-cols–stack) .ghchart__dist-cat &amp;#123; font-size: 12px; &amp;#125;<br>.ghchart__dist-cols:not(.ghchart__dist-cols–stack) .ghchart__dist-val &amp;#123; font-size: 11.5px; &amp;#125;<br>.ghchart__dist-cols:not(.ghchart__dist-cols–stack) .ghchart__dist-list &amp;#123; column-gap: 9px; &amp;#125;</p>
+<p>@media (max-width: 600px) &amp;#123;<br>  .ghchart__dist-cols &amp;#123; grid-template-columns: 1fr; gap: 26px; &amp;#125;<br>  .ghchart__dist-cols .ghchart__dist-section ~ .ghchart__dist-section &amp;#123; margin-top: 2px; &amp;#125;<br>&amp;#125;</p>
+<p>&#x2F;* Let long category labels wrap on very narrow (mobile) widths. *&#x2F;<br>@media (max-width: 480px) &amp;#123;<br>  .ghchart__dist-cat &amp;#123; white-space: normal; &amp;#125;<br>&amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Timeline &#x2F; staged-duration chart (request lifecycle, before&#x2F;after)  <em>&#x2F;<br>&#x2F;</em> —————————————————————— *&#x2F;<br>.ghchart__tl-eyebrow &amp;#123;<br>  font-size: clamp(12px, 1.5vw, 13px);<br>  font-weight: 700;<br>  letter-spacing: 0.12em;<br>  text-transform: uppercase;<br>  color: var(–ghc-muted);<br>  margin: 0 0 6px;<br>&amp;#125;<br>.ghchart__tl-headline &amp;#123; margin-bottom: 14px; &amp;#125;</p>
+<p>&#x2F;* Before -&gt; after summary card. <em>&#x2F;<br>.ghchart__tl-stat &amp;#123;<br>  display: flex;<br>  align-items: center;<br>  justify-content: space-between;<br>  flex-wrap: wrap;<br>  gap: 16px 24px;<br>  padding: 16px 22px;<br>  border: 1px solid var(–ghc-card-border);<br>  border-radius: 12px;<br>  &#x2F;</em> Greenish grey to match the AI gateway diagram canvas (–ghd-canvas). *&#x2F;<br>  background: #f2f5f3;<br>  margin: 0 0 18px;<br>&amp;#125;<br>.ghchart__tl-stat-main &amp;#123; display: flex; align-items: center; gap: 20px; &amp;#125;<br>.ghchart__tl-stat-col &amp;#123; display: flex; flex-direction: column; gap: 2px; &amp;#125;<br>.ghchart__tl-stat-k &amp;#123;<br>  font-size: 12px; font-weight: 700; letter-spacing: 0.08em;<br>  text-transform: uppercase; color: var(–ghc-muted);<br>&amp;#125;<br>.ghchart__tl-stat-v &amp;#123;<br>  font-size: clamp(28px, 4.4vw, 40px); font-weight: 800;<br>  letter-spacing: -0.02em; line-height: 1; color: var(–ghc-text);<br>&amp;#125;<br>.ghchart__tl-stat-v–muted &amp;#123; color: var(–ghc-muted); font-weight: 700; &amp;#125;<br>.ghchart__tl-stat-arrow &amp;#123; font-size: 26px; color: var(–ghc-muted); &amp;#125;<br>.ghchart__tl-stat-delta &amp;#123; text-align: right; &amp;#125;<br>.ghchart__tl-stat-delta-v &amp;#123;<br>  font-size: clamp(26px, 4vw, 38px); font-weight: 800;<br>  letter-spacing: -0.02em; line-height: 1; color: #1a7f37;<br>&amp;#125;<br>.ghchart__tl-stat-delta-k &amp;#123; font-size: 13px; color: var(–ghc-muted); margin-top: 4px; &amp;#125;</p>
+<p>&#x2F;* Stage legend (2-up, monospace-free, stacks on mobile). *&#x2F;<br>.ghchart__tl-legend &amp;#123;<br>  display: grid;<br>  grid-template-columns: repeat(2, minmax(0, 1fr));<br>  gap: 10px 28px;<br>  margin: 0 0 20px;<br>&amp;#125;<br>.ghchart__tl-legend-item &amp;#123; display: inline-flex; align-items: center; gap: 10px; min-width: 0; &amp;#125;<br>.ghchart__tl-swatch &amp;#123; width: 13px; height: 13px; border-radius: 3px; flex: 0 0 auto; &amp;#125;<br>.ghchart__tl-legend-text &amp;#123;<br>  font-size: clamp(13px, 1.7vw, 15px); color: var(–ghc-text);<br>  font-variant-numeric: tabular-nums;<br>&amp;#125;<br>.ghchart__tl-rule &amp;#123;<br>  height: 1.5px; border-radius: 1.5px; background: var(–ghc-divider); margin: 4px 0 18px;<br>&amp;#125;</p>
+<p>&#x2F;* SVG plot text. <em>&#x2F;<br>.ghchart__tl-rowlabel &amp;#123; fill: var(–ghc-text); font-size: 22px; font-weight: 700; letter-spacing: 0.02em; &amp;#125;<br>.ghchart__tl-rowsub &amp;#123; fill: var(–ghc-muted); font-size: 18px; font-weight: 500; &amp;#125;<br>.ghchart__tl-seg-label &amp;#123; fill: #ffffff; font-size: 23px; font-weight: 700; letter-spacing: -0.01em; &amp;#125;<br>.ghchart__tl-callout-line &amp;#123; stroke: var(–ghc-guide); stroke-width: 1.5; fill: none; &amp;#125;<br>.ghchart__tl-callout-label &amp;#123; font-size: 21px; font-weight: 600; letter-spacing: -0.01em; &amp;#125;<br>&#x2F;</em> Segments + ribbons ease their opacity for the before&#x2F;after hover emphasis. <em>&#x2F;<br>.ghchart__tl-seg &amp;#123; transition: opacity 0.14s ease; &amp;#125;<br>.ghchart__tl-seg[data-stage] &amp;#123; cursor: pointer; &amp;#125;<br>.ghchart__tl-seg[data-stage]:focus-visible &amp;#123; outline: 2px solid var(–ghc-axis); outline-offset: 1px; &amp;#125;<br>.ghchart__tl-flow &amp;#123; opacity: 0.16; transition: opacity 0.14s ease; &amp;#125;<br>&#x2F;</em> Timeline millisecond gridlines: thicker + larger dashes so the axis marks<br>   read clearly behind the bars (scoped so scatter gridlines are unaffected). <em>&#x2F;<br>.ghchart__plot–timeline .ghchart__gridline–v &amp;#123;<br>  stroke-width: 1.5;<br>  stroke-dasharray: 5 5;<br>  opacity: 1;<br>&amp;#125;<br>&#x2F;</em> Timeline bracket labels read larger than the trend bracket note (they are<br>   structural spans, not a small secondary annotation). <em>&#x2F;<br>.ghchart__tl-bracket-label &amp;#123; font-size: 20px; &amp;#125;<br>&#x2F;</em> Wrapper so DOM labels can sit over the SVG at viewBox-proportional %s. <em>&#x2F;<br>.ghchart__tl-plotwrap &amp;#123; position: relative; &amp;#125;<br>&#x2F;</em> Right-bracket label as a DOM node: a fixed, readable size that does NOT<br>   scale down with the plot on small windows (unlike SVG text). <em>&#x2F;<br>.ghchart__tl-bracket-label-dom &amp;#123;<br>  position: absolute;<br>  transform: translateY(-50%);<br>  font-size: clamp(12px, 1.5vw, 14px);<br>  font-weight: 700;<br>  letter-spacing: 0.02em;<br>  color: var(–ghc-muted);<br>  white-space: nowrap;<br>  pointer-events: none;<br>&amp;#125;<br>.ghchart__tl-tick &amp;#123; fill: var(–ghc-axis); &amp;#125;<br>&#x2F;</em> Axis title rendered as a DOM caption below the plot; matches the legend<br>   labels’ size&#x2F;weight&#x2F;color instead of scaling with the SVG. *&#x2F;<br>.ghchart__tl-axis-caption &amp;#123;<br>  font-size: clamp(13px, 1.7vw, 15px);<br>  font-weight: 400;<br>  color: var(–ghc-text);<br>  text-align: center;<br>  margin-top: 8px;<br>&amp;#125;</p>
+<p>@media (max-width: 560px) &amp;#123;<br>  .ghchart__tl-legend &amp;#123; grid-template-columns: 1fr; &amp;#125;<br>  .ghchart__tl-stat &amp;#123; justify-content: flex-start; &amp;#125;<br>  .ghchart__tl-stat-delta &amp;#123; text-align: left; &amp;#125;<br>&amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Calendar heatmap (GitHub contribution-graph style)                  <em>&#x2F;<br>&#x2F;</em> —————————————————————— <em>&#x2F;<br>.ghheat__eyebrow &amp;#123; display: flex; align-items: center; gap: 8px; margin: 0 0 12px; &amp;#125;<br>.ghheat__eyedot &amp;#123;<br>  width: 9px; height: 9px; border-radius: 50%;<br>  background: #cf222e; box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.14);<br>  flex: 0 0 auto;<br>&amp;#125;<br>.ghheat__eyetext &amp;#123;<br>  font-size: 12px; font-weight: 700; letter-spacing: 0.08em;<br>  text-transform: uppercase; color: #cf222e;<br>&amp;#125;<br>&#x2F;</em> Subtitle here is a prominent lede, not the muted variant. <em>&#x2F;<br>.ghheat__subtitle &amp;#123;<br>  color: var(–ghc-text);<br>  font-size: clamp(14px, 1.7vw, 16px);<br>  &#x2F;</em> 24px top gap matches the github.blog H2 → paragraph block spacing. *&#x2F;<br>  margin: 24px 0 8px;<br>&amp;#125;<br>.ghheat__subtitle b &amp;#123; font-weight: 700; &amp;#125;</p>
+<p>.ghheat__panel &amp;#123; margin-top: 36px; &amp;#125;<br>.ghheat__phead &amp;#123;<br>  display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;<br>  margin-bottom: 16px;<br>&amp;#125;<br>.ghheat__badge &amp;#123;<br>  display: inline-flex; align-items: center; justify-content: center;<br>  width: 22px; height: 22px; border-radius: 50%;<br>  color: #fff; font-size: 12px; font-weight: 700;<br>  flex: 0 0 auto; align-self: center;<br>&amp;#125;<br>.ghheat__ptitle &amp;#123;<br>  font-size: clamp(16px, 2vw, 19px); font-weight: 700;<br>  letter-spacing: -0.01em; color: var(–ghc-text);<br>&amp;#125;<br>.ghheat__pdesc &amp;#123; font-size: 14px; color: var(–ghc-muted); &amp;#125;</p>
+<p>.ghheat__body &amp;#123; display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; &amp;#125;<br>.ghheat__gridwrap &amp;#123; flex: 1 1 340px; min-width: 260px; &amp;#125;<br>.ghheat__grid &amp;#123; display: block; width: 100%; height: auto; overflow: visible; &amp;#125;<br>.ghheat__cell &amp;#123;<br>  stroke: rgba(27, 31, 36, 0.06);<br>  stroke-width: 1;<br>  transition: stroke 0.1s ease;<br>&amp;#125;<br>.ghheat__cell:hover &amp;#123; stroke: #24292f; stroke-width: 1.4; &amp;#125;<br>.ghheat__cell–pad &amp;#123; opacity: 0; pointer-events: none; &amp;#125;<br>.ghheat__wd, .ghheat__month &amp;#123;<br>  fill: var(–ghc-muted); font-size: 11px; font-weight: 600;<br>&amp;#125;</p>
+<p>.ghheat__side &amp;#123; flex: 1 1 250px; min-width: 230px; &amp;#125;<br>.ghheat__stat &amp;#123; display: flex; align-items: baseline; gap: 7px; &amp;#125;<br>.ghheat__statbig &amp;#123;<br>  font-size: clamp(26px, 4vw, 34px); font-weight: 800; letter-spacing: -0.02em;<br>  line-height: 1;<br>&amp;#125;<br>.ghheat__statsmall &amp;#123; font-size: 15px; font-weight: 600; color: var(–ghc-muted); &amp;#125;<br>.ghheat__note &amp;#123;<br>  margin: 10px 0 16px; font-size: 14px; line-height: 1.55; color: var(–ghc-muted);<br>&amp;#125;<br>.ghheat__note b &amp;#123; color: var(–ghc-text); font-weight: 700; &amp;#125;<br>.ghheat__legend &amp;#123;<br>  display: flex; align-items: center; gap: 5px;<br>  font-size: 12.5px; color: var(–ghc-muted); flex-wrap: wrap;<br>&amp;#125;<br>.ghheat__sw &amp;#123; width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: 0 0 auto; &amp;#125;<br>.ghheat__sw–empty &amp;#123; border: 1px solid #d0d7de; &amp;#125;<br>.ghheat__legunit &amp;#123; margin-left: 2px; &amp;#125;<br>.ghheat__extra &amp;#123;<br>  display: flex; align-items: flex-start; gap: 7px; margin-top: 14px;<br>  font-size: 12px; line-height: 1.5; color: var(–ghc-muted); max-width: 330px;<br>&amp;#125;<br>.ghheat__extra .ghheat__sw &amp;#123; margin-top: 2px; &amp;#125;</p>
+<p>&#x2F;* —————————————————————— <em>&#x2F;<br>&#x2F;</em> Tooltip                                                             <em>&#x2F;<br>&#x2F;</em> —————————————————————— <em>&#x2F;<br>.ghchart__tooltip &amp;#123;<br>  position: absolute;<br>  z-index: 5;<br>  top: 0;<br>  left: 0;<br>  &#x2F;</em> <code>width: max-content</code> keeps the box sized to its own content instead of<br>     the browser’s absolute-position “shrink-to-fit” formula, which derives<br>     available width from how far <code>left</code> sits from the containing block’s<br>     edge — near the right edge that shrinks toward zero and forces the<br>     row text to wrap awkwardly even though the box is later clamped into<br>     view. max-content is unaffected by <code>left</code>, so wrapping only happens if<br>     content truly exceeds max-width. <em>&#x2F;<br>  width: max-content;<br>  min-width: 128px;<br>  max-width: 260px;<br>  padding: 10px 12px;<br>  background: var(–ghc-card-bg);<br>  border: 1px solid var(–ghc-card-border);<br>  border-radius: 12px;<br>  &#x2F;</em> Layered drop shadow from Primer Brand’s ActionMenu (.ActionMenu__menu) <em>&#x2F;<br>  box-shadow:<br>    0px 100px 80px rgba(0, 0, 0, 0.01),<br>    0px 41px 33px rgba(0, 0, 0, 0.02),<br>    0px 22px 17px rgba(0, 0, 0, 0.02),<br>    0px 12px 10px rgba(0, 0, 0, 0.03),<br>    0px 6px 5px rgba(0, 0, 0, 0.04),<br>    0px 2px 2px rgba(0, 0, 0, 0.07);<br>  pointer-events: none;<br>  opacity: 0;<br>  transform: translate(-50%, -100%);<br>  &#x2F;</em> Fade in on show and out on hide; quickly ease left&#x2F;top when tracking<br>     from one point to the next. The position ease is suppressed on the<br>     first appearance (see chart.js) so the tooltip fades in place rather<br>     than sliding in from its previous spot. *&#x2F;<br>  transition: opacity 0.12s ease,<br>    left 0.1s cubic-bezier(0.4, 0, 0.2, 1),<br>    top 0.1s cubic-bezier(0.4, 0, 0.2, 1);<br>  will-change: opacity, transform, left, top;<br>&amp;#125;<br>.ghchart__tooltip[data-visible&#x3D;”true”] &amp;#123; opacity: 1; &amp;#125;</p>
+<p>.ghchart__tt-title &amp;#123;<br>  font-size: 13px;<br>  font-weight: 700;<br>  color: var(–ghc-text);<br>  margin-bottom: 6px;<br>&amp;#125;</p>
+<p>.ghchart__tt-row &amp;#123;<br>  display: flex;<br>  align-items: center;<br>  gap: 8px;<br>  font-size: 13px;<br>  line-height: 1.6;<br>  color: var(–ghc-muted);<br>&amp;#125;<br>.ghchart__tt-swatch &amp;#123; width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; &amp;#125;<br>.ghchart__tt-name &amp;#123; flex: 1 1 auto; &amp;#125;<br>.ghchart__tt-value &amp;#123; font-weight: 700; color: var(–ghc-text); font-variant-numeric: tabular-nums; &amp;#125;</p>
+<p>&#x2F;* Optional “partial data” note, shown only for a hovered point past a<br>   line’s config.partial.fromIndex (see .ghchart__line–dashed). *&#x2F;<br>.ghchart__tt-note &amp;#123;<br>  margin-top: 6px;<br>  padding-top: 6px;<br>  border-top: 1px solid var(–ghc-card-border);<br>  font-size: 12px;<br>  font-style: italic;<br>  color: var(–ghc-muted);<br>&amp;#125;</p>
+<p>&#x2F;* Bar tooltip body: a title line + free-form text lines (no swatches). <em>&#x2F;<br>.ghchart__tt-line &amp;#123;<br>  font-size: 13px;<br>  line-height: 1.5;<br>  color: var(–ghc-muted);<br>&amp;#125;<br>.ghchart__tt-line:first-child &amp;#123; color: var(–ghc-text); font-weight: 600; &amp;#125;<br>.ghchart__tt-line + .ghchart__tt-line &amp;#123; margin-top: 2px; &amp;#125;<br>&#x2F;</em> Timeline before&#x2F;after tooltip: only the title is bold; both value lines stay<br>   regular weight and the same color (no emphasised first line). *&#x2F;<br>.ghchart__tt-body–plain .ghchart__tt-line,<br>.ghchart__tt-body–plain .ghchart__tt-line:first-child &amp;#123;<br>  font-weight: 400;<br>  color: var(–ghc-text);<br>&amp;#125;</p>
+<p>@media (prefers-reduced-motion: reduce) &amp;#123;<br>  .ghchart__dot,<br>  .ghchart__guide,<br>  .ghchart__bar,<br>  .ghchart__pt,<br>  .ghchart__square,<br>  .ghheat__cell,<br>  .ghchart__tl-seg,<br>  .ghchart__tl-flow,<br>  .ghchart__tooltip &amp;#123; transition: none; &amp;#125;<br>&amp;#125;<br></style><p></p>
+<script data-wp-block-html="js">
+/*
+  Shared chart engine — reusable renderer for the blog-charts library.
+  ------------------------------------------------------------------
+  Exposes window.GHChartEngine = &#123; renderers, render(config, mountEl?), destroy(mountEl) &#125;.
+  Renderers are keyed by config.type (currently "line"); add a new viz type
+  by registering GHChartEngine.renderers[<type>] = function (root, config) &#123;…&#125;.
+
+  This same file is embedded verbatim at the top of each exported WordPress
+  chart.js, followed by that chart's CONFIG + a small auto-boot. It has no
+  external dependencies and is safe to include more than once on a page.
+*/
+(function (global) &#123;
+  "use strict";
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  function el(tag, attrs) &#123;
+    var node = document.createElementNS(SVGNS, tag);
+    if (attrs) &#123;
+      for (var k in attrs) &#123;
+        if (Object.prototype.hasOwnProperty.call(attrs, k)) &#123;
+          node.setAttribute(k, attrs[k]);
+        &#125;
+      &#125;
+    &#125;
+    return node;
+  &#125;
+
+  function html(tag, cls) &#123;
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    return node;
+  &#125;
+
+  function clamp(v, lo, hi) &#123; return v < lo ? lo : v > hi ? hi : v; &#125;
+
+  var WHITE = [255, 255, 255], BLACK = [0, 0, 0];
+  function hexToRgb(h) &#123;
+    h = String(h).replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  &#125;
+  function rgbToHex(c) &#123;
+    return "#" + c.map(function (x) &#123;
+      x = Math.max(0, Math.min(255, Math.round(x)));
+      return (x < 16 ? "0" : "") + x.toString(16);
+    &#125;).join("");
+  &#125;
+  function mix(a, b, t) &#123;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  &#125;
+  function rampFrom(baseHex) &#123;
+    var b = hexToRgb(baseHex);
+    return [
+      rgbToHex(mix(b, WHITE, 0.80)),
+      rgbToHex(mix(b, WHITE, 0.52)),
+      rgbToHex(mix(b, WHITE, 0.20)),
+      baseHex,
+      rgbToHex(mix(b, BLACK, 0.30))
+    ];
+  &#125;
+  function strongOf(baseHex) &#123; return rampFrom(baseHex)[4]; &#125;
+
+  function labelColorOn(hex) &#123;
+    function luminance(color) &#123;
+      var c = hexToRgb(color).map(function (channel) &#123;
+        channel /= 255;
+        return channel <= 0.04045 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+      &#125;);
+      return c[0] * 0.2126 + c[1] * 0.7152 + c[2] * 0.0722;
+    &#125;
+    var background = luminance(hex), dark = luminance("#1f2328");
+    if ((Math.max(background, dark) + 0.05) / (Math.min(background, dark) + 0.05) >= 4.5) return "#1f2328";
+    return 1.05 / (background + 0.05) >= 4.5 ? "#ffffff" : "#000000";
+  &#125;
+
+  var renderers = &#123;&#125;;
+  var renderCleanups = (global.GHChartEngine && global.GHChartEngine._renderCleanups) || new WeakMap();
+
+  renderers.comparison = function (root, config) &#123;
+    var axis = config.xAxis, series = config.series, rows = config.rows;
+    if (!axis || !Number.isFinite(axis.min) || !Number.isFinite(axis.max) ||
+        axis.min > 0 || axis.max < 0 || axis.max <= axis.min ||
+        !Array.isArray(axis.ticks) || !Array.isArray(series) || !series.length ||
+        series.some(function (s) &#123; return !s || typeof s.color !== "string" || !/^#(?:[0-9a-f]&#123;3&#125;|[0-9a-f]&#123;6&#125;)$/i.test(s.color); &#125;) ||
+        !Array.isArray(rows) || !rows.length ||
+        axis.ticks.some(function (v) &#123; return !Number.isFinite(v) || v < axis.min || v > axis.max; &#125;) ||
+        rows.some(function (row) &#123;
+          return !Array.isArray(row.values) || row.values.length !== series.length ||
+            row.values.some(function (v) &#123; return !Number.isFinite(v) || v < axis.min || v > axis.max; &#125;) ||
+            !Array.isArray(row.decimals) || row.decimals.length !== series.length ||
+            row.decimals.some(function (n) &#123; return !Number.isInteger(n) || n < 0 || n > 10; &#125;);
+        &#125;)) throw new Error("Comparison chart requires a zero-inclusive axis, hex series colors, and matching finite values/decimal precision for each series.");
+    root.textContent = "";
+    root.setAttribute("role", "figure");
+    root.setAttribute("aria-label", config.title);
+    var heading = html("div", "ghchart__headline");
+    heading.textContent = config.title;
+    root.appendChild(heading);
+    if (config.subtitle) &#123;
+      var subtitle = html("p", "ghchart__subtitle");
+      subtitle.textContent = config.subtitle;
+      root.appendChild(subtitle);
+    &#125;
+    var legend = html("div", "ghchart__legend ghchart__legend--trend");
+    series.forEach(function (s) &#123;
+      var item = html("span", "ghchart__legend-item");
+      var swatch = html("span", "ghchart__swatch");
+      swatch.style.background = s.color;
+      item.appendChild(swatch);
+      item.appendChild(document.createTextNode(s.name));
+      legend.appendChild(item);
+    &#125;);
+    root.appendChild(legend);
+    var marks = [];
+    function at(value) &#123; return (value - axis.min) / (axis.max - axis.min) * 100; &#125;
+    function signed(value, decimals) &#123; return (value > 0 ? "+" : "") + value.toFixed(decimals) + "%"; &#125;
+    rows.forEach(function (row) &#123;
+      var group = html("div", "ghchart__comparison-row");
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", row.label);
+      var label = html("div", "ghchart__comparison-label");
+      label.textContent = row.label;
+      label.setAttribute("aria-hidden", "true");
+      group.appendChild(label);
+      var plot = html("div", "ghchart__comparison-plot");
+      axis.ticks.forEach(function (value) &#123;
+        var line = html("span", "ghchart__comparison-grid");
+        line.style.left = at(value) + "%";
+        line.setAttribute("aria-hidden", "true");
+        plot.appendChild(line);
+      &#125;);
+      var zero = html("span", "ghchart__comparison-grid ghchart__comparison-zero");
+      zero.style.left = at(0) + "%";
+      zero.setAttribute("aria-hidden", "true");
+      plot.appendChild(zero);
+      series.forEach(function (s, index) &#123;
+        var value = row.values[index], formatted = signed(value, row.decimals[index]);
+        var track = html("div", "ghchart__comparison-track");
+        track.setAttribute("role", "group");
+        track.setAttribute("aria-label", s.name);
+        var bar = html("span", "ghchart__comparison-bar");
+        // Anchor the zero-facing edge, without fractional transform snapping.
+        if (value < 0) &#123;
+          bar.style.right = "calc(100% - " + at(0) + "%)";
+          bar.classList.add("ghchart__comparison-bar--negative");
+        &#125; else bar.style.left = at(0) + "%";
+        bar.style.width = Math.abs(at(value) - at(0)) + "%";
+        bar.style.background = s.color;
+        bar.setAttribute("aria-hidden", "true");
+        var valueLabel = html("span", "ghchart__comparison-value");
+        valueLabel.textContent = formatted;
+        track.appendChild(bar);
+        track.appendChild(valueLabel);
+        marks.push(&#123; track: track, bar: bar, label: valueLabel, value: value, color: s.color &#125;);
+        plot.appendChild(track);
+      &#125;);
+      group.appendChild(plot);
+      root.appendChild(group);
+    &#125;);
+    var axisRow = html("div", "ghchart__comparison-row");
+    axisRow.appendChild(html("span"));
+    var ticks = html("div", "ghchart__comparison-axis");
+    axis.ticks.forEach(function (value) &#123;
+      var tick = html("span", "ghchart__comparison-tick");
+      tick.style.left = at(value) + "%";
+      if (value === axis.min) tick.style.transform = "none";
+      if (value === axis.max) tick.style.transform = "translateX(-100%)";
+      tick.textContent = value === 0 ? "0" : signed(value, 0);
+      ticks.appendChild(tick);
+    &#125;);
+    axisRow.appendChild(ticks);
+    root.appendChild(axisRow);
+
+    var active = true, frame = 0, observer;
+    function positionLabel(mark, side, coordinate, placement) &#123;
+      mark.label.style.left = side === "left" ? "calc(" + at(coordinate) + "% + 8px)" : "auto";
+      mark.label.style.right = side === "right" ? "calc(100% - " + at(coordinate) + "% + 8px)" : "auto";
+      mark.label.style.color = placement === "inside" ? labelColorOn(mark.color) : "";
+      mark.label.setAttribute("data-placement", placement);
+    &#125;
+    function layoutValues() &#123;
+      if (!active || !root.clientWidth) return;
+      marks.forEach(function (mark) &#123;
+        mark.track.classList.remove("ghchart__comparison-track--stacked");
+        mark.track.style.height = "";
+        mark.bar.style.top = "";
+        mark.label.style.left = "0px";
+        mark.label.style.right = "auto";
+        mark.label.style.color = "";
+        var width = mark.track.clientWidth, textWidth = mark.label.offsetWidth + 1;
+        var zero = at(0) * width / 100, end = at(mark.value) * width / 100;
+        var negative = mark.value < 0;
+        var outside = negative ? end : width - end;
+        var opposite = negative ? width - zero : zero;
+        if (outside >= textWidth + 8) &#123;
+          positionLabel(mark, negative ? "right" : "left", mark.value, "outside");
+        &#125; else if (Math.abs(end - zero) >= textWidth + 16) &#123;
+          positionLabel(mark, negative ? "left" : "right", mark.value, "inside");
+        &#125; else if (opposite >= textWidth + 8) &#123;
+          positionLabel(mark, negative ? "left" : "right", 0, "opposite");
+        &#125; else &#123;
+          // Very narrow plots or long precision strings get a separate label line.
+          mark.track.classList.add("ghchart__comparison-track--stacked");
+          mark.label.setAttribute("data-placement", "stacked");
+          var top = mark.label.offsetHeight + 6;
+          mark.bar.style.top = top + "px";
+          mark.track.style.height = top + 28 + "px";
+        &#125;
+      &#125;);
+    &#125;
+    function schedule() &#123;
+      if (!active) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(layoutValues);
+    &#125;
+    layoutValues();
+    if (global.ResizeObserver) &#123;
+      observer = new ResizeObserver(schedule);
+      observer.observe(root);
+    &#125; else global.addEventListener("resize", schedule);
+    if (document.fonts) &#123;
+      document.fonts.ready.then(schedule);
+      document.fonts.addEventListener("loadingdone", schedule);
+    &#125;
+    return function () &#123;
+      active = false;
+      cancelAnimationFrame(frame);
+      if (observer) observer.disconnect();
+      global.removeEventListener("resize", schedule);
+      if (document.fonts) document.fonts.removeEventListener("loadingdone", schedule);
+    &#125;;
+  &#125;;
+
+  /* ================================================================
+     Line chart renderer
+     ================================================================ */
+  renderers.line = function (root, config) &#123;
+    // viewBox geometry (design units; scales fluidly to any width).
+    var VB = &#123; w: 1000, h: 560 &#125;;
+    var M = &#123; top: 30, right: 34, bottom: 56, left: 86 &#125;;
+    // Inset the plotted points slightly from the axis so the first/last
+    // months (e.g. "Jan") don't crowd the y-axis labels (e.g. "50").
+    var PAD_X = 18;
+
+    // Reset (in case of re-render) and use a unique id prefix so multiple
+    // charts on one page never share gradient ids.
+    root.textContent = "";
+    var uid = config.mountId;
+
+    var n = config.labels.length;
+    var yMin = config.yAxis.min;
+    var yMax = config.yAxis.max;
+    var step = config.yAxis.step;
+    // Optional log y (yAxis.scale: "log") for data spanning many decades;
+    // ticks are then explicit (yAxis.ticks), e.g. 1, 10, 100 … 1B.
+    var isLog = config.yAxis.scale === "log";
+    var yTicks = config.yAxis.ticks;
+    if (!yTicks) &#123;
+      yTicks = [];
+      for (var tv0 = yMin; tv0 <= yMax + 0.0001; tv0 += step) yTicks.push(tv0);
+    &#125;
+    // Y-axis tick labels can format differently from the tooltip values
+    // (e.g. a plain "40" on the axis but "40%" in the tooltip).
+    var fmtAxis = config.formatAxis || config.formatValue;
+
+    // Widen the left gutter when the formatted tick labels need it (a unit
+    // suffix like "2,000M" is far wider than a bare "40"). Labels are real
+    // SVG <text> we can't measure before layout, so estimate from the
+    // glyph mix at the 22-unit axis font size.
+    var AXIS_FONT = 22;
+    var Y_LABEL_GAP = 22;
+    function estimateTextW(s) &#123;
+      var w = 0;
+      for (var i = 0; i < s.length; i++) &#123;
+        var c = s.charAt(i);
+        if (c === "," || c === "." || c === " ") w += 0.28;
+        else if (/[0-9]/.test(c)) w += 0.58;
+        else if (/[A-Z]/.test(c)) w += 0.72;
+        else w += 0.55;
+      &#125;
+      return w * AXIS_FONT;
+    &#125;
+    var widestY = 0;
+    yTicks.forEach(function (tv) &#123;
+      widestY = Math.max(widestY, estimateTextW(String(fmtAxis(tv))));
+    &#125;);
+    // A rotated y-axis title (yAxis.title) needs its own strip of gutter.
+    var Y_TITLE_W = config.yAxis.title ? 40 : 0;
+    M.left = Math.max(M.left, Math.ceil(widestY + Y_LABEL_GAP + 8 + Y_TITLE_W));
+
+    var innerW = VB.w - M.left - M.right;
+    var innerH = VB.h - M.top - M.bottom;
+
+    var plotW = innerW - 2 * PAD_X;
+    var stepX = n <= 1 ? 0 : plotW / (n - 1);
+    function xAt(i) &#123; return n <= 1 ? M.left + innerW / 2 : M.left + PAD_X + stepX * i; &#125;
+    var logLo = isLog ? Math.log(yMin) / Math.LN10 : 0;
+    var logHi = isLog ? Math.log(yMax) / Math.LN10 : 0;
+    function yAt(v) &#123;
+      var t = isLog
+        ? (Math.log(Math.max(v, yMin)) / Math.LN10 - logLo) / (logHi - logLo)
+        : (v - yMin) / (yMax - yMin);
+      return M.top + innerH * (1 - t);
+    &#125;
+    var baseY = yAt(yMin);
+
+    /* ---- Title + divider (top) ---------------------------------- */
+    var title = html("span", "ghchart__title");
+    title.textContent = config.title;
+    root.appendChild(title);
+    root.appendChild(html("div", "ghchart__rule"));
+    if (config.subtitle) &#123;
+      var lineSub = html("p", "ghchart__subtitle");
+      lineSub.textContent = config.subtitle;
+      root.appendChild(lineSub);
+    &#125;
+
+    /* ---- Header + legend ---------------------------------------- */
+    if (!config.hideLegend) &#123;
+      var header = html("div", "ghchart__header");
+      var legend = html("div", "ghchart__legend");
+      config.series.forEach(function (s) &#123;
+        var item = html("span", "ghchart__legend-item");
+        var sw = html("span", "ghchart__swatch");
+        sw.style.background = s.color;
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      &#125;);
+      header.appendChild(legend);
+      root.appendChild(header);
+    &#125;
+
+    /* ---- SVG plot ----------------------------------------------- */
+    var svg = el("svg", &#123;
+      "class": "ghchart__plot",
+      viewBox: "0 0 " + VB.w + " " + VB.h,
+      preserveAspectRatio: "xMidYMid meet",
+      role: "img",
+      "aria-label": config.title + " line chart"
+    &#125;);
+
+    // Gradient defs (one per area series).
+    var defs = el("defs");
+    config.series.forEach(function (s, si) &#123;
+      if (!s.area) return;
+      var g = el("linearGradient", &#123;
+        id: uid + "-grad-" + si, x1: "0", y1: "0", x2: "0", y2: "1"
+      &#125;);
+      g.appendChild(el("stop", &#123; offset: "0", "stop-color": s.color, "stop-opacity": "0.28" &#125;));
+      g.appendChild(el("stop", &#123; offset: "0.55", "stop-color": s.color, "stop-opacity": "0.08" &#125;));
+      g.appendChild(el("stop", &#123; offset: "1", "stop-color": s.color, "stop-opacity": "0" &#125;));
+      defs.appendChild(g);
+    &#125;);
+    // Diagonal-hatch pattern for an optional "partial / projected" band.
+    if (config.projection) &#123;
+      var pat = el("pattern", &#123;
+        id: uid + "-hatch", width: 7, height: 7,
+        patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)"
+      &#125;);
+      pat.appendChild(el("line", &#123;
+        x1: 0, y1: 0, x2: 0, y2: 7,
+        stroke: config.projection.color || "#8c959f",
+        "stroke-width": 1.1, "stroke-opacity": 0.5
+      &#125;));
+      defs.appendChild(pat);
+    &#125;
+    svg.appendChild(defs);
+
+    // Gridlines + y-axis labels.
+    yTicks.forEach(function (v) &#123;
+      var gy = yAt(v);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__gridline",
+        x1: M.left, y1: gy, x2: VB.w - M.right, y2: gy
+      &#125;));
+      var yl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--y",
+        x: M.left - Y_LABEL_GAP, y: gy, dy: "0.32em", "text-anchor": "end"
+      &#125;);
+      yl.textContent = fmtAxis(v);
+      svg.appendChild(yl);
+    &#125;);
+    if (config.yAxis.title) &#123;
+      var lytX = 22, lytY = M.top + innerH / 2;
+      var lyt = el("text", &#123;
+        "class": "ghchart__axistitle", x: lytX, y: lytY, "text-anchor": "middle",
+        transform: "rotate(-90 " + lytX + " " + lytY + ")"
+      &#125;);
+      lyt.textContent = config.yAxis.title;
+      svg.appendChild(lyt);
+    &#125;
+
+    // x-axis labels — either one per data point (default) or a sparse set
+    // of ticks decoupled from the data (config.xTicks: [&#123;at,text&#125;, …]),
+    // which suits a dense daily series that only needs month markers.
+    var xTicks = config.xTicks ||
+      config.labels.map(function (t, i) &#123; return &#123; at: i, text: t &#125;; &#125;);
+    xTicks.forEach(function (tk) &#123;
+      var xl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--x",
+        x: xAt(tk.at), y: VB.h - M.bottom + 36,
+        "text-anchor": tk.at === 0 ? "start" : (tk.at === n - 1 ? "end" : "middle")
+      &#125;);
+      xl.textContent = tk.text;
+      svg.appendChild(xl);
+    &#125;);
+
+    // Optional hatched "partial / projected" band over the trailing region.
+    if (config.projection) &#123;
+      var px = xAt(config.projection.fromIndex);
+      svg.appendChild(el("rect", &#123;
+        "class": "ghchart__projection",
+        x: px, y: M.top, width: (VB.w - M.right) - px, height: baseY - M.top,
+        fill: "url(#" + uid + "-hatch)"
+      &#125;));
+    &#125;
+
+    // Optional dashed threshold line + floating label (e.g. a 50% target).
+    if (config.threshold) &#123;
+      var thy = yAt(config.threshold.value);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__threshold",
+        x1: M.left, y1: thy, x2: VB.w - M.right, y2: thy,
+        stroke: config.threshold.color
+      &#125;));
+      if (config.threshold.label) &#123;
+        var thl = el("text", &#123;
+          "class": "ghchart__threshold-label",
+          x: M.left + PAD_X, y: thy - 10, "text-anchor": "start",
+          fill: config.threshold.color
+        &#125;);
+        thl.textContent = config.threshold.label;
+        svg.appendChild(thl);
+      &#125;
+    &#125;
+
+    // Precompute point coords per series.
+    var pts = config.series.map(function (s) &#123;
+      return s.values.map(function (val, i) &#123; return &#123; x: xAt(i), y: yAt(val) &#125;; &#125;);
+    &#125;);
+
+    // Smooth (Catmull-Rom -> cubic Bezier) path builder.
+    // config.curve: "linear" draws straight segments — for discrete
+    // categories (e.g. percentiles) where a curve would imply values
+    // between the points.
+    function smooth(points) &#123;
+      if (!points.length) return "";
+      if (points.length < 2) return "M" + points[0].x + "," + points[0].y;
+      if (config.curve === "linear") &#123;
+        return points.map(function (p, i) &#123;
+          return (i ? "L " : "M ") + p.x + "," + p.y;
+        &#125;).join(" ");
+      &#125;
+      var d = "M " + points[0].x + "," + points[0].y;
+      for (var i = 0; i < points.length - 1; i++) &#123;
+        var p0 = points[i - 1] || points[i];
+        var p1 = points[i];
+        var p2 = points[i + 1];
+        var p3 = points[i + 2] || p2;
+        var t = 1 / 6;
+        var c1x = p1.x + (p2.x - p0.x) * t;
+        var c1y = p1.y + (p2.y - p0.y) * t;
+        var c2x = p2.x - (p3.x - p1.x) * t;
+        var c2y = p2.y - (p3.y - p1.y) * t;
+        d += " C " + c1x + "," + c1y + " " + c2x + "," + c2y + " " + p2.x + "," + p2.y;
+      &#125;
+      return d;
+    &#125;
+
+    // Area fills (drawn first, behind lines). When config.partial marks a
+    // trailing partial/incomplete range (e.g. a month still in progress),
+    // the fill stops at the last complete point instead of extending under
+    // the partial segment — visually distinguishing "real" coverage from
+    // data that isn't final yet.
+    var partialIdx = config.partial ? config.partial.fromIndex : null;
+    config.series.forEach(function (s, si) &#123;
+      if (!s.area) return;
+      var p = pts[si];
+      var fillP = partialIdx == null ? p : p.slice(0, partialIdx + 1);
+      if (fillP.length < 2) return;
+      var d = smooth(fillP) + " L " + fillP[fillP.length - 1].x + "," + baseY +
+              " L " + fillP[0].x + "," + baseY + " Z";
+      svg.appendChild(el("path", &#123; d: d, fill: "url(#" + uid + "-grad-" + si + ")" &#125;));
+    &#125;);
+
+    // Vertical hover guide (hidden until hover).
+    var guide = el("line", &#123;
+      "class": "ghchart__guide",
+      x1: xAt(0), y1: M.top - 6, x2: xAt(0), y2: baseY
+    &#125;);
+    svg.appendChild(guide);
+
+    // Lines (draw in reverse so the first series sits on top). The trailing
+    // partial segment (from the last complete point onward) renders as its
+    // own dashed path so the "not final yet" range reads clearly without
+    // a legend entry — mirroring the projected-region convention above.
+    config.series.slice().reverse().forEach(function (s) &#123;
+      var si = config.series.indexOf(s);
+      var p = pts[si];
+      var solidP = partialIdx == null ? p : p.slice(0, partialIdx + 1);
+      svg.appendChild(el("path", &#123;
+        "class": "ghchart__line",
+        d: smooth(solidP),
+        stroke: s.color,
+        "stroke-width": s.width || (si === 0 ? 4 : 3.25)
+      &#125;));
+      if (partialIdx != null && partialIdx < p.length - 1) &#123;
+        // Straight (not curve-fit) dashed segment: fitting a Catmull-Rom
+        // curve to just this short tail would use different neighbor
+        // context than the solid curve and create a visible kink at the
+        // junction point; a straight dashed line reads as "projected" and
+        // joins the solid curve's end point cleanly.
+        var dashedP = p.slice(partialIdx);
+        var dd = "M " + dashedP[0].x + "," + dashedP[0].y;
+        var segLen = 0;
+        for (var di = 1; di < dashedP.length; di++) &#123;
+          dd += " L " + dashedP[di].x + "," + dashedP[di].y;
+          segLen += Math.sqrt(
+            Math.pow(dashedP[di].x - dashedP[di - 1].x, 2) +
+            Math.pow(dashedP[di].y - dashedP[di - 1].y, 2)
+          );
+        &#125;
+        var dashPath = el("path", &#123;
+          "class": "ghchart__line ghchart__line--dashed",
+          d: dd,
+          stroke: s.color,
+          "stroke-width": s.width || (si === 0 ? 4 : 3.25)
+        &#125;);
+        // The stylesheet's 7/6 dash (period 13) needs room to repeat. A
+        // short tail — a single partial week on a dense series — would
+        // otherwise render as one dash and read as solid, so shrink the
+        // pattern to fit ~3 repeats. Set it inline: CSS beats SVG
+        // presentation attributes, but an inline style beats the class.
+        var PERIOD = 13;
+        if (segLen > 0 && segLen / PERIOD < 3) &#123;
+          var period = Math.max(segLen / 3, 3);
+          dashPath.style.strokeDasharray =
+            (period * 7 / PERIOD).toFixed(2) + " " + (period * 6 / PERIOD).toFixed(2);
+        &#125;
+        svg.appendChild(dashPath);
+      &#125;
+    &#125;);
+
+    // Dots (keep references for hover emphasis). When config.hideDots is set
+    // (dense daily lines), dots rest invisible and only the hovered one shows.
+    var dotEls = config.series.map(function (s, si) &#123;
+      return pts[si].map(function (pt) &#123;
+        var c = el("circle", &#123;
+          "class": "ghchart__dot",
+          cx: pt.x, cy: pt.y,
+          r: config.hideDots ? 0 : (si === 0 ? 4.5 : 4),
+          fill: s.color
+        &#125;);
+        svg.appendChild(c);
+        return c;
+      &#125;);
+    &#125;);
+
+    // Transparent hit area for pointer capture.
+    var hit = el("rect", &#123;
+      "class": "ghchart__hit",
+      x: M.left,
+      y: M.top - 6,
+      width: innerW,
+      height: baseY - M.top + 12
+    &#125;);
+    svg.appendChild(hit);
+
+    root.appendChild(svg);
+
+    /* ---- Tooltip ------------------------------------------------ */
+    var tip = html("div", "ghchart__tooltip");
+    tip.setAttribute("role", "status");
+    var tipTitle = html("div", "ghchart__tt-title");
+    tip.appendChild(tipTitle);
+    var tipRows = config.series.map(function (s) &#123;
+      var row = html("div", "ghchart__tt-row");
+      var sw = html("span", "ghchart__tt-swatch");
+      sw.style.background = s.color;
+      var name = html("span", "ghchart__tt-name");
+      name.textContent = s.name;
+      var val = html("span", "ghchart__tt-value");
+      row.appendChild(sw);
+      row.appendChild(name);
+      row.appendChild(val);
+      tip.appendChild(row);
+      return val;
+    &#125;);
+    // Optional "partial data" note, shown only while hovering a point past
+    // config.partial.fromIndex.
+    var partialNote = null;
+    if (config.partial) &#123;
+      partialNote = html("div", "ghchart__tt-note");
+      partialNote.textContent = config.partial.note || "Partial data";
+      tip.appendChild(partialNote);
+    &#125;
+    root.appendChild(tip);
+
+    /* ---- Hover / focus interactivity ---------------------------- */
+    var activeIndex = -1;
+    var baseR = config.series.map(function (s, si) &#123;
+      return config.hideDots ? 0 : (si === 0 ? 4.5 : 4);
+    &#125;);
+    // Radius of the single emphasized dot under the pointer.
+    var dotActiveR = config.series.map(function (s, si) &#123;
+      return config.hideDots ? 6 : baseR[si] + 2.5;
+    &#125;);
+    var motionMQ = window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
+    function reduceMotion() &#123; return !!(motionMQ && motionMQ.matches); &#125;
+
+    function indexFromClientX(clientX) &#123;
+      var rect = svg.getBoundingClientRect();
+      var relX = (clientX - rect.left) / rect.width * VB.w;
+      var i = stepX ? Math.round((relX - (M.left + PAD_X)) / stepX) : 0;
+      return clamp(i, 0, n - 1);
+    &#125;
+
+    function show(i) &#123;
+      if (i === activeIndex) return;
+      var reappearing = activeIndex === -1;
+      activeIndex = i;
+
+      guide.setAttribute("x1", xAt(i));
+      guide.setAttribute("x2", xAt(i));
+      guide.style.opacity = "1";
+
+      // Emphasize the hovered column's dots; reset the rest.
+      dotEls.forEach(function (col, si) &#123;
+        col.forEach(function (c, ci) &#123;
+          c.setAttribute("r", ci === i ? dotActiveR[si] : baseR[si]);
+        &#125;);
+      &#125;);
+
+      // Fill tooltip.
+      tipTitle.textContent = config.labels[i];
+      config.series.forEach(function (s, si) &#123;
+        tipRows[si].textContent = config.formatValue(s.values[i]);
+      &#125;);
+      if (partialNote) &#123;
+        partialNote.style.display = (i > partialIdx) ? "" : "none";
+      &#125;
+
+      // Anchor above the highest point in this column.
+      var topSi = 0, topY = Infinity;
+      config.series.forEach(function (s, si) &#123;
+        var yy = yAt(s.values[i]);
+        if (yy < topY) &#123; topY = yy; topSi = si; &#125;
+      &#125;);
+      var anchor = dotEls[topSi][i].getBoundingClientRect();
+      var rootRect = root.getBoundingClientRect();
+      var left = anchor.left + anchor.width / 2 - rootRect.left;
+      var top = anchor.top - rootRect.top - 12;
+
+      // On the first appearance, fade in exactly at the point: suppress the
+      // position ease so it doesn't slide in from its previous resting spot.
+      var suppress = reappearing && !reduceMotion();
+      if (suppress) tip.style.transition = "opacity 0.12s ease";
+
+      tip.setAttribute("data-visible", "true");
+      // Reset left before measuring: a browser sizes an absolutely
+      // positioned auto/max-content-width box using the *current* `left`
+      // to derive available space, so measuring while `left` still holds
+      // the previous (possibly near-edge) position creates a feedback loop
+      // that keeps squeezing the tooltip narrower and wrapping its rows.
+      // Setting left to 0 first guarantees a true, unconstrained natural
+      // width; this happens synchronously before the next paint, so
+      // there's no visible flash.
+      tip.style.left = "0px";
+      // Clamp horizontally within the container.
+      var halfW = tip.offsetWidth / 2;
+      left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+      // Flip below the point if there's no room above.
+      if (top - tip.offsetHeight < 0) &#123;
+        top = anchor.bottom - rootRect.top + 12;
+        tip.style.transform = "translate(-50%, 0)";
+      &#125; else &#123;
+        tip.style.transform = "translate(-50%, -100%)";
+      &#125;
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+
+      // Commit that position without animating, then restore the CSS
+      // transition so subsequent point-to-point moves ease into place.
+      if (suppress) &#123;
+        void tip.offsetWidth;
+        tip.style.transition = "";
+      &#125;
+    &#125;
+
+    function hide() &#123;
+      activeIndex = -1;
+      guide.style.opacity = "0";
+      tip.setAttribute("data-visible", "false");
+      dotEls.forEach(function (col, si) &#123;
+        col.forEach(function (c) &#123; c.setAttribute("r", baseR[si]); &#125;);
+      &#125;);
+    &#125;
+
+    hit.addEventListener("pointermove", function (e) &#123; show(indexFromClientX(e.clientX)); &#125;);
+    hit.addEventListener("pointerdown", function (e) &#123; show(indexFromClientX(e.clientX)); &#125;);
+    hit.addEventListener("pointerleave", hide);
+
+    // Keyboard access.
+    svg.setAttribute("tabindex", "0");
+    svg.addEventListener("keydown", function (e) &#123;
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") &#123;
+        var start = activeIndex < 0 ? 0 : activeIndex;
+        show(clamp(start + (e.key === "ArrowRight" ? 1 : -1), 0, n - 1));
+        e.preventDefault();
+      &#125; else if (e.key === "Escape") &#123;
+        hide();
+      &#125;
+    &#125;);
+    svg.addEventListener("blur", hide);
+
+    /* ---- Caption (optional rich copy, e.g. a partial-data footnote) */
+    if (config.caption) &#123;
+      var lineCap = html("div", "ghchart__caption");
+      lineCap.innerHTML = config.caption;
+      root.appendChild(lineCap);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Bar chart renderer (composite)
+     ----------------------------------------------------------------
+     One "graph" can stack multiple bar panels in a single block:
+       config = &#123; type:"bar", title, subtitle?, series:[&#123;name,color&#125;],
+                  barRadius?, panels:[ panel… ], caption? &#125;
+       panel  = &#123; title?, labels[], values[], yAxis:&#123;min,max,step&#125;,
+                  formatValue(v), height?, maxBarVB?,
+                  tooltip(i, panel) -> &#123; title, lines:[…] &#125; &#125;
+     No printed value labels — values surface on hover (consistent with
+     the line chart). Bars use a single tunable color with rounded tops.
+     ================================================================ */
+  renderers.bar = function (root, config) &#123;
+    root.textContent = "";
+
+    var barColor = (config.series && config.series[0] && config.series[0].color) || "#ff7b72";
+    var barRadius = config.barRadius != null ? config.barRadius : 8;
+
+    // Per-bar fill: a bar may point at a different series (e.g. a muted
+    // "preliminary" color) via panel.barSeries[index]; otherwise series[0].
+    function barColorFor(panel, j) &#123;
+      var si = (panel.barSeries && panel.barSeries[j] != null) ? panel.barSeries[j] : 0;
+      var s = config.series && config.series[si];
+      return (s && s.color) || barColor;
+    &#125;
+
+    var motionMQ = window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
+    function reduceMotion() &#123; return !!(motionMQ && motionMQ.matches); &#125;
+
+    /* ---- Title + divider (+ optional subtitle) ------------------ */
+    var title = html("span", "ghchart__title");
+    title.textContent = config.title;
+    root.appendChild(title);
+    root.appendChild(html("div", "ghchart__rule"));
+
+    if (config.subtitle) &#123;
+      var sub = html("p", "ghchart__subtitle");
+      sub.textContent = config.subtitle;
+      root.appendChild(sub);
+    &#125;
+
+    /* ---- One shared tooltip for all panels ---------------------- */
+    var tip = html("div", "ghchart__tooltip");
+    tip.setAttribute("role", "status");
+    var tipTitle = html("div", "ghchart__tt-title");
+    var tipBody = html("div", "ghchart__tt-body");
+    tip.appendChild(tipTitle);
+    tip.appendChild(tipBody);
+    root.appendChild(tip);
+
+    var allBars = [];       // &#123; el, pi, bi &#125;
+    var activeKey = null;   // "pi:bi" of the hovered bar
+
+    function hideTip() &#123;
+      activeKey = null;
+      tip.setAttribute("data-visible", "false");
+      allBars.forEach(function (b) &#123; b.el.style.opacity = "1"; &#125;);
+    &#125;
+
+    // Hoisted: referenced by the per-column pointer handlers below.
+    function showTip(pi, bi, panel, panelBars) &#123;
+      var reappearing = activeKey === null;
+      activeKey = pi + ":" + bi;
+
+      allBars.forEach(function (b) &#123;
+        b.el.style.opacity = (b.pi === pi && b.bi === bi) ? "1" : "0.42";
+      &#125;);
+
+      var content = panel.tooltip
+        ? panel.tooltip(bi, panel)
+        : &#123; title: (panel.labels || [])[bi],
+            lines: [ (panel.formatValue || String)(panel.values[bi]) ] &#125;;
+
+      tipTitle.textContent = content.title != null ? content.title : "";
+      tipBody.textContent = "";
+      (content.lines || []).forEach(function (ln) &#123;
+        var row = html("div", "ghchart__tt-line");
+        row.textContent = ln;
+        tipBody.appendChild(row);
+      &#125;);
+
+      var anchor = panelBars[bi].el.getBoundingClientRect();
+      var rootRect = root.getBoundingClientRect();
+      var left = anchor.left + anchor.width / 2 - rootRect.left;
+      var top = anchor.top - rootRect.top - 12;
+
+      var suppress = reappearing && !reduceMotion();
+      if (suppress) tip.style.transition = "opacity 0.12s ease";
+
+      tip.setAttribute("data-visible", "true");
+      var halfW = tip.offsetWidth / 2;
+      left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+      if (top - tip.offsetHeight < 0) &#123;
+        top = anchor.bottom - rootRect.top + 12;
+        tip.style.transform = "translate(-50%, 0)";
+      &#125; else &#123;
+        tip.style.transform = "translate(-50%, -100%)";
+      &#125;
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+
+      if (suppress) &#123; void tip.offsetWidth; tip.style.transition = ""; &#125;
+    &#125;
+
+    /* ---- Panels ------------------------------------------------- */
+    (config.panels || []).forEach(function (panel, pi) &#123;
+      var wrap = html("div", "ghchart__panel");
+      if (panel.title) &#123;
+        var pt = html("h3", "ghchart__panel-title");
+        pt.textContent = panel.title;
+        wrap.appendChild(pt);
+      &#125;
+
+      var VB = &#123; w: 1000, h: panel.height || 360 &#125;;
+      var M = &#123; top: 20, right: 20, bottom: 48, left: 84 &#125;;
+      var innerW = VB.w - M.left - M.right;
+      var innerH = VB.h - M.top - M.bottom;
+
+      var labels = panel.labels || [];
+      var values = panel.values || [];
+      var nb = labels.length;
+      var ax = panel.yAxis || &#123; min: 0, max: Math.max.apply(null, values.concat([1])), step: 0 &#125;;
+      var yMin = ax.min, yMax = ax.max, step = ax.step || 0;
+      var fmt = panel.formatValue || function (v) &#123; return String(v); &#125;;
+
+      function yAt(v) &#123; return M.top + innerH * (1 - (v - yMin) / (yMax - yMin)); &#125;
+      var baseY = yAt(yMin);
+
+      var slot = nb ? innerW / nb : innerW;
+      var maxBarVB = panel.maxBarVB != null ? panel.maxBarVB : 150;
+      var barW = Math.min(slot * 0.62, maxBarVB);
+      function xCenter(i) &#123; return M.left + slot * (i + 0.5); &#125;
+
+      var svg = el("svg", &#123;
+        "class": "ghchart__plot ghchart__plot--bar",
+        viewBox: "0 0 " + VB.w + " " + VB.h,
+        preserveAspectRatio: "xMidYMid meet",
+        role: "img",
+        "aria-label": (panel.title || config.title) + " bar chart"
+      &#125;);
+
+      // Gridlines + y-axis labels.
+      if (step > 0) &#123;
+        for (var v = yMin; v <= yMax + 1e-9; v += step) &#123;
+          var gy = yAt(v);
+          svg.appendChild(el("line", &#123;
+            "class": "ghchart__gridline", x1: M.left, y1: gy, x2: VB.w - M.right, y2: gy
+          &#125;));
+          var yl = el("text", &#123;
+            "class": "ghchart__axislabel ghchart__axislabel--y",
+            x: M.left - 18, y: gy, dy: "0.32em", "text-anchor": "end"
+          &#125;);
+          yl.textContent = fmt(v);
+          svg.appendChild(yl);
+        &#125;
+      &#125;
+
+      // Solid baseline.
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__axisline", x1: M.left, y1: baseY, x2: VB.w - M.right, y2: baseY
+      &#125;));
+
+      // x-axis labels.
+      for (var i = 0; i < nb; i++) &#123;
+        var xl = el("text", &#123;
+          "class": "ghchart__axislabel ghchart__axislabel--x",
+          x: xCenter(i), y: VB.h - M.bottom + 30, "text-anchor": "middle"
+        &#125;);
+        if (panel.xLabelSize) xl.setAttribute("style", "font-size:" + panel.xLabelSize + "px");
+        xl.textContent = labels[i];
+        svg.appendChild(xl);
+      &#125;
+
+      // Bars (rounded top corners only) + full-height hover columns.
+      var panelBars = [];
+      for (var j = 0; j < nb; j++) &#123;
+        var cx = xCenter(j);
+        var topY = yAt(values[j]);
+        var barH = baseY - topY;
+        var x = cx - barW / 2;
+        var r = Math.max(0, Math.min(barRadius, barW / 2, barH));
+        var d = "M " + x + " " + baseY +
+                " L " + x + " " + (topY + r) +
+                " Q " + x + " " + topY + " " + (x + r) + " " + topY +
+                " L " + (x + barW - r) + " " + topY +
+                " Q " + (x + barW) + " " + topY + " " + (x + barW) + " " + (topY + r) +
+                " L " + (x + barW) + " " + baseY + " Z";
+        var bar = el("path", &#123; "class": "ghchart__bar", d: d, fill: barColorFor(panel, j) &#125;);
+        svg.appendChild(bar);
+        var rec = &#123; el: bar, pi: pi, bi: j &#125;;
+        panelBars.push(rec);
+        allBars.push(rec);
+
+        var col = el("rect", &#123;
+          "class": "ghchart__barhit",
+          x: M.left + slot * j, y: M.top - 6, width: slot, height: baseY - M.top + 6
+        &#125;);
+        (function (idx) &#123;
+          col.addEventListener("pointermove", function () &#123; showTip(pi, idx, panel, panelBars); &#125;);
+          col.addEventListener("pointerdown", function () &#123; showTip(pi, idx, panel, panelBars); &#125;);
+          col.addEventListener("pointerleave", hideTip);
+        &#125;)(j);
+        svg.appendChild(col);
+      &#125;
+
+      /* ---- Annotation layer (drawn on top; pointer-events: none) ----
+         · always-on value labels above chosen bars (panel.valueLabels)
+         · anchor lines: a dotted horizontal reference at one bar's top
+           extended to another, with a floating pill (panel.annotations) */
+      var vlabels = panel.valueLabels || null;
+      if (vlabels) &#123;
+        for (var vk in vlabels) &#123;
+          if (!Object.prototype.hasOwnProperty.call(vlabels, vk)) continue;
+          var vi = +vk;
+          var vt = el("text", &#123;
+            "class": "ghchart__barvalue",
+            x: xCenter(vi), y: yAt(values[vi]) - 12, "text-anchor": "middle"
+          &#125;);
+          vt.textContent = vlabels[vk];
+          svg.appendChild(vt);
+        &#125;
+      &#125;
+
+      (panel.annotations || []).forEach(function (an) &#123;
+        if (an.type !== "anchor") return;
+        var yLine = yAt(values[an.fromIndex]);
+        svg.appendChild(el("line", &#123;
+          "class": "ghchart__anno-line",
+          x1: xCenter(an.fromIndex) - barW / 2, y1: yLine,
+          x2: xCenter(an.toIndex) + barW / 2, y2: yLine
+        &#125;));
+
+        var chipIdx = an.chipAtIndex != null ? an.chipAtIndex : an.toIndex;
+        var cx = xCenter(chipIdx);
+        var cy = (yAt(values[chipIdx]) + yLine) / 2;
+        var label = an.label || "";
+        var fs = 19;
+        var chipW = label.length * fs * 0.55 + 24;
+        var chipH = fs + 16;
+        svg.appendChild(el("rect", &#123;
+          "class": "ghchart__anno-chip",
+          x: cx - chipW / 2, y: cy - chipH / 2, width: chipW, height: chipH, rx: chipH / 2
+        &#125;));
+        var ct = el("text", &#123;
+          "class": "ghchart__anno-chip-text",
+          x: cx, y: cy, dy: "0.34em", "text-anchor": "middle", "font-size": fs
+        &#125;);
+        ct.textContent = label;
+        svg.appendChild(ct);
+      &#125;);
+
+      wrap.appendChild(svg);
+      root.appendChild(wrap);
+    &#125;);
+
+    /* ---- Caption (optional rich copy) --------------------------- */
+    if (config.caption) &#123;
+      var cap = html("div", "ghchart__caption");
+      cap.innerHTML = config.caption;
+      root.appendChild(cap);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Calendar heatmap renderer (GitHub contribution-graph style)
+     ----------------------------------------------------------------
+     One square per calendar day across a month range. Each panel is
+     shaded on its own scale — every day in a month shares that month's
+     level (the underlying series is monthly). Each panel's 5-step
+     faint->dark ramp is derived from a single tunable base color.
+     ================================================================ */
+  renderers.heatmap = function (root, config) &#123;
+    root.textContent = "";
+
+    function trim0(s) &#123; return s.replace(/\.0$/, ""); &#125;
+    function fmtM(v) &#123;
+      if (v >= 1000) &#123; var g = v / 1000; return (g >= 10 ? Math.round(g) : trim0(g.toFixed(1))) + "B"; &#125;
+      if (v >= 1) return trim0(v.toFixed(1)) + "M";
+      return Math.round(v * 1000) + "K";
+    &#125;
+
+    var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var MON_FULL = ["January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"];
+    var WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    var year = config.year || 2026;
+    var startM = config.startMonth != null ? config.startMonth : 0;
+    var endM = config.endMonth != null ? config.endMonth : 5;
+    var emptyColor = config.emptyColor || "#ebedf0";
+
+    function daysInMonth(y, m) &#123; return new Date(y, m + 1, 0).getDate(); &#125;
+    function parseISO(s) &#123; var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); &#125;
+    function dayStart(dt) &#123; return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()); &#125;
+
+    /* ---- Eyebrow + title + subtitle ----------------------------- */
+    if (config.eyebrow) &#123;
+      var eb = html("div", "ghheat__eyebrow");
+      eb.appendChild(html("span", "ghheat__eyedot"));
+      var ebt = html("span", "ghheat__eyetext");
+      ebt.textContent = config.eyebrow;
+      eb.appendChild(ebt);
+      root.appendChild(eb);
+    &#125;
+    var title = html("span", "ghchart__title");
+    title.textContent = config.title;
+    root.appendChild(title);
+    if (config.subtitle) &#123;
+      var sub = html("p", "ghchart__subtitle ghheat__subtitle");
+      sub.innerHTML = config.subtitle;
+      root.appendChild(sub);
+    &#125;
+
+    /* ---- One shared tooltip -------------------------------------- */
+    var tip = html("div", "ghchart__tooltip");
+    tip.setAttribute("role", "status");
+    var tipTitle = html("div", "ghchart__tt-title");
+    var tipBody = html("div", "ghchart__tt-body");
+    tip.appendChild(tipTitle);
+    tip.appendChild(tipBody);
+    root.appendChild(tip);
+
+    var motionMQ = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    function reduceMotion() &#123; return !!(motionMQ && motionMQ.matches); &#125;
+    var activeCell = null;
+    function hideTip() &#123; activeCell = null; tip.setAttribute("data-visible", "false"); &#125;
+    function showTip(rectEl, titleText, lines) &#123;
+      var reappearing = activeCell === null;
+      activeCell = rectEl;
+      tipTitle.textContent = titleText;
+      tipBody.textContent = "";
+      lines.forEach(function (ln) &#123;
+        var r = html("div", "ghchart__tt-line");
+        r.innerHTML = ln;
+        tipBody.appendChild(r);
+      &#125;);
+      var a = rectEl.getBoundingClientRect(), rr = root.getBoundingClientRect();
+      var left = a.left + a.width / 2 - rr.left, top = a.top - rr.top - 12;
+      var suppress = reappearing && !reduceMotion();
+      if (suppress) tip.style.transition = "opacity 0.12s ease";
+      tip.setAttribute("data-visible", "true");
+      var halfW = tip.offsetWidth / 2;
+      left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+      if (top - tip.offsetHeight < 0) &#123;
+        top = a.bottom - rr.top + 12;
+        tip.style.transform = "translate(-50%, 0)";
+      &#125; else &#123;
+        tip.style.transform = "translate(-50%, -100%)";
+      &#125;
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+      if (suppress) &#123; void tip.offsetWidth; tip.style.transition = ""; &#125;
+    &#125;
+
+    /* ---- Panels -------------------------------------------------- */
+    (config.panels || []).forEach(function (panel, pi) &#123;
+      var base = (config.series && config.series[pi] && config.series[pi].color) || panel.base || "#3094ff";
+      var ramp = rampFrom(base);
+      var strong = ramp[4];
+
+      var totals = panel.months || [];
+      var activeVals = [];
+      for (var mi = startM; mi <= endM; mi++) &#123; if (totals[mi] != null) activeVals.push(totals[mi]); &#125;
+      var vmin = activeVals.length ? Math.min.apply(null, activeVals) : 0;
+      var vmax = activeVals.length ? Math.max.apply(null, activeVals) : 1;
+      function levelFor(t) &#123;
+        if (t == null) return -1;
+        if (vmax === vmin) return 4;
+        return Math.round((t - vmin) / (vmax - vmin) * 4);
+      &#125;
+
+      var af = panel.activeFrom ? parseISO(panel.activeFrom) : new Date(year, startM, 1);
+      var at = panel.activeTo ? parseISO(panel.activeTo) : new Date(year, endM, daysInMonth(year, endM));
+
+      var wrap = html("div", "ghheat__panel");
+
+      var head = html("div", "ghheat__phead");
+      var badge = html("span", "ghheat__badge");
+      badge.textContent = panel.badge != null ? panel.badge : (pi + 1);
+      badge.style.background = strong;
+      head.appendChild(badge);
+      var pt = html("span", "ghheat__ptitle");
+      pt.textContent = panel.title;
+      head.appendChild(pt);
+      if (panel.descriptor) &#123;
+        var pd = html("span", "ghheat__pdesc");
+        pd.textContent = panel.descriptor;
+        head.appendChild(pd);
+      &#125;
+      wrap.appendChild(head);
+
+      var body = html("div", "ghheat__body");
+
+      /* ---- Calendar grid (SVG) ---- */
+      var gridStart = new Date(year, startM, 1);
+      var gs = new Date(gridStart);
+      gs.setDate(gs.getDate() - gs.getDay());            // back to Sunday
+      var gridEnd = new Date(year, endM, daysInMonth(year, endM));
+      var ge = new Date(gridEnd);
+      ge.setDate(ge.getDate() + (6 - ge.getDay()));      // forward to Saturday
+      var nCols = Math.round((ge - gs) / (7 * 86400000)) + 1;
+
+      var cell = 13, sq = 11, rad = 2.5, labL = 34, labT = 18;
+      var W = labL + nCols * cell, H = labT + 7 * cell;
+      var svg = el("svg", &#123;
+        "class": "ghheat__grid",
+        viewBox: "0 0 " + W + " " + H,
+        preserveAspectRatio: "xMinYMin meet",
+        role: "img",
+        "aria-label": panel.title + " calendar heatmap"
+      &#125;);
+
+      [1, 3, 5].forEach(function (r) &#123;
+        var t = el("text", &#123;
+          "class": "ghheat__wd", x: labL - 6, y: labT + r * cell + sq / 2,
+          dy: "0.32em", "text-anchor": "end"
+        &#125;);
+        t.textContent = WD[r];
+        svg.appendChild(t);
+      &#125;);
+
+      // Month labels above the column where each month begins.
+      for (var lm = startM; lm <= endM; lm++) &#123;
+        var first = new Date(year, lm, 1);
+        var colOf = Math.floor((dayStart(first) - gs) / (7 * 86400000));
+        var mlab = el("text", &#123; "class": "ghheat__month", x: labL + colOf * cell, y: 12, "text-anchor": "start" &#125;);
+        mlab.textContent = MON[lm];
+        svg.appendChild(mlab);
+      &#125;
+
+      var afS = dayStart(af), atS = dayStart(at);
+      var d = new Date(gs);
+      for (var i = 0; i < nCols * 7; i++) &#123;
+        var row = d.getDay();
+        var col = Math.floor(i / 7);
+        var x = labL + col * cell, y = labT + row * cell;
+        var m = d.getMonth();
+        var inRange = d.getFullYear() === year && m >= startM && m <= endM;
+        var ds = dayStart(d);
+        var inWindow = inRange && ds >= afS && ds <= atS;
+        var hasData = inWindow && totals[m] != null;
+        var lvl = hasData ? levelFor(totals[m]) : -1;
+        var cellEl = el("rect", &#123;
+          "class": "ghheat__cell", x: x, y: y, width: sq, height: sq, rx: rad,
+          fill: lvl >= 0 ? ramp[lvl] : emptyColor
+        &#125;);
+        if (inRange) &#123;
+          (function (dt, mm, has) &#123;
+            var dateStr = WD[dt.getDay()] + " \u00b7 " + MON[mm] + " " + dt.getDate() + ", " + year;
+            var lines;
+            if (has) &#123;
+              var daily = totals[mm] / daysInMonth(year, mm);
+              lines = [
+                "<b>" + fmtM(daily) + "</b> " + panel.legendLabel,
+                MON_FULL[mm] + " \u00b7 " + fmtM(totals[mm]) + " " + panel.unitTotal
+              ];
+            &#125; else &#123;
+              lines = [panel.emptyNote || "No vetted data"];
+            &#125;
+            cellEl.addEventListener("pointermove", function () &#123; showTip(cellEl, dateStr, lines); &#125;);
+            cellEl.addEventListener("pointerdown", function () &#123; showTip(cellEl, dateStr, lines); &#125;);
+            cellEl.addEventListener("pointerleave", hideTip);
+          &#125;)(new Date(d), m, hasData);
+        &#125; else &#123;
+          cellEl.setAttribute("class", "ghheat__cell ghheat__cell--pad");
+        &#125;
+        svg.appendChild(cellEl);
+        d.setDate(d.getDate() + 1);
+      &#125;
+
+      var gridwrap = html("div", "ghheat__gridwrap");
+      gridwrap.appendChild(svg);
+      body.appendChild(gridwrap);
+
+      /* ---- Side column: stat + note + legend + extra ---- */
+      var side = html("div", "ghheat__side");
+      if (panel.stat) &#123;
+        var stat = html("div", "ghheat__stat");
+        var big = html("span", "ghheat__statbig");
+        big.textContent = panel.stat.big;
+        big.style.color = strong;
+        stat.appendChild(big);
+        if (panel.stat.small) &#123;
+          var small = html("span", "ghheat__statsmall");
+          small.textContent = panel.stat.small;
+          stat.appendChild(small);
+        &#125;
+        side.appendChild(stat);
+      &#125;
+      if (panel.note) &#123;
+        var note = html("p", "ghheat__note");
+        note.innerHTML = panel.note;
+        side.appendChild(note);
+      &#125;
+      var leg = html("div", "ghheat__legend");
+      var lw1 = html("span", "ghheat__legword"); lw1.textContent = "Fewer"; leg.appendChild(lw1);
+      ramp.forEach(function (c) &#123;
+        var s = html("span", "ghheat__sw"); s.style.background = c; leg.appendChild(s);
+      &#125;);
+      var lw2 = html("span", "ghheat__legword"); lw2.textContent = "More"; leg.appendChild(lw2);
+      if (panel.legendLabel) &#123;
+        var lu = html("span", "ghheat__legunit"); lu.textContent = "\u00b7 " + panel.legendLabel; leg.appendChild(lu);
+      &#125;
+      side.appendChild(leg);
+      if (panel.extraNote) &#123;
+        var ex = html("div", "ghheat__extra");
+        var exsw = html("span", "ghheat__sw ghheat__sw--empty");
+        exsw.style.background = emptyColor;
+        ex.appendChild(exsw);
+        var ext = html("span", "ghheat__extratext");
+        ext.innerHTML = panel.extraNote;
+        ex.appendChild(ext);
+        side.appendChild(ex);
+      &#125;
+      body.appendChild(side);
+
+      wrap.appendChild(body);
+      root.appendChild(wrap);
+    &#125;);
+
+    if (config.caption) &#123;
+      var cap = html("div", "ghchart__caption");
+      cap.innerHTML = config.caption;
+      root.appendChild(cap);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Scatter renderer — X/Y numeric plot with categorical points.
+     Used for cost-vs-quality benchmark charts: a highlighted "primary"
+     point (glow halo), a "reference" point with a dotted crosshair, and
+     muted "other" points. Values never print on the marks — a point's
+     name shows for identity and the exact (y, x) reveals on hover.
+     ================================================================ */
+  renderers.scatter = function (root, config) &#123;
+    root.textContent = "";
+    var uid = config.mountId;
+
+    var VB = &#123; w: 1000, h: 600 &#125;;
+    var M = &#123; top: 40, right: 30, bottom: 74, left: 96 &#125;;
+    var innerW = VB.w - M.left - M.right;
+    var innerH = VB.h - M.top - M.bottom;
+
+    var xa = config.xAxis, ya = config.yAxis;
+    var fmtX = xa.format || function (v) &#123; return String(v); &#125;;
+    var fmtY = ya.format || function (v) &#123; return String(v); &#125;;
+    var tipSuffix = config.tipSuffix || "";
+
+    function xAt(v) &#123; return M.left + innerW * (v - xa.min) / (xa.max - xa.min); &#125;
+    function yAt(v) &#123; return M.top + innerH * (1 - (v - ya.min) / (ya.max - ya.min)); &#125;
+    var baseY = yAt(ya.min);
+
+    var motionMQ = window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
+    function reduceMotion() &#123; return !!(motionMQ && motionMQ.matches); &#125;
+
+    function colorOf(pt) &#123;
+      var s = config.series && config.series[pt.series || 0];
+      return (s && s.color) || "#8c959f";
+    &#125;
+
+    /* ---- Title (compact narrative headline, no rule) ------------ */
+    var title = html("div", "ghchart__headline");
+    title.textContent = config.title;
+    root.appendChild(title);
+
+    /* ---- Header + legend (from series) -------------------------- */
+    if (!config.hideLegend) &#123;
+      var header = html("div", "ghchart__header");
+      var legend = html("div", "ghchart__legend");
+      (config.series || []).forEach(function (s) &#123;
+        var item = html("span", "ghchart__legend-item");
+        var sw = html("span", "ghchart__swatch ghchart__swatch--dot");
+        sw.style.background = s.color;
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      &#125;);
+      header.appendChild(legend);
+      root.appendChild(header);
+    &#125;
+
+    /* ---- SVG plot ----------------------------------------------- */
+    var svg = el("svg", &#123;
+      "class": "ghchart__plot ghchart__plot--scatter",
+      viewBox: "0 0 " + VB.w + " " + VB.h,
+      preserveAspectRatio: "xMidYMid meet",
+      role: "img",
+      "aria-label": config.title + " scatter plot"
+    &#125;);
+
+    // Gridlines (both directions) + tick labels.
+    var eps = 1e-6;
+    for (var yv = ya.min; yv <= ya.max + eps; yv += ya.step) &#123;
+      var gy = yAt(yv);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__gridline",
+        x1: M.left, y1: gy, x2: VB.w - M.right, y2: gy
+      &#125;));
+      var yl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--y",
+        x: M.left - 16, y: gy, dy: "0.32em", "text-anchor": "end"
+      &#125;);
+      yl.textContent = fmtY(yv);
+      svg.appendChild(yl);
+    &#125;
+    for (var xv = xa.min; xv <= xa.max + eps; xv += xa.step) &#123;
+      var gx = xAt(xv);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__gridline ghchart__gridline--v",
+        x1: gx, y1: M.top, x2: gx, y2: baseY
+      &#125;));
+      var isFirst = Math.abs(xv - xa.min) < eps;
+      var isLast = Math.abs(xv - xa.max) < eps;
+      var xl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--x",
+        x: gx, y: baseY + 34,
+        "text-anchor": isFirst ? "start" : (isLast ? "end" : "middle")
+      &#125;);
+      xl.textContent = fmtX(xv);
+      svg.appendChild(xl);
+    &#125;
+
+    // Axis titles.
+    if (xa.title) &#123;
+      var xt = el("text", &#123;
+        "class": "ghchart__axistitle",
+        x: M.left + innerW / 2, y: VB.h - 12, "text-anchor": "middle"
+      &#125;);
+      xt.textContent = xa.title;
+      svg.appendChild(xt);
+    &#125;
+    if (ya.title) &#123;
+      var ytX = 24, ytY = M.top + innerH / 2;
+      var yt = el("text", &#123;
+        "class": "ghchart__axistitle",
+        x: ytX, y: ytY, "text-anchor": "middle",
+        transform: "rotate(-90 " + ytX + " " + ytY + ")"
+      &#125;);
+      yt.textContent = ya.title;
+      svg.appendChild(yt);
+    &#125;
+
+    // Reference crosshair through the flagged point (dual dotted lines).
+    var refPt = (config.points || []).filter(function (p) &#123; return p.reference; &#125;)[0];
+    if (refPt) &#123;
+      var rColor = colorOf(refPt);
+      var rx = xAt(refPt.x), ry = yAt(refPt.y);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__crosshair",
+        x1: rx, y1: M.top, x2: rx, y2: baseY, stroke: rColor
+      &#125;));
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__crosshair",
+        x1: M.left, y1: ry, x2: VB.w - M.right, y2: ry, stroke: rColor
+      &#125;));
+    &#125;
+
+    // Points: halo (highlight/reference) + dot + name label.
+    var dotEls = [], hitEls = [];
+    (config.points || []).forEach(function (pt, i) &#123;
+      var cx = xAt(pt.x), cy = yAt(pt.y), c = colorOf(pt);
+      var big = pt.highlight || pt.reference;
+
+      if (big) &#123;
+        svg.appendChild(el("circle", &#123;
+          "class": "ghchart__halo", cx: cx, cy: cy, r: 17, fill: c
+        &#125;));
+      &#125;
+      var dot = el("circle", &#123;
+        "class": "ghchart__pt", cx: cx, cy: cy,
+        r: big ? 9 : 5.5, fill: c
+      &#125;);
+      svg.appendChild(dot);
+      dotEls.push(&#123; el: dot, baseR: big ? 9 : 5.5 &#125;);
+
+      // Name label — bold+colored for the story points, muted for the rest.
+      var pos = pt.labelPos || (pt.highlight ? "below" : pt.reference ? "above" : "right");
+      var dx = 0, dy = 0, anchor = "middle";
+      var gap = big ? 15 : 9;
+      if (pos === "right") &#123; dx = gap + 4; dy = 5; anchor = "start"; &#125;
+      else if (pos === "left") &#123; dx = -(gap + 4); dy = 5; anchor = "end"; &#125;
+      else if (pos === "above") &#123; dy = -(gap + 6); anchor = "middle"; &#125;
+      else &#123; dy = gap + 16; anchor = "middle"; &#125;  // below
+      var lbl = el("text", &#123;
+        "class": "ghchart__pt-label" + (big ? " ghchart__pt-label--strong" : ""),
+        x: cx + dx, y: cy + dy, "text-anchor": anchor,
+        fill: big ? c : null
+      &#125;);
+      lbl.textContent = pt.label;
+      svg.appendChild(lbl);
+
+      // Transparent hit target for hover/focus.
+      var hit = el("circle", &#123;
+        "class": "ghchart__pthit", cx: cx, cy: cy, r: 20,
+        tabindex: "0", role: "img",
+        "aria-label": pt.label + ": " + fmtY(pt.y) + ", " + fmtX(pt.x) + tipSuffix
+      &#125;);
+      svg.appendChild(hit);
+      hitEls.push(hit);
+    &#125;);
+
+    root.appendChild(svg);
+
+    /* ---- Tooltip (title + free lines) --------------------------- */
+    var tip = html("div", "ghchart__tooltip");
+    tip.setAttribute("role", "status");
+    var tipTitle = html("div", "ghchart__tt-title");
+    var tipBody = html("div", "ghchart__tt-body");
+    tip.appendChild(tipTitle);
+    tip.appendChild(tipBody);
+    root.appendChild(tip);
+
+    var activeIndex = -1;
+    function show(i) &#123;
+      var pt = config.points[i];
+      if (!pt) return;
+      var reappearing = activeIndex === -1;
+      activeIndex = i;
+
+      dotEls.forEach(function (d, di) &#123;
+        d.el.setAttribute("r", di === i ? d.baseR + 2.5 : d.baseR);
+      &#125;);
+
+      tipTitle.textContent = pt.label;
+      tipBody.textContent = "";
+      var line = html("div", "ghchart__tt-line");
+      line.textContent = fmtY(pt.y) + " · " + fmtX(pt.x) + tipSuffix;
+      tipBody.appendChild(line);
+
+      var anchor = dotEls[i].el.getBoundingClientRect();
+      var rootRect = root.getBoundingClientRect();
+      var left = anchor.left + anchor.width / 2 - rootRect.left;
+      var top = anchor.top - rootRect.top - 12;
+
+      var suppress = reappearing && !reduceMotion();
+      if (suppress) tip.style.transition = "opacity 0.12s ease";
+
+      tip.setAttribute("data-visible", "true");
+      var halfW = tip.offsetWidth / 2;
+      left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+      if (top - tip.offsetHeight < 0) &#123;
+        top = anchor.bottom - rootRect.top + 12;
+        tip.style.transform = "translate(-50%, 0)";
+      &#125; else &#123;
+        tip.style.transform = "translate(-50%, -100%)";
+      &#125;
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+      if (suppress) &#123; void tip.offsetWidth; tip.style.transition = ""; &#125;
+    &#125;
+    function hide() &#123;
+      activeIndex = -1;
+      tip.setAttribute("data-visible", "false");
+      dotEls.forEach(function (d) &#123; d.el.setAttribute("r", d.baseR); &#125;);
+    &#125;
+
+    hitEls.forEach(function (hit, i) &#123;
+      hit.addEventListener("pointerenter", function () &#123; show(i); &#125;);
+      hit.addEventListener("pointermove", function () &#123; show(i); &#125;);
+      hit.addEventListener("pointerleave", hide);
+      hit.addEventListener("focus", function () &#123; show(i); &#125;);
+      hit.addEventListener("blur", hide);
+    &#125;);
+  &#125;;
+
+  /* ================================================================
+     Trend renderer — dated time-series with a narrative headline.
+     One renderer covers both HydraFusion time charts via config:
+       • linear OR log y-axis (yAxis.scale), explicit yAxis.ticks;
+       • phase background columns (with optional per-phase average);
+       • filled squares (values reveal on hover — never printed);
+       • red-X "invalid run" markers with leader-line annotations;
+       • a dashed trend line + optional ±band + slope label;
+       • an optional horizontal reference line, bracket, and final callout.
+     ================================================================ */
+  renderers.trend = function (root, config) &#123;
+    root.textContent = "";
+
+    var VB = &#123; w: 1000, h: 560 &#125;;
+    var M = &#123; top: 64, right: 56, bottom: 56, left: 104 &#125;;
+    var innerW = VB.w - M.left - M.right;
+    var innerH = VB.h - M.top - M.bottom;
+
+    var xa = config.xAxis, ya = config.yAxis;
+    var isLog = ya.scale === "log";
+    var fmtY = ya.format || function (v) &#123; return String(v); &#125;;
+    var series = config.series || [];
+    function sColor(i, fb) &#123;
+      var s = series[i];
+      return (s && s.color) || fb;
+    &#125;
+    var cPoint = sColor(0, "#8250df");
+    var cInvalid = sColor(1, "#cf222e");
+    var cTrend = (config.trend && config.trend.color) || sColor(0, "#8250df");
+
+    function xAt(v) &#123; return M.left + innerW * (v - xa.min) / (xa.max - xa.min); &#125;
+    function yAt(v) &#123;
+      if (isLog) &#123;
+        var lo = Math.log(ya.min) / Math.LN10, hi = Math.log(ya.max) / Math.LN10;
+        var t = (Math.log(v) / Math.LN10 - lo) / (hi - lo);
+        return M.top + innerH * (1 - t);
+      &#125;
+      return M.top + innerH * (1 - (v - ya.min) / (ya.max - ya.min));
+    &#125;
+    var baseY = yAt(ya.min);
+
+    var motionMQ = window.matchMedia
+      ? window.matchMedia("(prefers-reduced-motion: reduce)")
+      : null;
+    function reduceMotion() &#123; return !!(motionMQ && motionMQ.matches); &#125;
+
+    /* ---- Headline + subtitle + legend (HTML flow above the plot) --- */
+    var headline = html("div", "ghchart__headline");
+    headline.textContent = config.title;
+    root.appendChild(headline);
+    if (config.subtitle) &#123;
+      var sub = html("div", "ghchart__subtitle");
+      sub.textContent = config.subtitle;
+      root.appendChild(sub);
+    &#125;
+    if (!config.hideLegend && series.length) &#123;
+      var legend = html("div", "ghchart__legend ghchart__legend--trend");
+      /* Build one legend glyph. The "invalid" glyph mirrors the on-plot marker
+         exactly — a red diamond outline with an X through it (same side=13 /
+         q=3.4 proportions used to draw the mark below) — so the key matches
+         the mark on the chart. */
+      function trendGlyph(glyph, color) &#123;
+        if (glyph === "invalid") &#123;
+          var g = el("svg", &#123;
+            "class": "ghchart__glyph ghchart__glyph--invalid",
+            viewBox: "0 0 22 22", width: "15", height: "15",
+            style: "overflow:visible"
+          &#125;);
+          g.appendChild(el("rect", &#123;
+            x: 4.5, y: 4.5, width: 13, height: 13, rx: 1.5,
+            transform: "rotate(45 11 11)", fill: "none",
+            stroke: color, "stroke-width": 2
+          &#125;));
+          g.appendChild(el("line", &#123;
+            x1: 7.6, y1: 7.6, x2: 14.4, y2: 14.4,
+            stroke: color, "stroke-width": 2, "stroke-linecap": "round"
+          &#125;));
+          g.appendChild(el("line", &#123;
+            x1: 7.6, y1: 14.4, x2: 14.4, y2: 7.6,
+            stroke: color, "stroke-width": 2, "stroke-linecap": "round"
+          &#125;));
+          return g;
+        &#125;
+        var gl = html("span", "ghchart__glyph ghchart__glyph--" + glyph);
+        if (glyph === "line") &#123; gl.style.borderTopColor = color; &#125;
+        else &#123; gl.style.background = color; gl.style.borderColor = color; &#125;
+        if (glyph === "diamond") &#123; gl.style.background = "transparent"; &#125;
+        return gl;
+      &#125;
+      series.forEach(function (s) &#123;
+        var item = html("span", "ghchart__legend-item");
+        item.appendChild(trendGlyph(s.glyph || "square", s.color));
+        item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      &#125;);
+      (config.legendExtra || []).forEach(function (s) &#123;
+        var item = html("span", "ghchart__legend-item");
+        item.appendChild(trendGlyph(s.glyph || "line", s.color));
+        item.appendChild(document.createTextNode(s.name));
+        legend.appendChild(item);
+      &#125;);
+      root.appendChild(legend);
+    &#125;
+
+    /* ---- SVG plot ------------------------------------------------- */
+    var svg = el("svg", &#123;
+      "class": "ghchart__plot ghchart__plot--trend",
+      viewBox: "0 0 " + VB.w + " " + VB.h,
+      preserveAspectRatio: "xMidYMid meet",
+      role: "img",
+      "aria-label": config.title
+    &#125;);
+
+    // Phase background columns + separators + labels (+ optional average).
+    (config.phases || []).forEach(function (ph, i) &#123;
+      var x0 = xAt(ph.from), x1 = xAt(ph.to);
+      svg.appendChild(el("rect", &#123;
+        "class": "ghchart__phase" + (i % 2 ? " ghchart__phase--alt" : ""),
+        x: x0, y: M.top, width: Math.max(0, x1 - x0), height: innerH
+      &#125;));
+      if (i > 0) &#123;
+        svg.appendChild(el("line", &#123;
+          "class": "ghchart__phase-sep", x1: x0, y1: M.top, x2: x0, y2: baseY
+        &#125;));
+      &#125;
+      var pl = el("text", &#123;
+        "class": "ghchart__phase-label", x: (x0 + x1) / 2, y: M.top - 40,
+        "text-anchor": "middle"
+      &#125;);
+      pl.textContent = ph.label;
+      svg.appendChild(pl);
+      if (ph.avg) &#123;
+        var pa = el("text", &#123;
+          "class": "ghchart__phase-avg", x: (x0 + x1) / 2, y: M.top + 24,
+          "text-anchor": "middle", fill: cPoint
+        &#125;);
+        pa.textContent = ph.avg;
+        svg.appendChild(pa);
+      &#125;
+    &#125;);
+
+    // Horizontal gridlines + y tick labels (skip a gridline at the reference y).
+    var refY = config.reference ? config.reference.y : null;
+    (ya.ticks || []).forEach(function (tv) &#123;
+      var gy = yAt(tv);
+      if (refY === null || Math.abs(tv - refY) > 1e-9) &#123;
+        svg.appendChild(el("line", &#123;
+          "class": "ghchart__gridline", x1: M.left, y1: gy, x2: VB.w - M.right, y2: gy
+        &#125;));
+      &#125;
+      var yl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--y",
+        x: M.left - 16, y: gy, dy: "0.32em", "text-anchor": "end"
+      &#125;);
+      yl.textContent = fmtY(tv);
+      svg.appendChild(yl);
+    &#125;);
+
+    // X tick labels (dated).
+    (xa.ticks || []).forEach(function (t) &#123;
+      var gx = xAt(t.at);
+      var first = Math.abs(t.at - xa.min) < 1e-9, last = Math.abs(t.at - xa.max) < 1e-9;
+      var xl = el("text", &#123;
+        "class": "ghchart__axislabel ghchart__axislabel--x",
+        x: gx, y: baseY + 30, "text-anchor": first ? "start" : (last ? "end" : "middle")
+      &#125;);
+      xl.textContent = t.text;
+      svg.appendChild(xl);
+    &#125;);
+
+    // Axis titles.
+    if (ya.title) &#123;
+      var ytX = 22, ytY = M.top + innerH / 2;
+      var yt = el("text", &#123;
+        "class": "ghchart__axistitle", x: ytX, y: ytY, "text-anchor": "middle",
+        transform: "rotate(-90 " + ytX + " " + ytY + ")"
+      &#125;);
+      yt.textContent = ya.title;
+      svg.appendChild(yt);
+    &#125;
+
+    // Trend: optional ±band (linear only), then the dashed line + slope label.
+    var tr = config.trend;
+    if (tr) &#123;
+      function trendY(x) &#123;
+        return tr.from.y + (tr.to.y - tr.from.y) * (x - tr.from.x) / (tr.to.x - tr.from.x);
+      &#125;
+      if (tr.band && !isLog) &#123;
+        var p = tr.band;
+        var pts = [
+          [xAt(tr.from.x), yAt(trendY(tr.from.x) + p)],
+          [xAt(tr.to.x), yAt(trendY(tr.to.x) + p)],
+          [xAt(tr.to.x), yAt(trendY(tr.to.x) - p)],
+          [xAt(tr.from.x), yAt(trendY(tr.from.x) - p)]
+        ].map(function (a) &#123; return a[0] + "," + a[1]; &#125;).join(" ");
+        svg.appendChild(el("polygon", &#123;
+          "class": "ghchart__trendband", points: pts, fill: cTrend
+        &#125;));
+      &#125;
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__trendline",
+        x1: xAt(tr.from.x), y1: yAt(tr.from.y),
+        x2: xAt(tr.to.x), y2: yAt(tr.to.y), stroke: cTrend
+      &#125;));
+      if (tr.label) &#123;
+        var lx, lyy;
+        if (tr.labelAt) &#123; lx = xAt(tr.labelAt.x); lyy = yAt(tr.labelAt.y); &#125;
+        else &#123;
+          lx = xAt(tr.to.x) + (tr.labelDX == null ? -6 : tr.labelDX);
+          lyy = yAt(tr.to.y) + (tr.labelDY == null ? -12 : tr.labelDY);
+        &#125;
+        var sl = el("text", &#123;
+          "class": "ghchart__slope", x: lx, y: lyy,
+          "text-anchor": tr.labelAnchor || "end", fill: cTrend
+        &#125;);
+        sl.textContent = tr.label;
+        svg.appendChild(sl);
+      &#125;
+    &#125;
+
+    // Reference line (horizontal dashed) + right-aligned label.
+    if (config.reference) &#123;
+      var rc = config.reference.color || "#24292f";
+      var ryy = yAt(config.reference.y);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__refline", x1: M.left, y1: ryy, x2: VB.w - M.right, y2: ryy,
+        stroke: rc
+      &#125;));
+      if (config.reference.label) &#123;
+        var rl = el("text", &#123;
+          "class": "ghchart__reflabel", x: VB.w - M.right, y: ryy - 8,
+          "text-anchor": "end", fill: rc
+        &#125;);
+        rl.textContent = config.reference.label;
+        svg.appendChild(rl);
+      &#125;
+    &#125;
+
+    // Data squares (values reveal on hover only).
+    var side = 13, hSide = side / 2;
+    var sqEls = [], hitEls = [];
+    (config.points || []).forEach(function (pt, i) &#123;
+      var cx = xAt(pt.x), cy = yAt(pt.y);
+      var sq = el("rect", &#123;
+        "class": "ghchart__square", x: cx - hSide, y: cy - hSide,
+        width: side, height: side, rx: 2, fill: cPoint
+      &#125;);
+      svg.appendChild(sq);
+      sqEls.push(&#123; el: sq, cx: cx, cy: cy &#125;);
+
+      // Hover/focus hit target — omitted when hover is disabled so the
+      // (illustrative) point values never surface, on screen or to a11y.
+      if (!config.disableHover) &#123;
+        var hit = el("rect", &#123;
+          "class": "ghchart__squarehit", x: cx - 13, y: cy - 13,
+          width: 26, height: 26, tabindex: "0", role: "img",
+          "aria-label": (pt.d || "") + " " + fmtY(pt.y)
+        &#125;);
+        svg.appendChild(hit);
+        hitEls.push(hit);
+      &#125;
+    &#125;);
+
+    // Invalid-run markers: red diamond + X, leader line, annotation text.
+    (config.invalids || []).forEach(function (iv) &#123;
+      var cx = xAt(iv.x), cy = yAt(iv.y);
+      svg.appendChild(el("rect", &#123;
+        "class": "ghchart__invalid", x: cx - hSide, y: cy - hSide,
+        width: side, height: side, rx: 1.5, fill: "none", stroke: cInvalid,
+        transform: "rotate(45 " + cx + " " + cy + ")"
+      &#125;));
+      var q = 3.4;
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__invalid-x", x1: cx - q, y1: cy - q, x2: cx + q, y2: cy + q,
+        stroke: cInvalid
+      &#125;));
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__invalid-x", x1: cx - q, y1: cy + q, x2: cx + q, y2: cy - q,
+        stroke: cInvalid
+      &#125;));
+      if (iv.title) &#123;
+        var tx = cx + (iv.labelDX == null ? 16 : iv.labelDX);
+        var ty = cy + (iv.labelDY == null ? -26 : iv.labelDY);
+        svg.appendChild(el("line", &#123;
+          "class": "ghchart__leader", x1: cx, y1: cy, x2: tx, y2: ty, stroke: cInvalid
+        &#125;));
+        var anchor = iv.labelAnchor || "start";
+        var at = el("text", &#123;
+          "class": "ghchart__anno-title", x: tx, y: ty - 4, "text-anchor": anchor, fill: cInvalid
+        &#125;);
+        at.textContent = iv.title;
+        svg.appendChild(at);
+        if (iv.sub) &#123;
+          var asu = el("text", &#123;
+            "class": "ghchart__anno-sub", x: tx, y: ty + 11, "text-anchor": anchor
+          &#125;);
+          asu.textContent = iv.sub;
+          svg.appendChild(asu);
+        &#125;
+      &#125;
+    &#125;);
+
+    // Bracket annotation (span with end ticks + centered label above).
+    (config.brackets || []).forEach(function (b) &#123;
+      var x0 = xAt(b.fromX), x1 = xAt(b.toX), by = yAt(b.y);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__bracket", x1: x0, y1: by, x2: x1, y2: by
+      &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: x0, y1: by, x2: x0, y2: by + 7 &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: x1, y1: by, x2: x1, y2: by + 7 &#125;));
+      var bl = el("text", &#123;
+        "class": "ghchart__bracket-label", x: (x0 + x1) / 2, y: by - 8, "text-anchor": "middle"
+      &#125;);
+      bl.textContent = b.text;
+      svg.appendChild(bl);
+    &#125;);
+
+    // Final callout: ringed point + leader + title/sub placed inside the plot.
+    if (config.callout) &#123;
+      var co = config.callout;
+      var ccx = xAt(co.x), ccy = yAt(co.y);
+      svg.appendChild(el("circle", &#123;
+        "class": "ghchart__callout-ring", cx: ccx, cy: ccy, r: 12, stroke: cPoint
+      &#125;));
+      var ctx = ccx + (co.labelDX == null ? -16 : co.labelDX);
+      var cty = ccy + (co.labelDY == null ? -30 : co.labelDY);
+      svg.appendChild(el("line", &#123;
+        "class": "ghchart__leader ghchart__leader--callout", x1: ccx, y1: ccy, x2: ctx, y2: cty,
+        stroke: cPoint
+      &#125;));
+      var can = co.labelAnchor || "end";
+      var ct = el("text", &#123;
+        "class": "ghchart__anno-title ghchart__anno-title--callout", x: ctx, y: cty - 4, "text-anchor": can, fill: cPoint
+      &#125;);
+      ct.textContent = co.title;
+      svg.appendChild(ct);
+      if (co.sub) &#123;
+        var cs = el("text", &#123;
+          "class": "ghchart__anno-sub ghchart__anno-sub--callout", x: ctx, y: cty + 12, "text-anchor": can
+        &#125;);
+        cs.textContent = co.sub;
+        svg.appendChild(cs);
+      &#125;
+    &#125;
+
+    root.appendChild(svg);
+
+    if (config.caption) &#123;
+      var cap = html("div", "ghchart__caption");
+      cap.textContent = config.caption;
+      root.appendChild(cap);
+    &#125;
+
+    /* ---- Tooltip + hover interaction (skipped when disabled) ------ */
+    if (!config.disableHover) &#123;
+    var tip = html("div", "ghchart__tooltip");
+    tip.setAttribute("role", "status");
+    var tipTitle = html("div", "ghchart__tt-title");
+    var tipBody = html("div", "ghchart__tt-body");
+    tip.appendChild(tipTitle);
+    tip.appendChild(tipBody);
+    root.appendChild(tip);
+
+    var activeIndex = -1;
+    function show(i) &#123;
+      var pt = config.points[i];
+      if (!pt) return;
+      var reappearing = activeIndex === -1;
+      activeIndex = i;
+
+      sqEls.forEach(function (s, si) &#123;
+        var big = si === i;
+        var w = big ? side + 5 : side;
+        s.el.setAttribute("width", w);
+        s.el.setAttribute("height", w);
+        s.el.setAttribute("x", s.cx - w / 2);
+        s.el.setAttribute("y", s.cy - w / 2);
+      &#125;);
+
+      var tipInfo = config.pointTip
+        ? config.pointTip(pt)
+        : &#123; title: pt.d || "", line: fmtY(pt.y) &#125;;
+      tipTitle.textContent = tipInfo.title;
+      tipBody.textContent = "";
+      var line = html("div", "ghchart__tt-line");
+      line.textContent = tipInfo.line;
+      tipBody.appendChild(line);
+
+      var anchor = sqEls[i].el.getBoundingClientRect();
+      var rootRect = root.getBoundingClientRect();
+      var left = anchor.left + anchor.width / 2 - rootRect.left;
+      var top = anchor.top - rootRect.top - 12;
+
+      var suppress = reappearing && !reduceMotion();
+      if (suppress) tip.style.transition = "opacity 0.12s ease";
+
+      tip.setAttribute("data-visible", "true");
+      var halfW = tip.offsetWidth / 2;
+      left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+      if (top - tip.offsetHeight < 0) &#123;
+        top = anchor.bottom - rootRect.top + 12;
+        tip.style.transform = "translate(-50%, 0)";
+      &#125; else &#123;
+        tip.style.transform = "translate(-50%, -100%)";
+      &#125;
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+      if (suppress) &#123; void tip.offsetWidth; tip.style.transition = ""; &#125;
+    &#125;
+    function hide() &#123;
+      activeIndex = -1;
+      tip.setAttribute("data-visible", "false");
+      sqEls.forEach(function (s) &#123;
+        s.el.setAttribute("width", side);
+        s.el.setAttribute("height", side);
+        s.el.setAttribute("x", s.cx - hSide);
+        s.el.setAttribute("y", s.cy - hSide);
+      &#125;);
+    &#125;
+
+    hitEls.forEach(function (hit, i) &#123;
+      hit.addEventListener("pointerenter", function () &#123; show(i); &#125;);
+      hit.addEventListener("pointermove", function () &#123; show(i); &#125;);
+      hit.addEventListener("pointerleave", hide);
+      hit.addEventListener("focus", function () &#123; show(i); &#125;);
+      hit.addEventListener("blur", hide);
+    &#125;);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Distribution dashboard renderer
+     ----------------------------------------------------------------
+     A composition figure (no hover — every value is printed as text, so
+     the marks are inherently screen-reader accessible):
+       • a compact narrative headline + muted subtitle;
+       • an optional segmented "mix" bar — proportional colored segments,
+         each with its name inside and count/percent below;
+       • one or more panels of ranked horizontal bars, each row printing
+         its category (left), a bar, and its count/percent (right).
+     Colors come from config.series so the harness can tune them live:
+       series[0]   = bar fill (single base hex);
+       series[1..] = segment fills, in the order of config.segments.items.
+     ================================================================ */
+  renderers.distribution = function (root, config) &#123;
+    root.textContent = "";
+    root.setAttribute("role", "figure");
+    if (config.title) root.setAttribute("aria-label", config.title);
+
+    var series = config.series || [];
+    var barColor = (series[0] && series[0].color) || "#8250df";
+    var total = config.total ||
+      (config.segments && config.segments.items
+        ? config.segments.items.reduce(function (a, b) &#123; return a + b.value; &#125;, 0)
+        : 0);
+
+    function pctText(v) &#123;
+      if (!total) return "";
+      return (Math.round((v / total) * 1000) / 10).toFixed(1) + "%";
+    &#125;
+    /* Label format is config-driven so a chart can print counts, percents,
+       or both without a renderer change: config.valueFormat =
+       "both" (default) | "percent" | "count". Counts stay in the data either
+       way so the percentages are always derived from them. */
+    var valueFormat = config.valueFormat || "both";
+    function valueHTML(v) &#123;
+      var p = pctText(v);
+      if (valueFormat === "percent") return p;
+      if (valueFormat === "count") return "<b>" + v + "</b>";
+      return "<b>" + v + "</b>" + (p ? " (" + p + ")" : "");
+    &#125;
+
+    /* ---- Headline + subtitle ------------------------------------- */
+    if (config.title) &#123;
+      var head = html("div", "ghchart__headline");
+      head.textContent = config.title;
+      root.appendChild(head);
+    &#125;
+    if (config.subtitle) &#123;
+      var sub = html("p", "ghchart__subtitle");
+      sub.textContent = config.subtitle;
+      root.appendChild(sub);
+    &#125;
+
+    /* ---- Segmented "mix" bar -------------------------------------- */
+    var seg = config.segments;
+    if (seg && seg.items && seg.items.length) &#123;
+      var segSec = html("div", "ghchart__dist-section");
+      if (seg.title) &#123;
+        var segTitle = html("div", "ghchart__panel-title");
+        segTitle.textContent = seg.title;
+        segSec.appendChild(segTitle);
+      &#125;
+      var segTotal = seg.items.reduce(function (a, b) &#123; return a + b.value; &#125;, 0) || 1;
+      var bar = html("div", "ghchart__seg");
+      var notes = html("div", "ghchart__seg-note-row");
+      seg.items.forEach(function (it, i) &#123;
+        var basis = (it.value / segTotal) * 100;
+        var col = (series[i + 1] && series[i + 1].color) || it.color || barColor;
+
+        var cell = html("div", "ghchart__seg-cell");
+        cell.style.flex = "0 0 " + basis + "%";
+        cell.style.background = col;
+        cell.textContent = it.label;
+        bar.appendChild(cell);
+
+        var note = html("div", "ghchart__seg-note");
+        note.style.flex = "0 0 " + basis + "%";
+        note.innerHTML = valueHTML(it.value);
+        notes.appendChild(note);
+      &#125;);
+      segSec.appendChild(bar);
+      segSec.appendChild(notes);
+      root.appendChild(segSec);
+    &#125;
+
+    /* ---- Ranked bar panels (grid: 2-up, stacking on narrow) ------ */
+    var panels = config.panels || [];
+    if (panels.length) &#123;
+      var cols = html("div", "ghchart__dist-cols");
+      if (config.columns === 1 || panels.length === 1) &#123;
+        cols.classList.add("ghchart__dist-cols--stack");
+      &#125;
+      panels.forEach(function (panel) &#123;
+        var sec = html("div", "ghchart__dist-section");
+        if (panel.title) &#123;
+          var pt = html("div", "ghchart__panel-title");
+          pt.textContent = panel.title;
+          sec.appendChild(pt);
+        &#125;
+        if (panel.subtitle) &#123;
+          var descriptor = html("p", "ghchart__subtitle");
+          descriptor.textContent = panel.subtitle;
+          sec.appendChild(descriptor);
+        &#125;
+        if (panel.stats) &#123;
+          var stats = html("dl", "ghchart__dist-stats");
+          panel.stats.forEach(function (stat) &#123;
+            var pair = html("div", "ghchart__dist-stat");
+            var term = html("dt");
+            term.textContent = stat.label;
+            var value = html("dd");
+            value.textContent = stat.value;
+            value.style.color = strongOf((series[panel.series || 0] || series[0]).color);
+            pair.appendChild(term);
+            pair.appendChild(value);
+            stats.appendChild(pair);
+          &#125;);
+          sec.appendChild(stats);
+          cols.appendChild(sec);
+          return;
+        &#125;
+        var list = html("div", "ghchart__dist-list");
+        var pmax = (panel.items || []).reduce(function (m, it) &#123;
+          return it.value > m ? it.value : m;
+        &#125;, 0) || 1;
+        (panel.items || []).forEach(function (it) &#123;
+          var row = html("div", "ghchart__dist-row");
+
+          var cat = html("div", "ghchart__dist-cat");
+          cat.textContent = it.label;
+          row.appendChild(cat);
+
+          var track = html("div", "ghchart__dist-track");
+          var b = html("div", "ghchart__dist-bar");
+          b.style.width = Math.max((it.value / pmax) * 100, 1.2) + "%";
+          b.style.background = it.color || barColor;
+          track.appendChild(b);
+          row.appendChild(track);
+
+          var val = html("div", "ghchart__dist-val");
+          val.innerHTML = valueHTML(it.value);
+          row.appendChild(val);
+
+          list.appendChild(row);
+        &#125;);
+        sec.appendChild(list);
+        cols.appendChild(sec);
+      &#125;);
+      root.appendChild(cols);
+    &#125;
+
+    /* ---- Caption / footnote -------------------------------------- */
+    if (config.caption) &#123;
+      var cap = html("div", "ghchart__caption");
+      cap.innerHTML = config.caption;
+      root.appendChild(cap);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Timeline / staged-duration renderer
+     ----------------------------------------------------------------
+     A horizontal time axis broken into labeled stage segments. Composes
+     only the pieces the data needs (like the trend renderer):
+       • eyebrow kicker + narrative headline + optional subtitle;
+       • an optional before/after stat card and a stage legend;
+       • one or more rows of segmented duration bars on a shared time
+         scale — a row is either sequential (segments end to end) or
+         parallel (a full-height "gate" segment then concurrent lanes);
+       • optional flow ribbons linking matching stages between the first
+         two rows (the sequential -> parallel "collapse");
+       • optional elbow-leader callouts above narrow segments;
+       • optional span brackets (below a row, or right of a parallel group);
+       • an optional numeric axis (ticks + gridlines + title).
+     No hover — every label is printed, so it reads on paper and to screen
+     readers. Stage colors come from config.series so the harness tunes
+     them live: each entry is &#123; id, name, color &#125;.
+     ================================================================ */
+  renderers.timeline = function (root, config) &#123;
+    root.textContent = "";
+    root.setAttribute("role", "img");
+    if (config.title) root.setAttribute("aria-label", config.title);
+
+    var stages = config.series || [];
+    var stageById = &#123;&#125;;
+    stages.forEach(function (s) &#123; if (s && s.id) stageById[s.id] = s; &#125;);
+    function colorOf(seg) &#123;
+      return seg.color || (stageById[seg.id] && stageById[seg.id].color) || "#8250df";
+    &#125;
+    function nameOf(seg) &#123;
+      if (seg.label != null) return seg.label;
+      return seg.name || (stageById[seg.id] && stageById[seg.id].name) || "";
+    &#125;
+
+    /* ---- DOM header: eyebrow + headline + subtitle --------------- */
+    if (config.eyebrow) &#123;
+      var eb = html("div", "ghchart__tl-eyebrow");
+      eb.textContent = config.eyebrow;
+      root.appendChild(eb);
+    &#125;
+    if (config.title) &#123;
+      var hl = html("div", "ghchart__headline ghchart__tl-headline");
+      hl.textContent = config.title;
+      root.appendChild(hl);
+    &#125;
+    if (config.subtitle) &#123;
+      var sbt = html("p", "ghchart__subtitle");
+      sbt.textContent = config.subtitle;
+      root.appendChild(sbt);
+    &#125;
+
+    /* ---- Stat card (before -> after + delta) -------------------- */
+    if (config.stat) &#123;
+      var st = config.stat;
+      var card = html("div", "ghchart__tl-stat");
+      var main = html("div", "ghchart__tl-stat-main");
+      function statCol(k, v, muted) &#123;
+        var col = html("div", "ghchart__tl-stat-col");
+        var kk = html("div", "ghchart__tl-stat-k"); kk.textContent = k; col.appendChild(kk);
+        var vv = html("div", "ghchart__tl-stat-v" + (muted ? " ghchart__tl-stat-v--muted" : ""));
+        vv.textContent = v; col.appendChild(vv);
+        return col;
+      &#125;
+      main.appendChild(statCol(st.beforeLabel, st.beforeValue, true));
+      var arrow = html("div", "ghchart__tl-stat-arrow"); arrow.textContent = "\u2192";
+      main.appendChild(arrow);
+      main.appendChild(statCol(st.afterLabel, st.afterValue, false));
+      card.appendChild(main);
+      if (st.delta) &#123;
+        var dl = html("div", "ghchart__tl-stat-delta");
+        var dv = html("div", "ghchart__tl-stat-delta-v"); dv.textContent = st.delta; dl.appendChild(dv);
+        if (st.deltaLabel) &#123;
+          var dk = html("div", "ghchart__tl-stat-delta-k"); dk.textContent = st.deltaLabel; dl.appendChild(dk);
+        &#125;
+        card.appendChild(dl);
+      &#125;
+      root.appendChild(card);
+    &#125;
+
+    /* ---- Legend -------------------------------------------------- */
+    if (config.legend && config.legend.length) &#123;
+      var lg = html("div", "ghchart__tl-legend");
+      config.legend.forEach(function (item) &#123;
+        var s = stageById[item.id] || &#123;&#125;;
+        var it = html("span", "ghchart__tl-legend-item");
+        var sw = html("span", "ghchart__tl-swatch");
+        sw.style.background = item.color || s.color || "#8250df";
+        it.appendChild(sw);
+        var tx = html("span", "ghchart__tl-legend-text");
+        tx.textContent = (item.name || s.name || "") + (item.value ? "  \u00b7  " + item.value : "");
+        it.appendChild(tx);
+        lg.appendChild(it);
+      &#125;);
+      root.appendChild(lg);
+    &#125;
+
+    if (config.rule) root.appendChild(html("div", "ghchart__tl-rule"));
+
+    /* ---- Plot geometry ------------------------------------------- */
+    var rows = config.rows || [];
+    function rowTotal(r) &#123;
+      if (r.parallel) &#123;
+        var g = r.gate ? r.gate.value : 0, mx = 0;
+        r.parallel.forEach(function (p) &#123; if (p.value > mx) mx = p.value; &#125;);
+        return g + mx;
+      &#125;
+      var t = 0; (r.segments || []).forEach(function (s) &#123; t += s.value; &#125;); return t;
+    &#125;
+    var maxTotal = 0;
+    rows.forEach(function (r) &#123; var t = rowTotal(r); if (t > maxTotal) maxTotal = t; &#125;);
+    var axis = config.axis;
+    var scaleMax = config.scaleMax || (axis && axis.max) || maxTotal || 1;
+
+    var VB_W = 1000;
+    var hasRowLabels = rows.some(function (r) &#123; return r.label; &#125;);
+    var M = &#123; left: hasRowLabels ? 150 : 44, right: 46 &#125;;
+    var innerW = VB_W - M.left - M.right;
+    function xAt(v) &#123; return M.left + innerW * v / scaleMax; &#125;
+    function wAt(v) &#123; return innerW * v / scaleMax; &#125;
+
+    var SEQ_H = 56, LANE_H = 13, LANE_GAP = 6, SEG_R = 4;
+    function rowBandH(r) &#123;
+      if (r.parallel) &#123;
+        var n = r.parallel.length;
+        return Math.max(SEQ_H, n * LANE_H + (n - 1) * LANE_GAP);
+      &#125;
+      return SEQ_H;
+    &#125;
+    var flows = !!config.flows && rows.length >= 2;
+    var FLOW_GAP = config.flowGap != null ? config.flowGap : 250, ROW_GAP = 48;
+
+    // Reserve vertical space for above-callouts (tallest tier wins).
+    var anyAbove = rows.some(function (r) &#123;
+      return (r.segments || []).some(function (s) &#123; return s.labelPos === "above"; &#125;);
+    &#125;);
+    var maxTier = 0;
+    rows.forEach(function (r) &#123;
+      (r.segments || []).forEach(function (s) &#123;
+        if (s.labelPos === "above" && (s.tier || 0) > maxTier) maxTier = s.tier || 0;
+      &#125;);
+    &#125;);
+    var CALLOUT_TIER_H = 40;
+    var topPad = anyAbove ? (18 + (maxTier + 1) * CALLOUT_TIER_H) : 16;
+
+    // Assign each row a vertical band.
+    var cursor = topPad;
+    var rowLayout = rows.map(function (r, i) &#123;
+      var top = cursor, h = rowBandH(r);
+      cursor = top + h;
+      if (i < rows.length - 1) cursor += (flows ? FLOW_GAP : ROW_GAP);
+      return &#123; top: top, h: h, bottom: top + h &#125;;
+    &#125;);
+
+    var belowBrackets = (config.brackets || []).filter(function (b) &#123; return b.side !== "right"; &#125;);
+    var rightBrackets = (config.brackets || []).filter(function (b) &#123; return b.side === "right"; &#125;);
+    var bracketReserve = belowBrackets.length * 46;
+    cursor += bracketReserve;
+    var axisY = cursor + 6;
+    // Ticks stay in the SVG; the axis title is a DOM caption below it, so only
+    // reserve tick space here.
+    cursor += axis ? 40 : 8;
+    var VB_H = Math.round(cursor);
+
+    var svg = el("svg", &#123;
+      "class": "ghchart__plot ghchart__plot--timeline",
+      viewBox: "0 0 " + VB_W + " " + VB_H,
+      preserveAspectRatio: "xMidYMid meet",
+      role: "img", "aria-label": config.title || ""
+    &#125;);
+    // Wrap the SVG so DOM labels can be absolutely positioned over it at
+    // percentage (viewBox-proportional) coordinates. With height:auto the SVG
+    // box keeps the viewBox aspect ratio, so % maps straight to viewBox units.
+    var plotwrap = html("div", "ghchart__tl-plotwrap");
+    plotwrap.appendChild(svg);
+
+    // Vertical axis gridlines (behind bars).
+    if (axis && axis.ticks) &#123;
+      axis.ticks.forEach(function (tv) &#123;
+        var gx = xAt(tv);
+        svg.appendChild(el("line", &#123;
+          "class": "ghchart__gridline ghchart__gridline--v",
+          x1: gx, y1: topPad - 4, x2: gx, y2: axisY
+        &#125;));
+      &#125;);
+    &#125;
+
+    // Per-stage hover registry: each stage's before/after rects, its ribbon,
+    // and its before/after values, so hovering any one can emphasise the whole
+    // connection and show a tooltip (before/after chart only).
+    var stageHover = &#123;&#125;;
+    function hoverSlot(id) &#123; return (stageHover[id] = stageHover[id] || &#123; id: id &#125;); &#125;
+
+    // Flow ribbons (row0 -> row1), matched by stage id (drawn under bars).
+    if (flows) &#123;
+      var r0 = rows[0], l0 = rowLayout[0], r1 = rows[1], l1 = rowLayout[1];
+      var beforeSpan = &#123;&#125;, acc0 = 0;
+      (r0.segments || []).forEach(function (s) &#123;
+        beforeSpan[s.id] = &#123; x0: xAt(acc0), x1: xAt(acc0 + s.value) &#125;; acc0 += s.value;
+      &#125;);
+      var afterSpan = &#123;&#125;, gv1 = r1.gate ? r1.gate.value : 0;
+      if (r1.gate) afterSpan[r1.gate.id] = &#123; x0: xAt(0), x1: xAt(gv1), y: l1.top &#125;;
+      (r1.parallel || []).forEach(function (p, k) &#123;
+        // Land each ribbon on its companion lane's actual depth, not the row top.
+        afterSpan[p.id] = &#123;
+          x0: xAt(gv1), x1: xAt(gv1 + p.value), y: l1.top + k * (LANE_H + LANE_GAP)
+        &#125;;
+      &#125;);
+      var by = l0.bottom;
+      Object.keys(beforeSpan).forEach(function (id) &#123;
+        var b = beforeSpan[id], a = afterSpan[id];
+        if (!a) return;
+        var ay = a.y, ddy = (ay - by) * 0.5;
+        var d = "M " + b.x0 + " " + by +
+                " C " + b.x0 + " " + (by + ddy) + " " + a.x0 + " " + (ay - ddy) + " " + a.x0 + " " + ay +
+                " L " + a.x1 + " " + ay +
+                " C " + a.x1 + " " + (ay - ddy) + " " + b.x1 + " " + (by + ddy) + " " + b.x1 + " " + by + " Z";
+        var flowPath = el("path", &#123;
+          "class": "ghchart__tl-flow", d: d, fill: colorOf(&#123; id: id &#125;), "data-stage": id
+        &#125;);
+        svg.appendChild(flowPath);
+        hoverSlot(id).flowEl = flowPath;
+      &#125;);
+    &#125;
+
+    // Rows: segmented bars.
+    rows.forEach(function (r, ri) &#123;
+      var L = rowLayout[ri];
+      if (r.label) &#123;
+        var rl = el("text", &#123;
+          "class": "ghchart__tl-rowlabel", x: M.left - 20, y: L.top + L.h / 2 - 3, "text-anchor": "end"
+        &#125;);
+        rl.textContent = r.label; svg.appendChild(rl);
+        if (r.sublabel) &#123;
+          var rs = el("text", &#123;
+            "class": "ghchart__tl-rowsub", x: M.left - 20, y: L.top + L.h / 2 + 18, "text-anchor": "end"
+          &#125;);
+          rs.textContent = r.sublabel; svg.appendChild(rs);
+        &#125;
+      &#125;
+      if (r.parallel) &#123;
+        var gv = r.gate ? r.gate.value : 0;
+        if (r.gate) &#123;
+          var gateEl = el("rect", &#123;
+            "class": "ghchart__tl-seg", x: xAt(0), y: L.top,
+            width: Math.max(0, wAt(gv)), height: L.h, rx: SEG_R, fill: colorOf(r.gate),
+            "data-stage": r.gate.id
+          &#125;);
+          svg.appendChild(gateEl);
+          var gslot = hoverSlot(r.gate.id);
+          gslot.afterEl = gateEl; gslot.after = r.gate.value;
+          gslot.name = gslot.name || nameOf(r.gate);
+        &#125;
+        r.parallel.forEach(function (p, k) &#123;
+          var ly = L.top + k * (LANE_H + LANE_GAP);
+          var laneEl = el("rect", &#123;
+            "class": "ghchart__tl-seg", x: xAt(gv), y: ly,
+            width: Math.max(1, wAt(p.value)), height: LANE_H, rx: 3, fill: colorOf(p),
+            "data-stage": p.id
+          &#125;);
+          svg.appendChild(laneEl);
+          var pslot = hoverSlot(p.id);
+          pslot.afterEl = laneEl; pslot.after = p.value;
+          pslot.name = pslot.name || nameOf(p);
+        &#125;);
+      &#125; else &#123;
+        var acc = 0;
+        (r.segments || []).forEach(function (s) &#123;
+          var x = xAt(acc), w = Math.max(1, wAt(s.value));
+          var segEl = el("rect", &#123;
+            "class": "ghchart__tl-seg", x: x, y: L.top, width: w, height: L.h, rx: SEG_R,
+            fill: colorOf(s), "data-stage": s.id
+          &#125;);
+          svg.appendChild(segEl);
+          var slot = hoverSlot(s.id);
+          slot.name = slot.name || nameOf(s);
+          if (ri === 0) &#123; slot.beforeEl = segEl; slot.before = s.value; &#125;
+          else &#123; slot.afterEl = segEl; slot.after = s.value; &#125;
+          if (s.labelPos === "inside") &#123;
+            var ilAttrs = &#123;
+              "class": "ghchart__tl-seg-label", x: x + w / 2, y: L.top + L.h / 2,
+              dy: "0.34em", "text-anchor": "middle"
+            &#125;;
+            // Inline style (not a fill attribute) so it overrides the class's
+            // default white fill — lets a bright segment take dark label text.
+            if (s.labelColor) ilAttrs.style = "fill:" + s.labelColor;
+            var il = el("text", ilAttrs);
+            il.textContent = nameOf(s); svg.appendChild(il);
+          &#125;
+          acc += s.value;
+        &#125;);
+      &#125;
+    &#125;);
+
+    // Elbow-leader callouts above narrow segments.
+    rows.forEach(function (r, ri) &#123;
+      if (r.parallel) return;
+      var L = rowLayout[ri], acc = 0;
+      (r.segments || []).forEach(function (s) &#123;
+        var x = xAt(acc), w = wAt(s.value), cx = x + w / 2;
+        if (s.labelPos === "above") &#123;
+          var tier = s.tier || 0;
+          var tierY = topPad - 14 - tier * CALLOUT_TIER_H;
+          // labelX pins the label to an absolute data-x (so callouts can be
+          // left-aligned into a stack); labelDX is a relative nudge otherwise.
+          var lx = s.labelX != null ? xAt(s.labelX) : cx + (s.labelDX || 0);
+          var anchor = s.labelAnchor || "start";
+          svg.appendChild(el("path", &#123;
+            "class": "ghchart__tl-callout-line",
+            d: "M " + cx + " " + L.top + " L " + cx + " " + tierY + " L " + lx + " " + tierY, fill: "none"
+          &#125;));
+          var pad = anchor === "start" ? 6 : (anchor === "end" ? -6 : 0);
+          var cl = el("text", &#123;
+            "class": "ghchart__tl-callout-label", x: lx + pad, y: tierY,
+            dy: "0.34em", "text-anchor": anchor, fill: s.labelColor || colorOf(s)
+          &#125;);
+          cl.textContent = nameOf(s); svg.appendChild(cl);
+        &#125;
+        acc += s.value;
+      &#125;);
+    &#125;);
+
+    // Below brackets (span with up-ticks + label beneath).
+    var belowY = (rowLayout.length ? rowLayout[rowLayout.length - 1].bottom : topPad) + 14;
+    belowBrackets.forEach(function (b, bi) &#123;
+      var x0 = xAt(b.from), x1 = xAt(b.to), yy = belowY + bi * 46;
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: x0, y1: yy, x2: x1, y2: yy &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: x0, y1: yy, x2: x0, y2: yy - 7 &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: x1, y1: yy, x2: x1, y2: yy - 7 &#125;));
+      var bl = el("text", &#123;
+        "class": "ghchart__bracket-label ghchart__tl-bracket-label", x: (x0 + x1) / 2, y: yy + 22, "text-anchor": "middle"
+      &#125;);
+      bl.textContent = b.text; svg.appendChild(bl);
+    &#125;);
+
+    // Right brackets (vertical span beside a parallel group + label).
+    rightBrackets.forEach(function (b) &#123;
+      var L = rowLayout[b.row || 0];
+      var bx = xAt(b.at != null ? b.at : rowTotal(rows[b.row || 0])) + 14;
+      var y0 = L.top, y1 = L.bottom;
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: bx, y1: y0, x2: bx, y2: y1 &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: bx, y1: y0, x2: bx - 7, y2: y0 &#125;));
+      svg.appendChild(el("line", &#123; "class": "ghchart__bracket", x1: bx, y1: y1, x2: bx - 7, y2: y1 &#125;));
+      // Label as a DOM node (not SVG text) so it keeps a fixed, readable size
+      // instead of scaling down with the plot on small windows.
+      var rlabel = html("div", "ghchart__tl-bracket-label-dom");
+      rlabel.textContent = b.text;
+      rlabel.style.left = ((bx + 12) / VB_W * 100) + "%";
+      rlabel.style.top = (((y0 + y1) / 2) / VB_H * 100) + "%";
+      plotwrap.appendChild(rlabel);
+    &#125;);
+
+    // Numeric axis: tick labels + title.
+    if (axis && axis.ticks) &#123;
+      axis.ticks.forEach(function (tv, i) &#123;
+        var gx = xAt(tv);
+        var first = i === 0, last = i === axis.ticks.length - 1;
+        var xl = el("text", &#123;
+          "class": "ghchart__axislabel ghchart__axislabel--x ghchart__tl-tick",
+          x: gx, y: axisY + 26, "text-anchor": first ? "start" : (last ? "end" : "middle")
+        &#125;);
+        xl.textContent = axis.format ? axis.format(tv) : String(tv);
+        svg.appendChild(xl);
+      &#125;);
+    &#125;
+
+    /* ---- Hover interaction (before/after chart) ------------------
+       Emphasise a stage's whole connection (its before block, after block
+       and ribbon) and show a tooltip with the before/after values. Only
+       when there are flows to connect and hover isn't disabled. */
+    if (flows && config.hover !== false) &#123;
+      var unit = config.unit ? " " + config.unit : "";
+      function fmtHover(v) &#123; return v == null ? "\u2013" : v + unit; &#125;
+
+      var tip = html("div", "ghchart__tooltip");
+      tip.setAttribute("role", "status");
+      var tipTitle = html("div", "ghchart__tt-title");
+      var tipBody = html("div", "ghchart__tt-body ghchart__tt-body--plain");
+      tip.appendChild(tipTitle); tip.appendChild(tipBody);
+      root.appendChild(tip);
+
+      var focused = null;
+      function focusStage(id) &#123;
+        focused = id;
+        Object.keys(stageHover).forEach(function (k) &#123;
+          var s = stageHover[k], on = (k === id);
+          if (s.beforeEl) s.beforeEl.style.opacity = on ? "1" : "0.16";
+          if (s.afterEl) s.afterEl.style.opacity = on ? "1" : "0.16";
+          if (s.flowEl) s.flowEl.style.opacity = on ? "0.5" : "0.04";
+        &#125;);
+        var st = stageHover[id];
+        tipTitle.textContent = st.name || id;
+        tipBody.textContent = "";
+        var lb = html("div", "ghchart__tt-line"); lb.textContent = "Before  " + fmtHover(st.before);
+        var la = html("div", "ghchart__tt-line"); la.textContent = "After  " + fmtHover(st.after);
+        tipBody.appendChild(lb); tipBody.appendChild(la);
+      &#125;
+      function clearStage() &#123;
+        focused = null;
+        Object.keys(stageHover).forEach(function (k) &#123;
+          var s = stageHover[k];
+          if (s.beforeEl) s.beforeEl.style.opacity = "";
+          if (s.afterEl) s.afterEl.style.opacity = "";
+          if (s.flowEl) s.flowEl.style.opacity = "";
+        &#125;);
+        tip.setAttribute("data-visible", "false");
+      &#125;
+      function placeTip(clientX, clientY) &#123;
+        var rr = root.getBoundingClientRect();
+        var left = clientX - rr.left, top = clientY - rr.top - 14;
+        tip.setAttribute("data-visible", "true");
+        var halfW = tip.offsetWidth / 2;
+        left = clamp(left, halfW + 2, root.clientWidth - halfW - 2);
+        if (top - tip.offsetHeight < 0) &#123;
+          top = clientY - rr.top + 20; tip.style.transform = "translate(-50%, 0)";
+        &#125; else tip.style.transform = "translate(-50%, -100%)";
+        tip.style.left = left + "px"; tip.style.top = top + "px";
+      &#125;
+
+      svg.addEventListener("pointermove", function (e) &#123;
+        var t = e.target, id = t && t.getAttribute ? t.getAttribute("data-stage") : null;
+        if (id && stageHover[id]) &#123;
+          if (id !== focused) focusStage(id);
+          placeTip(e.clientX, e.clientY);
+        &#125; else if (focused !== null) clearStage();
+      &#125;);
+      svg.addEventListener("pointerleave", clearStage);
+
+      // Keyboard access: the before blocks are focusable and describe both values.
+      Object.keys(stageHover).forEach(function (k) &#123;
+        var s = stageHover[k];
+        if (!s.beforeEl) return;
+        s.beforeEl.setAttribute("tabindex", "0");
+        s.beforeEl.setAttribute("role", "img");
+        s.beforeEl.setAttribute("aria-label",
+          (s.name || k) + ": before " + fmtHover(s.before) + ", after " + fmtHover(s.after));
+        s.beforeEl.addEventListener("focus", function () &#123;
+          focusStage(k);
+          var rct = s.beforeEl.getBoundingClientRect();
+          placeTip(rct.left + rct.width / 2, rct.top);
+        &#125;);
+        s.beforeEl.addEventListener("blur", clearStage);
+      &#125;);
+    &#125;
+
+    root.appendChild(plotwrap);
+
+    // Axis title as a DOM caption — matches the legend's px sizing instead of
+    // scaling with the SVG. Padded to the plot's left/right insets so it centres
+    // under the axis, not the whole card.
+    if (axis && axis.title) &#123;
+      var axcap = html("div", "ghchart__tl-axis-caption");
+      axcap.textContent = axis.title;
+      axcap.style.paddingLeft = (M.left / 10) + "%";
+      axcap.style.paddingRight = (M.right / 10) + "%";
+      root.appendChild(axcap);
+    &#125;
+  &#125;;
+
+  /* ================================================================
+     Dispatcher — pick a renderer by config.type and draw into a mount
+     ================================================================ */
+  function destroy(root) &#123;
+    var cleanup = renderCleanups.get(root);
+    if (cleanup) &#123; cleanup(); renderCleanups.delete(root); &#125;
+  &#125;
+  function render(config, mountEl) &#123;
+    var root = mountEl || document.getElementById(config.mountId);
+    if (!root) return;
+    destroy(root);
+    root.classList.add("ghchart");
+    root.classList.toggle("ghchart--panel-cards", config.type === "distribution" && config.panelCards === true);
+    root.removeAttribute("role");
+    root.removeAttribute("aria-label");
+    /* Resolve the renderer from the SHARED registry (see registration below),
+       not this bundle's private `renderers`. When several exported charts share
+       one page they all merge into one registry, so every chart finds its
+       renderer even if an older engine bundle loaded first. */
+    var reg = (global.GHChartEngine && global.GHChartEngine.renderers) || renderers;
+    var fn = reg[config.type] || renderers[config.type] || reg.line || renderers.line;
+    var nextCleanup = fn(root, config);
+    if (typeof nextCleanup === "function") renderCleanups.set(root, nextCleanup);
+  &#125;
+
+  /* ----------------------------------------------------------------
+     Shared-engine registration (multi-embed safe)
+     ----------------------------------------------------------------
+     Every exported chart.js embeds this whole engine. When two or more
+     charts are placed on the same page (e.g. a WordPress post), we must NOT
+     let the first-loaded bundle silently win — an older bundle would be
+     missing renderers added later (this is why a heatmap pasted after an
+     older bar chart used to vanish).
+
+     Instead we keep ONE shared engine:
+       • every bundle merges in any renderers the shared registry lacks;
+       • the newest bundle (highest ENGINE_VERSION) provides render(), which
+         reads renderers from the shared registry at call time.
+     The result is order-independent and resilient to version skew as new
+     chart types are added. Bump ENGINE_VERSION whenever renderers or render
+     change so a newer embed upgrades an older shared engine in place. */
+  var ENGINE_VERSION = 29;
+  var existing = global.GHChartEngine;
+  if (existing && typeof existing.version === "number") &#123;
+    if (ENGINE_VERSION > existing.version) &#123;
+      /* This bundle is newer. Every export embeds the COMPLETE engine, so this
+         bundle's `renderers` is a self-contained, up-to-date set. Adopt it as
+         the shared registry (upgrading older same-named renderers in place),
+         while defensively preserving any renderer types only the older engine
+         happened to have. Then take over render(). */
+      for (var ek in existing.renderers) &#123;
+        if (Object.prototype.hasOwnProperty.call(existing.renderers, ek) && !renderers[ek]) &#123;
+          renderers[ek] = existing.renderers[ek];
+        &#125;
+      &#125;
+      existing.renderers = renderers;
+      existing.render = render;
+      existing.destroy = destroy;
+      existing.version = ENGINE_VERSION;
+      existing._renderCleanups = renderCleanups;
+    &#125; else &#123;
+      /* Same or older version already present: only contribute renderer types
+         the shared registry is missing (don't clobber an equal/newer engine). */
+      for (var rk in renderers) &#123;
+        if (Object.prototype.hasOwnProperty.call(renderers, rk) && !existing.renderers[rk]) &#123;
+          existing.renderers[rk] = renderers[rk];
+        &#125;
+      &#125;
+    &#125;
+  &#125; else &#123;
+    /* No engine yet, or a pre-versioning (old-style) engine loaded first.
+       Take over, preserving any renderers the old-style engine registered. */
+    if (existing && existing.renderers) &#123;
+      for (var ok in existing.renderers) &#123;
+        if (Object.prototype.hasOwnProperty.call(existing.renderers, ok) && !renderers[ok]) &#123;
+          renderers[ok] = existing.renderers[ok];
+        &#125;
+      &#125;
+    &#125;
+    global.GHChartEngine = &#123; renderers: renderers, render: render, destroy: destroy, version: ENGINE_VERSION, _renderCleanups: renderCleanups &#125;;
+  &#125;
+&#125;)(typeof window !== "undefined" ? window : this);
+
+;(function () &#123;
+  "use strict";
+  var CONFIG = &#123;
+    mountId: "gh-chart-git-events-by-percentile",
+    type: "line",
+    title: "Git events per repository",
+    subtitle: "By percentile, August 2026. The y-axis uses a logarithmic scale: each gridline is 10× the one below.",
+    labels: ["P25", "P50", "P75", "P99", "P99.9", "P99.99", "P100"],
+    curve: "linear",
+    series: [
+      &#123;
+        name: "Fetches",
+        color: "#3094ff",
+        width: 3.25,
+        values: [1, 2, 8, 739, 10534, 214934, 514300000]
+      &#125;,
+      &#123;
+        name: "Pushes",
+        color: "#2da44f",
+        width: 3.25,
+        values: [2, 4, 15, 802, 7502, 23758, 2970000]
+      &#125;,
+      &#123;
+        name: "Clones",
+        color: "#f0883e",
+        width: 3.25,
+        values: [1, 3, 5, 283, 5619, 44691, 279300000]
+      &#125;,
+      &#123;
+        name: "Requests (all)",
+        color: "#8250df",
+        width: 3.25,
+        values: [15, 25, 53, 7738, 80978, 570771, 1001000000]
+      &#125;
+    ],
+    yAxis: &#123;
+      scale: "log",
+      min: 1,
+      max: 1000000000,
+      ticks: [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000],
+      title: "Events"
+    &#125;,
+    formatAxis: function (v) &#123;
+        if (v >= 1e9) return v / 1e9 + "B";
+        if (v >= 1e6) return v / 1e6 + "M";
+        if (v >= 1e3) return v / 1e3 + "K";
+        return String(v);
+      &#125;,
+    formatValue: function (v) &#123;
+        if (v >= 1e9) return parseFloat((v / 1e9).toFixed(3)) + "B";
+        if (v >= 1e6) return parseFloat((v / 1e6).toFixed(3)) + "M";
+        return v.toLocaleString("en-US");
+      &#125;
+  &#125;;
+  function boot() &#123;
+    var root = document.getElementById(CONFIG.mountId);
+    if (!root || root.getAttribute("data-gh-rendered")) return;
+    root.setAttribute("data-gh-rendered", "1");
+    window.GHChartEngine.render(CONFIG);
+  &#125;
+  if (document.readyState === "loading") &#123;
+    document.addEventListener("DOMContentLoaded", boot);
+  &#125; else &#123;
+    boot();
+  &#125;
+&#125;)();
+</script>
+<div class="ghchart" id="gh-chart-git-events-by-percentile"></div>
+<p class="wp-block-paragraph">Repository activity climbs sharply at the far end of the distribution. The busiest repository on GitHub saw roughly a billion requests in August.</p>
+<p class="wp-block-paragraph">Beyond these highest-volume workloads, total Git activity on GitHub is also growing rapidly: between September 2025 and August 2026, it increased to more than 2x its previous level, from 218.2 billion events per month to 473.3 billion.</p>
+<p class="wp-block-paragraph">In September alone, developers and agents made 7.38 billion commits on GitHub, more than five times as many as a year earlier.</p>
+<p class="wp-block-paragraph">The repositories at the top of this curve show what agentic development looks like at its leading edge: large engineering teams running busy CI pipelines alongside growing fleets of agents. Supporting these teams means building Git infrastructure for sustained, concurrent reads and writes at a scale few repositories reach today. We’re investing deeply in Git infrastructure to meet the demands of agentic software development and give teams a foundation built for their most ambitious workloads.</p>
+<p class="wp-block-paragraph">Building for this scale means addressing several architectural challenges:</p>
+<ul class="wp-block-list">
+<li><strong>Commit turnaround becomes a bottleneck per agent.</strong> An agent in a tight loop commits or checkpoints after nearly every action. Its speed is bounded by how fast a single push completes, so latency that a human would never notice becomes the limiting factor.</li>
+<li><strong>Write throughput demand is increasing by orders of magnitude.</strong> Pushes grew 4.9x year over year, from 0.69 billion to 3.35 billion per month. Thousands of agents working on their own branches in one repository produce a sustained write rate that converges on a single point in our architecture.</li>
+<li><strong>Merges contend on one reference.</strong> Trunk-based development, release trains, and merge queues funnel all that work onto a single ref that has to absorb every merge. Pull request merges on GitHub grew to nearly 4x their volume a year ago.</li>
+<li><strong>Each push multiplies into thousands of reads.</strong> For example, CI and code scanning clone or fetch the same branch tip thousands of times per minute, and that fan-out has to be cheap. GitHub Actions alone ran 3.26 billion times in September, more than 4x as many as a year ago.</li>
+<li><strong>Operations on a repository must continue to be fast.</strong> To keep them fast, we continually compact repository data and clean up objects that are no longer needed. Every new write adds to that work, and the cost compounds as volume climbs.</li>
+</ul>
+<p class="wp-block-paragraph">This is why fast clones only solve part of the problem. Reads are relatively easy to scale: add caches, add replicas, and serve the same bytes to more clients. Scaling reads is essential, but these workloads require more than that. Writes are way harder. Every push has to be stored durably and made visible consistently before the next agent or CI job can build on it.</p>
+<h2 class="wp-block-heading" id="h-where-today-s-architecture-meets-new-demands">Where today’s architecture meets new demands</h2>
+<p class="wp-block-paragraph">The current architecture has served developers well for years. Every repository is stored by <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/engineering/infrastructure/stretching-spokes/">Spokes</a>, which keeps a full copy on the local disks of several fileservers, five by default. Those fast local disks let Git operations read native repository data with low latency, and the extra copies provide redundancy while spreading reads across fileservers. When a push updates a reference, a three-phase commit protocol uses a quorum to ensure that CI, the web UI, and API clients see a consistent repository state. That pairing serves a billion repositories today.</p>
+<p class="wp-block-paragraph">However, the mechanism we use for durability is the same one we use for scale. The copies on disk are the source of truth, so adding read capacity means adding another durable replica. Every replica participates in every write, so a push is only as fast as the slowest replica in its set. The net effect: adding replicas to absorb read load makes writes slower.</p>
+<p class="wp-block-paragraph">For most repositories, this tradeoff works well. At the highest activity levels, it becomes a ceiling: adding read replicas adds overhead to writes, losing a replica reduces read capacity, and losing quorum stops writes entirely. To meet agent-first demands, we need to separate durability from scale without losing what teams rely on today.</p>
+<h2 class="wp-block-heading" id="h-built-for-the-busiest-better-for-everyone">Built for the busiest, better for everyone</h2>
+<p class="wp-block-paragraph">We’re rebuilding the infrastructure while GitHub keeps running. There’s no maintenance window where the world’s code stops moving, and no version of this work where we ask people to change how they build software while we do it.</p>
+<p class="wp-block-paragraph">We’re building for the most demanding workloads on GitHub: an enterprise shipping under strict regulatory requirements, a team landing a change across a repo that builds an operating system, and an organization running thousands of agents against a single codebase. Engineering for that scale raises the floor for everyone. The maintainer reviewing contributions from volunteers across time zones and the student opening their first pull request get the same faster, more resilient foundation.</p>
+<p class="wp-block-paragraph">The new architecture also must preserve the controls teams already operate on. A maintainer needs branch protections and required reviews so an unreviewed change never reaches the default branch. A security team needs audit logs and repository visibility to investigate a suspicious access event. An on-call engineer needs dependable automation and enough observability to understand why a deployment failed.</p>
+<p class="wp-block-paragraph">For the platform to keep serving everyone here while it scales for the busiest workloads, these are our guiding principles:</p>
+<ul class="wp-block-list">
+<li><strong>Build on the workflows developers already trust.</strong> Teams rely on workflows like branching, review, merge, and history to build, ship, and govern software at scale. Our new infrastructure is designed to support those same workflows at much higher volumes of activity.</li>
+<li><strong>Put reliability first.</strong> We measure every decision against the reliability that developers and organizations require. Confidence in the platform is what lets an engineering organization build automation, ship on a schedule, meet compliance obligations, and understand the software it produces. This work will meaningfully improve throughput and scale, and those gains extend a foundation of trust that’s already there.</li>
+<li><strong>Keep people in control of their code.</strong> If the system isn’t helping the people and organizations who use it, and isn’t under their control, it isn’t worth building. As agents take on more of the work, the people who own the code can still review, understand, and approve it.</li>
+</ul>
+<h2 class="wp-block-heading" id="h-the-approach">The approach</h2>
+<p class="wp-block-paragraph">We are building a new GitHub architecture that can scale much more effectively. Our approach centers around core distributed systems design tenets, applied to the concurrency and scale of agentic software development. Our goal is to continue the forward momentum for open-source communities and enterprises around the world who have built their projects with Git and GitHub, while preserving and adapting the features and controls around it to meet the new needs of the agentic era.</p>
+<h3 class="wp-block-heading" id="h-minimize-coordination">Minimize coordination</h3>
+<p class="wp-block-paragraph">A repository that receives many pushes must accept and publish updates quickly. Coordination is valuable when it protects correctness, but too much of it limits write throughput and can turn a busy repository into a bottleneck. Our current architecture is tightly coupled in places it doesn’t need to be, which limits our ability to scale across reads and writes without tough trade-offs. We’re redesigning the system to preserve the coordination that Git semantics require and let everything else proceed independently.</p>
+<ul class="wp-block-list">
+<li><strong>Coordinate only what needs agreement.</strong> The part of a push that truly needs agreement is the reference update itself. Storing the underlying objects, validating object connectivity, and secret scanning are much more work, but most of it can happen in parallel to other writes. That shrinks the critical path of a push to the small step that needs coordination, so the rest of the work no longer delays the acknowledgment.</li>
+<li><strong>Move maintenance off the serving path.</strong> Compaction and garbage collection are among the heaviest work a repository does, and today they run on the same hosts that answer live Git requests. In the new architecture, separate workers handle maintenance directly against durable storage. A busy repository can be optimized continuously in the background without slowing pushes and fetches.</li>
+</ul>
+<h3 class="wp-block-heading" id="h-decouple-storage-from-compute">Decouple storage from compute</h3>
+<p class="wp-block-paragraph">Today, complete repository copies on local disks serve both as durable storage and as the layer that answers Git requests. Separating the two lets us scale each one independently.</p>
+<ul class="wp-block-list">
+<li><strong>Scale reads without adding durable copies.</strong> In the new architecture, read capacity comes from lightweight workers that cache data to serve requests. The authoritative copy of the repository lives in a durable storage layer underneath. That way, the platform can absorb large read spikes from CI fan-out, agent fleets, and large clones without adding work to every push.</li>
+<li><strong>Let each layer do one job.</strong> Authoritative repository data lives in Azure Blob Storage, which already provides durability and replication at Azure scale. The compute layer is optimized for throughput at the lowest latency.</li>
+<li><strong>Recover faster from failures.</strong> When storage and compute are coupled, losing a host reduces both capacity and durability, and recovery means rebuilding a full repository copy. When they’re separate, losing a compute worker is closer to a cache miss: a replacement worker can start serving requests right away and fill its cache from durable storage as traffic arrives.</li>
+<li><strong>Match capacity to demand.</strong> Compute workers can be added or removed as traffic changes instead of provisioning for peak load in advance. A repository going through a burst of activity, like a release or a new agent fleet coming online, can get extra capacity for the burst. Once it passes, that capacity goes away.</li>
+</ul>
+<p class="wp-block-paragraph">Together, these tenets allow us to support higher throughput and more concurrent work without abandoning the reliability and controls that our users need.</p>
+<h2 class="wp-block-heading" id="h-what-comes-next">What comes next</h2>
+<p class="wp-block-paragraph">We’re building an architecture designed to provide the highest throughput and reliability available. Reads and writes scale independently, and the system recovers gracefully from failures. In internal benchmarks, it has delivered up to 35 times higher write throughput, with read capacity that scales on its own to meet demand.</p>
+<p class="wp-block-paragraph">As automated development increases the frequency and concurrency of software change, GitHub will evolve its foundations without trading away the governance and control that teams rely on. We’re already putting that foundation in place. In the next post in this series, we’ll dive deeper into our future architecture and the journey that led us there.</p>
+</body></html>
+<p>The post <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog/engineering/architecture-optimization/building-git-infrastructure-for-agent-scale-development/">Building Git infrastructure for agent-scale development</a> appeared first on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.blog">The GitHub Blog</a>.</p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Building Git infrastructure for agent-scale development" href="https://github.blog/engineering/architecture-optimization/building-git-infrastructure-for-agent-scale-development/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Building Git infrastructure for agent-scale development</span><span class="desc fs12">https://github.blog/engineering/architecture-optimization/building-git-infrastructure-for-agent-scale-development/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/cdcdd04a.html">Radisson Hotel Group Brings Hotel Discovery Into ChatGPT<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/997c4b70.html">Helping Teens Learn, Plan, and Shape the Future of AI<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/166cadf.html" title="10 Technical Talks I’m Excited About at GitHub Universe 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6580"></div><span class="title">10 Technical Talks I’m Excited About at GitHub Universe 2026</span></a><a class="item" href="/rss/b0d00162.html" title="AI Is Changing Developer Work. Here Are Three Skills to Strengthen."><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7096"></div><span class="title">AI Is Changing Developer Work. Here Are Three Skills to Strengthen.</span></a><a class="item" href="/rss/e6b740a5.html" title="Developer Policy Update: Transparency, State Policy, and What’s Ahead"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=111"></div><span class="title">Developer Policy Update: Transparency, State Policy, and What’s Ahead</span></a><a class="item" href="/rss/ee304e03.html" title="Hack the World: Why Hackathons Are Still the Best Place to Learn to Build"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4817"></div><span class="title">Hack the World: Why Hackathons Are Still the Best Place to Learn to Build</span></a><a class="item" href="/rss/826b5c89.html" title="How One Bug Bounty Researcher Chooses the Features They Investigate"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4600"></div><span class="title">How One Bug Bounty Researcher Chooses the Features They Investigate</span></a><a class="item" href="/rss/787ae934.html" title="Highlights From Git 2.56"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/09/657850736-08c69f71-39c2-42ed-b793-cc07f6d29a89.png?resize=1024%2C597"></div><span class="title">Highlights From Git 2.56</span></a><a class="item" href="/rss/79fc036c.html" title="Secret Protection Must Scale With Software"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8658"></div><span class="title">Secret Protection Must Scale With Software</span></a><a class="item" href="/rss/d3e3d428.html" title="How We Found 24 Android Vulnerabilities Using Our Open Source AI Security Agent"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://github.blog&url=https://github.blog/wp-content/uploads/2026/08/633863693-a990bd2a-bccb-49ad-a71b-1492598801cf.png?resize=1024%2C244"></div><span class="title">How We Found 24 Android Vulnerabilities Using Our Open Source AI Security Agent</span></a><a class="item" href="/rss/78c31d92.html" title="ReviewBench: An Open Benchmark for AI Code Review"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1999"></div><span class="title">ReviewBench: An Open Benchmark for AI Code Review</span></a><a class="item" href="/rss/816614ff.html" title="Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7879"></div><span class="title">Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure</span></a><a class="item" href="/rss/6b4fca55.html" title="8 Major Updates to Cloudflare Observability"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6022"></div><span class="title">8 Major Updates to Cloudflare Observability</span></a><a class="item" href="/rss/32840b98.html" title="Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9156"></div><span class="title">Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

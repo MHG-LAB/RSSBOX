@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects - RSSBOX</title>
+
+  
+    <meta name="description" content="Understanding why an application is using more resources than expected, whether that is CPU or memory, can be challenging. Logs and aggregate metrics can only get you so far. Thankfully there is a be">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/9cdb99c2.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Understanding why an application is using more resources than expected, whether that is CPU or memory, can be challenging. Logs and aggregate metrics can only get you so far. Thankfully there is a be">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-09T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-09T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Using CPU profiling to find optimizations</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">How we used Worker profiling internally to fix memory problems</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Following a profiling request to the edge</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Profiling an isolate without stopping the Worker</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Durable Objects</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">What’s next?</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-09T13:00:00.000Z">2026-10-09</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects</span></h1>
+<div>
+<p>Understanding why an application is using more resources than expected, whether that is CPU or memory, can be challenging. Logs and aggregate metrics can only get you so far. Thankfully there is a better way: CPU or memory profiling can show you the exact function where your application is using CPU or allocating memory.</p><p>Today we are happy to announce support for CPU and memory profiling of Workers and Durable Objects. From the Workers Observability page, you can now request an on-demand CPU or memory profile of an active Worker, inspect it as an interactive flamegraph, and download the profile file for further analysis.</p><p>This method of profiling gives you a useful perspective into what your code is doing and how you can improve it in a real-world setting. That’s because the best way to understand your application is to profile it in production.</p><p>To try this on one of your Workers, you have a choice of using the CLI or the Cloudflare Dashboard. </p><p>To use the CLI, make sure you <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/cf/"><span style="text-decoration:underline">have the cf package installed</span></a>, then simply run:</p><!-- unsupported block: code --><p>To use the dashboard, head to the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com"><span style="text-decoration:underline">Cloudflare dashboard</span></a> and then access the list of Workers on your account by navigating through Build → Compute → Workers &amp; Pages.</p><p>Select your Worker and navigate to its Observability tab. You can then use the drop down to select “Flamegraph”:</p><!-- unsupported block: image --><p>You can then request both CPU and memory profiles for your Worker on this page. The duration determines how long the profiler should run for on your Worker. You can also select different versions of your Worker to be profiled. Your Worker needs plenty of traffic to be successfully profiled, so make sure you choose a version that has enough traffic.</p><!-- unsupported block: image --><p>Once you click the Capture Profile button, the profiler will run for the duration that you have selected, and you will then see a flamegraph representing the results of the profile being rendered. Each rectangle in the flamegraph represents a function call, with the width representing the amount of CPU time or memory being used by that function. You can click on different functions to focus on and hover to see more details about them:</p><!-- unsupported block: image --><p>Don’t be afraid to capture a couple of profiles, then look for the widest functions to determine what is using the most resources in your Worker. You might also find that the table view is useful to get a quick sense of which functions are most commonly seen in the profile.</p><p>If your Worker is implemented in TypeScript, then you should <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/observability/source-maps/"><span style="text-decoration:underline">make sure that you have source maps enabled for your project</span></a>, otherwise your profile may show obfuscated function names that aren’t easy to understand.</p><p>We have already seen multiple teams at Cloudflare using CPU and memory profiling to identify opportunities for optimizing memory and CPU usage, fixing out-of-memory (OOM) errors, and improving performance. Below are some examples of this.</p><h3>Using CPU profiling to find optimizations</h3><p>Let’s look at a real example of how you can use CPU profiling to optimize your Workers. We will look at a CPU profile of the Worker that implements the R2 binding. This Worker receives a lot of traffic and so eliminating even the smallest amount of wasted CPU cycles can have a massive impact on its performance.</p><p>We set up the profiler to capture CPU traces, with a duration of 50 seconds. Once we received the rendered profile, we saw this:</p><!-- unsupported block: image --><p>As mentioned previously, the widest boxes are those which are using up most of the CPU time. Some of them aren’t surprising, for example <code>decryptBlock</code> is R2 decrypting object data on the way out, and <code>fillResponse</code> is just moving bytes. There weren’t any clear ways to optimize these functions.</p><p>As some of the boxes are less visible, it can be a good idea to take a look at the table view. Sorting by Samples points us at <code>genericR2JsonReplacer</code>:</p><!-- unsupported block: image --><p>This function represented over 5% of the CPU time, but what caught our attention was the function calling itself recursively. This looked like wasted work, and it was.</p><!-- unsupported block: image --><p>Even though the replacer was being called by <code>JSON.stringify</code> on every node in the JSON tree, the replacer itself was also walking the tree. This meant that a value nested five levels deep was processed five times. Fixing this enabled us to eliminate the duplicate work and make the <code>genericR2JsonReplacer</code> function 2.7x faster.</p><p>The second candidate in the profile that we looked at was a duplicate call to <code>metrics</code>.</p><!-- unsupported block: image --><p>When looking at the code, we saw something close to this:</p><!-- unsupported block: code --><p>The <code>metrics</code> call was heavy enough that just one call represented 1% of the CPU time in the profile. So storing the result of the first call in a variable and then not calling it again saved us a fair chunk of CPU time.</p><h3>How we used Worker profiling internally to fix memory problems</h3><p>Internally we had a Worker with a memory problem. P999 memory sat around 133 MB against the 128 MB Worker memory limit. This caused the Worker to be evicted frequently with an “Exceeded Memory” error.</p><!-- unsupported block: image --><p>The image above shows a screenshot of the “Errors by invocation status” graph, with the number of “Exceeded Memory” errors clearly dropping as a result of the fixes identified through profiling.</p><p>What was hard to work out was what was causing these errors. The errors and metrics pointed at memory as the source of the problem, but it didn’t explain which part of the code caused it.</p><p>The team took a heap profile of one of the Workers running in production and opened it with <code>pprof</code>. They saw that their Prometheus code accounted for roughly 66.7% of allocations in the profile. This code was supposed to be disabled, but enough of it was still running that it created a problem. Because it was instrumenting a lot of the code paths in the Worker, it ended up using a lot of its memory, even though the collected data never actually left the Worker.</p><p>This code wasn’t suspected as a culprit of the memory issues, because it was thought to have been disabled. The profiler showed that the code was only partially disabled, with the memory cost still being paid as if it was fully enabled.</p><p>The team removed the Prometheus code path completely. This quickly improved the memory usage of the Worker:</p><table><tbody><tr><td><p>Percentile</p></td><td><p>Before (MB)</p></td><td><p>After (MB)</p></td></tr><tr><td><p>P50</p></td><td><p>70</p></td><td><p>54</p></td></tr><tr><td><p>P90</p></td><td><p>94</p></td><td><p>79</p></td></tr><tr><td><p>P99</p></td><td><p>113</p></td><td><p>97</p></td></tr><tr><td><p>P999</p></td><td><p>133</p></td><td><p>118</p></td></tr></tbody></table><!-- unsupported block: image --><p>This gave the P999 about 10 MB of headroom below the 128 MB limit.</p><h3>Following a profiling request to the edge</h3><p>Workers have supported local profiling through Chrome DevTools for a while, but it has not been possible to start a profiling session on Workers running in production. While profiling a Worker locally is useful, the Worker does not receive the same kinds nor number of requests as one does in production. So how do we profile a Worker or a Durable Object running there?</p><p>One of the best features of Workers is that their requests are routed to the data center that is nearest to the requesting client. This reduces latency, but it does mean that Workers must be replicated across different data centers and metals (physical servers). In addition, when a Worker is receiving a lot of requests in a particular data center, it can be replicated in a particular metal multiple times to handle all the traffic.</p><p>Durable Objects add another layer of indirection: they can be placed dynamically and can move.</p><p>This and a few other features of Workers means that before we can start a profiling session, we need to first answer a few questions:</p><ul><li>Which version does the developer want to profile?</li><li>In which data center has that version run recently?</li><li>Is the Worker’s isolate still loaded in that data center?</li><li>Does the isolate belong exclusively to the requesting account?</li><li>For a Durable Object, where is the exact live primary actor?</li></ul><p>A few of these questions are answered by the client making the profiling request. In most cases this will be the dashboard, but you can also send these requests yourself (or have your coding agent do it for you). An example request might look something like this:</p><!-- unsupported block: code --><p>Notably, this specifies both the script name and version that should be profiled as part of the request URL.</p><p>Right now, a new isolate is not started to produce a profile, because the goal is to observe real production execution. This means that if your Worker is receiving very little traffic, you may find that it is hard to profile. So it’s important you pick a version of your Worker that is deployed.</p><h3>Profiling an isolate without stopping the Worker</h3><p>A profile is useful only if the application can continue to execute while samples are collected. The Workers Runtime therefore holds the isolate lock only for profiler lifecycle operations. For a CPU profile, the process looks like this:</p><ol><li>Acquire the isolate and its lock.</li><li>Create a V8 CPU profiler and begin sampling at a one millisecond interval.</li><li>Release the lock so normal requests can run.</li><li>Wait for the requested duration.</li><li>Reacquire the lock and stop profiling.</li><li>Release the lock and serialize the result outside the critical section.</li></ol><p>Holding the lock through the duration of the profile would prevent JavaScript execution from continuing, which would make the profile useless.</p><h3>Durable Objects</h3><p>Durable Objects are different from Workers. Regular Workers are stateless: no one Worker is special or different from the rest, and we pick a running isolate of the requested Worker at random. Durable Objects are stateful, and they have a name. That provides us with the very helpful ability to grab a profile of a specific isolate and a specific object anywhere in the world. When profiling a Durable Object, you can choose by name which object to profile. The runtime will then route the profiling request to the right metal that owns the specific actor and provide a profile of the specific isolate running that object.</p><h3>What’s next?</h3><p>On-demand profiling is just the start. It enables you to explore your Workers performance in ways that have not been possible before. But it does have some limitations worth noting:</p><ul><li>You must explicitly start the profiling session. This can mean that you miss important time periods in which your Worker is misbehaving, and where you would like to see a profile to understand what went wrong.</li><li>The memory profiler can only show you allocations that occurred during the profiling window. So if your Worker is allocating a lot during start-up, you will not see it.</li></ul><p>In order to resolve this we are already working on something new: continuous profiling. The idea is that we will capture profiling samples for your Worker automatically, so that you can simply explore the profiles in the dashboard. This should make it easier to capture more rare events.</p><p>To learn more about profiling in Workers, including the feature presented in this blog post, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/observability/profiling-in-production/"><span style="text-decoration:underline">check out our documentation</span></a>.</p><p><em>Special thanks to the Workers Control Plane team and the Cloudflare Observability Platform team, in particular William Perron, who helped with dashboard implementation for this project.</em></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Introducing on-demand CPU and memory profiling with flamegraphs for Workers and Durable Objects" href="https://blog.cloudflare.com/workers-on-demand-profiling/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Introducing on-demand CPU and memory profiling with flamegraphs for Workers and Durable Objects</span><span class="desc fs12">https://blog.cloudflare.com/workers-on-demand-profiling/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/e0895928.html">Deno Is Joining Cloudflare<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8b4f36d5.html">从 0 设计历史专题资料汇编的 AI Agent 编排架构——六轮真实任务复盘<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/816614ff.html" title="Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7879"></div><span class="title">Announcing Cloudflare OHTTP Gateway – Expanding Access to Cloudflare’s Privacy-Preserving Infrastructure</span></a><a class="item" href="/rss/6b4fca55.html" title="8 Major Updates to Cloudflare Observability"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6022"></div><span class="title">8 Major Updates to Cloudflare Observability</span></a><a class="item" href="/rss/32840b98.html" title="Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9156"></div><span class="title">Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign</span></a><a class="item" href="/rss/e0895928.html" title="Deno Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8765"></div><span class="title">Deno Is Joining Cloudflare</span></a><a class="item" href="/rss/c347ba35.html" title="Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4637"></div><span class="title">Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare</span></a><a class="item" href="/rss/21e39187.html" title="Follow the Thread: A New Dashboard to Investigate Account Abuse"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=355"></div><span class="title">Follow the Thread: A New Dashboard to Investigate Account Abuse</span></a><a class="item" href="/rss/a658d7e7.html" title="Everything We Launched During Birthday Week 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7255"></div><span class="title">Everything We Launched During Birthday Week 2026</span></a><a class="item" href="/rss/e4ae02d4.html" title="Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3963"></div><span class="title">Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash</span></a><a class="item" href="/rss/7ea8163c.html" title="Introducing Cloudflare Traces: Follow Requests Through Our Entire Platform"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9996"></div><span class="title">Introducing Cloudflare Traces: Follow Requests Through Our Entire Platform</span></a><a class="item" href="/rss/58ad2f62.html" title="Introducing Web Search API via AI Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=377"></div><span class="title">Introducing Web Search API via AI Gateway</span></a><a class="item" href="/rss/3400f056.html" title="One Year Later: The Power of 1.1.1.1 Interns"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9945"></div><span class="title">One Year Later: The Power of 1.1.1.1 Interns</span></a><a class="item" href="/rss/4de16f3d.html" title="Streamline: Custom Video Pipelines With Cloudflare Stream and Workers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8884"></div><span class="title">Streamline: Custom Video Pipelines With Cloudflare Stream and Workers</span></a><a class="item" href="/rss/b2afd7b3.html" title="The Keys to the Internet Change on October 11. Are You Ready?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9397"></div><span class="title">The Keys to the Internet Change on October 11. Are You Ready?</span></a><a class="item" href="/rss/5bf8ea70.html" title="Updates on Our Pledge to Make Cloudflare Features Accessible to Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=687"></div><span class="title">Updates on Our Pledge to Make Cloudflare Features Accessible to Everyone</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
