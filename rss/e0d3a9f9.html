@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>MySQL三大日志(binlog、redo Log和undo Log)详解 - RSSBOX</title>
+
+  
+    <meta name="description" content="MySQL三大日志(binlog、redo log和undo log)详解 前言 MySQL 日志 主要包括错误日志、查询日志、慢查询日志、事务日志、二进制日志几大类。其中，比较重要的还要属二进制日志 binlog（归档日志）和事务日志 redo log（重做日志）和 undo log（回滚日志）。  今天就来聊聊 redo log（重做日志）、binlog（归档日志）、两阶段提交、undo l">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MySQL三大日志(binlog、redo Log和undo Log)详解">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e0d3a9f9.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="MySQL三大日志(binlog、redo log和undo log)详解 前言 MySQL 日志 主要包括错误日志、查询日志、慢查询日志、事务日志、二进制日志几大类。其中，比较重要的还要属二进制日志 binlog（归档日志）和事务日志 redo log（重做日志）和 undo log（回滚日志）。  今天就来聊聊 redo log（重做日志）、binlog（归档日志）、两阶段提交、undo l">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9c053ed8f1e44f90b5c3b564dff32189~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=nGmU5U9sF17rTpkjnFH5R2sCkIE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e6a982e88e1f464f9f41421fe3c0fdb5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=fe%2BtNPJgLlmZMVC8jE3QO8O6Vqc%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/732a904c13104db9aaad6cea38530384~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=uFcwbqAEVVLRi%2BV%2FLCL3Xwh%2FidA%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d5652d0d517c4f779e3ebef886460a5a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=sFGebhqu2eQfn67OfTIQovK8ftc%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/49d1fff2b9c9405780e5523880a867df~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=iVNclRtvxgcXiHdqxgCVVDk0aRk%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/904655560396423f9ea8f07a6b645182~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=p1EOdwQ%2BmcAQKDBUfF%2FvO2S%2FrOM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/488fb07f9c2c4355bdd93e55ba98deef~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=8SS8fImJadDTBVOgiU%2Fa4H2Q0QM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d505449ffa674444822356300a118750~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=LKVF%2Fk9ZEud5p%2BMe2hVPEG%2FvbyI%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/23d8a24d3016474aa9d51f256a9a4905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=5czcsZksk5rUWXUiSxzEaDB8%2F0E%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e36ceb70cc3948e5abb481baff56666c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=JbtxVnuQBp0ABDrkbyuJv%2FkCPC8%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b38754d26a0b4fcb8fd7e7dc3b89c2a0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=h0CtA7vQMdFNxcVTql0miuwUFFM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1219a082805a4a82a8481b82b093ba4a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=0b%2FCSdQaRJgjqqgRS83CUD8RbO0%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e7325723d09d4acd8d85df5db4ac8fc9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=UEsVVW80xB8MhAliEEYyy4HDnSA%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3567a60da27243b4a49aa6c70d52b340~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=HkpfIQoCjuAO5ApDUnFzBVgvtHY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3e9fa90a772e4bba9ba7b185b1eac2ca~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=RvzJyW51dPdHWRQaEF3acBUFpLQ%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a93baa2c73134865acaad8ba40694857~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=uEPzCmN%2BtyzAkeV%2FvV9oSym731g%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/65ff9ea83e474f798fcdfa7dd0f0c17b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=KixQo0POKQCnUS8U6%2BipJgw%2FC0U%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7896941f37f74c4494340cb882e189a4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=FfWIgrKXJEqE7iGw7ws54ROpL4E%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2ae651eb57cd4d228ca60200d5b8bb39~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=0OEsGTnfR1qdb1QRZunoB7MjTyY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f68c837067a5416a898735aa86c1db61~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2FibrRvT8k0Bu9VIMTcuC8qCT5QM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/05aa674f0310468aae094d101672d709~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2B7nQLAieq8kOic30wR2S6X2cwhw%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d6614cb75bcc49c0aa0cf4b5750a05c1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2Bca%2FK%2BIM3m8X4U9S1lajG9XQwaE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2237793ab72142d8b33c9458a21f0f31~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=n6KR5vwq2jDjcaRhe2NNs79Jk54%3D">
+<meta property="article:published_time" content="2026-10-16T03:19:28.000Z">
+<meta property="article:modified_time" content="2026-10-16T03:19:28.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9c053ed8f1e44f90b5c3b564dff32189~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=nGmU5U9sF17rTpkjnFH5R2sCkIE%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">MySQL三大日志(binlog、redo log和undo log)详解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">redo log</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">刷盘时机</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">innodb_flush_log_at_trx_commit&#x3D;0</span></a></li><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">innodb_flush_log_at_trx_commit&#x3D;1</span></a></li><li class="toc-item toc-level-5"><a class="toc-link"><span class="toc-text">innodb_flush_log_at_trx_commit&#x3D;2</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">日志文件组</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">redo log 小结</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">binlog</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">记录格式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">写入机制</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">两阶段提交</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">undo log</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-16T03:19:28.000Z">2026-10-16</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>MySQL三大日志(binlog、redo Log和undo Log)详解</span></h1>
+<div>
+<h2 data-id="heading-0">MySQL三大日志(binlog、redo log和undo log)详解</h2>
+<h3 data-id="heading-1">前言</h3>
+<p>MySQL 日志 主要包括错误日志、查询日志、慢查询日志、事务日志、二进制日志几大类。其中，比较重要的还要属二进制日志 binlog（归档日志）和事务日志 redo log（重做日志）和 undo log（回滚日志）。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9c053ed8f1e44f90b5c3b564dff32189~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=nGmU5U9sF17rTpkjnFH5R2sCkIE%3D"></p>
+<p>今天就来聊聊 redo log（重做日志）、binlog（归档日志）、两阶段提交、undo log（回滚日志）。</p>
+<h3 data-id="heading-2">redo log</h3>
+<p>redo log（重做日志）是 InnoDB 存储引擎独有的，它让 MySQL 拥有了崩溃恢复能力。</p>
+<p>比如 MySQL 实例挂了或宕机了，重启时，InnoDB 存储引擎会使用 redo log 恢复数据，保证数据的持久性与完整性。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e6a982e88e1f464f9f41421fe3c0fdb5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=fe%2BtNPJgLlmZMVC8jE3QO8O6Vqc%3D"></p>
+<p>MySQL 中数据是以页为单位，你查询一条记录，会从硬盘把一页的数据加载出来，加载出来的数据叫数据页，会放入到 <code>Buffer Pool</code> 中。</p>
+<p>后续的查询都是先从 <code>Buffer Pool</code> 中找，没有命中再去硬盘加载，减少硬盘 IO 开销，提升性能。</p>
+<p>更新表数据的时候，也是如此，发现 <code>Buffer Pool</code> 里存在要更新的数据，就直接在 <code>Buffer Pool</code> 里更新。</p>
+<p>然后会把“在某个数据页上做了什么修改”记录到重做日志缓存（<code>redo log buffer</code>）里，接着刷盘到 redo log 文件里。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/732a904c13104db9aaad6cea38530384~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=uFcwbqAEVVLRi%2BV%2FLCL3Xwh%2FidA%3D"></p>
+<blockquote>
+<p>图片笔误提示：第 4 步 “清空 redo log buffe 刷盘到 redo 日志中”这句话中的 buffe 应该是 buffer。</p>
+</blockquote>
+<p>理想情况，事务一提交就会进行刷盘操作，但实际上，刷盘的时机是根据策略来进行的。</p>
+<blockquote>
+<p>小贴士：每条 redo 记录由“表空间号+数据页号+偏移量+修改数据长度+具体修改的数据”组成</p>
+</blockquote>
+<h4 data-id="heading-3">刷盘时机</h4>
+<p>在 InnoDB 存储引擎中，<strong>redo log buffer</strong> （重做日志缓冲区）是一块用于暂存 redo log 的内存区域。为了确保事务的持久性和数据的一致性，InnoDB 会在特定时机将这块缓冲区中的日志数据刷新到磁盘上的 redo log 文件中。这些时机可以归纳为以下六种：</p>
+<ol>
+<li><strong>事务提交时（最核心）</strong> ：当事务提交时，log buffer 里的 redo log 会被刷新到磁盘（可以通过<code>innodb_flush_log_at_trx_commit</code>参数控制，后文会提到）。</li>
+<li><strong>redo log buffer 空间不足时</strong> ：这是 InnoDB 的一种主动容量管理策略，旨在避免因缓冲区写满而导致用户线程阻塞。
+<ul>
+<li>当 redo log buffer 的已用空间超过其总容量的<strong>一半 (50%)</strong> 时，后台线程会<strong>主动</strong> 将这部分日志刷新到磁盘，为后续的日志写入腾出空间，这是一种“未雨绸缪”的优化。</li>
+<li>如果因为大事务或 I/O 繁忙导致 buffer 被<strong>完全写满</strong> ，那么所有试图写入新日志的用户线程都会被<strong>阻塞</strong> ，并强制进行一次同步刷盘，直到有可用空间为止。这种情况会影响数据库性能，应尽量避免。</li>
+</ul>
+</li>
+<li><strong>触发检查点 (Checkpoint) 时</strong> ：Checkpoint 是 InnoDB 为了缩短崩溃恢复时间而设计的核心机制。当 Checkpoint 被触发时，InnoDB 需要将在此检查点之前的所有脏页刷写到磁盘。根据 <strong>Write-Ahead Logging (WAL)</strong> 原则，数据页写入磁盘前，其对应的 redo log 必须先落盘。因此，执行 Checkpoint 操作必然会确保相关的 redo log 也已经被刷新到了磁盘。</li>
+<li><strong>后台线程周期性刷新</strong> ：InnoDB 有一个后台的 master thread，它会大约每秒执行一次例行任务，其中就包括将 redo log buffer 中的日志刷新到磁盘。这个机制是 <code>innodb_flush_log_at_trx_commit</code> 设置为 0 或 2 时的主要持久化保障。</li>
+<li><strong>正常关闭服务器</strong> ：在 MySQL 服务器正常关闭的过程中，为了确保所有已提交事务的数据都被完整保存，InnoDB 会执行一次最终的刷盘操作，将 redo log buffer 中剩余的全部日志都清空并写入磁盘文件。</li>
+<li><strong>binlog 切换时</strong> ：当开启 binlog 后，在 MySQL 采用 <code>innodb_flush_log_at_trx_commit=1</code> 和 <code>sync_binlog=1</code> 的 双一配置下，为了保证 redo log 和 binlog 之间状态的一致性（用于崩溃恢复或主从复制），在 binlog 文件写满或者手动执行 flush logs 进行切换时，会触发 redo log 的刷盘动作。</li>
+</ol>
+<p>总之，InnoDB 在多种情况下会刷新重做日志，以保证数据的持久性和一致性。</p>
+<p>我们要注意设置正确的刷盘策略<code>innodb_flush_log_at_trx_commit</code> 。根据 MySQL 配置的刷盘策略的不同，MySQL 宕机之后可能会存在轻微的数据丢失问题。</p>
+<p><code>innodb_flush_log_at_trx_commit</code> 的值有 3 种，也就是共有 3 种刷盘策略：</p>
+<ul>
+<li><strong>0</strong> ：设置为 0 的时候，表示每次事务提交时不进行刷盘操作。这种方式性能最高，但是也最不安全，因为如果 MySQL 挂了或宕机了，可能会丢失最近 1 秒内的事务。</li>
+<li><strong>1</strong> ：设置为 1 的时候，表示每次事务提交时都将进行刷盘操作。这种方式性能最低，但是也最安全，因为只要事务提交成功，redo log 记录就一定在磁盘里，不会有任何数据丢失。</li>
+<li><strong>2</strong> ：设置为 2 的时候，表示每次事务提交时都只把 log buffer 里的 redo log 内容写入 page cache（文件系统缓存）。page cache 是专门用来缓存文件的，这里被缓存的文件就是 redo log 文件。这种方式的性能和安全性都介于前两者中间。</li>
+</ul>
+<p>刷盘策略<code>innodb_flush_log_at_trx_commit</code> 的默认值为 1，设置为 1 的时候才不会丢失任何数据。为了保证事务的持久性，我们必须将其设置为 1。</p>
+<p>另外，InnoDB 存储引擎有一个后台线程，每隔<code>1</code> 秒，就会把 <code>redo log buffer</code> 中的内容写到文件系统缓存（<code>page cache</code>），然后调用 <code>fsync</code> 刷盘。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d5652d0d517c4f779e3ebef886460a5a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=sFGebhqu2eQfn67OfTIQovK8ftc%3D">
+也就是说，一个没有提交事务的 redo log 记录，也可能会刷盘。</p>
+<p><strong>为什么呢？</strong></p>
+<p>因为在事务执行过程 redo log 记录是会写入<code>redo log buffer</code> 中，这些 redo log 记录会被后台线程刷盘。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/49d1fff2b9c9405780e5523880a867df~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=iVNclRtvxgcXiHdqxgCVVDk0aRk%3D">
+除了后台线程每秒<code>1</code>次的轮询操作，还有一种情况，当 <code>redo log buffer</code> 占用的空间即将达到 <code>innodb_log_buffer_size</code> 一半的时候，后台线程会主动刷盘。</p>
+<p>下面是不同刷盘策略的流程图。</p>
+<h5 data-id="heading-4">innodb_flush_log_at_trx_commit=0</h5>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/904655560396423f9ea8f07a6b645182~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=p1EOdwQ%2BmcAQKDBUfF%2FvO2S%2FrOM%3D">
+为<code>0</code>时，如果 MySQL 挂了或宕机可能会有<code>1</code>秒数据的丢失。</p>
+<h5 data-id="heading-5">innodb_flush_log_at_trx_commit=1</h5>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/488fb07f9c2c4355bdd93e55ba98deef~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=8SS8fImJadDTBVOgiU%2Fa4H2Q0QM%3D">
+为<code>1</code>时， 只要事务提交成功，redo log 记录就一定在硬盘里，不会有任何数据丢失。</p>
+<p>如果事务执行期间 MySQL 挂了或宕机，这部分日志丢了，但是事务并没有提交，所以日志丢了也不会有损失。</p>
+<h5 data-id="heading-6">innodb_flush_log_at_trx_commit=2</h5>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d505449ffa674444822356300a118750~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=LKVF%2Fk9ZEud5p%2BMe2hVPEG%2FvbyI%3D">
+为<code>2</code>时， 只要事务提交成功，<code>redo log buffer</code>中的内容只写入文件系统缓存（<code>page cache</code>）。</p>
+<p>如果仅仅只是 MySQL 挂了不会有任何数据丢失，但是宕机可能会有<code>1</code>秒数据的丢失。</p>
+<h4 data-id="heading-7">日志文件组</h4>
+<p>硬盘上存储的 redo log 日志文件不只一个，而是以一个<strong>日志文件组</strong> 的形式出现的，每个的<code>redo</code>日志文件大小都是一样的。</p>
+<p>比如可以配置为一组<code>4</code>个文件，每个文件的大小是 <code>1GB</code>，整个 redo log 日志文件组可以记录<code>4G</code>的内容。</p>
+<p>它采用的是环形数组形式，从头开始写，写到末尾又回到头循环写，如下图所示。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/23d8a24d3016474aa9d51f256a9a4905~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=5czcsZksk5rUWXUiSxzEaDB8%2F0E%3D">
+在这个<strong>日志文件组</strong> 中还有两个重要的属性，分别是 <code>write pos、checkpoint</code></p>
+<ul>
+<li><strong>write pos</strong> 是当前记录的位置，一边写一边后移</li>
+<li><strong>checkpoint</strong> 是当前要擦除的位置，也是往后推移</li>
+</ul>
+<p>每次刷盘 redo log 记录到<strong>日志文件组</strong> 中，<code>write pos</code> 位置就会后移更新。</p>
+<p>每次 MySQL 加载<strong>日志文件组</strong> 恢复数据时，会清空加载过的 redo log 记录，并把 <code>checkpoint</code> 后移更新。</p>
+<p><code>write pos</code> 和 <code>checkpoint</code> 之间的还空着的部分可以用来写入新的 redo log 记录。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e36ceb70cc3948e5abb481baff56666c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=JbtxVnuQBp0ABDrkbyuJv%2FkCPC8%3D">
+如果 <code>write pos</code> 追上 <code>checkpoint</code> ，表示<strong>日志文件组</strong> 满了，这时候不能再写入新的 redo log 记录，MySQL 得停下来，清空一些记录，把 <code>checkpoint</code> 推进一下。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b38754d26a0b4fcb8fd7e7dc3b89c2a0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=h0CtA7vQMdFNxcVTql0miuwUFFM%3D">
+注意从 MySQL 8.0.30 开始，日志文件组有了些许变化：</p>
+<blockquote>
+<p>The innodb_redo_log_capacity variable supersedes the innodb_log_files_in_group and innodb_log_file_size variables, which are deprecated. When the innodb_redo_log_capacity setting is defined, the innodb_log_files_in_group and innodb_log_file_size settings are ignored; otherwise, these settings are used to compute the innodb_redo_log_capacity setting (innodb_log_files_in_group * innodb_log_file_size = innodb_redo_log_capacity). If none of those variables are set, redo log capacity is set to the innodb_redo_log_capacity default value, which is 104857600 bytes (100MB). The maximum redo log capacity is 128GB.</p>
+</blockquote>
+<blockquote>
+<p>Redo log files reside in the #innodb_redo directory in the data directory unless a different directory was specified by the innodb_log_group_home_dir variable. If innodb_log_group_home_dir was defined, the redo log files reside in the #innodb_redo directory in that directory. There are two types of redo log files, ordinary and spare. Ordinary redo log files are those being used. Spare redo log files are those waiting to be used. InnoDB tries to maintain 32 redo log files in total, with each file equal in size to 1/32 * innodb_redo_log_capacity; however, file sizes may differ for a time after modifying the innodb_redo_log_capacity setting.</p>
+</blockquote>
+<p>意思是在 MySQL 8.0.30 之前可以通过 <code>innodb_log_files_in_group</code> 和 <code>innodb_log_file_size</code> 配置日志文件组的文件数和文件大小，但在 MySQL 8.0.30 及之后的版本中，这两个变量已被废弃，即使被指定也是用来计算 <code>innodb_redo_log_capacity</code> 的值。而日志文件组的文件数则固定为 32，文件大小则为 <code>innodb_redo_log_capacity / 32</code> 。</p>
+<p>关于这一点变化，我们可以验证一下。</p>
+<p>首先创建一个配置文件，里面配置一下 <code>innodb_log_files_in_group</code> 和 <code>innodb_log_file_size</code> 的值：</p>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-section">[mysqld]</span>
+<span class="hljs-attr">innodb_log_file_size</span> = <span class="hljs-number">10485760</span>
+<span class="hljs-attr">innodb_log_files_in_group</span> = <span class="hljs-number">64</span>
+</code></pre>
+<p>docker 启动一个 MySQL 8.0.32 的容器：</p>
+<pre><code class="hljs language-bash" lang="bash">docker run -d -p 3312:3309 -e MYSQL_ROOT_PASSWORD=your-password -v /path/to/your/conf:/etc/mysql/conf.d --name
+MySQL830 mysql:8.0.32
+</code></pre>
+<p>现在我们来看一下启动日志：</p>
+<pre><code class="hljs language-ini" lang="ini">2023-08-03T02:05:11.720357Z 0 <span class="hljs-section">[Warning]</span> <span class="hljs-section">[MY-013907]</span> <span class="hljs-section">[InnoDB]</span> Deprecated configuration parameters innodb_log_file_size and/or innodb_log_files_in_group have been used to compute <span class="hljs-attr">innodb_redo_log_capacity</span>=<span class="hljs-number">671088640</span>. Please use innodb_redo_log_capacity instead.
+</code></pre>
+<p>这里也表明了 <code>innodb_log_files_in_group</code> 和 <code>innodb_log_file_size</code> 这两个变量是用来计算 <code>innodb_redo_log_capacity</code> ，且已经被废弃。</p>
+<p>我们再看下日志文件组的文件数是多少：</p>
+<p>可以看到刚好是 32 个，并且每个日志文件的大小是 <code>671088640 / 32 = 20971520</code></p>
+<p>所以在使用 MySQL 8.0.30 及之后的版本时，推荐使用 <code>innodb_redo_log_capacity</code> 变量配置日志文件组</p>
+<h4 data-id="heading-8">redo log 小结</h4>
+<p>相信大家都知道 redo log 的作用和它的刷盘时机、存储形式。</p>
+<p>现在我们来思考一个问题：<strong>只要每次把修改后的数据页直接刷盘不就好了，还有 redo log 什么事？</strong></p>
+<p>它们不都是刷盘么？差别在哪里？</p>
+<pre><code class="hljs language-ini" lang="ini">1 <span class="hljs-attr">Byte</span> = <span class="hljs-number">8</span>bit
+1 <span class="hljs-attr">KB</span> = <span class="hljs-number">1024</span> Byte
+1 <span class="hljs-attr">MB</span> = <span class="hljs-number">1024</span> KB
+1 <span class="hljs-attr">GB</span> = <span class="hljs-number">1024</span> MB
+1 <span class="hljs-attr">TB</span> = <span class="hljs-number">1024</span> GB
+</code></pre>
+<p>实际上，数据页大小是<code>16KB</code>，刷盘比较耗时，可能就修改了数据页里的几 <code>Byte</code> 数据，有必要把完整的数据页刷盘吗？</p>
+<p>而且数据页刷盘是随机写，因为一个数据页对应的位置可能在硬盘文件的随机位置，所以性能是很差。</p>
+<p>如果是写 redo log，一行记录可能就占几十 <code>Byte</code>，只包含表空间号、数据页号、磁盘文件偏移<br>
+量、更新值，再加上是顺序写，所以刷盘速度很快。</p>
+<p>所以用 redo log 形式记录修改内容，性能会远远超过刷数据页的方式，这也让数据库的并发能力更强。</p>
+<blockquote>
+<p>其实内存的数据页在一定时机也会刷盘，我们把这称为页合并，讲 <code>Buffer Pool</code>的时候会对这块细说</p>
+</blockquote>
+<h3 data-id="heading-9">binlog</h3>
+<p>redo log 它是物理日志，记录内容是“在某个数据页上做了什么修改”，属于 InnoDB 存储引擎。</p>
+<p>而 binlog 是逻辑日志，记录内容是语句的原始逻辑，类似于“给 ID=2 这一行的 c 字段加 1”，属于<code>MySQL Server</code> 层。</p>
+<p>不管用什么存储引擎，只要发生了表数据更新，都会产生 binlog 日志。</p>
+<p>那 binlog 到底是用来干嘛的？</p>
+<p>可以说 MySQL 数据库的<strong>数据备份、主备、主主、主从</strong> 都离不开 binlog，需要依靠 binlog 来同步数据，保证数据一致性。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1219a082805a4a82a8481b82b093ba4a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=0b%2FCSdQaRJgjqqgRS83CUD8RbO0%3D">
+binlog 会记录所有涉及更新数据的逻辑操作，并且是顺序写。</p>
+<h4 data-id="heading-10">记录格式</h4>
+<p>binlog 日志有三种格式，可以通过<code>binlog_format</code>参数指定。</p>
+<ul>
+<li><strong>statement</strong></li>
+<li><strong>row</strong></li>
+<li><strong>mixed</strong></li>
+</ul>
+<p>指定<code>statement</code>，记录的内容是<code>SQL</code>语句原文，比如执行一条<code>update T set update_time=now() where id=1</code>，记录的内容如下。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e7325723d09d4acd8d85df5db4ac8fc9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=UEsVVW80xB8MhAliEEYyy4HDnSA%3D">
+同步数据时，会执行记录的<code>SQL</code>语句，但是有个问题，<code>update_time=now()</code>这里会获取当前系统时间，直接执行会导致与原库的数据不一致。</p>
+<p>为了解决这种问题，我们需要指定为<code>row</code>，记录的内容不再是简单的<code>SQL</code>语句了，还包含操作的具体数据，记录内容如下。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3567a60da27243b4a49aa6c70d52b340~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=HkpfIQoCjuAO5ApDUnFzBVgvtHY%3D">
+<code>row</code>格式记录的内容看不到详细信息，要通过<code>mysqlbinlog</code>工具解析出来。</p>
+<p><code>update_time=now()</code>变成了具体的时间<code>update_time=1627112756247</code>，条件后面的@1、@2、@3 都是该行数据第 1 个~3 个字段的原始值（<strong>假设这张表只有 3 个字段</strong> ）。</p>
+<p>这样就能保证同步数据的一致性，通常情况下都是指定为<code>row</code>，这样可以为数据库的恢复与同步带来更好的可靠性。</p>
+<p>但是这种格式，需要更大的容量来记录，比较占用空间，恢复与同步时会更消耗 IO 资源，影响执行速度。</p>
+<p>所以就有了一种折中的方案，指定为<code>mixed</code>，记录的内容是前两者的混合。</p>
+<p>MySQL 会判断这条<code>SQL</code>语句是否可能引起数据不一致，如果是，就用<code>row</code>格式，否则就用<code>statement</code>格式。</p>
+<h4 data-id="heading-11">写入机制</h4>
+<p>binlog 的写入时机也非常简单，事务执行过程中，先把日志写到<code>binlog cache</code>，事务提交的时候，再把<code>binlog cache</code>写到 binlog 文件中。</p>
+<p>因为一个事务的 binlog 不能被拆开，无论这个事务多大，也要确保一次性写入，所以系统会给每个线程分配一个块内存作为<code>binlog cache</code>。</p>
+<p>我们可以通过<code>binlog_cache_size</code>参数控制单个线程 binlog cache 大小，如果存储内容超过了这个参数，就要暂存到磁盘（<code>Swap</code>）。</p>
+<p>binlog 日志刷盘流程如下</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/3e9fa90a772e4bba9ba7b185b1eac2ca~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=RvzJyW51dPdHWRQaEF3acBUFpLQ%3D"></p>
+<ul>
+<li><strong>上图的 write，是指把日志写入到文件系统的 page cache，并没有把数据持久化到磁盘，所以速度比较快</strong></li>
+<li><strong>上图的 fsync，才是将数据持久化到磁盘的操作</strong></li>
+</ul>
+<p><code>write</code>和<code>fsync</code>的时机，可以由参数<code>sync_binlog</code>控制，默认是<code>1</code>。</p>
+<p>为<code>0</code>的时候，表示每次提交事务都只<code>write</code>，由系统自行判断什么时候执行<code>fsync</code>。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a93baa2c73134865acaad8ba40694857~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=uEPzCmN%2BtyzAkeV%2FvV9oSym731g%3D">
+虽然性能得到提升，但是机器宕机，<code>page cache</code>里面的 binlog 会丢失。</p>
+<p>为了安全起见，可以设置为<code>1</code>，表示每次提交事务都会执行<code>fsync</code>，就如同 <strong>redo log 日志刷盘流程</strong> 一样。</p>
+<p>最后还有一种折中方式，可以设置为<code>N(N&gt;1)</code>，表示每次提交事务都<code>write</code>，但累积<code>N</code>个事务后才<code>fsync</code>。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/65ff9ea83e474f798fcdfa7dd0f0c17b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=KixQo0POKQCnUS8U6%2BipJgw%2FC0U%3D">
+在出现 IO 瓶颈的场景里，将<code>sync_binlog</code>设置成一个比较大的值，可以提升性能。</p>
+<p>同样的，如果机器宕机，会丢失最近<code>N</code>个事务的 binlog 日志。</p>
+<h3 data-id="heading-12">两阶段提交</h3>
+<p>redo log（重做日志）让 InnoDB 存储引擎拥有了崩溃恢复能力。</p>
+<p>binlog（归档日志）保证了 MySQL 集群架构的数据一致性。</p>
+<p>虽然它们都属于持久化的保证，但是侧重点不同。</p>
+<p>在执行更新语句过程，会记录 redo log 与 binlog 两块日志，以基本的事务为单位，redo log 在事务执行过程中可以不断写入，而 binlog 只有在提交事务时才写入，所以 redo log 与 binlog 的写入时机不一样。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7896941f37f74c4494340cb882e189a4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=FfWIgrKXJEqE7iGw7ws54ROpL4E%3D">
+回到正题，redo log 与 binlog 两份日志之间的逻辑不一致，会出现什么问题？</p>
+<p>我们以<code>update</code>语句为例，假设<code>id=2</code>的记录，字段<code>c</code>值是<code>0</code>，把字段<code>c</code>值更新成<code>1</code>，<code>SQL</code>语句为<code>update T set c=1 where id=2</code>。</p>
+<p>假设执行过程中写完 redo log 日志后，binlog 日志写期间发生了异常，会出现什么情况呢？</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2ae651eb57cd4d228ca60200d5b8bb39~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=0OEsGTnfR1qdb1QRZunoB7MjTyY%3D">
+由于 binlog 没写完就异常，这时候 binlog 里面没有对应的修改记录。因此，之后用 binlog 日志恢复数据时，就会少这一次更新，恢复出来的这一行<code>c</code>值是<code>0</code>，而原库因为 redo log 日志恢复，这一行<code>c</code>值是<code>1</code>，最终数据不一致。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f68c837067a5416a898735aa86c1db61~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2FibrRvT8k0Bu9VIMTcuC8qCT5QM%3D">
+为了解决两份日志之间的逻辑一致问题，InnoDB 存储引擎使用<strong>两阶段提交</strong> 方案。</p>
+<p>原理很简单，将 redo log 的写入拆成了两个步骤<code>prepare</code>和<code>commit</code>，这就是<strong>两阶段提交</strong> 。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/05aa674f0310468aae094d101672d709~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2B7nQLAieq8kOic30wR2S6X2cwhw%3D">
+使用<strong>两阶段提交</strong> 后，写入 binlog 时发生异常也不会有影响，因为 MySQL 根据 redo log 日志恢复数据时，发现 redo log 还处于<code>prepare</code>阶段，并且没有对应 binlog 日志，就会回滚该事务。</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d6614cb75bcc49c0aa0cf4b5750a05c1~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=%2Bca%2FK%2BIM3m8X4U9S1lajG9XQwaE%3D">
+再看一个场景，redo log 设置<code>commit</code>阶段发生异常，那会不会回滚事务呢？</p>
+<p><img class="lazy" alt="图片.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2237793ab72142d8b33c9458a21f0f31~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1792725568&amp;x-signature=n6KR5vwq2jDjcaRhe2NNs79Jk54%3D">
+并不会回滚事务，它会执行上图框住的逻辑，虽然 redo log 是处于<code>prepare</code>阶段，但是能通过事务<code>id</code>找到对应的 binlog 日志，所以 MySQL 认为是完整的，就会提交事务恢复数据。</p>
+<h3 data-id="heading-13">undo log</h3>
+<p>每一个事务对数据的修改都会被记录到 undo log ，当执行事务过程中出现错误或者需要执行回滚操作的话，MySQL 可以利用 undo log 将数据恢复到事务开始之前的状态。</p>
+<p>undo log 属于逻辑日志，记录的是 SQL 语句，比如说事务执行一条 DELETE 语句，那 undo log 就会记录一条相对应的 INSERT 语句。同时，undo log 的信息也会被记录到 redo log 中，因为 undo log 也要实现持久性保护。并且，undo-log 本身是会被删除清理的，例如 INSERT 操作，在事务提交之后就可以清除掉了；UPDATE/DELETE 操作在事务提交不会立即删除，会加入 history list，由后台线程 purge 进行清理。</p>
+<p>undo log 是采用 segment（段）的方式来记录的，每个 undo 操作在记录的时候占用一个 <strong>undo log segment</strong> （undo 日志段），undo log segment 包含在 <strong>rollback segment</strong> （回滚段）中。事务开始时，需要为其分配一个 rollback segment。每个 rollback segment 有 1024 个 undo log segment，这有助于管理多个并发事务的回滚需求。</p>
+<p>通常情况下， <strong>rollback segment header</strong> （通常在回滚段的第一个页）负责管理 rollback segment。rollback segment header 是 rollback segment 的一部分，通常在回滚段的第一个页。<strong>history list</strong> 是 rollback segment header 的一部分，它的主要作用是记录所有已经提交但还没有被清理（purge）的事务的 undo log。这个列表使得 purge 线程能够找到并清理那些不再需要的 undo log 记录。</p>
+<p>另外，<code>MVCC</code> 的实现依赖于：<strong>隐藏字段、Read View、undo log</strong> 。在内部实现中，InnoDB 通过数据行的 <code>DB_TRX_ID</code> 和 <code>Read View</code> 来判断数据的可见性，如不可见，则通过数据行的 <code>DB_ROLL_PTR</code> 找到 undo log 中的历史版本。每个事务读到的数据版本可能是不一样的，在同一个事务中，用户只能看到该事务创建 <code>Read View</code> 之前已经提交的修改和该事务本身做的修改</p>
+<hr>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="MySQL三大日志(binlog、redo log和undo log)详解" href="https://juejin.cn/post/7696908590870741027" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">MySQL三大日志(binlog、redo log和undo log)详解</span><span class="desc fs12">https://juejin.cn/post/7696908590870741027</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/5b517cdb.html">ToolForge v0.1.10 发布：支持在线安装插件，WASM 插件生态正式起步！<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e6a1314b.html">电芯尺寸合格，不等于电池包尺寸合格<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/caca8064.html" title="2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2148"></div><span class="title">2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具</span></a><a class="item" href="/rss/842c2622.html" title="2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6496"></div><span class="title">2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些</span></a><a class="item" href="/rss/25be222.html" title="3-5 画矩形和按钮"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/30396e44130b4cd8911563cf0ae2b79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716145&x-signature=pHa2FTXTIGZlQvkrajnYRCQIybw%3D"></div><span class="title">3-5 画矩形和按钮</span></a><a class="item" href="/rss/94d125ac.html" title="3-6 项目-图形版井字棋（上）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f000ca6574d444689e3cfff1ba9dbcfd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716245&x-signature=dNnyxjt9mYe942%2FySOnI%2FTxeARc%3D"></div><span class="title">3-6 项目-图形版井字棋（上）</span></a><a class="item" href="/rss/78c2414c.html" title="AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5291"></div><span class="title">AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具</span></a><a class="item" href="/rss/66e7d473.html" title="C# Console App（控制台应用）模板详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3405"></div><span class="title">C# Console App（控制台应用）模板详解</span></a><a class="item" href="/rss/11d0f212.html" title="Systemd 服务起不来？五步排查法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9733"></div><span class="title">Systemd 服务起不来？五步排查法</span></a><a class="item" href="/rss/1b2c3816.html" title="托瓦兹用AI查内核:3个13年前的bug露了出来"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1740"></div><span class="title">托瓦兹用AI查内核:3个13年前的bug露了出来</span></a><a class="item" href="/rss/63175fb8.html" title="告警一条接一条刷屏？五步治理告警风暴"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8221"></div><span class="title">告警一条接一条刷屏？五步治理告警风暴</span></a><a class="item" href="/rss/cbf71526.html" title="新质生产力路线图Linux和数据库自主可控实践指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7056"></div><span class="title">新质生产力路线图Linux和数据库自主可控实践指南</span></a><a class="item" href="/rss/fff4f467.html" title="电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2740"></div><span class="title">电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打</span></a><a class="item" href="/rss/b2525330.html" title="盘点危化品搬运诊断的6类工具与自处理边界判断"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6a763f7fe9614e0488e7cff5adfb5f66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3NTMwNDI5NzY1Nzk=:q75.awebp?rk3s=f64ab15b&x-expires=1792733692&x-signature=9bgmXPijADO1G0%2FmoD6I69bIEW4%3D"></div><span class="title">盘点危化品搬运诊断的6类工具与自处理边界判断</span></a><a class="item" href="/rss/e6a1314b.html" title="电芯尺寸合格，不等于电池包尺寸合格"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2829"></div><span class="title">电芯尺寸合格，不等于电池包尺寸合格</span></a><a class="item" href="/rss/5e3d0027.html" title="食物照片有点偏绿？用 Awaking 把色调往回调一点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fc0f90efeb4740209a80ff150a055c5c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792723917&x-signature=BHkGLa1IRdt8PuNbuoeIFcNGwog%3D"></div><span class="title">食物照片有点偏绿？用 Awaking 把色调往回调一点</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

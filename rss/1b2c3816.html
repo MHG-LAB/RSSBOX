@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>托瓦兹用AI查内核:3个13年前的bug露了出来 - RSSBOX</title>
+
+  
+    <meta name="description" content="一个 2013 年写进 Linux 的库，1734 行，13 年里没人动过。最近一轮&quot;只是让代码好读一点&quot;的重构，从里面翻出了三个 bug。 三个 bug 藏在 2013 年的第一版里 10 月 12 日，Phoronix 的 Michael Larabel 转述了托瓦兹在内核邮件列表里的一段说明：他用 LLM 工具辅助，把内核里的 assoc_array 代码整理了一遍，目标是让它更容易读。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="托瓦兹用AI查内核:3个13年前的bug露了出来">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1b2c3816.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="一个 2013 年写进 Linux 的库，1734 行，13 年里没人动过。最近一轮&quot;只是让代码好读一点&quot;的重构，从里面翻出了三个 bug。 三个 bug 藏在 2013 年的第一版里 10 月 12 日，Phoronix 的 Michael Larabel 转述了托瓦兹在内核邮件列表里的一段说明：他用 LLM 工具辅助，把内核里的 assoc_array 代码整理了一遍，目标是让它更容易读。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-16T10:54:23.000Z">
+<meta property="article:modified_time" content="2026-10-16T10:54:23.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三个 bug 藏在 2013 年的第一版里</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么这段代码 13 年没人碰得动</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">LLM 干的活很朴素：让代码能被读懂</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">同一周的性能分支：吞吐 3 倍，时钟周期砍掉七成</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">两个容易看错的地方</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">想在自己项目里复现这套流程，四步</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-16T10:54:23.000Z">2026-10-16</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>托瓦兹用AI查内核:3个13年前的bug露了出来</span></h1>
+<div>
+<p>一个 2013 年写进 Linux 的库，1734 行，13 年里没人动过。最近一轮"只是让代码好读一点"的重构，从里面翻出了三个 bug。</p>
+<h2 data-id="heading-0">三个 bug 藏在 2013 年的第一版里</h2>
+<p>10 月 12 日，Phoronix 的 Michael Larabel 转述了托瓦兹在内核邮件列表里的一段说明：他用 LLM 工具辅助，把内核里的 assoc_array 代码整理了一遍，目标是让它更容易读。</p>
+<p>步骤的先后顺序值得留意。在他动手之前，开发者 Nils Ollrogge 已经报了一个 bug，还附上了自己的修复方案。托瓦兹借 LLM 把这批代码重构之后，写了一个跑在用户态的测试桩去验证——测试桩不进入内核，独立跑。它确认了 Ollrogge 报的那个问题，同时另外撞出三个。</p>
+<p>这三个 bug 一路回溯到了 assoc_array 第一次进入内核的那笔提交。内核邮件列表的存档里还留着那封邮件：《增加一个通用关联数组实现》，署名 David Howells，日期是 2013 年 7 月 17 日。也就是说，这几处问题在内核树里躺了 13 年，从没有人碰响过。</p>
+<p>补丁目前没有合进 master。Phoronix 的判断是，Linux 7.4 的合并窗口是它们最可能的去处。</p>
+<h2 data-id="heading-1">为什么这段代码 13 年没人碰得动</h2>
+<p>assoc_array 干的事说穿了很朴素：你给内核一个索引键，它把一个对象指针还给你，一个按名字取东西的容器。</p>
+<p>实现方式就不朴素了：索引键被按 4 位一组切开，每一层用这 4 位去选一个 16 叉节点的槽位，节点装满了就往下分叉。中间一串只占一个槽的节点会被 shortcut 直接跳过，省内存也省遍历层级；叶子和指向下一层的指针还能混在同一个节点的槽里，只要键前缀对得上。</p>
+<p>它最初是给 keyring 写的。2013 年 7 月 David Howells 那组补丁说得很清楚：把 keyring 的容器换成 assoc_array，是为了大幅提高密钥环的容量，同时让"密钥很多时的查找"变快，顺带也给 FS-Cache 管 cookie 留着可能。那一次提交往 lib/assoc_array.c 里一次加了 1734 行，配套文档又写了 583 行，两个头文件另算。</p>
+<p>增删也不是直接改树。插入和删除先生成一个"编辑脚本"，把要装的节点提前分配好，再一次性应用——这个设计的好处是应用阶段不会再失败，坏处是读代码的人要在"还没生效"和"已经生效"两个状态之间来回切。被换下来的旧节点和旧对象不会立刻释放，要等一个 RCU 宽限期过去，好让正在读这棵树的线程不受影响。</p>
+<p>树自己还会动。一个节点里攒到 17 个对象就要分裂，反过来，某个子树里的对象掉到 16 个以下，它会尝试折叠回一个节点，这个折叠还会一路往根的方向蔓延。指针也有规矩：所有对象指针的最低两位必须是 0，因为那两位被借去标记对象类型了——违反了只有一个 BUG_ON 兜着。</p>
+<p>最麻烦的地方，代码自己的文档里写着一句：back pointer 让"同时修改与遍历"变得棘手。每个节点和 shortcut 都存着指向父节点的指针和自己在父节点里的槽位号，非递归遍历靠它往上爬。所以动一个槽位，你得同时在脑子里跟踪父指针、槽位号、层级偏移和 RCU 时序这几样东西。</p>
+<p>读的人宁可跳过，因为这里改错一次，未必看得出来。</p>
+<h2 data-id="heading-2">LLM 干的活很朴素：让代码能被读懂</h2>
+<p>托瓦兹做的事情本身不大：把几个又大又难读的函数拆开。这是纯粹的重构，不改变行为。</p>
+<p>效果却不像看起来那么小。一个 200 行往上、分支嵌套的函数，大多数人的处理方式是跳过，而不是审阅；拆到几十行、名字能说清"这个函数负责哪一段键空间"之后，边界条件和每个分支的输入才变得可以讨论。测试桩也是在这个前提下才写得出来的。</p>
+<p>这里有个容易被叙事带偏的点：真正把另外三个 bug 撞出来的是那个用户态测试桩，不是模型自己"审"出了什么。托瓦兹让 LLM 承担的是摊开代码、写测试、跑测试这些体力活，判断依旧在他手上。所以这件事的重点不在于"AI 会找 bug"，而在于"读懂 1734 行的成本被压下来了，于是写测试这件事第一次变得划算"。</p>
+<h2 data-id="heading-3">同一周的性能分支：吞吐 3 倍，时钟周期砍掉七成</h2>
+<p>另一条线上的动作更直接。10 月 13 日，他在自己的仓库里推了一个分支，名字里带着 llm 后缀，主题是提高页面引用计数的可扩展性。按 LWN 的转述，这组补丁的核心代码、测试程序、漏洞审查、公告文档初稿，都是在他本人指导下由 Claude Code 协作完成的。</p>
+<p>他给出的本机数据是这样的：8 个线程并发读同一个文件，读取吞吐从每秒 <strong>990 万到 1040 万次</strong>，升到 <strong>3000 万到 3300 万次</strong>；单次读取消耗的内核时钟周期从约 <strong>2950 次</strong>降到 <strong>725 次</strong>。负载本身挑得很准：多个核反复去更新同一份页缓存的引用计数，争抢就发生在那里。</p>
+<p>两组数字都属于本机实验口径，测试前他关掉了本机的一部分安全防护；补丁也还停在实验分支，没有进主线。</p>
+<p>把两件事放在一起看会更清楚：一头是让代码可改（可读性），一头是让改动可信（测试）。少了前者，没人敢动；少了后者，动了也不知道动坏没有。</p>
+<h2 data-id="heading-4">两个容易看错的地方</h2>
+<p><strong>第一种说法：AI 已经能自己找内核 bug 了。</strong></p>
+<p>这话有一半是对的。没有这轮 LLM 辅助的重构，那个用户态测试桩大概率不会有人去写，那三个 bug 会继续埋着。</p>
+<p>但它解释不了一件事：Ollrogge 报的那个 bug 是人先发现的，另外三个是测试桩撞出来的。模型没有运行过代码，也没有为内核语义负过责。</p>
+<p>更准确的理解是，LLM 改变的是成本结构——把"读懂这 1734 行"从两天压到一个下午，于是补测试、跑测试从"不划算"变成了"顺手就做"。</p>
+<p><strong>第二种说法：内核已经接受 AI 写的代码了。</strong></p>
+<p>他确实在用自己的仓库推分支，也确实公开演示了 LLM 辅助的结果，示范效应很强。</p>
+<p>但补丁没进 master，性能分支停在实验分支，7.4 合并窗口只是外界的"预计"。内核那几道门槛——人审、测试、回归——一条都没有松。</p>
+<p>眼下被验证有效的组合是"人做判断 + LLM 干体力活 + 测试兜底"。把 AI 从"助手"换成"提交者"是另一件事，至少现在没有证据支持。</p>
+<h2 data-id="heading-5">想在自己项目里复现这套流程，四步</h2>
+<p>第一步，挑那块谁也不愿打开的文件。老代码里长期没人改的部分，通常也是测试覆盖最薄的部分，两个特征往往指向同一处。</p>
+<p>第二步，只做"让它好读"的重构。拆大函数、给中间变量起名、把隐式约定写成注释。这一步别顺手改行为，否则后面出了 bug，说不清是谁引进的。</p>
+<p>第三步，补一个能在本地或用户态跑的测试桩。内核这次的抓手就在这里：测试跑在内核外，反而更容易造出边界条件，也更容易反复跑。</p>
+<p>第四步，让测试去撞 bug，别让模型去猜 bug。模型可以帮你列出可疑点，但一条 bug 只有被复现、被定位到具体分支，才算数。</p>
+<p>这套流程有个前提：你得有能力写出测试。如果那块代码根本没有可运行的环境，你能拿到的只是"更好读"的代码——它仍然有用，但别把它当成找到了问题。</p>
+<p>托瓦兹这轮没让 AI 写一行业务逻辑，只让它干了一件最不显眼的事：把代码摊开。你手上大概率也有一段谁都不想打开的文件——你会先用它提速，还是先让它摊开？</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="托瓦兹用AI查内核:3个13年前的bug露了出来" href="https://juejin.cn/post/7697058311512490011" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">托瓦兹用AI查内核:3个13年前的bug露了出来</span><span class="desc fs12">https://juejin.cn/post/7697058311512490011</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/63175fb8.html">告警一条接一条刷屏？五步治理告警风暴<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/caca8064.html">2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/caca8064.html" title="2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2148"></div><span class="title">2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具</span></a><a class="item" href="/rss/842c2622.html" title="2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6496"></div><span class="title">2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些</span></a><a class="item" href="/rss/25be222.html" title="3-5 画矩形和按钮"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/30396e44130b4cd8911563cf0ae2b79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716145&x-signature=pHa2FTXTIGZlQvkrajnYRCQIybw%3D"></div><span class="title">3-5 画矩形和按钮</span></a><a class="item" href="/rss/94d125ac.html" title="3-6 项目-图形版井字棋（上）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f000ca6574d444689e3cfff1ba9dbcfd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716245&x-signature=dNnyxjt9mYe942%2FySOnI%2FTxeARc%3D"></div><span class="title">3-6 项目-图形版井字棋（上）</span></a><a class="item" href="/rss/78c2414c.html" title="AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5291"></div><span class="title">AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具</span></a><a class="item" href="/rss/66e7d473.html" title="C# Console App（控制台应用）模板详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3405"></div><span class="title">C# Console App（控制台应用）模板详解</span></a><a class="item" href="/rss/11d0f212.html" title="Systemd 服务起不来？五步排查法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9733"></div><span class="title">Systemd 服务起不来？五步排查法</span></a><a class="item" href="/rss/e0d3a9f9.html" title="MySQL三大日志(binlog、redo Log和undo Log)详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9c053ed8f1e44f90b5c3b564dff32189~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&x-expires=1792725568&x-signature=nGmU5U9sF17rTpkjnFH5R2sCkIE%3D"></div><span class="title">MySQL三大日志(binlog、redo Log和undo Log)详解</span></a><a class="item" href="/rss/63175fb8.html" title="告警一条接一条刷屏？五步治理告警风暴"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8221"></div><span class="title">告警一条接一条刷屏？五步治理告警风暴</span></a><a class="item" href="/rss/cbf71526.html" title="新质生产力路线图Linux和数据库自主可控实践指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7056"></div><span class="title">新质生产力路线图Linux和数据库自主可控实践指南</span></a><a class="item" href="/rss/fff4f467.html" title="电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2740"></div><span class="title">电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打</span></a><a class="item" href="/rss/b2525330.html" title="盘点危化品搬运诊断的6类工具与自处理边界判断"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6a763f7fe9614e0488e7cff5adfb5f66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3NTMwNDI5NzY1Nzk=:q75.awebp?rk3s=f64ab15b&x-expires=1792733692&x-signature=9bgmXPijADO1G0%2FmoD6I69bIEW4%3D"></div><span class="title">盘点危化品搬运诊断的6类工具与自处理边界判断</span></a><a class="item" href="/rss/e6a1314b.html" title="电芯尺寸合格，不等于电池包尺寸合格"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2829"></div><span class="title">电芯尺寸合格，不等于电池包尺寸合格</span></a><a class="item" href="/rss/5e3d0027.html" title="食物照片有点偏绿？用 Awaking 把色调往回调一点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fc0f90efeb4740209a80ff150a055c5c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792723917&x-signature=BHkGLa1IRdt8PuNbuoeIFcNGwog%3D"></div><span class="title">食物照片有点偏绿？用 Awaking 把色调往回调一点</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

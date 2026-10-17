@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Systemd 服务起不来？五步排查法 - RSSBOX</title>
+
+  
+    <meta name="description" content="交付给一线运维：一条服务重启了十几次、systemctl start 只回一句 Job for app.service failed， journalctl 里翻半天只有一行 exited。其实 systemd 的失败信息非常规范，按五步走， 从&quot;现象分类&quot;到&quot;读到根因&quot;，五分钟内能定位到具体那一行配置。  一、先分清三种&quot;起不来&quot; 不同失败形态，排查入口完全不同，先归类再动手：  根本起不来">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Systemd 服务起不来？五步排查法">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/11d0f212.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="交付给一线运维：一条服务重启了十几次、systemctl start 只回一句 Job for app.service failed， journalctl 里翻半天只有一行 exited。其实 systemd 的失败信息非常规范，按五步走， 从&quot;现象分类&quot;到&quot;读到根因&quot;，五分钟内能定位到具体那一行配置。  一、先分清三种&quot;起不来&quot; 不同失败形态，排查入口完全不同，先归类再动手：  根本起不来">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-15T11:12:14.000Z">
+<meta property="article:modified_time" content="2026-10-15T11:12:14.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、先分清三种&quot;起不来&quot;</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、第 1 步：systemctl status 一眼读四行</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、第 2 步：journalctl -u 拿全量日志</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、第 3 步：核对 unit 文件本身</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、第 4 步：查环境差异与资源限制</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、第 5 步：排除端口与依赖冲突</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">七、避坑清单</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">小结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-15T11:12:14.000Z">2026-10-15</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Systemd 服务起不来？五步排查法</span></h1>
+<div>
+<blockquote>
+<p>交付给一线运维：一条服务重启了十几次、<code>systemctl start</code> 只回一句 <code>Job for app.service failed</code>，
+<code>journalctl</code> 里翻半天只有一行 <code>exited</code>。其实 systemd 的失败信息非常规范，按五步走，
+从"现象分类"到"读到根因"，五分钟内能定位到具体那一行配置。</p>
+</blockquote>
+<h2 data-id="heading-0">一、先分清三种"起不来"</h2>
+<p>不同失败形态，排查入口完全不同，先归类再动手：</p>
+<ol>
+<li><strong>根本起不来</strong>：<code>systemctl start</code> 立刻返回失败，进程连创建都没成功。多为 <code>ExecStart</code> 路径、权限、解释器问题，退出码常见 <code>203/EXEC</code>。</li>
+<li><strong>起来又马上退出</strong>：能启动一秒，然后进程自己崩。表现为 <code>Restart=always</code> 不断重启，状态里是 <code>activating (auto-restart)</code>，多半是应用自身配置或依赖问题。</li>
+<li><strong>起来了但状态不对</strong>：<code>Active: active (running)</code>，可端口不通、健康检查失败。这是 <code>Type=</code> 与就绪判定不匹配，或进程 daemon 化后 systemd 跟丢了。</li>
+</ol>
+<h2 data-id="heading-1">二、第 1 步：<code>systemctl status</code> 一眼读四行</h2>
+<pre><code class="hljs language-bash" lang="bash">systemctl status app.service --no-pager
+</code></pre>
+<p>重点看四行：</p>
+<ul>
+<li><code>Loaded:</code> —— unit 文件路径是否正确，是否被 <code>masked</code>、<code>disabled</code>。</li>
+<li><code>Active:</code> —— 失败会直接标注 <code>(Result: exit-code)</code> 或 <code>(Result: timeout)</code>。</li>
+<li><code>Process:</code> —— 实际执行的命令行，以及 <code>status=203/EXEC</code> 这类关键退出码。</li>
+<li>末尾日志 —— 只有最近 10 行，够用来判断方向，但不足以定根因。</li>
+</ul>
+<p><code>203/EXEC</code> 基本等于"这个命令 systemd 跑不起来"：路径写错、没有执行权限、shelbang 坏了、脚本是 CRLF 换行。</p>
+<h2 data-id="heading-2">三、第 2 步：<code>journalctl -u</code> 拿全量日志</h2>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 看这个服务最近 100 行</span>
+journalctl -u app.service -n 100 --no-pager
+
+<p><span class="hljs-comment"># 只看本次开机、只看错误级别</span><br>journalctl -u app.service -b -p err –no-pager</p>
+<p><span class="hljs-comment"># 缩小到出问题的时间窗</span><br>journalctl -u app.service –since <span class="hljs-string">“10 min ago”</span> –no-pager<br></p></code></pre><p></p>
+<p>三句高频报错的含义：</p>
+<ul>
+<li><code>Unit app.service not found.</code> —— 文件没放在 <code>/etc/systemd/system/</code>，或放完没执行 <code>systemctl daemon-reload</code>。</li>
+<li><code>Start request repeated too quickly.</code> —— 重启太密被 systemd 熔断，需要 <code>systemctl reset-failed app.service</code> 再试。</li>
+<li><code>Address already in use</code> —— 端口被别的进程占了，用 <code>ss -lntp</code> 找占用者。</li>
+</ul>
+<h2 data-id="heading-3">四、第 3 步：核对 unit 文件本身</h2>
+<pre><code class="hljs language-bash" lang="bash">systemctl <span class="hljs-built_in">cat</span> app.service                  <span class="hljs-comment"># 看最终生效内容（含 drop-in 覆盖）</span>
+systemd-analyze verify /etc/systemd/system/app.service   <span class="hljs-comment"># 语法与依赖检查</span>
+systemctl show app.service -p ExecStart -p Environment   <span class="hljs-comment"># 看 systemd 眼中的真实值</span>
+</code></pre>
+<p>unit 文件里最容易写错的五处：</p>
+<ol>
+<li><strong><code>ExecStart</code> 必须写绝对路径</strong>，且不能带 shell 语法（管道、<code>&amp;&amp;</code>、重定向都要包一层 <code>bash -c</code>）。</li>
+<li><strong><code>Type=</code> 选错</strong>。前台常驻用 <code>simple</code>（默认），会 fork 后退出的老程序要 <code>forking</code> + <code>PIDFile</code>，<code>oneshot</code> 只跑一次不能常驻。</li>
+<li><strong><code>EnvironmentFile=</code></strong> 路径写错会让变量全空；写成 <code>EnvironmentFile=-/etc/app/env</code>（前面加 <code>-</code>）则文件缺失不报错。</li>
+<li><strong><code>User=</code> / <code>Group=</code></strong> 指定的账号对 <code>WorkingDirectory</code> 和日志目录没有写权限，进程会直接退出。</li>
+<li><strong>依赖写反</strong>：需要网络的要 <code>After=network-online.target</code> 且 <code>Wants=network-online.target</code>，只写 <code>After=network.target</code> 常常起太早。</li>
+</ol>
+<p>改完 unit 文件必须：</p>
+<pre><code class="hljs language-bash" lang="bash">systemctl daemon-reload
+systemctl restart app.service
+</code></pre>
+<h2 data-id="heading-4">五、第 4 步：查环境差异与资源限制</h2>
+<p>最常见的"我手工跑明明可以"——因为交互 shell 和 systemd 的环境完全不同：</p>
+<ul>
+<li><strong>不加载 <code>/etc/profile</code></strong>：<code>PATH</code> 只有极简几条，<code>java</code>、<code>node</code> 找不到。解决：<code>ExecStart</code> 写全路径，或在 unit 里显式 <code>Environment=PATH=/usr/local/bin:/usr/bin</code>。</li>
+<li><strong><code>WorkingDirectory</code> 默认是 <code>/</code></strong>：相对路径配置一律找不到，必须显式指定。</li>
+<li><strong>资源上限</strong>：<code>LimitNOFILE</code>、<code>MemoryMax</code>、<code>TasksMax</code> 触顶会直接把进程打掉，<code>journalctl</code> 里能看到 oom 或 <code>Failed to fork</code>。</li>
+<li><strong>沙箱与 SELinux</strong>：<code>ProtectSystem=strict</code>、<code>PrivateTmp=true</code> 会让服务看不到宿主机路径，表现为"文件明明存在却报 no such file"。</li>
+<li><strong>看真实上限</strong>：<code>systemctl show app.service -p LimitNOFILE -p MemoryMax</code>。</li>
+</ul>
+<h2 data-id="heading-5">六、第 5 步：排除端口与依赖冲突</h2>
+<pre><code class="hljs language-bash" lang="bash">ss -lntp | grep -E <span class="hljs-string">':8080|:3306'</span>      <span class="hljs-comment"># 端口是否被占</span>
+systemctl list-dependencies app.service --reverse | <span class="hljs-built_in">head</span>
+</code></pre>
+<p>如果服务启动后秒退，且日志停在"connecting to db..."，那就是依赖的下游没起来。此时不要给应用加 <code>Restart=always</code> 硬扛——<strong>重启掩盖的是依赖顺序问题</strong>，应该在 unit 里用 <code>After=</code> / <code>Requires=</code> 声明清楚，或在应用层加重试与退避。</p>
+<h2 data-id="heading-6">七、避坑清单</h2>
+<ol>
+<li><strong>改完 unit 不 <code>daemon-reload</code></strong>：改动完全不生效，白排查半天。</li>
+<li><strong>用 <code>Restart=always</code> 掩盖根因</strong>：日志被反复重启刷满，真正那一行错误被冲掉。先 <code>systemctl stop</code> 手动跑一次。</li>
+<li><strong><code>ExecStart</code> 里用 shell 语法</strong>：管道、<code>&amp;&amp;</code>、<code>$VAR</code> 都不被解析，必须 <code>bash -lc '...'</code>。</li>
+<li><strong><code>Type=forking</code> 却没配 <code>PIDFile</code></strong>：systemd 不知道主进程是谁，状态一直 <code>activating</code> 直到超时。</li>
+<li><strong><code>TimeoutStartSec</code> 太短</strong>：大应用初始化要 2 分钟，默认 90 秒直接判失败，应显式放宽。</li>
+<li><strong>脚本 CRLF 换行</strong>：从 Windows 传上来的启动脚本会报 <code>203/EXEC</code>，<code>dos2unix</code> 一下。</li>
+<li><strong>别在 <code>/usr/lib/systemd/system/</code> 里直接改</strong>：升级会被覆盖，自定义放 <code>/etc/systemd/system/</code>，覆盖用 drop-in（<code>/etc/systemd/system/app.service.d/override.conf</code>）。</li>
+</ol>
+<h2 data-id="heading-7">小结</h2>
+<p>口诀：<strong>看状态分类型 → 翻日志找报错 → 核 unit 查语法 → 比环境与限额 → 排端口与依赖</strong>。</p>
+<p>systemd 的报错信息其实很诚实，它只是被"重启刷屏"和"环境不一致"藏起来了。
+把服务先停掉手动跑一次、把 unit 文件当成代码来 review，绝大多数"起不来"都能一眼看破。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="systemd 服务起不来？五步排查法" href="https://juejin.cn/post/7696769222810140722" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">systemd 服务起不来？五步排查法</span><span class="desc fs12">https://juejin.cn/post/7696769222810140722</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/21c4ff28.html">DeepSeek 服务故障近 5 小时，官方把用户一周的 API 消费全退了<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/5c9b783a.html">从<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/caca8064.html" title="2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2148"></div><span class="title">2026 年中小企业项目管理软件怎么选：零代码搭建 vs 成品工具</span></a><a class="item" href="/rss/842c2622.html" title="2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6496"></div><span class="title">2026年支持二次开发的双臂遥操数采系统适配科研需求的有哪些</span></a><a class="item" href="/rss/25be222.html" title="3-5 画矩形和按钮"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/30396e44130b4cd8911563cf0ae2b79d~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716145&x-signature=pHa2FTXTIGZlQvkrajnYRCQIybw%3D"></div><span class="title">3-5 画矩形和按钮</span></a><a class="item" href="/rss/94d125ac.html" title="3-6 项目-图形版井字棋（上）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f000ca6574d444689e3cfff1ba9dbcfd~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5LuO5bCP55m95Yiw6L2v5bel:q75.awebp?rk3s=f64ab15b&x-expires=1792716245&x-signature=dNnyxjt9mYe942%2FySOnI%2FTxeARc%3D"></div><span class="title">3-6 项目-图形版井字棋（上）</span></a><a class="item" href="/rss/78c2414c.html" title="AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5291"></div><span class="title">AutoHotkey V2 零基础快速入门 Part 5 游戏场景明暗阈值采集工具</span></a><a class="item" href="/rss/66e7d473.html" title="C# Console App（控制台应用）模板详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3405"></div><span class="title">C# Console App（控制台应用）模板详解</span></a><a class="item" href="/rss/e0d3a9f9.html" title="MySQL三大日志(binlog、redo Log和undo Log)详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9c053ed8f1e44f90b5c3b564dff32189~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5a2Q5p6Xc3VwZXI=:q75.awebp?rk3s=f64ab15b&x-expires=1792725568&x-signature=nGmU5U9sF17rTpkjnFH5R2sCkIE%3D"></div><span class="title">MySQL三大日志(binlog、redo Log和undo Log)详解</span></a><a class="item" href="/rss/1b2c3816.html" title="托瓦兹用AI查内核:3个13年前的bug露了出来"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1740"></div><span class="title">托瓦兹用AI查内核:3个13年前的bug露了出来</span></a><a class="item" href="/rss/63175fb8.html" title="告警一条接一条刷屏？五步治理告警风暴"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8221"></div><span class="title">告警一条接一条刷屏？五步治理告警风暴</span></a><a class="item" href="/rss/cbf71526.html" title="新质生产力路线图Linux和数据库自主可控实践指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7056"></div><span class="title">新质生产力路线图Linux和数据库自主可控实践指南</span></a><a class="item" href="/rss/fff4f467.html" title="电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2740"></div><span class="title">电费 9 毛/天：我让一台 9 年前的旧 MacBook 替我上班，它比入门云服务器还能打</span></a><a class="item" href="/rss/b2525330.html" title="盘点危化品搬运诊断的6类工具与自处理边界判断"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6a763f7fe9614e0488e7cff5adfb5f66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg55So5oi3NTMwNDI5NzY1Nzk=:q75.awebp?rk3s=f64ab15b&x-expires=1792733692&x-signature=9bgmXPijADO1G0%2FmoD6I69bIEW4%3D"></div><span class="title">盘点危化品搬运诊断的6类工具与自处理边界判断</span></a><a class="item" href="/rss/e6a1314b.html" title="电芯尺寸合格，不等于电池包尺寸合格"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2829"></div><span class="title">电芯尺寸合格，不等于电池包尺寸合格</span></a><a class="item" href="/rss/5e3d0027.html" title="食物照片有点偏绿？用 Awaking 把色调往回调一点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fc0f90efeb4740209a80ff150a055c5c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1792723917&x-signature=BHkGLa1IRdt8PuNbuoeIFcNGwog%3D"></div><span class="title">食物照片有点偏绿？用 Awaking 把色调往回调一点</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

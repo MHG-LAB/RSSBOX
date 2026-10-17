@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Filter, Reshape, and Redact Logs Before Export With Transformers - RSSBOX</title>
+
+  
+    <meta name="description" content="Logpush delivers logs in batches as quickly as possible, enabling Cloudflare to provide information almost in real time. During our recent Birthday Week, we made Logpush available on all self-serve p">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Filter, Reshape, and Redact Logs Before Export With Transformers">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/afc29148.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Logpush delivers logs in batches as quickly as possible, enabling Cloudflare to provide information almost in real time. During our recent Birthday Week, we made Logpush available on all self-serve p">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-12T14:44:59.000Z">
+<meta property="article:modified_time" content="2026-10-12T14:44:59.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Logpush Transformers work</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Transformers executes SQL with Apache DataFusion and Arrow</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">From records to columns</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Executing the transform</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Returning to the export pipeline</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Get started</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-12T14:44:59.000Z">2026-10-12</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Filter, Reshape, and Redact Logs Before Export With Transformers</span></h1>
+<div>
+<p>Logpush delivers logs in batches as quickly as possible, enabling Cloudflare to provide information almost in real time. During our recent <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/birthday-week-2026-wrap-up/"><span style="text-decoration:underline">Birthday Week</span></a>, we made Logpush available on all self-serve plans and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/logs/logpush/transformers/"><span style="text-decoration:underline">Transformers</span></a> generally available.</p><p>Those changes were among <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/one-observability-platform/"><span style="text-decoration:underline">eight major updates to Cloudflare Observability</span></a> and reflect our commitment to make <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/enterprise-grade-features-for-all/"><span style="text-decoration:underline">every Cloudflare feature available to everyone</span></a>. This post takes a deeper look at how Transformers work inside Logpush's export pipeline. Observability teams use <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/logs/logpush/"><span style="text-decoration:underline">Logpush</span></a> to export Cloudflare logs to security information and event management systems (SIEMs), analytics platforms, and object storage. Before those logs reach their destination, teams may need to remove health checks, omit sensitive fields, or reshape records for dashboards and investigations. Today, this often requires a separate processing service that teams must deploy, scale, monitor, and maintain.</p><p>For example, a team that collects logs from multiple CDNs can add a static provider field to normalize records before they reach its analytics platform. Teams also pay to export, ingest, and store records they discard as soon as they arrive, so filtering them before delivery can reduce downstream data volume and cost.</p><p>With Transformers, that processing moves into the Logpush export workflow.Teams define a SQL query to filter records, redact sensitive data, and reshape the output by adding, renaming, removing, or nesting fields. Logpush applies the query before export, so each destination receives data in the form it needs. We made this workflow simple for customers by embedding a SQL transformation engine in Logpush's high-throughput export pipeline while keeping performance and resource use predictable.</p><h2>How Logpush Transformers work</h2><p>A Transformer is a SQL query written for a specific Logpush dataset. The query references fields from that dataset and defines which records and fields Logpush should export. Logpush applies the query to each batch before export. Records that do not match the WHERE clause are removed. For the remaining records, the output of the SELECT statement becomes the exported record. Transformers can change the structure and contents of each record, and the transformed results are exported in NDJSON format.</p><p>Customers can create, preview, and manage Transformers in the Cloudflare dashboard through Transformer Studio or programmatically through the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/api/resources/logpush/subresources/transformers/"><span style="text-decoration:underline">API</span></a>. After saving a Transformer, they can attach it to a compatible NDJSON Logpush job that uses the same dataset. Each update creates a new version, so customers can review how a Transformer has changed over time.</p><p>The following example reshapes a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/logs/logpush/logpush-job/datasets/zone/http_requests/"><span style="text-decoration:underline">Cloudflare HTTP request log</span></a> to match a team-defined schema used across CDN providers. It does not convert between serialization formats: both the input and output use NDJSON.</p><pre><code class="language-json">&#123;
+  "ClientIP": "203.0.113.42",
+  "ClientRequestHost": "example.com",
+  "ClientRequestMethod": "POST",
+  "ClientRequestPath": "/api/checkout",
+  "ClientRequestUserAgent": "Mozilla/5.0",
+  "EdgeResponseStatus": 502,
+  "EdgeStartTimestamp": "2026-05-21T15:00:00Z",
+  "RayID": "8e2a1c60ef9e1c9a"
+&#125;</code></pre><p>The Transformer renames and nests fields, redacts part of the client IP address, adds provider and error information, removes unused fields, and filters out internal and health-check traffic:</p><pre><code class="language-sql">SELECT
+  extract(epoch FROM to_timestamp(EdgeStartTimestamp)) AS unix_ts,
+  regexp_replace(ClientIP, '\.\d+\.\d+$', '.XXX.XXX') AS redacted_ip,
+  UPPER(ClientRequestMethod) AS method,
+  EdgeResponseStatus AS status,
+  RayID AS ray_id,
+  'cloudflare' AS provider,
+  named_struct(
+    'host', ClientRequestHost,
+    'path', ClientRequestPath
+  ) AS request,
+  EdgeResponseStatus &gt;= 500 AS is_server_error
+FROM http_requests
+WHERE ClientRequestHost NOT IN (
+  'internal.example.com',
+  'health.example.com'
+)
+  AND ClientRequestPath NOT LIKE '/healthz%'
+  AND ClientRequestPath NOT LIKE '/metrics%'</code></pre><p>The resulting NDJSON record uses the normalized schema:</p><pre><code class="language-json">&#123;
+  "unix_ts": 1779375600,
+  "redacted_ip": "203.0.XXX.XXX",
+  "method": "POST",
+  "status": 502,
+  "ray_id": "8e2a1c60ef9e1c9a",
+  "provider": "cloudflare",
+  "request": &#123;
+    "host": "example.com",
+    "path": "/api/checkout"
+  &#125;,
+  "is_server_error": true
+&#125;</code></pre><h2>How Transformers executes SQL with Apache DataFusion and Arrow</h2><p>Cloudflare's data pipeline ingests more than one billion events per second. Its Logpush delivery service, which we call Bufstream, delivers more than 110 million Logpush records per second to customer destinations. It runs across hundreds of Kubernetes pods, each claiming a time slice of data from <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/how-we-make-sense-of-too-much-data"><span style="text-decoration:underline">Buftee</span></a>, Cloudflare's distributed log-based in-house message broker. This model distributes work horizontally across Logpush jobs. Job volume follows a Pareto-like distribution: most jobs operate at lower volumes, while a small number of high-volume jobs process millions of logs each second. Transformers needed to meet the same operational requirements as the rest of Logpush: reliable delivery, high throughput, and predictable resource use without introducing additional failure scenarios into the export hot path.</p><p>Our initial prototype ran customer-defined WebAssembly Transformers in Cloudflare Workers, which provides globally distributed, isolated compute. However, invoking a Worker would insert a network call into the Logpush export path. That remote dependency could introduce transient timeouts and retries, reducing delivery throughput and increasing delivery latency.</p><p>We decided to keep Transformer execution in-process within our delivery service to prioritize reliability and delivery throughput. We evaluated several SQL execution engines and selected <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datafusion.apache.org/"><span style="text-decoration:underline">Apache DataFusion</span></a>, which already powers <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/cloudflare-basin"><span style="text-decoration:underline">Cloudflare Basin</span></a>.</p><p>Apache DataFusion is a Rust query engine built on Apache Arrow, with a SQL planner and vectorized, columnar execution engine. In a benchmark, executing a prepared Transformer against a synthetic 5,000-row http_requests batch from a single Go goroutine took about 3 ms, equivalent to roughly 1.6 million rows per second.</p><p>Attaching a Transformer to a job adds CPU work to its processing path. Bufstream uses per-job transform parallelism so high-volume jobs can execute transform batches concurrently. Embedding DataFusion in Bufstream lets those batches use the service's existing delivery infrastructure, including its scheduling, batching, and destination controls, without introducing a separate transformation tier or network hop.</p><p>Choosing DataFusion meant connecting Bufstream, which is written in Go, to an engine written in Rust. The next challenge was moving typed batches efficiently across that boundary.</p><p>The final design of the in-process Transformer pipeline is shown in the diagram below.</p><!-- unsupported block: image --><h3>From records to columns</h3><p>Bufstream receives compressed Logpush batches containing Cap'n Proto records from Buftee. For a job with a Transformer attached, Bufstream decompresses the batch, parses the eligible logs, and builds a typed Apache Arrow RecordBatch before executing the transform.</p><p>Apache Arrow is a language-independent, columnar in-memory format designed for efficient analytics on modern CPUs and GPUs. It represents flat and nested data as typed, contiguous columns. Arrow IPC gives Bufstream and DataFusion a standard way to exchange batches across the foreign function interface (FFI) boundary between Go and Rust, exposed through a C application binary interface (ABI) and called from Go using <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pkg.go.dev/cmd/cgo"><span style="text-decoration:underline">cgo</span></a>, Go's mechanism for calling C code.<br><br>The Go and Rust runtimes do not share ownership of transform data. Go passes a pointer to its input Arrow IPC buffer to Rust only for the duration of the cgo call, and Rust does not retain that pointer after returning. Rust owns the transformed output buffer; Go copies it into Go-managed memory and then explicitly releases the Rust allocation. This makes ownership and lifetimes explicit across the language boundary, avoiding cross-runtime memory-management bugs.</p><p>Using Arrow IPC means the Rust DataFusion wrapper can use an Arrow <code>StreamReader</code> to read typed <code>RecordBatch</code> values, rather than parse individual rows from an intermediate format such as JSON and rebuild typed Arrow columns for execution. Field types, nullability, and nested values are represented consistently on both sides of the boundary, so DataFusion receives data in its native columnar model.</p><p>Crossing the Go/Rust boundary is not free: batches still need to be serialized, decoded, and managed in memory. Arrow IPC keeps that work batch-oriented and avoids per-record parsing and conversion. This makes the boundary a better fit for Logpush's high-throughput delivery pipeline while retaining schema validation against the Logpush dataset definition.</p><p>Every Arrow batch needs a schema describing its fields and types. Rather than infer that schema from the logs in a particular batch, Bufstream supplies a generated schema from each Logpush dataset's specification. This gives DataFusion a stable view of the available fields and types, enabling query validation. The table named in a Transformer's FROM clause selects which dataset schema the query uses. For example, this Transformer queries the http_requests dataset:</p><pre><code class="language-sql">SELECT ClientIP, EdgeResponseStatus, RayID
+FROM http_requests
+WHERE EdgeResponseStatus &gt;= 500</code></pre><h3>Executing the transform</h3><p>When a customer saves a Transformer through the API or Transformer Studio, Cloudflare stores its SQL query in R2. Bufstream retrieves the query through a multi-layer cache and translates it into a reusable DataFusion logical plan that defines the scan, filters, projections, and expressions. Bufstream prepares this plan once per time slice of a job's data and reuses it for every Arrow batch in that slice. For every new Arrow batch, the Rust wrapper binds the batch as the plan’s table input, executes the query, and returns Arrow batches containing the selected records and fields.</p><p>Transformers are designed to fail closed. If a transform cannot be executed, Bufstream neither advances the job's delivery offset nor sends the untransformed batch. Delivering raw data in place of transformed data could violate the schema, filtering, or redaction assumptions of downstream pipelines, so Bufstream opts to re-attempt failed transforms instead.</p><p>To prevent a persistently failing job from consuming capacity needed by healthy jobs, Bufstream progressively delays retries and reports errors on the job. Jobs that remain in a failing state for an extended period are automatically disabled. Customers can monitor successful and failed transformations, data volume before and after transformation, and transformation duration in the Transformer Health view of the Health tab in Logpush.</p><h3>Returning to the export pipeline</h3><p>After execution, Bufstream converts the Arrow output into NDJSON logs. It batches, gzip-compresses, and uploads those logs to the configured destination. Destinations accept data at different rates and can temporarily slow down. Bufstream adjusts the number of upload goroutines while respecting destination concurrency limits.</p><p>By embedding SQL execution in Bufstream, Transformers use Logpush’s existing distributed infrastructure, batching, and destination controls. Cloudflare’s data pipeline handles that complexity, while customers create and apply a Transformer with only a few steps.</p><h2>Get started</h2><p>Open Transformer Studio from the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dash.cloudflare.com/?to=/:account/logs"><span style="text-decoration:underline">Logpush page</span></a> in the Cloudflare dashboard and follow these steps:</p><ol><li>Choose the Logpush dataset you want to transform.</li><li>Write your SQL query and preview it against a sample record.</li><li>Save the Transformer.</li><li>Attach it to a matching Logpush job.</li></ol><p>Transformers is available on Free, Pro, Business, and Enterprise plans. See the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/logs/logpush/transformers/"><span style="text-decoration:underline">Transformers documentation</span></a> for setup details and the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/logs/logpush/pricing/"><span style="text-decoration:underline">Logpush pricing documentation</span></a> for current pricing information.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Filter, reshape, and redact logs before export with Transformers" href="https://blog.cloudflare.com/transformers-on-logpush/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Filter, reshape, and redact logs before export with Transformers</span><span class="desc fs12">https://blog.cloudflare.com/transformers-on-logpush/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/89e5e5a1.html">丘成桐数学与人工智能实验室联盟在清华大学成立<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/136d80c7.html">Llm-Meta-Ai 0.2<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/32840b98.html" title="Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7389"></div><span class="title">Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign</span></a><a class="item" href="/rss/50d9d8a9.html" title="A Fully Programmable Secure Web Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2705"></div><span class="title">A Fully Programmable Secure Web Gateway</span></a><a class="item" href="/rss/c347ba35.html" title="Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=870"></div><span class="title">Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare</span></a><a class="item" href="/rss/a6023771.html" title="Cloudflare and OpenAI: Making AI Discovery Better for Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1345"></div><span class="title">Cloudflare and OpenAI: Making AI Discovery Better for Everyone</span></a><a class="item" href="/rss/e0895928.html" title="Deno Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8042"></div><span class="title">Deno Is Joining Cloudflare</span></a><a class="item" href="/rss/466c5ce2.html" title="Continuous Accountability for Verified Bots"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1372"></div><span class="title">Continuous Accountability for Verified Bots</span></a><a class="item" href="/rss/3e442e97.html" title="Deploy With Void"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2176"></div><span class="title">Deploy With Void</span></a><a class="item" href="/rss/e36ba71f.html" title="Inside Hyperdrive: How We Solved a Rare Hyperdrive MySQL Caching Bug"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8355"></div><span class="title">Inside Hyperdrive: How We Solved a Rare Hyperdrive MySQL Caching Bug</span></a><a class="item" href="/rss/e4ae02d4.html" title="Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4859"></div><span class="title">Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash</span></a><a class="item" href="/rss/9cdb99c2.html" title="Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3465"></div><span class="title">Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects</span></a><a class="item" href="/rss/5ec1e254.html" title="Rewinding the Exponential: How We Keep Hardware Usage Down"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2064"></div><span class="title">Rewinding the Exponential: How We Keep Hardware Usage Down</span></a><a class="item" href="/rss/b2afd7b3.html" title="The Keys to the Internet Change on October 11. Are You Ready?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5826"></div><span class="title">The Keys to the Internet Change on October 11. Are You Ready?</span></a><a class="item" href="/rss/1221fd7c.html" title="Under the Hood, Off the Hot Path: How D1 Scales to Millions of Databases"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5557"></div><span class="title">Under the Hood, Off the Hot Path: How D1 Scales to Millions of Databases</span></a><a class="item" href="/rss/d8b1f266.html" title="Yandex Outage: Data Shows That Instead of Going Dark, Malicious Bots Went on the Move"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9188"></div><span class="title">Yandex Outage: Data Shows That Instead of Going Dark, Malicious Bots Went on the Move</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

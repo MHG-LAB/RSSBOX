@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Inside Hyperdrive: How We Solved a Rare Hyperdrive MySQL Caching Bug - RSSBOX</title>
+
+  
+    <meta name="description" content="Hyperdrive support for MySQL is now generally available (GA). Hyperdrive, Cloudflare’s database connection pooler for Workers, initially only supported Postgres. Since we announced the beta for MySQL">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Inside Hyperdrive: How We Solved a Rare Hyperdrive MySQL Caching Bug">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e36ba71f.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Hyperdrive support for MySQL is now generally available (GA). Hyperdrive, Cloudflare’s database connection pooler for Workers, initially only supported Postgres. Since we announced the beta for MySQL">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-14T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-14T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What is Hyperdrive?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">A journey to stability</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">A hard-to-find bug</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Hyperdrive caching</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">MySQL client&#x2F;server protocol</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Endpoint caches, Client reads</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Client caches, Endpoint reads</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Reliability is a feature</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-14T13:00:00.000Z">2026-10-14</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Inside Hyperdrive: How We Solved a Rare Hyperdrive MySQL Caching Bug</span></h1>
+<div>
+<p>Hyperdrive support for MySQL is now generally available (GA). <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/products/hyperdrive/"><span style="text-decoration:underline">Hyperdrive</span></a>, Cloudflare’s database connection pooler for Workers, initially only supported Postgres. Since we announced <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/building-global-mysql-apps-with-cloudflare-workers-and-hyperdrive/"><span style="text-decoration:underline">the beta for MySQL protocol support</span></a> last year, we have been working on making our MySQL handling as reliable as our Postgres support.</p><p>We’ve learned some things from building and running a MySQL connection pooler on Cloudflare’s network. It turns out that the difference between beta and GA is just 20 bug fixes in a trenchcoat.</p><p>During the beta, our goal was to validate that real-world customer usage hit our production availability target of 99.99%. We knew there were gaps in our reliability since we track how often client connections from a Worker end in an error related to Hyperdrive. In addition, we had feedback from customers in the beta that led to the discovery of a rare and subtle bug in our production environment. To convey the complexity of this particular bug, we first need to explain how Hyperdrive works.</p><h2>What is Hyperdrive?</h2><p>Hyperdrive is a distributed database connection pooler that connects Cloudflare Workers to SQL databases. Hyperdrive holds warm SQL connections open on our global network and shares these connections across many Worker requests. In addition to connection pooling, Hyperdrive can also cache common queries in our global CDN cache, reducing latency and load on the origin database.</p><p>Establishing a connection to a SQL database is expensive, taking a minimum of five network round trips. On a serverless compute platform like Workers, establishing a connection for each request would be impractical, both because of the amount of latency added to each request, but also because a large number of open connections can incur high per-connection resource costs. While MySQL fares better here than Postgres since MySQL doesn’t use an entire OS process per connection, a typical deployment can still run into resource issues with a large number of connections.</p><p>For more details, see <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/how-hyperdrive-speeds-up-database-access/"><span style="text-decoration:underline">our blog post introducing Hyperdrive.</span></a></p><h2>A journey to stability</h2><p>Some of the issues we ran into were small and easy to fix once reported. One of the first problems reported in the beta was that emojis written to the database were not being correctly returned. This was a bug related to character set encoding. Hyperdrive negotiates the encoding for the connection in the startup handshake, and we negotiate <code>utf8</code> as the encoding. As it turns out, <code>utf8</code> is a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/refman/9.7/en/charset-unicode-utf8.html"><span style="text-decoration:underline">deprecated alias</span></a> for <code>utf8mb3</code> which is <em>not</em> all of UTF-8: it only supports 1–3 bytes per Unicode code point, while full UTF-8 has a max of 4 bytes per code point. To get all of UTF-8, we needed to change our handshake to use <code>utf8mb4</code> , which fixed the emoji issue.</p><p>Another encoding-related bug occurred when we added connection cleanup via <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/dev/mysql-server/9.7.2/page_protocol_com_reset_connection.html"><code><span style="text-decoration:underline">COM_RESET_CONNECTION</span></code></a>. This is a lightweight MySQL command to clear any session state in a given connection, which is exactly what Hyperdrive needs to ensure that no session-level state leaks between checkouts. But adding this connection cleanup step caused encoding issues once again! It turns out that COM_RESET_CONNECTION does not reset the connection state to the character set encoding we negotiated at connection startup; it instead resets the connection to the server default. This means that after negotiating utf8mb4 on a MySQL server instance that defaults to <code>latin1</code>, once we run COM_RESET_CONNECTION, our connection now has an encoding of <code>latin1</code>. The fix is to always run a command setting the encoding to utf8mb4 after a connection reset.</p><h2>A hard-to-find bug</h2><p>During the beta, our highest-volume MySQL customer reported a small but consistent rate of empty query responses for which a non-empty response was always expected. We started the investigation by combing through all of our telemetry and understanding the user’s logic. Then we also increased the trace rate for this Hyperdrive instance, hoping to see the execution flow of this bug. We searched for network issues that could explain the issue — but nothing seemed to account for this behavior. This error occurred about 0.001% of the time, which made it very hard to find relevant end-to-end execution traces.</p><p>But we did have one clue: the bug only occurred on Hyperdrive instances with caching enabled. This made us suspect an issue with Hyperdrive’s MySQL caching.</p><h3>Hyperdrive caching</h3><p>To understand Hyperdrive's caching, we first need to talk about Hyperdrive's topology and how it interacts with the CDN cache. Every Hyperdrive instance has a split architecture with two nodes: a Client and an Endpoint. The Client node runs on the same machine as the user’s Worker, handles local caching (if enabled), and forwards queries to the Endpoint if needed. The Endpoint node holds the connection pool and is placed in the data center closest to the origin database. Each node uses the Cloudflare CDN cache local to the data center it is running in. Importantly, this means that if the two nodes are running in the same data center, they will share a cache.</p><!-- unsupported block: image --><!-- unsupported block: image --><p>Sharing the cache between Client and Endpoint is generally good for performance. We use a hash of the contents of the query’s wire messages with some normalization and store the result bytes in the cache. If a Hyperdrive Client running in the same data center as its Endpoint receives a request, and that Endpoint has recently cached the results of the same query, the Client can serve the response directly from the shared data center cache. To work correctly, this scheme requires that the same bytes are cached for the same response, whether stored by the Client or the Endpoint.</p><h3>MySQL client/server protocol</h3><p>Since we couldn’t get a direct trace of the issue, we decided to spend time looking at the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/dev/mysql-server/8.0.46/PAGE_PROTOCOL.html"><span style="text-decoration:underline">MySQL client / server protocol</span></a>. Perhaps we had an assumption about Postgres’ protocol built into our MySQL handling that was causing these issues.</p><!-- unsupported block: image --><p>The protocol describes how a MySQL client communicates with a MySQL server. This can be somewhat confusing in the case of database connection pooling since we have two components acting like clients and two acting like servers. The first client is the Worker using a MySQL client library, and it connects to the first component acting like a server, the Hyperdrive Client. The Hyperdrive Client connects to the Hyperdrive Endpoint which acts as a MySQL client connecting to the actual MySQL origin server.</p><p>This protocol starts with the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/dev/mysql-server/8.0.46/page_protocol_connection_phase.html"><span style="text-decoration:underline">Connection Phase</span></a> where the MySQL client and the MySQL server agree upon a common authentication method and capabilities. Once a connection is established, the client and server begin the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/dev/mysql-server/8.0.46/page_protocol_command_phase.html"><span style="text-decoration:underline">Command Phase</span></a>, where the client sends commands (e.g. SQL statements) to be executed with the server responding and waiting for the next command.</p><p>Capabilities are exchanged during the Connection Phase to support protocol evolution while remaining backwards compatible. Each capability is a feature, like supporting compression during the Command Phase. The clients and servers must only use features which the other supports, otherwise a protocol desync can occur, leading to unexpected behavior.</p><p>This capability negotiation can be tricky for Hyperdrive, since Hyperdrive acts as a client to the origin database, and acts as a server to the Worker. To ensure that Hyperdrive can parse the messages from the origin MySQL server, Hyperdrive has a fixed set of capability flags which are used to communicate to the origin database. Since it is possible for Hyperdrive’s set of capabilities to be different from the Worker client’s set of capabilities, Hyperdrive needs to translate all origin responses encoded by its capabilities to the capabilities that the Worker expects.</p><p>While trying to debug this issue, we found that a popular MySQL client library for Node.js (<code>mysql2</code>) does not currently support the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://dev.mysql.com/doc/dev/mysql-server/8.0.46/group__group__cs__capabilities__flags.html#gaad8e6e886899e90e820d6c2e0248469d"><span style="text-decoration:underline">CLIENT_DEPRECATE_EOF</span></a> capability, which changes how result sets are terminated. Without this capability, the server sends an EOF packet between the column definitions and rows, then another EOF packet at the end of the result set. When CLIENT_DEPRECATE_EOF is negotiated, the metadata EOF packet is omitted and the final EOF packet is replaced with an OK packet. MySQL server 5.7.5 and later supports this capability, but the newer OK-packet behavior is only used when the client negotiates it.</p><!-- unsupported block: image --><p>While Hyperdrive does support the CLIENT_DEPRECATE_EOF capability, it’s possible that the Worker’s MySQL driver does not. To handle this, Hyperdrive adjusts its behavior to support the capabilities that the Worker client driver expects. This means rewriting result sets to include EOFs and to translate all OK packets to EOFs when required. </p><p>After days of looking through telemetry, documentation, and Hyperdrive code, everything clicked. We finally came across the last missing piece: a faulty assumption in our Hyperdrive Client caching code. We baked in an assumption when implementing the Client caching for Postgres: that we can cache exactly the bytes we wrote back to the Worker. While this was a reasonable assumption to make with Postgres’ wire protocol, it no longer holds due to the mismatch in MySQL capabilities. If a Client node is caching exactly what it writes back to the Worker, these bytes are in a different format than what an Endpoint node would be expecting. That’s because the Endpoint node is always working with Hyperdrive’s capabilities, while the Client node writes back bytes that are translated to match the Worker’s capabilities.</p><p>Now if we put all these clues together, we can understand scenarios where Hyperdrive can return a MySQL response encoded with the wrong capabilities, leading to the unexpected empty results and hangs. The bug occurs when both the Client and Endpoint are in the same data center, sharing a cache, and when one reads a value cached by the other.</p><p>Here’s a closer look at two such scenarios.</p><h3>Endpoint caches, Client reads</h3><ol><li>The Endpoint is in the middle of servicing a request for query Q. It gets back a response R from the origin server and caches response result bytes R_hyperdrive (Response encoded with Hyperdrive capabilities) into the shared cache.</li><li>Client receives another request for query Q, checks the shared cache and finds R_hyperdrive.</li><li>Client responds to the Worker with R_hyperdrive without translating to the Worker’s capabilities.</li></ol><p>This diagram shows that flow:</p><!-- unsupported block: image --><h3>Client caches, Endpoint reads</h3><ol><li>Client is finishing serving a request for query Q, and it writes the translated response bytes R_worker to cache.</li><li>Endpoint is in the middle of servicing a request for Q, and checks the cache to find R_worker.</li><li>Endpoint sends R_worker to a different Client, and this Client tries to translate R_worker to the Worker’s capabilities, and ends up sending an early EOF or hangs.</li></ol><p>You can see that here:</p><p></p><!-- unsupported block: image --><p>Once we found this type of failure mode, the fix was simple. We now make sure that we always write back a canonical version of the query result bytes in the cache encoded using Hyperdrive’s capabilities, no matter which node stored it. After releasing this change, the empty row problem went away — and our success rate for Client connections reached 99.99%.</p><h2>Reliability is a feature</h2><p>You can use Hyperdrive support for MySQL today! Create a Hyperdrive to an existing MySQL-compatible database via the dashboard or wrangler, or <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/hyperdrive/planetscale/"><span style="text-decoration:underline">connect to a new PlanetScale database</span></a>. If you run into any issues or have questions, reach out on our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://discord.cloudflare.com/"><span style="text-decoration:underline">Discord</span></a>. </p><pre><code class="language-plaintext">npx wrangler hyperdrive create HYPERDRIVE_NAME --connection-string="mysql://user:password@db-host.example.com:3306/dbname"</code></pre>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Inside Hyperdrive: How we solved a rare Hyperdrive MySQL caching bug" href="https://blog.cloudflare.com/hyperdrive-mysql/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Inside Hyperdrive: How we solved a rare Hyperdrive MySQL caching bug</span><span class="desc fs12">https://blog.cloudflare.com/hyperdrive-mysql/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/9e924c6d.html">全栈国产化！2874.9万元大单落地：银河麒麟、南大通用、H3C、华为等中标<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ed03dded.html">Tree Appreciator<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/32840b98.html" title="Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7389"></div><span class="title">Bridging Technical Depth and Usability: The Story Behind Radar’s Redesign</span></a><a class="item" href="/rss/50d9d8a9.html" title="A Fully Programmable Secure Web Gateway"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2705"></div><span class="title">A Fully Programmable Secure Web Gateway</span></a><a class="item" href="/rss/c347ba35.html" title="Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=870"></div><span class="title">Building an Evidence-Grounded Agentic Security Operations Harness on Cloudflare</span></a><a class="item" href="/rss/a6023771.html" title="Cloudflare and OpenAI: Making AI Discovery Better for Everyone"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1345"></div><span class="title">Cloudflare and OpenAI: Making AI Discovery Better for Everyone</span></a><a class="item" href="/rss/e0895928.html" title="Deno Is Joining Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8042"></div><span class="title">Deno Is Joining Cloudflare</span></a><a class="item" href="/rss/466c5ce2.html" title="Continuous Accountability for Verified Bots"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1372"></div><span class="title">Continuous Accountability for Verified Bots</span></a><a class="item" href="/rss/3e442e97.html" title="Deploy With Void"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2176"></div><span class="title">Deploy With Void</span></a><a class="item" href="/rss/afc29148.html" title="Filter, Reshape, and Redact Logs Before Export With Transformers"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=793"></div><span class="title">Filter, Reshape, and Redact Logs Before Export With Transformers</span></a><a class="item" href="/rss/e4ae02d4.html" title="Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4859"></div><span class="title">Introducing Clef-Omni With Full Multimodality, Plus a Faster Clef and a Cheaper Clef-Flash</span></a><a class="item" href="/rss/9cdb99c2.html" title="Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3465"></div><span class="title">Introducing On-Demand CPU and Memory Profiling With Flamegraphs for Workers and Durable Objects</span></a><a class="item" href="/rss/5ec1e254.html" title="Rewinding the Exponential: How We Keep Hardware Usage Down"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2064"></div><span class="title">Rewinding the Exponential: How We Keep Hardware Usage Down</span></a><a class="item" href="/rss/b2afd7b3.html" title="The Keys to the Internet Change on October 11. Are You Ready?"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5826"></div><span class="title">The Keys to the Internet Change on October 11. Are You Ready?</span></a><a class="item" href="/rss/1221fd7c.html" title="Under the Hood, Off the Hot Path: How D1 Scales to Millions of Databases"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5557"></div><span class="title">Under the Hood, Off the Hot Path: How D1 Scales to Millions of Databases</span></a><a class="item" href="/rss/d8b1f266.html" title="Yandex Outage: Data Shows That Instead of Going Dark, Malicious Bots Went on the Move"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9188"></div><span class="title">Yandex Outage: Data Shows That Instead of Going Dark, Malicious Bots Went on the Move</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
