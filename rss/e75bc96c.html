@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践 - RSSBOX</title>
+
+  
+    <meta name="description" content="前言 近期 PHP 官方披露多起高危远程代码执行漏洞，相关漏洞可被利用实现服务端代码执行，该事件给大量搭载 PHP 的业务系统、OA、内网 Web 服务带来严峻安全挑战。 在企业安全运营实践中，高危漏洞真正的风险，往往不完全来自漏洞本身，而是漏洞公开披露到全部业务完成补丁修复之间的时间窗口。受业务兼容性、变更审批、隔离内网环境等现实因素制约，很多业务无法第一时间完成升级。一旦边界防护被绕过，攻击">
+<meta property="og:type" content="article">
+<meta property="og:title" content="从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/e75bc96c.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="前言 近期 PHP 官方披露多起高危远程代码执行漏洞，相关漏洞可被利用实现服务端代码执行，该事件给大量搭载 PHP 的业务系统、OA、内网 Web 服务带来严峻安全挑战。 在企业安全运营实践中，高危漏洞真正的风险，往往不完全来自漏洞本身，而是漏洞公开披露到全部业务完成补丁修复之间的时间窗口。受业务兼容性、变更审批、隔离内网环境等现实因素制约，很多业务无法第一时间完成升级。一旦边界防护被绕过，攻击">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-23T02:35:28.000Z">
+<meta property="article:modified_time" content="2026-10-23T02:35:28.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">前言</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、漏洞背景：剖析 PHP 高危漏洞的风险根源</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、企业现实困境：只靠打补丁，远远不够</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、端点侧纵深防御：高危漏洞窗口期的防护实践</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 资产盘点：定位内网全部 PHP 风险实例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 补丁管理：形成漏洞修复闭环</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 应用程序管控：阻断入侵后的恶意执行链</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.4 网络访问控制：遏制攻击者横向移动</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.5 全维度行为审计：留存入侵取证证据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.6 多维度风险告警：及时感知异常信号</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.7 应急工具箱：入侵发生后的处置手段</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、PHP 高危漏洞企业应急 Checklist</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-23T02:35:28.000Z">2026-10-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践</span></h1>
+<div>
+<h2 data-id="heading-0">前言</h2>
+<p>近期 PHP 官方披露多起高危远程代码执行漏洞，相关漏洞可被利用实现服务端代码执行，该事件给大量搭载 PHP 的业务系统、OA、内网 Web 服务带来严峻安全挑战。</p>
+<p>在企业安全运营实践中，高危漏洞真正的风险，往往不完全来自漏洞本身，而是<strong>漏洞公开披露到全部业务完成补丁修复之间的时间窗口</strong>。受业务兼容性、变更审批、隔离内网环境等现实因素制约，很多业务无法第一时间完成升级。一旦边界防护被绕过，攻击者就会以受攻陷服务器作为跳板，向内网开展横向渗透，威胁整个内网环境安全。</p>
+<p>本文不涉及漏洞 POC、EXP 复现与利用，立足于企业安全运维视角，剖析漏洞带来的实际业务风险，探讨补丁窗口期内，如何依靠纵深防御思想，借助端点安全能力补齐防护短板。</p>
+<h2 data-id="heading-1">一、漏洞背景：剖析 PHP 高危漏洞的风险根源</h2>
+<p>本次爆出的高危漏洞，问题产生于 PHP 内核处理<code>multipart/form‑data</code>类型 POST 请求阶段，属于内核内存状态管理异常缺陷。</p>
+<p>这里需要简单理解 PHP 的请求生命周期：当 Web 服务收到 HTTP 请求，<strong>PHP 内核会优先完成请求解析、参数解析，之后才会执行业务 PHP 代码</strong>。而本次漏洞触发点处于业务代码运行之前。</p>
+<p>这也是该类漏洞风险较高的核心原因：</p>
+<ol>
+<li><strong>攻击前置，认证失效</strong>
+攻击者构造特殊的 POST 数据包即可触发缺陷，不需要账号密码，只要网络层面可达目标 Web 服务，就可以发起探测尝试。</li>
+<li><strong>WAF 存在绕过可能性</strong>
+因为漏洞发生在内核请求解析环节，还没有到达业务层逻辑，很多基于业务特征的 WAF 规则很难做到完全拦截，边界防护存在被绕过风险。</li>
+<li><strong>受影响资产基数庞大</strong>
+PHP 广泛应用于门户网站、内容管理系统、OA 办公系统、内部业务平台。很多内网系统、国产化信创服务器中存在手动编译部署的 PHP 环境，不在常规包管理器统计范围内，容易形成资产盲区。</li>
+<li><strong>攻陷单点即可向内网扩散</strong>
+攻击者拿到服务器执行权限后，会上传 WebShell、新增后门账号，扫描内网网段进行横向移动，风险从单台 Web 服务器扩散至整个内网，造成数据泄露、业务瘫痪等严重后果。</li>
+</ol>
+<blockquote>
+<p>现实场景提醒：很多企业内部 OA、小型 CMS 系统会内置 PHP 环境，运维经常忽略这类业务组件，没有纳入漏洞扫描清单，极易成为攻击者突破内网的入口。</p>
+</blockquote>
+<h2 data-id="heading-2">二、企业现实困境：只靠打补丁，远远不够</h2>
+<p>“打官方补丁” 始终是解决 PHP 源码漏洞的根本方案，但落地到真实生产环境，会遇到大量现实阻碍：</p>
+<ul>
+<li>旧业务强依赖特定 PHP 版本，升级后会引发业务报错、功能失效，需要完整回归测试；</li>
+<li>生产环境变更有严格审批流程，需要等待维护窗口；</li>
+<li>老旧下线系统，无厂商维护，无法完成版本升级；</li>
+<li>物理隔离内网环境，服务器无法访问公网，补丁下载、批量分发难度大；</li>
+<li>大量手动编译安装 PHP，系统自带补丁库无法识别，人工逐台排查成本极高。</li>
+</ul>
+<p>因此企业安全防护不能把全部希望寄托于补丁。在修复窗口期，我们需要一套临时防护体系，这套体系的目标：</p>
+<p>✅ 定位全部风险资产，消除资产盲区</p>
+<p>✅ 收紧访问策略，抬高攻击者攻击成本</p>
+<p>✅ 监控服务器异常行为，及时捕捉入侵迹象</p>
+<p>✅ 留存完整审计日志，支撑事件溯源取证</p>
+<p>✅ 为业务系统测试、补丁上线争取宝贵时间</p>
+<p>而端点安全，正是这套临时防护体系重要的组成部分。</p>
+<h2 data-id="heading-3">三、端点侧纵深防御：高危漏洞窗口期的防护实践</h2>
+<p>边界网关、WAF 负责外网入口防护，端点安全聚焦服务器与终端本地，当边界被突破之后，作为内网的第二道防线。下面从资产识别、补丁闭环、应用管控、网络隔离、行为审计、风险监控六个维度说明可落地的实践方案。</p>
+<h3 data-id="heading-4">3.1 资产盘点：定位内网全部 PHP 风险实例</h3>
+<p>防御的第一步是看见风险，不知道风险资产在哪，后续防护就无从谈起。</p>
+<p>企业可以借助统一端点安全管理平台，采集全网 Windows、Linux、macOS、信创操作系统的软件资产清单：</p>
+<ol>
+<li>自动采集主机软件列表，识别 PHP 版本、安装路径，区分包管理器安装、手动编译部署两种部署形态；</li>
+<li>筛选出全部处于受漏洞影响版本范围内的服务器、虚拟机，输出风险资产清单，标记业务负责人、业务重要等级；</li>
+<li>同步采集硬件资产、系统账户、关键信息变更日志，一旦主机遭遇入侵出现账户、主机名、IP 篡改，能够第一时间发现。</li>
+</ol>
+<blockquote>
+<p>小提示：重点关注内网 OA、小型 Web 应用，这类服务 PHP 大多为手动编译部署，常规系统命令无法统计，很容易被遗漏。借助迪康端点安全一体化管理系统这类统一管理平台，可完成跨架构软件资产识别，覆盖国产化信创服务器。</p>
+</blockquote>
+<h3 data-id="heading-5">3.2 补丁管理：形成漏洞修复闭环</h3>
+<p>官方补丁仍是根治漏洞的唯一手段，端点平台主要解决复杂、隔离内网环境下补丁分发与状态统计的难题。</p>
+<ol>
+<li>对于物理隔离内网，可以离线导入官方 PHP 补丁包，构建内网本地补丁库；</li>
+<li>针对筛选得到的风险资产，批量下发升级任务，记录补丁安装日志，统计每台主机安装成功、失败状态；</li>
+<li>针对信创麒麟、OpenEuler 等国产操作系统服务器，完成国产化环境组件版本管理；</li>
+<li><strong>对暂时无法升级的资产打上风险标签，纳入重点监控名单</strong>。</li>
+</ol>
+<blockquote>
+<p>⚠️重要提示：端点安全平台不可以修复源代码层面漏洞，仅承担分发、统计监控能力，业务条件允许必须优先升级官方安全版本。</p>
+</blockquote>
+<h3 data-id="heading-6">3.3 应用程序管控：阻断入侵后的恶意执行链</h3>
+<p>假设漏洞已经被利用，攻击者上传 WebShell、木马、挖矿脚本，应用管控能力用于限制恶意程序运行，阻断攻击后续动作。
+可参考配置策略：</p>
+<ol>
+<li>将已知 WebShell、恶意脚本特征加入进程黑名单，匹配到恶意进程后终止进程并上报告警；</li>
+<li>收紧高危服务器脚本执行权限，仅放行业务必须的脚本程序；</li>
+<li>开启禁止未经授权软件安装策略，业务软件只允许从企业内部软件库安装，防止攻击者植入后门程序；</li>
+<li>开启恶意风险行为检测，及时识别挖矿等威胁行为。</li>
+</ol>
+<blockquote>
+<p>注意：进程黑名单、脚本限制策略需要充分测试，避免拦截业务正常运行脚本，造成业务故障。</p>
+</blockquote>
+<h3 data-id="heading-7">3.4 网络访问控制：遏制攻击者横向移动</h3>
+<p>攻击者获取服务器权限之后，最典型行为就是对内网进行端口扫描、访问其他业务主机，尝试横向渗透。
+通过端点防火墙策略做访问约束：</p>
+<ol>
+<li>针对高危服务器，收紧访问权限，仅允许访问业务运行必需的内网网段、端口；</li>
+<li>禁止风险服务器主动对内网大范围扫描，阻断横向移动通道；</li>
+<li>监控服务器对外网 C2 服务器外联行为；</li>
+<li>外设管控层面，关闭服务器不必要 USB、蓝牙、串口等外设接口，避免数据被窃取；</li>
+<li>发生安全事件时，可以快速限制问题主机网络，实现应急隔离。</li>
+</ol>
+<h3 data-id="heading-8">3.5 全维度行为审计：留存入侵取证证据</h3>
+<p>一旦发生疑似入侵事件，完整审计日志是事件溯源、事后取证的核心依据。针对暂未修复漏洞的服务器，建议全部开启下面审计项：</p>
+<ul>
+<li>进程审计：记录进程创建、销毁，捕捉陌生恶意进程；</li>
+<li>文件操作审计：监控 Web 站点目录的新建、修改、删除行为，及时发现新增 WebShell；</li>
+<li>网络审计：记录每一条网络连接的源目 IP、端口、上传下载行为；</li>
+<li>账户审计：监控操作系统账户新增、启用、密码重置行为，捕捉后门账号；</li>
+<li>服务、注册表变更审计：识别攻击者添加的开机后门服务。</li>
+</ul>
+<p>审计日志可以对接 SIEM 等第三方日志平台做长期存储，满足等保审计留存要求。</p>
+<h3 data-id="heading-9">3.6 多维度风险告警：及时感知异常信号</h3>
+<p>对风险服务器开启组合告警策略，异常行为实时推送提醒：</p>
+<ol>
+<li>关键信息变更告警：IP 地址、计算机名、系统账户发生变动触发告警；</li>
+<li>硬件变更告警：服务器硬件配置被篡改及时通知管理员；</li>
+<li>性能异常告警：CPU、内存、磁盘 IO 突增，大概率存在挖矿、恶意脚本执行；</li>
+<li>违规外联告警：监控服务器非法访问互联网行为。</li>
+</ol>
+<p>所有告警集中汇总，安全管理员统一查看风险清单，完成快速处置。</p>
+<h3 data-id="heading-10">3.7 应急工具箱：入侵发生后的处置手段</h3>
+<p>当平台检测到疑似入侵迹象，管理员可以不需要登录服务器本地，通过管控平台开展初步排查：</p>
+<ol>
+<li>远程查看进程列表，结束可疑恶意进程，检查系统服务、启动项、注册表排查后门；</li>
+<li>远程文件管理，核查 Web 目录，清理可疑 WebShell 脚本；</li>
+<li>配合防火墙策略切断主机网络访问，防止攻击者继续扩散。</li>
+</ol>
+<blockquote>
+<p>重要提醒：确认被入侵主机，仅依靠端点工具清理无法保证后门完全清除，按照应急规范取证之后，建议重建系统。</p>
+</blockquote>
+<h2 data-id="heading-11">四、PHP 高危漏洞企业应急 Checklist</h2>
+<blockquote>
+<p>可直接复制用于企业内部应急处置文档</p>
+</blockquote>
+<p>表格</p>
+<table><thead><tr><th>处置阶段</th><th>执行动作项</th><th>补充备注</th></tr></thead><tbody><tr><td>资产梳理</td><td>梳理全部 PHP 运行实例，统计版本、部署方式、业务归属、负责人</td><td>区分包管理器安装 / 手动编译部署，重点排查 OA、内部 CMS</td></tr><tr><td>补丁评估分级</td><td>将资产分为三类：①可立即升级 ②测试后升级 ③暂不可升级</td><td>暂不可升级资产标记为重点监控对象</td></tr><tr><td>边界防护</td><td>WAF 配置临时防护策略，约束异常 multipart 请求数据包</td><td>仅作为临时缓解手段，<strong>不能替代官方补丁</strong></td></tr><tr><td>端点加固</td><td>收紧应用、防火墙、外设策略；开启进程 / 文件 / 网络全量审计</td><td>重点监控 Web 网站目录文件变更行为</td></tr><tr><td>持续监控</td><td>开启异常进程、外联 IP、账户变更、资源占用告警</td><td>设置告警接收人，定期巡检风险清单</td></tr><tr><td>应急预案准备</td><td>梳理主机隔离流程、日志取证流程、系统备份恢复方案</td><td>发生入侵优先保全证据，再做处置</td></tr></tbody></table>
+<h2 data-id="heading-12">五、总结</h2>
+<p>PHP 内核高危漏洞事件再次印证一个安全共识：<strong>没有任何一套防护设备可以做到 100% 的防御效果</strong>。</p>
+<p>漏洞武器化利用的速度越来越快，业务补丁修复却存在现实时间窗口，单纯依靠边界 WAF、单纯等待补丁都不足以抵御全部风险。企业需要构建「边界网关防护 + 端点检测管控 + 内网访问约束 + 完整审计溯源」的纵深防御体系。</p>
+<p>面对本次 PHP 高危漏洞，企业安全团队核心三件事：</p>
+<ol>
+<li><strong>优先评估业务，尽快升级至 PHP 官方安全版本，这是根本解决方案；</strong></li>
+<li><strong>全盘梳理内网 PHP 资产，消除资产盲区，识别高风险业务；</strong></li>
+<li><strong>针对暂未修复的服务器，启用端点侧加固与监控手段，压缩攻击者横向移动空间。</strong></li>
+</ol>
+<p>端点安全类产品，只是纵深防御体系中其中一环，能够在漏洞修复窗口期提升风险可见性，辅助应急处置，但是无法修复软件源代码漏洞，不能替代官方补丁更新。</p>
+<blockquote>
+<p>声明：本文仅用于企业安全运营技术交流，请勿将文中思路用于未经授权的测试与攻击行为。</p>
+</blockquote>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践" href="https://juejin.cn/post/7699399582179213327" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践</span><span class="desc fs12">https://juejin.cn/post/7699399582179213327</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/56478f1d.html">算网一体时代：一文拆透3层架构与6类算网融合方案，附选型对照表<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/9b116c2c.html">MiniMax M3.1 Flash 正式开源<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/87dd0569.html" title="AI 都这么强了，咱们程序员以后还能干点啥？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3688"></div><span class="title">AI 都这么强了，咱们程序员以后还能干点啥？</span></a><a class="item" href="/rss/642a927.html" title="AutoTrigger：开源的 Windows 离线安装自动化工具（GUI+CLI，自动操作安装向导）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1f5b409c90754566a47338d4f52cb505~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSp56m65pyJ54mH5LiD6Imy55qE5LqR:q75.awebp?rk3s=f64ab15b&x-expires=1793373620&x-signature=LcrJsmoqDlmJcUocYWwTmr8b4MI%3D"></div><span class="title">AutoTrigger：开源的 Windows 离线安装自动化工具（GUI+CLI，自动操作安装向导）</span></a><a class="item" href="/rss/635ddef.html" title="Docker 容器网络不通？五步排查法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5214"></div><span class="title">Docker 容器网络不通？五步排查法</span></a><a class="item" href="/rss/d84fb318.html" title="从零写一个扫雷：两个数组、一个坑，和三个后来加的功能"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1110"></div><span class="title">从零写一个扫雷：两个数组、一个坑，和三个后来加的功能</span></a><a class="item" href="/rss/90f5c64a.html" title="副业搞钱点子之 Umami 统计如何赚钱"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1faa83e9b2f84898b72770abec75f10b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1793416181&x-signature=6qa5fQ3HxJmXRC0v8GwLbEVeng0%3D"></div><span class="title">副业搞钱点子之 Umami 统计如何赚钱</span></a><a class="item" href="/rss/dcdadc8e.html" title="字符编码入门：Unicode 是值，UTF 是编码，GBK 是另一套"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8572"></div><span class="title">字符编码入门：Unicode 是值，UTF 是编码，GBK 是另一套</span></a><a class="item" href="/rss/dda97c7f.html" title="以实时驱动智能：Apache Doris Summit 2026 盛大落幕，开启 Agentic AI 时代数据新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c1c89eb6e5e44564b2abdeab0d24094f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VsZWN0REI=:q75.awebp?rk3s=f64ab15b&x-expires=1793344238&x-signature=d966jaJrWIAEv2F4yrFqQqeq3mk%3D"></div><span class="title">以实时驱动智能：Apache Doris Summit 2026 盛大落幕，开启 Agentic AI 时代数据新范式</span></a><a class="item" href="/rss/ae8a6299.html" title="忘记电视 IP 之后：一次从零开始的 Mac 局域网与 ADB 学习记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2186"></div><span class="title">忘记电视 IP 之后：一次从零开始的 Mac 局域网与 ADB 学习记录</span></a><a class="item" href="/rss/a2738c30.html" title="方图一定要裁照片吗？用 Awaking 比较裁切与留白"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b380fcbc624b49aaba959c6243fc9357~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793412830&x-signature=0kVpfpIMrp%2Brf0BAu1EWKYS3Atk%3D"></div><span class="title">方图一定要裁照片吗？用 Awaking 比较裁切与留白</span></a><a class="item" href="/rss/f0fc4f27.html" title="第2周：搜索流量开始来了——小程序SEO的收录机制与排名调优实录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2267"></div><span class="title">第2周：搜索流量开始来了——小程序SEO的收录机制与排名调优实录</span></a><a class="item" href="/rss/56478f1d.html" title="算网一体时代：一文拆透3层架构与6类算网融合方案，附选型对照表"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6aa0f39681f4d6f8ab69cbbe1a56da0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSa5LqR6KGM6ICF:q75.awebp?rk3s=f64ab15b&x-expires=1793325866&x-signature=Fhqs2zSyiSnjVwQYyili4flqxW0%3D"></div><span class="title">算网一体时代：一文拆透3层架构与6类算网融合方案，附选型对照表</span></a><a class="item" href="/rss/fd35d8f8.html" title="红花太抢眼，蓝天又想留下：用 Awaking 比较两种减饱和"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f961583763df45d48395adbfbd586040~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793338330&x-signature=sS9LWdzpDRQ9Xs0N6yb89Oo6qNo%3D"></div><span class="title">红花太抢眼，蓝天又想留下：用 Awaking 比较两种减饱和</span></a><a class="item" href="/rss/91ef9c1e.html" title="需求对接完就发布任务，做到一半才发现理解错了：对接需求的四个坑 😭😭😭"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/34821ce6c786401f9a4910a3f2648536~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUEJpdFc=:q75.awebp?rk3s=f64ab15b&x-expires=1793416482&x-signature=QPs%2BUcWtpdA7H9iykFO0R7MSz0I%3D"></div><span class="title">需求对接完就发布任务，做到一半才发现理解错了：对接需求的四个坑 😭😭😭</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

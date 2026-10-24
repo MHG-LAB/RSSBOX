@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Docker 容器网络不通？五步排查法 - RSSBOX</title>
+
+  
+    <meta name="description" content="容器一上生产，网络问题最多：容器互 ping 不通、容器出不了网、外部就是访问不到映射端口。很多人上来就 docker restart，碰运气。这篇给你一套五步排查法，从现象归类到根因，一步步收敛。  一、先分清是哪一类不通 &quot;网络不通&quot;其实是三种完全不同的问题，先归类再动手：  容器之间不通：A 容器 ping&#x2F;访问不到 B 容器； 容器出网不通：容器访问不了外网或内网其他服务（apt&#x2F;yu">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Docker 容器网络不通？五步排查法">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/635ddef.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="容器一上生产，网络问题最多：容器互 ping 不通、容器出不了网、外部就是访问不到映射端口。很多人上来就 docker restart，碰运气。这篇给你一套五步排查法，从现象归类到根因，一步步收敛。  一、先分清是哪一类不通 &quot;网络不通&quot;其实是三种完全不同的问题，先归类再动手：  容器之间不通：A 容器 ping&#x2F;访问不到 B 容器； 容器出网不通：容器访问不了外网或内网其他服务（apt&#x2F;yu">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-24T00:41:19.000Z">
+<meta property="article:modified_time" content="2026-10-24T00:41:19.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、先分清是哪一类不通</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、第二步：看网段，两个容器是不是一伙的</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、第三步：验 DNS，服务名解析对不对</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、第四步：查转发与 NAT，出网和端口映射的命门</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、第五步：通外口，端口映射与安全组收尾</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">避坑清单</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一图总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-24T00:41:19.000Z">2026-10-24</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Docker 容器网络不通？五步排查法</span></h1>
+<div>
+<blockquote>
+<p>容器一上生产，网络问题最多：容器互 ping 不通、容器出不了网、外部就是访问不到映射端口。很多人上来就 <code>docker restart</code>，碰运气。这篇给你一套五步排查法，从现象归类到根因，一步步收敛。</p>
+</blockquote>
+<h2 data-id="heading-0">一、先分清是哪一类不通</h2>
+<p>"网络不通"其实是三种完全不同的问题，先归类再动手：</p>
+<ul>
+<li><strong>容器之间不通</strong>：A 容器 ping/访问不到 B 容器；</li>
+<li><strong>容器出网不通</strong>：容器访问不了外网或内网其他服务（apt/yum、连数据库超时）；</li>
+<li><strong>外部访问不通</strong>：宿主机或其他机器访问 <code>-p</code> 映射的端口不通。</li>
+</ul>
+<p>分类测试命令：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 容器之间：进 A 容器测 B 容器 IP</span>
+docker <span class="hljs-built_in">exec</span> -it a1 sh
+ping -c 2 172.18.0.3
+curl -m 3 http://172.18.0.3:8080
+
+<p><span class="hljs-comment"># 容器出网：进容器测外网与内网目标</span><br>docker <span class="hljs-built_in">exec</span> -it a1 sh<br>ping -c 2 223.5.5.5        <span class="hljs-comment"># 通 &#x3D; 路由和转发正常</span><br>ping -c 2 <a target="_blank" rel="external nofollow noopener noreferrer" href="http://www.baidu.com/">www.baidu.com</a>    <span class="hljs-comment"># 不通而 IP 通 &#x3D; DNS 问题</span></p>
+<p><span class="hljs-comment"># 外部访问：宿主机上测映射端口</span><br>curl -m 3 <a target="_blank" rel="external nofollow noopener noreferrer" href="http://127.0.0.1:8080/">http://127.0.0.1:8080</a><br></p></code></pre><p></p>
+<blockquote>
+<p>注意：很多业务镜像没有 ping/curl，先 <code>apt-get install -y iputils-ping curl</code> 或换用 <code>wget -T 3 -O-</code>。Alpine 镜像自带 <code>wget</code>。</p>
+</blockquote>
+<h2 data-id="heading-1">二、第二步：看网段，两个容器是不是一伙的</h2>
+<p>容器间不通，第一反应是<strong>它们根本不在同一个网络</strong>。<code>docker run</code> 不指定网络时进默认 bridge（docker0），docker compose 会自动建独立网络，很容易出现"一个在 bridge、一个在 app_default"的情况。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 看所有网络与各自挂在哪个网段</span>
+docker network <span class="hljs-built_in">ls</span>
+docker network inspect bridge | grep -A 20 Containers
+docker network inspect app_default | grep -A 20 Containers
+
+<p><span class="hljs-comment"># 看某容器的 IP 与所属网络</span><br>docker inspect -f <span class="hljs-string">‘&amp;#123;&amp;#123;range $k,$v :&#x3D; .NetworkSettings.Networks&amp;#125;&amp;#125;&amp;#123;&amp;#123;$k&amp;#125;&amp;#125;: &amp;#123;&amp;#123;$v.IPAddress&amp;#125;&amp;#125; &amp;#123;&amp;#123;end&amp;#125;&amp;#125;’</span> a1<br></p></code></pre><p></p>
+<p>如果确认需要互通但不同网：<code>docker network connect app_default a1</code> 把容器加进目标网络即可，不用重建。</p>
+<p>另外查<strong>网段冲突</strong>：公司内网常用 172.16~172.31 或 192.168 网段，与 Docker 默认网段撞车后，容器访问"内网服务"的包被路由进 docker0，表现就是"出了容器就通，进了容器反而连不上内网"。</p>
+<pre><code class="hljs language-bash" lang="bash">ip addr show docker0
+<span class="hljs-comment"># 解决：/etc/docker/daemon.json 固定网段，改完重启 docker</span>
+<span class="hljs-comment"># &#123; "bip": "172.29.0.1/16", "default-address-pools": [&#123;"base": "172.30.0.0/16", "size": 24&#125;] &#125;</span>
+</code></pre>
+<h2 data-id="heading-2">三、第三步：验 DNS，服务名解析对不对</h2>
+<p>容器之间按<strong>服务名/容器名</strong>互访失败、按 IP 却通，是 DNS 问题。这里有个高频坑：</p>
+<ul>
+<li><strong>自定义网络</strong>（<code>docker network create</code> 或 compose）才有内嵌 DNS（127.0.0.11），支持按容器名/服务名解析；</li>
+<li><strong>默认 bridge</strong> 没有服务名解析，只能用容器 IP（老的 <code>--link</code> 已废弃，别用）；</li>
+<li>容器里的 <code>/etc/resolv.conf</code> 被启动参数 <code>--dns</code>、<code>--network host</code>、compose 的 <code>dns:</code> 覆盖后，可能指向了不通的 DNS。</li>
+</ul>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 进容器看生效的 DNS 配置</span>
+<span class="hljs-built_in">cat</span> /etc/resolv.conf
+
+<p><span class="hljs-comment"># 验证内嵌 DNS 是否解析服务名</span><br>getent hosts b1<br><span class="hljs-comment"># 或</span><br>nslookup b1 127.0.0.11<br></p></code></pre><p></p>
+<p>出网域名不通但 IP 通，多半是容器 DNS 指向的上游不通（比如继承宿主的 127.0.0.53 却没通到 systemd-resolved 的路径）。临时可用 <code>--dns 223.5.5.5</code> 启动验证。</p>
+<h2 data-id="heading-3">四、第四步：查转发与 NAT，出网和端口映射的命门</h2>
+<p>容器出网依赖宿主的 IP 转发 + MASQUERADE 伪装；外部访问 <code>-p</code> 端口依赖 DNAT。这三处被破坏，表现就是"容器活着但就是不通"。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 1. 内核转发开关（手动 sysctl -w 或某些安全基线会关掉）</span>
+sysctl net.ipv4.ip_forward        <span class="hljs-comment"># 必须为 1</span>
+
+<p><span class="hljs-comment"># 2. NAT 规则还在不在</span><br>iptables -t nat -nL POSTROUTING   <span class="hljs-comment"># 应看到 MASQUERADE</span><br>iptables -t nat -nL DOCKER        <span class="hljs-comment"># 应看到 -p 映射的 DNAT</span></p>
+<p><span class="hljs-comment"># 3. DOCKER-USER 链（安全加固常在这里加 DROP）</span><br>iptables -nL DOCKER-USER<br></p></code></pre><p></p>
+<p>典型翻车现场：</p>
+<ul>
+<li><strong>firewalld/ufw reload 或重启</strong>后把 Docker 的规则冲掉（Docker 直接操作 iptables，和 firewalld 不太兼容）→ <code>systemctl restart docker</code> 让它重建规则，立刻恢复；</li>
+<li>某些安全基线脚本批量清了 FORWARD 链策略 → <code>iptables -P FORWARD ACCEPT</code>；</li>
+<li>FORWARD 链默认 DROP 且没有放行 docker0 相关规则。</li>
+</ul>
+<h2 data-id="heading-4">五、第五步：通外口，端口映射与安全组收尾</h2>
+<p>前三步都通了、外部还是访问不到，就查映射这一层：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-comment"># 映射到底生效没有</span>
+docker port a1
+docker ps --format <span class="hljs-string">'&#123;&#123;.Names&#125;&#125;\t&#123;&#123;.Ports&#125;&#125;'</span>
+
+<p><span class="hljs-comment"># 容器内服务有没有真的监听</span><br>docker <span class="hljs-built_in">exec</span> a1 ss -ntlp        <span class="hljs-comment"># 监听 0.0.0.0:8080 才行，127.0.0.1:8080 外面永远连不进</span></p>
+<p><span class="hljs-comment"># 分层 curl：先容器内 → 再宿主 → 再远程机器</span><br>docker <span class="hljs-built_in">exec</span> a1 curl -m 3 <a target="_blank" rel="external nofollow noopener noreferrer" href="http://127.0.0.1:8080/">http://127.0.0.1:8080</a><br>curl -m 3 <a target="_blank" rel="external nofollow noopener noreferrer" href="http://127.0.0.1:8080/">http://127.0.0.1:8080</a><br>curl -m 3 http:&#x2F;&#x2F;&lt;宿主内网IP&gt;:8080<br></p></code></pre><p></p>
+<p>三个经典坑：</p>
+<ol>
+<li>应用监听 <code>127.0.0.1</code>：映射了也进不来，改成 <code>0.0.0.0</code>；</li>
+<li><code>-p 127.0.0.1:8080:80</code>：只绑了宿主回环，别的机器访问不到，这是刻意写法还是手误要确认；</li>
+<li>云机器：宿主层全通，还差<strong>安全组/防火墙</strong>放行端口——<code>iptables -nL INPUT</code> 与云控制台各查一遍。</li>
+</ol>
+<h2 data-id="heading-5">避坑清单</h2>
+<ol>
+<li><strong>跨容器互访用自定义网络</strong>，别用默认 bridge（无服务名解析），也别再用 <code>--link</code>；</li>
+<li><strong>网段冲突早规划</strong>：daemon.json 固定 <code>bip</code> 和 <code>default-address-pools</code>，别和公司内网撞车；</li>
+<li><strong>防火墙服务重启后重启 docker</strong>：firewalld reload 会冲掉 Docker 的 NAT 规则，<code>systemctl restart docker</code> 是标准动作；</li>
+<li><strong>别关 ip_forward</strong>：安全基线加固时误关，容器全部断网，这是隐形炸弹；</li>
+<li><strong>应用必须监听 0.0.0.0</strong>，容器里监听 127.0.0.1 等于自我封闭；</li>
+<li><strong>healthcheck 别依赖外部地址</strong>：容器内探活用 <code>127.0.0.1:端口</code>，外网抖动会误杀健康容器；</li>
+<li><strong>排查顺序自内向外</strong>：容器内 → 容器间 → 宿主 → 外部，每层一次 curl，别跳层。</li>
+</ol>
+<h2 data-id="heading-6">一图总结</h2>
+<pre><code class="hljs language-css" lang="css">容器网络不通？
+  ├─ 第一步 分性质：容器间不通 / 出网不通 / 外部访问不通
+  ├─ 第二步 看网段：network inspect 同网络？网段冲突？
+  ├─ 第三步 验 DNS：自定义网络才有服务名解析，<span class="hljs-number">127.0</span>.<span class="hljs-number">0.11</span>
+  ├─ 第四步 查转发：ip_forward / MASQUERADE / DOCKER-USER
+  └─ 第五步 通外口：-<span class="hljs-selector-tag">p</span> 映射、监听 <span class="hljs-number">0.0</span>.<span class="hljs-number">0.0</span>、安全组
+</code></pre>
+<p><strong>小结</strong>：Docker 网络问题九成出在"不同网络、DNS 指错、转发/NAT 被清、监听回环"这四件事上。记住五步：分性质 → 看网段 → 验 DNS → 查转发 → 通外口，每步一条命令就能把范围砍掉一半。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Docker 容器网络不通？五步排查法" href="https://juejin.cn/post/7699704049009803298" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Docker 容器网络不通？五步排查法</span><span class="desc fs12">https://juejin.cn/post/7699704049009803298</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/ae8353ea.html">如果在单位遇到一个领导脾气不好，你该怎么办呢？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/d4915c0a.html">江苏建湖：产业向新两手“硬”<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/87dd0569.html" title="AI 都这么强了，咱们程序员以后还能干点啥？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3688"></div><span class="title">AI 都这么强了，咱们程序员以后还能干点啥？</span></a><a class="item" href="/rss/642a927.html" title="AutoTrigger：开源的 Windows 离线安装自动化工具（GUI+CLI，自动操作安装向导）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1f5b409c90754566a47338d4f52cb505~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSp56m65pyJ54mH5LiD6Imy55qE5LqR:q75.awebp?rk3s=f64ab15b&x-expires=1793373620&x-signature=LcrJsmoqDlmJcUocYWwTmr8b4MI%3D"></div><span class="title">AutoTrigger：开源的 Windows 离线安装自动化工具（GUI+CLI，自动操作安装向导）</span></a><a class="item" href="/rss/e75bc96c.html" title="从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7049"></div><span class="title">从 PHP 高危漏洞看纵深防御：资产盘点、补丁管理与端点防护实践</span></a><a class="item" href="/rss/d84fb318.html" title="从零写一个扫雷：两个数组、一个坑，和三个后来加的功能"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1110"></div><span class="title">从零写一个扫雷：两个数组、一个坑，和三个后来加的功能</span></a><a class="item" href="/rss/90f5c64a.html" title="副业搞钱点子之 Umami 统计如何赚钱"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1faa83e9b2f84898b72770abec75f10b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1793416181&x-signature=6qa5fQ3HxJmXRC0v8GwLbEVeng0%3D"></div><span class="title">副业搞钱点子之 Umami 统计如何赚钱</span></a><a class="item" href="/rss/dcdadc8e.html" title="字符编码入门：Unicode 是值，UTF 是编码，GBK 是另一套"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8572"></div><span class="title">字符编码入门：Unicode 是值，UTF 是编码，GBK 是另一套</span></a><a class="item" href="/rss/dda97c7f.html" title="以实时驱动智能：Apache Doris Summit 2026 盛大落幕，开启 Agentic AI 时代数据新范式"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c1c89eb6e5e44564b2abdeab0d24094f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VsZWN0REI=:q75.awebp?rk3s=f64ab15b&x-expires=1793344238&x-signature=d966jaJrWIAEv2F4yrFqQqeq3mk%3D"></div><span class="title">以实时驱动智能：Apache Doris Summit 2026 盛大落幕，开启 Agentic AI 时代数据新范式</span></a><a class="item" href="/rss/ae8a6299.html" title="忘记电视 IP 之后：一次从零开始的 Mac 局域网与 ADB 学习记录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2186"></div><span class="title">忘记电视 IP 之后：一次从零开始的 Mac 局域网与 ADB 学习记录</span></a><a class="item" href="/rss/a2738c30.html" title="方图一定要裁照片吗？用 Awaking 比较裁切与留白"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b380fcbc624b49aaba959c6243fc9357~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793412830&x-signature=0kVpfpIMrp%2Brf0BAu1EWKYS3Atk%3D"></div><span class="title">方图一定要裁照片吗？用 Awaking 比较裁切与留白</span></a><a class="item" href="/rss/f0fc4f27.html" title="第2周：搜索流量开始来了——小程序SEO的收录机制与排名调优实录"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2267"></div><span class="title">第2周：搜索流量开始来了——小程序SEO的收录机制与排名调优实录</span></a><a class="item" href="/rss/56478f1d.html" title="算网一体时代：一文拆透3层架构与6类算网融合方案，附选型对照表"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6aa0f39681f4d6f8ab69cbbe1a56da0~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5aSa5LqR6KGM6ICF:q75.awebp?rk3s=f64ab15b&x-expires=1793325866&x-signature=Fhqs2zSyiSnjVwQYyili4flqxW0%3D"></div><span class="title">算网一体时代：一文拆透3层架构与6类算网融合方案，附选型对照表</span></a><a class="item" href="/rss/fd35d8f8.html" title="红花太抢眼，蓝天又想留下：用 Awaking 比较两种减饱和"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f961583763df45d48395adbfbd586040~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793338330&x-signature=sS9LWdzpDRQ9Xs0N6yb89Oo6qNo%3D"></div><span class="title">红花太抢眼，蓝天又想留下：用 Awaking 比较两种减饱和</span></a><a class="item" href="/rss/91ef9c1e.html" title="需求对接完就发布任务，做到一半才发现理解错了：对接需求的四个坑 😭😭😭"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/34821ce6c786401f9a4910a3f2648536~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgUEJpdFc=:q75.awebp?rk3s=f64ab15b&x-expires=1793416482&x-signature=QPs%2BUcWtpdA7H9iykFO0R7MSz0I%3D"></div><span class="title">需求对接完就发布任务，做到一半才发现理解错了：对接需求的四个坑 😭😭😭</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
