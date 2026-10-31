@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南 - RSSBOX</title>
+
+  
+    <meta name="description" content="手机要给电脑传一个大文件，Linux 服务器要临时分发维护包，NAS 想让家人用浏览器下载资料——这些场景常常只需要一个文件入口。Copyparty 把 Web 文件管理、HTTP 传输和 WebDAV 放在同一套目录权限下，也能按需启用 FTP、TFTP 等服务。 它不要求客户端安装专用软件：浏览器打开就能列目录、拖拽上传、点击下载；需要挂载或脚本同步时，再走 WebDAV 或 rclone">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/2ce8a964.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="手机要给电脑传一个大文件，Linux 服务器要临时分发维护包，NAS 想让家人用浏览器下载资料——这些场景常常只需要一个文件入口。Copyparty 把 Web 文件管理、HTTP 传输和 WebDAV 放在同一套目录权限下，也能按需启用 FTP、TFTP 等服务。 它不要求客户端安装专用软件：浏览器打开就能列目录、拖拽上传、点击下载；需要挂载或脚本同步时，再走 WebDAV 或 rclone">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2e3176e4bb544fb9ba2140af00f4ff79~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=BqL%2FbF40QIhP%2FAf4xtxxKDNQ3Yo%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/22fd9587fb7d4cc29479601a80108a99~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=vBrHFmmMfDveAsHj3EAW9aDNnLI%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8b68a03f3a4546388e460e5ebbe6703f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=2VtxGlKqaovHAg10Dkg3YtnOBNM%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c27614f46c2347bc805bb5afc9593608~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=nVfhuJZk3aaiR3orsIR2vJsFeqw%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/02749e55590e408b8797e66a9d58d2d5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=vn5Ygbui85Ezp0WlyJ43PGIOaJw%3D">
+<meta property="article:published_time" content="2026-10-29T06:38:00.000Z">
+<meta property="article:modified_time" content="2026-10-29T06:38:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2e3176e4bb544fb9ba2140af00f4ff79~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=BqL%2FbF40QIhP%2FAf4xtxxKDNQ3Yo%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">适用场景与选型</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">镜像与协议支持边界</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">官方镜像怎么选</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">协议支持矩</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">集中完成主方案部署</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">环境与目录</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Compose 与环境变量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">账号与共享目录配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">设置宿主机权限并启动</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">上传、下载与持久化验收</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">浏览器与 WebDAV 使用</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Web 文件管理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Windows 客户端</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">通用 rclone 客户端</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">FTP 独立扩展</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">TFTP、FTPS、SFTP 与 SMB</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">TFTP：只给隔离设备分发文件</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">FTPS：换依赖镜像并管理独立证书</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">SFTP：与 FTP 无关的 SSH 文件入口</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">SMB&#x2F;CIFS 与 NFS：交给专用服务</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">HTTPS 与安全管理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">复用现有反向代理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">真实 IP 与可信代理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">账号与文件安全</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">按需启动、备份与升级</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">常用操作</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">备份与恢复</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">升级与回滚</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">资源占用怎么测</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">故障排查</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-29T06:38:00.000Z">2026-10-29</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南</span></h1>
+<div>
+<blockquote>
+<p>手机要给电脑传一个大文件，Linux 服务器要临时分发维护包，NAS 想让家人用浏览器下载资料——这些场景常常只需要一个文件入口。Copyparty 把 Web 文件管理、HTTP 传输和 WebDAV 放在同一套目录权限下，也能按需启用 FTP、TFTP 等服务。</p>
+<p>它不要求客户端安装专用软件：浏览器打开就能列目录、拖拽上传、点击下载；需要挂载或脚本同步时，再走 WebDAV 或 rclone。所有文件最终落在宿主机映射目录，容器可以随时重建，数据仍然保留。</p>
+<p>本文以官方 <code>copyparty/min:1.20.25</code> 为主线，只启用经过身份认证的 HTTP/WebDAV，单独介绍 FTP 和设备固件分发所需的 TFTP。</p>
+</blockquote>
+<h2 data-id="heading-0">适用场景与选型</h2>
+<p>Copyparty 是 Python 实现的文件服务器，主体使用 MIT 授权。它提供浏览器文件列表、上传下载及按目录授权；部署容器时，普通文件直接保存在映射的宿主机目录。启用文件索引后会使用 SQLite 元数据，但不要求额外启动数据库容器。</p>
+<p>它的核心思路是“一个进程、一套配置、多个协议入口”：HTTP/WebDAV 共用同一个监听端口和同一份账号权限，FTP、TFTP 等协议在需要时再单独开启，并复用相同的目录授权规则。因此不必为每种协议维护独立的用户体系，也不会出现“浏览器能看、FTP 看不到”的权限割裂。</p>
+<p>对使用者而言，最直观的收益是零客户端门槛：手机、平板、办公电脑只要打开浏览器就能传文件；对运维而言，收益是部署简单——一个容器、两个目录（配置与数据）即可起步，后续扩展协议也只是在配置文件里增加几行参数。
+相比传统 FTP 服务，它增加了无需专用客户端的 Web 入口；相比 Samba 或 NFS，它首先是文件传输与 Web 访问服务，并非系统网络文件系统的通用替代品。它可以补充 NAS 的外部文件入口，但不能代替磁盘管理、RAID、快照和备份。</p>
+<p>换句话说，Copyparty 解决的是“如何把某个目录安全、方便地暴露给人和脚本”，而不是“如何把远程存储挂载成本地磁盘”。如果需求是让应用程序像访问本地路径一样读写远端文件，或者依赖文件锁、字节范围锁等语义，仍应选择 SMB/NFS 这类网络文件系统；如果只是临时传文件、给家人下载资料、给脚本提供上传接口，Copyparty 的轻量形态更合适。
+<img class="lazy" alt="Copyparty 文件共享架构" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2e3176e4bb544fb9ba2140af00f4ff79~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=BqL%2FbF40QIhP%2FAf4xtxxKDNQ3Yo%3D"></p>
+<p><em>图 0：浏览器和 WebDAV 共用主方案端口与权限；FTP 是单独启用的访问路径，所有文件落在宿主机共享目录。</em></p>
+<table><thead><tr><th>方案</th><th>更适合的工作</th><th>选型时重点考虑</th></tr></thead><tbody><tr><td>Copyparty</td><td>浏览器传文件、临时共享、轻量目录授权、WebDAV</td><td>镜像可选依赖与协议的端口边界</td></tr><tr><td>SFTPGo</td><td>以 SFTP 为核心的文件传输和账户管理</td><td>后端存储、认证、配额等需求与维护成本</td></tr><tr><td>Samba</td><td>Windows 网络共享与 SMB 客户端生态</td><td>系统用户、ACL、SMB 安全配置</td></tr><tr><td>NFS</td><td>Unix/Linux 的网络文件系统挂载</td><td>导出范围、客户端身份和网络边界</td></tr><tr><td>File Browser 类工具</td><td>主要通过浏览器管理文件</td><td>具体项目的权限与认证设计</td></tr></tbody></table>
+<p>适用情形包括局域网临时传输、Windows/Linux 文件交换、电脑与手机共享、维护包分发和多用户共享目录。需要真正的 SMB/NFS 挂载、文件锁语义、企业级身份流程或硬件存储管理时，应先评估对应的专用系统。不能仅凭镜像大小判断空闲内存或传输速度。</p>
+<p>选型时可以按三个问题快速判断：第一，客户端是否愿意安装专用软件？如果希望“打开浏览器就能用”，Copyparty 更省事。第二，是否需要系统级挂载？如果需要把远端目录当作本地盘符或挂载点使用，应选 SMB/NFS。第三，权限模型是否足够简单？如果只是“谁能读、谁能写、谁能删”的目录级授权，Copyparty 的配置足够直观；若需要对接 LDAP、细粒度 ACL 或审计合规，则要评估更完整的方案。</p>
+<h2 data-id="heading-1">镜像与协议支持边界</h2>
+<h3 data-id="heading-2">官方镜像怎么选</h3>
+<table><thead><tr><th>镜像</th><th>主要组件与用途</th><th>与本文有关的限制</th></tr></thead><tbody><tr><td><code>copyparty/min</code></td><td>Copyparty、基础模板依赖；内含 FTP/TFTP 模块</td><td>无 Pillow、FFmpeg、Paramiko、PyOpenSSL、Argon2、Impacket；入口显式禁用缩略图</td></tr><tr><td><code>copyparty/im</code></td><td>Pillow、Mutagen，另含 Paramiko、PyOpenSSL、Argon2</td><td>可用于需要 SFTP/FTPS 的扩展；不包含完整 FFmpeg 媒体处理能力</td></tr><tr><td><code>copyparty/ac</code></td><td>图像与音视频处理，含 FFmpeg</td><td>官方通用推荐，但本文不需要这些媒体组件</td></tr><tr><td><code>copyparty/iv</code></td><td>在媒体能力上增加 libvips 等图像组件</td><td>更复杂的图像处理需求才值得考虑</td></tr><tr><td><code>copyparty/dj</code></td><td>增加音乐节拍/调性分析组件</td><td>普通文件传输无需引入</td></tr></tbody></table>
+<h3 data-id="heading-3">协议支持矩</h3>
+<p>FTP 是 File Transfer Protocol，FTPS 是 FTP 加 TLS，SFTP 是 SSH File Transfer Protocol；三个名称相近，但连接机制不同。WebDAV 是基于 HTTP 的文件管理扩展，不能当作 SMB。TFTP 是 Trivial File Transfer Protocol，使用 UDP，没有 FTP 的账号机制。</p>
+<table><thead><tr><th>协议</th><th>项目实现／依赖</th><th><code>min:1.20.25</code> 能否直接启用</th><th>端口与启用条件</th><th>安全与用途</th><th>难度／注意事项</th></tr></thead><tbody><tr><td>HTTP</td><td>内置</td><td>是；主方案已启用</td><td>默认 TCP 3923</td><td>明文；受控内网或代理后端</td><td>简单；认证不能弥补传输明文</td></tr><tr><td>HTTPS</td><td>Python TLS</td><td>能接受 TLS；需合格证书；本文由代理实现</td><td>可共用 3923；不是另开默认 443</td><td>TLS；浏览器与 WebDAV 外部入口</td><td>中等；不能依赖打包的示例证书</td></tr><tr><td>WebDAV</td><td>HTTP 内置实现</td><td>是；主方案已启用</td><td>与 HTTP/HTTPS 共用</td><td>安全取决于 HTTP 是否加 TLS</td><td>简单；覆盖修改有额外权限条件</td></tr><tr><td>FTP</td><td>内含 pyftpdlib</td><td>是；默认关闭</td><td><code>ftp: 3921</code>，另设被动数据端口</td><td>明文；受控 LAN 或 VPN 内</td><td>中等；控制端口与数据端口都要处理</td></tr><tr><td>FTPS</td><td>pyftpdlib + PyOpenSSL</td><td>否；缺 PyOpenSSL</td><td><code>ftps: 3990</code> 示例，显式 TLS，另有数据端口</td><td>TLS；兼容客户端</td><td>较复杂；可改用 <code>im</code>，证书独立部署</td></tr><tr><td>SFTP</td><td>Paramiko</td><td>否；缺 Paramiko</td><td><code>sftp: 3922</code> 示例；默认关闭</td><td>SSH；优先公钥认证</td><td>中等；可改用 <code>im</code>，保持主机密钥</td></tr><tr><td>TFTP</td><td>内含 partftpy</td><td>是；默认关闭</td><td><code>tftp: 3969</code> + UDP 数据端口范围；客户端常用 69</td><td>无认证无加密；隔离固件分发</td><td>中等；只给专用目录匿名读权限</td></tr><tr><td>SMB/CIFS</td><td>Impacket</td><td>否；官方镜像未预装该依赖</td><td>项目参数默认 TCP 445；不是自动启用</td><td>官方警告严重安全问题</td><td>高；1.20.25 还需危险功能开关；本文不推荐</td></tr><tr><td>NFS</td><td>没有 NFS 服务端实现</td><td>否</td><td>无服务端监听参数</td><td>使用独立 NFS 服务</td><td>独立部署；挂载 NFS 存储不等于提供 NFS</td></tr></tbody></table>
+<h2 data-id="heading-4">集中完成主方案部署</h2>
+<h3 data-id="heading-5">环境与目录</h3>
+<p>准备支持所选架构的 Linux 系统、Docker Engine、Compose Plugin 和一个有足够空间的存储目录。以下是 Bash 命令</p>
+<pre><code class="hljs language-bash" lang="bash">docker version
+docker compose version
+<span class="hljs-built_in">id</span>
+<span class="hljs-built_in">df</span> -h
+
+<p><span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">“<span class="hljs-variable">$HOME</span>&#x2F;copyparty&#x2F;config”</span> <span class="hljs-string">“<span class="hljs-variable">$HOME</span>&#x2F;copyparty&#x2F;data”</span><br><span class="hljs-built_in">cd</span> <span class="hljs-string">“<span class="hljs-variable">$HOME</span>&#x2F;copyparty”</span><br></p></code></pre><p></p>
+<p>最终布局：</p>
+<pre><code class="hljs language-text" lang="text">copyparty/
+├── compose.yaml
+├── .env
+├── config/
+│   ├── copyparty.conf
+│   └── hists/           # 服务启动后生成的索引元数据
+└── data/                # 共享文件
+</code></pre>
+<p><img class="lazy" alt="Docker 持久化路径" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/22fd9587fb7d4cc29479601a80108a99~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=vBrHFmmMfDveAsHj3EAW9aDNnLI%3D"></p>
+<p><em>图 1：共享文件与配置、索引分别持久化；容器可以重建，宿主机目录必须保留。</em></p>
+<h3 data-id="heading-6">Compose 与环境变量</h3>
+<p>创建 <code>compose.yaml</code>，内容与交付文件一致：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">services:</span>
+  <span class="hljs-attr">copyparty:</span>
+    <span class="hljs-attr">image:</span> <span class="hljs-string">copyparty/min:1.20.25</span>
+    <span class="hljs-attr">container_name:</span> <span class="hljs-string">copyparty-files</span>
+    <span class="hljs-attr">user:</span> <span class="hljs-string">"$&#123;CP_UID:-1000&#125;:$&#123;CP_GID:-1000&#125;"</span>
+    <span class="hljs-attr">restart:</span> <span class="hljs-string">"no"</span>
+    <span class="hljs-attr">ports:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">"$&#123;CP_BIND_IP:-127.0.0.1&#125;:3923:3923"</span>
+    <span class="hljs-attr">volumes:</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">./config:/cfg</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">./data:/w</span>
+    <span class="hljs-attr">logging:</span>
+      <span class="hljs-attr">driver:</span> <span class="hljs-string">json-file</span>
+      <span class="hljs-attr">options:</span>
+        <span class="hljs-attr">max-size:</span> <span class="hljs-string">"10m"</span>
+        <span class="hljs-attr">max-file:</span> <span class="hljs-string">"3"</span>
+</code></pre>
+<p>创建 <code>.env</code>。下面的 <code>1000</code> 必须与准备好的目录属主对应；没有使用所谓 <code>PUID/PGID</code> 镜像环境变量，而是由 Compose 的 <code>user:</code> 设置实际进程身份。</p>
+<pre><code class="hljs language-dotenv" lang="dotenv">CP_BIND_IP=127.0.0.1
+CP_UID=1000
+CP_GID=1000
+</code></pre>
+<p>默认回环绑定适合宿主机上的反向代理，或本机测试。<strong>需要局域网直接访问时，把 <code>CP_BIND_IP</code> 改成宿主机真实的 LAN 接口地址，再重建容器。</strong> 不要照抄不存在的 IP，也不必为了 LAN 访问开放到所有接口。若代理本身在另一个容器里，应使用两者共享的 Docker 网络，并让代理访问 <code>copyparty:3923</code>；代理容器里的 <code>127.0.0.1</code> 指向代理自身。</p>
+<h3 data-id="heading-7">账号与共享目录配置</h3>
+<p>创建 <code>config/copyparty.conf</code>，并把所有示例密码替换为彼此不同的长随机密码。配置文件中的密码不会被 Compose 的 <code>.env</code> 自动替换。</p>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-section">[global]</span>
+  p: 3923
+  i: 0.0.0.0
+  http-only
+  usernames
+  dav-auth
+  e2dsa
+  hist: /cfg/hists/
+  unpost: 0
+  ftp-no-ow
+
+<p><span class="hljs-section">[accounts]</span><br>  owner: CHANGE_ME_OWNER_USE_A_LONG_RANDOM_PASSWORD<br>  uploader: CHANGE_ME_UPLOADER_USE_A_DIFFERENT_PASSWORD<br>  reader: CHANGE_ME_READER_USE_A_DIFFERENT_PASSWORD</p>
+<p><span class="hljs-section">[&#x2F;files]</span><br>  &#x2F;w<br>  accs:<br>    rwmda: owner<br>    rw: uploader<br>    r: reader<br></p></code></pre><p></p>
+<p>这不是 YAML；使用 Copyparty 自己的区段和缩进语法，不要加 YAML 文档头。<code>[global]</code> 对应服务参数，<code>[accounts]</code> 定义账号，<code>[/files]</code> 把容器内 <code>/w</code> 发布为 URL <code>/files/</code>。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fdocs%2Fexample.conf" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/docs/example.conf" rel="external nofollow noopener noreferrer">官方配置示例</a>。</p>
+<p><code>http-only</code> 明确让后端走 HTTP。<code>usernames</code> 要求用户名与密码一起认证；浏览器登录也输入完整的 <code>用户名:密码</code>。<code>dav-auth</code> 强制 WebDAV 认证。<code>e2dsa</code> 开启文件索引与启动扫描，但没有启用音视频标签扫描。<code>hist</code> 把索引状态放入持久化的 <code>/cfg/hists/</code>。<code>unpost: 0</code> 关闭上传后撤回窗口；否则仅去掉删除权限，并不能直接断言上传者无法撤回近期上传。<code>ftp-no-ow</code> 预先约束将来启用 FTP 时的同名覆盖，当前并不会启动 FTP。</p>
+<table><thead><tr><th>权限字符</th><th>含义</th><th>本文分配</th></tr></thead><tbody><tr><td><code>r</code></td><td>列目录、下载</td><td>三类账号都有</td></tr><tr><td><code>w</code></td><td>上传；不自动包含管理操作</td><td>owner、uploader</td></tr><tr><td><code>m</code></td><td>移动/重命名；目标还需写权限</td><td>owner</td></tr><tr><td><code>d</code></td><td>删除文件/目录；永久操作</td><td>owner</td></tr><tr><td><code>a</code></td><td>查看上传者 IP、配置重载等管理能力</td><td>owner</td></tr></tbody></table>
+<p><code>a</code> 不会自动赋予其他权限，也不等于宿主机 root。匿名账号通常以 <code>*</code> 表示，这里没有给它任何卷权限。<code>A</code> 则是包含隐藏文件权限的综合权限，本文没有使用它。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fcopyparty%2Fauthsrv.py" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/copyparty/authsrv.py" rel="external nofollow noopener noreferrer">授权实现</a>。</p>
+<p><img class="lazy" alt="账号与权限" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/8b68a03f3a4546388e460e5ebbe6703f~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=2VtxGlKqaovHAg10Dkg3YtnOBNM%3D"></p>
+<p><em>图 2：同一个目录按账号分别授权；应用权限还要受到 Linux 文件系统权限约束。</em></p>
+<h3 data-id="heading-8">设置宿主机权限并启动</h3>
+<p>以下只对本次新建目录设置属主，不要随手对已有 NAS 资料做递归 <code>chown</code>：</p>
+<pre><code class="hljs language-bash" lang="bash">sudo <span class="hljs-built_in">chown</span> 1000:1000 config data
+<span class="hljs-built_in">chmod</span> 750 config data
+sudo <span class="hljs-built_in">chown</span> 1000:1000 config/copyparty.conf
+<span class="hljs-built_in">chmod</span> 600 config/copyparty.conf
+<span class="hljs-built_in">chmod</span> 600 .<span class="hljs-built_in">env</span>
+<span class="hljs-built_in">ls</span> -ldn config data
+<span class="hljs-built_in">ls</span> -<span class="hljs-built_in">ln</span> config/copyparty.conf
+
+<p>docker compose config –quiet<br>docker compose pull<br>docker compose up -d<br>docker compose ps<br>docker compose logs –<span class="hljs-built_in">tail</span>&#x3D;100 copyparty<br></p></code></pre><p></p>
+<p>如果实际 UID/GID 不是 <code>1000:1000</code>，同时修改上面的命令与 <code>.env</code>。父目录也必须允许路径遍历。SELinux 主机还要使用合适的标签，如官方示例的 <code>:z</code>，并评估共享标签范围；不要用 <code>chmod -R 777</code> 代替定位问题。</p>
+<p><strong>先检查日志确认 <code>/files</code> 的来源是 <code>/w</code>，权限与配置一致，再允许客户端接入。</strong> <code>docker compose config</code> 只验证 Compose 展开与结构，不验证 Copyparty 配置语义；后者需要启动日志和功能测试。主方案没有盲目添加健康检查，<code>ps</code> 显示运行也不代表每个账号或协议可用。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fdocs.docker.com%2Fcompose%2Fhow-tos%2Fstartup-order%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://docs.docker.com/compose/how-tos/startup-order/" rel="external nofollow noopener noreferrer">Docker 启动就绪说明</a>。</p>
+<h3 data-id="heading-9">上传、下载与持久化验收</h3>
+<p>回环模式在宿主机访问 <code>http://127.0.0.1:3923/files/</code>；LAN 模式用 <code>http://服务器LAN地址:3923/files/</code>。这条 HTTP 地址适合受控测试，长期使用参见 HTTPS 章节。</p>
+<p>Linux 上准备测试文件，用 <code>uploader</code> 上传、<code>reader</code> 下载，curl 会提示输入密码，不把密码放在命令行：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">printf</span> <span class="hljs-string">'copyparty test\n'</span> &gt; /tmp/cp-probe.txt
+curl --fail --user uploader -T /tmp/cp-probe.txt \
+  http://127.0.0.1:3923/files/cp-probe.txt
+curl --fail --user reader \
+  http://127.0.0.1:3923/files/cp-probe.txt -o /tmp/cp-downloaded.txt
+<span class="hljs-built_in">sha256sum</span> /tmp/cp-probe.txt /tmp/cp-downloaded.txt
+<span class="hljs-built_in">ls</span> -l data/cp-probe.txt
+docker compose up -d --force-recreate
+curl --fail --user reader \
+  http://127.0.0.1:3923/files/cp-probe.txt -o /tmp/cp-after-recreate.txt
+<span class="hljs-built_in">sha256sum</span> /tmp/cp-probe.txt /tmp/cp-after-recreate.txt
+</code></pre>
+<p>三份文件哈希应一致，宿主机文件应存在。再用 <code>reader</code> 尝试上传、用 <code>uploader</code> 尝试删除；预期拒绝。匿名下载或 WebDAV 请求也应拒绝。不要用 <code>curl --fail</code> 对“预期拒绝”下结论为服务故障，应查看 HTTP 状态和实际权限。完成测试后由 owner 清理测试文件。</p>
+<h2 data-id="heading-10">浏览器与 WebDAV 使用</h2>
+<h3 data-id="heading-11">Web 文件管理</h3>
+<p>打开 <code>/files/</code> 后，在控制面板的登录入口输入 <code>owner:你的密码</code>、<code>uploader:你的密码</code> 或 <code>reader:你的密码</code>；主方案开启了 <code>usernames</code>。登录后浏览目录，拖入文件或使用上传入口，等待队列显示完成，再刷新或点击文件下载。用手机浏览器也走同一 HTTP/HTTPS 入口。</p>
+<p>owner 可以在选中文件后移动、重命名和删除；uploader 用来新增文件，reader 用来浏览和下载。界面选项随权限和版本变化，应以实际登录身份确认。<code>?hc</code> 连接说明页可以查看客户端连接提示。这里不承诺 <code>min</code> 能生成图片缩略图或转码播放；浏览器直接打开某种媒体格式属于客户端自身能力。</p>
+<h3 data-id="heading-12">Windows 客户端</h3>
+<p>在 WinSCP 新建站点，文件协议选择 WebDAV：局域网测试填服务器 IP、端口 3923；通过代理时填 <code>files.example.com</code>、端口 443 并选择 TLS/SSL，用户名与密码分别填写。登录后进入 <code>/files/</code>；若客户端支持目录字段，可填 <code>/files/</code>。实际上传能力取决于账号权限。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fwinscp.net%2Feng%2Fdocs%2Fwebdav" ref="nofollow noopener noreferrer" target="_blank" title="https://winscp.net/eng/docs/webdav" rel="external nofollow noopener noreferrer">WinSCP WebDAV 说明</a>。</p>
+<p>Windows 文件资源管理器也能尝试“映射网络驱动器”或“添加网络位置”，地址使用 <code>https://files.example.com/files/</code>。内置 WebClient 的服务状态、系统认证策略、文件名限制和传输限制都可能影响结果，不建议为了明文 HTTP 挂载去降低系统认证策略。出现兼容性问题时先使用 WinSCP 或 rclone 验证服务端，再定位 Windows 客户端。</p>
+<h3 data-id="heading-13">通用 rclone 客户端</h3>
+<p>执行 <code>rclone config</code> 创建名为 <code>cp</code> 的 remote，类型选 <code>webdav</code>，URL 填 <code>https://files.example.com/files/</code>，vendor 选 <code>other</code>，账号和密码按提示填写。然后：</p>
+<pre><code class="hljs language-bash" lang="bash">rclone lsf <span class="hljs-built_in">cp</span>:
+rclone copy /tmp/cp-probe.txt <span class="hljs-built_in">cp</span>: --progress
+rclone copyto <span class="hljs-built_in">cp</span>:cp-probe.txt /tmp/cp-rclone.txt --progress
+</code></pre>
+<p><code>rclone copy</code> 用 uploader，下载或列表可用 reader。不要把 <code>rclone obscure</code> 等同于密码加密保管；保护本地配置。<a href="https://link.juejin.cn/?target=https%3A%2F%2Frclone.org%2Fwebdav%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://rclone.org/webdav/" rel="external nofollow noopener noreferrer">rclone 官方 WebDAV 文档</a>。</p>
+<p>用 curl 独立检查目录枚举：</p>
+<pre><code class="hljs language-bash" lang="bash">curl --user reader -X PROPFIND -H <span class="hljs-string">'Depth: 1'</span> \
+  https://files.example.com/files/
+</code></pre>
+<p>预期返回 <code>207 Multi-Status</code>。普通 HTTPS URL 并不代表任何客户端必然支持全部 WebDAV 操作。编辑已有文件通常还需要 <code>d</code> 删除权限；部分客户端需要卷级 <code>daw</code> 才会按预期覆盖。<strong>不要为了编辑兼容性给 uploader 全局删除权限</strong>，可另设专用编辑卷、授权合适账号，并明确 <code>daw</code> 会改变 PUT 同名覆盖行为。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fcopyparty%2Fhttpcli.py" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/copyparty/httpcli.py" rel="external nofollow noopener noreferrer">WebDAV 请求实现</a>。</p>
+<h2 data-id="heading-14">FTP 独立扩展</h2>
+<p>FTP 的控制连接负责登录与命令，数据连接负责目录列表和文件内容。主动模式中服务端连接客户端指定的数据端口，容易受客户端 NAT/防火墙影响；被动模式由客户端连接服务端给出的数据端口，更适合本文的 Docker bridge 方案。</p>
+<p><img class="lazy" alt="FTP 主动与被动连接" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/c27614f46c2347bc805bb5afc9593608~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=nVfhuJZk3aaiR3orsIR2vJsFeqw%3D"></p>
+<p><em>图 3：两种模式的控制连接方向相同，数据连接发起方不同。只映射控制端口，会出现“能登录却不能列目录”。</em></p>
+<p>在 <code>config/copyparty.conf</code> <strong>原有 <code>[global]</code> 内</strong>加入：</p>
+<pre><code class="hljs language-ini" lang="ini">  ftp: 3921
+  ftp-nat: 192.0.2.10
+  ftp-pr: 12000-12009
+</code></pre>
+<p><code>192.0.2.10</code> 是文档地址，<strong>必须替换为客户端实际能连接到的宿主机 LAN IP</strong>。FTP 服务监听容器 3921；PASV 回应里的地址由 <code>ftp-nat</code> 指定。被动端口范围两端都要用相同端口号，不能任意改号后仍回报容器端口。</p>
+<p>在 Compose 的 <code>ports:</code> 下保留 Web 端口，并添加：</p>
+<pre><code class="hljs language-yaml" lang="yaml">      <span class="hljs-bullet">-</span> <span class="hljs-string">"$&#123;CP_BIND_IP:-127.0.0.1&#125;:3921:3921"</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">"$&#123;CP_BIND_IP:-127.0.0.1&#125;:12000-12009:12000-12009"</span>
+</code></pre>
+<p>LAN 模式将 <code>.env</code> 的绑定地址改为真实 LAN IP。测试本机回环时把 <code>ftp-nat</code> 也改成 <code>127.0.0.1</code>。修改端口后执行：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose config --quiet
+docker compose up -d
+docker compose logs --<span class="hljs-built_in">tail</span>=100 copyparty
+</code></pre>
+<p>只改配置文件参数时需要 <code>docker compose restart copyparty</code>；只运行 <code>up -d</code> 未必重启未发生 Compose 变化的容器。首次新增 FTP 端口会触发重建。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fscripts%2Fdocker%2FREADME.md%23enabling-the-ftp-server" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/scripts/docker/README.md#enabling-the-ftp-server" rel="external nofollow noopener noreferrer">官方 Docker FTP 指南</a>。</p>
+<p>FileZilla/WinSCP 选择 FTP、服务器 LAN IP、3921、uploader 和对应密码，使用被动模式，进入 <code>/files/</code> 上传新文件，再下载比对。命令验证：</p>
+<pre><code class="hljs language-bash" lang="bash">curl --fail --user uploader --ftp-pasv -T /tmp/cp-probe.txt \
+  ftp://服务器LAN地址:3921/files/ftp-probe.txt
+curl --fail --user reader --ftp-pasv \
+  ftp://服务器LAN地址:3921/files/ftp-probe.txt -o /tmp/ftp-downloaded.txt
+<span class="hljs-built_in">sha256sum</span> /tmp/cp-probe.txt /tmp/ftp-downloaded.txt
+</code></pre>
+<p>主方案的 <code>ftp-no-ow</code> 拒绝 FTP 同名覆盖；重新测试用新文件名。不要把 FTP 的上传恢复行为当成浏览器 up2k 的断点续传保证。目录列表失败时检查实际 PASV/EPSV 回复、地址、范围、Docker 映射和两侧防火墙。</p>
+<p>公网 NAT 还需要路由器转发控制端口与同号被动范围，并使 <code>ftp-nat</code> 回报公网可达地址；多网卡、内外网同时访问及回流 NAT 需要另外验证。<strong>本文推荐在 LAN/VPN 内使用 FTP；明文 FTP 会暴露账号和文件内容。</strong> HTTP 反向代理不能保护独立 FTP 连接，不要把 3921 放到 HTTPS 代理里就当作 FTPS。</p>
+<h2 data-id="heading-15">TFTP、FTPS、SFTP 与 SMB</h2>
+<h3 data-id="heading-16">TFTP：只给隔离设备分发文件</h3>
+<p>TFTP 不登录账号，只读取匿名可读目录；匿名写、删除权限会分别影响写入和覆盖。当前主方案没有匿名卷，因此仅开启端口也无法读取受保护的 <code>/files/</code>。若设备必须使用 TFTP，可创建 <code>data/firmware/</code>，只放允许公开给该隔离网络的文件。</p>
+<p>在原有 <code>[global]</code> 加入：</p>
+<pre><code class="hljs language-ini" lang="ini">  tftp: 3969
+  tftp-pr: 13000-13009
+  tftp-nols
+</code></pre>
+<p>再新增一个独立卷：</p>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-section">[/firmware]</span>
+  /w/firmware
+  accs:
+    r: *
+</code></pre>
+<p>在原 Compose 的 <code>ports:</code> 加入下面两行；<code>CP_BIND_IP</code> 必须是设备能访问的 LAN 接口地址：</p>
+<pre><code class="hljs language-yaml" lang="yaml">      <span class="hljs-bullet">-</span> <span class="hljs-string">"$&#123;CP_BIND_IP:-127.0.0.1&#125;:69:3969/udp"</span>
+      <span class="hljs-bullet">-</span> <span class="hljs-string">"$&#123;CP_BIND_IP:-127.0.0.1&#125;:13000-13009:13000-13009/udp"</span>
+</code></pre>
+<p>创建目录、放入文件、保证 UID 1000 可读，然后 <code>docker compose config --quiet</code> 和 <code>docker compose up -d</code>。请求从 UDP 69 进入容器 3969；传输来自独立 UDP 数据端口，所以还需要第二条范围映射。这里映射宿主机低端口，应用仍以非 root 用户监听高端口，不需要特权模式或 host 网络。</p>
+<pre><code class="hljs language-bash" lang="bash">curl --fail tftp://服务器LAN地址/firmware/firmware.bin \
+  -o /tmp/firmware-downloaded.bin
+<span class="hljs-built_in">sha256sum</span> data/firmware/firmware.bin /tmp/firmware-downloaded.bin
+</code></pre>
+<p><code>tftp-nols</code> 限制目录枚举，但没有增加账号认证；这个匿名卷还会通过 HTTP 可读，WebDAV 因 <code>dav-auth</code> 仍要求登录。用 VLAN、防火墙和服务启停控制访问范围。只支持 binary/octet/image 模式，不支持 netascii，不能假定 RFC 7440 窗口扩展可用。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fcopyparty%2Ftftpd.py" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/copyparty/tftpd.py" rel="external nofollow noopener noreferrer">TFTP 模块</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fpartftpy" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/partftpy" rel="external nofollow noopener noreferrer">partftpy 项目</a>。</p>
+<h3 data-id="heading-17">FTPS：换依赖镜像并管理独立证书</h3>
+<p><code>min</code> 缺少 PyOpenSSL，实际模块检查和 FTPS 实现均确认不能直接启用。确需 FTPS 可独立评估 <code>copyparty/im:1.20.25</code>，在全局指定 <code>ftps: 3990</code>、<code>ftp-pr</code>、<code>ftp-nat</code>，并配置 <code>cert</code> 和 <code>certkey</code>，映射 3990/TCP 与被动范围。证书文件需正确挂载并可被容器用户读取；已有 HTTPS 代理的证书不会自动进入该容器。</p>
+<p>客户端应选择 <strong>显式 TLS/FTPES</strong>，不是 implicit FTPS，不是 SFTP。服务端要求控制与数据连接均使用 TLS。若同时启用 FTP/FTPS，项目会分割被动端口范围，需扩大范围后检查两边。此扩展未在本次环境端到端测试，因此不作为可以直接投产的完整配置交付。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fcopyparty%2Fftpd.py" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/copyparty/ftpd.py" rel="external nofollow noopener noreferrer">FTPS 实现与依赖条件</a>。</p>
+<h3 data-id="heading-18">SFTP：与 FTP 无关的 SSH 文件入口</h3>
+<p>SFTP 需要 Paramiko，官方 <code>im/ac/iv/dj</code> 有对应依赖，<code>min</code> 没有。需要它时可独立切换到 <code>im</code>，使用 <code>sftp: 3922</code>，设置 <code>sftp-key: 用户名 ssh-ed25519 公钥内容</code> 并映射 3922/TCP；默认以公钥认证，只有显式设置 <code>sftp-pw</code> 才开启密码认证。设置 <code>sftp-hostk: /cfg/ssh-hostkeys</code> 持久化主机密钥，并在客户端核对指纹。</p>
+<p>它不占用 SSH 系统服务 22 端口，也不表示获得远程 shell。切换镜像会增加依赖，需重新核验当前版本；本文没有为“不需要 SFTP”的主方案添加这些组件。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fcopyparty%2Fsftpd.py" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/copyparty/sftpd.py" rel="external nofollow noopener noreferrer">SFTP 模块</a>。</p>
+<h3 data-id="heading-19">SMB/CIFS 与 NFS：交给专用服务</h3>
+<p>SMB 后端依赖 Impacket；官方明确警告 VFS 集成与安全问题。<code>1.20.25</code> 除依赖外，还阻止在未设置 <code>hack-me-bro</code> 时启动 SMB。本文不提供把这个危险开关用于公网共享的配置，确需 Windows 系统共享时优先评估独立 Samba。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Freleases%2Ftag%2Fv1.20.25" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/releases/tag/v1.20.25" rel="external nofollow noopener noreferrer">1.20.25 发布说明</a>。</p>
+<p>Copyparty 没有 NFS 服务端协议实现。将宿主机的 NFS 挂载目录映射给 <code>/w</code>，只是把 NFS 作为后端存储，客户端访问 Copyparty 仍走其启用的协议。后端掉线时还要避免扫描把临时不可见的文件误判为删除；可以评估官方 filesystem guards。NAS 存储的故障与权限不能由文件传输容器自动解决。</p>
+<h2 data-id="heading-20">HTTPS 与安全管理</h2>
+<h3 data-id="heading-21">复用现有反向代理</h3>
+<p>受控 LAN 临时传文件可以直接访问 IP，但 HTTP 和 FTP 的认证信息仍是明文。长期访问和互联网入口，应为 HTTP/WebDAV 使用 HTTPS，复用已存在的 Nginx/Caddy 即可，不必为本文强制添加代理容器。</p>
+<p><img class="lazy" alt="HTTPS 安全边界" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/02749e55590e408b8797e66a9d58d2d5~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1793860680&amp;x-signature=vn5Ygbui85Ezp0WlyJ43PGIOaJw%3D"></p>
+<p><em>图 4：TLS 在反向代理终止；后端 HTTP 必须受网络边界保护。独立 FTP/TFTP 端口不会因为 HTTPS 入口而自动加密。</em></p>
+<p>以下示例适用于 <strong>Nginx 在 Docker 宿主机运行</strong>，对应主方案回环绑定；域名和证书路径是示例，必须替换为真实部署值：</p>
+<pre><code class="hljs language-nginx" lang="nginx">server &#123;
+    listen 443 ssl;
+    server_name files.example.com;
+    ssl_certificate /etc/nginx/certs/files/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/files/privkey.pem;
+
+<pre><code>client_max_body_size 0;
+client_body_timeout 600s;
+send_timeout 600s;
+
+location / &amp;#123;
+    proxy_pass http://127.0.0.1:3923;
+    proxy_http_version 1.1;
+    proxy_set_header Connection &quot;&quot;;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_request_buffering off;
+    proxy_buffering off;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>此单层代理覆盖来自客户端的 <code>X-Forwarded-For</code>，不允许随意透传伪造的链。转发 WebDAV 的 PROPFIND/PUT/MOVE/DELETE，不额外启用 Nginx 自己的 DAV 文件服务，也不加入阻止这些方法的 <code>limit_except</code>。这里 <code>proxy_pass</code> 保留原请求路径，采用独立子域名避免子路径重写。</p>
+<p><code>client_max_body_size 0</code> 取消 Nginx 请求体大小限制，应结合存储剩余空间、访问控制与业务要求评估；也可以设置明确的上限。600 秒是读写空闲超时，不是允许整个文件最多传输十分钟。浏览器分块上传与普通 WebDAV PUT 的请求大小不同，应分别测试，不能以单个小文件成功证明大文件链路可靠。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fnginx.org%2Fen%2Fdocs%2Fhttp%2Fngx_http_proxy_module.html" ref="nofollow noopener noreferrer" target="_blank" title="https://nginx.org/en/docs/http/ngx_http_proxy_module.html" rel="external nofollow noopener noreferrer">Nginx proxy 模块</a>、<a href="https://link.juejin.cn/?target=https%3A%2F%2Fnginx.org%2Fen%2Fdocs%2Fhttp%2Fngx_http_core_module.html" ref="nofollow noopener noreferrer" target="_blank" title="https://nginx.org/en/docs/http/ngx_http_core_module.html" rel="external nofollow noopener noreferrer">请求体与超时参数</a>。</p>
+<p>应用前运行 <code>nginx -t</code>，通过后按现有服务机制重载。不要使用 <code>curl -k</code> 来验证正式证书；使用 <code>curl -I https://files.example.com/</code> 和 WebDAV 请求，再做实际的大文件上传下载。</p>
+<h3 data-id="heading-22">真实 IP 与可信代理</h3>
+<p>Docker bridge 的源地址可能是网关地址，并非 Copyparty 看到的 <code>127.0.0.1</code>。先查看请求日志及：</p>
+<pre><code class="hljs language-bash" lang="bash">docker inspect copyparty-files --format <span class="hljs-string">'&#123;&#123;json .NetworkSettings.Networks&#125;&#125;'</span>
+</code></pre>
+<p>然后在 <code>[global]</code> 设置实际观察到的代理来源，例如：</p>
+<pre><code class="hljs language-ini" lang="ini">  xff-src: 172.20.0.1/32
+  xff-hdr: x-forwarded-for
+  rproxy: -1
+</code></pre>
+<p>这个地址只是格式示例，必须换成容器日志确认的实际代理地址，不能盲信任整个 LAN，更不能设置 <code>any</code>。单层代理覆盖成一个客户端地址时，<code>-1</code> 选最近一项；若已有 CDN/多层代理，先在入口校验上游来源并重新设计可信链。对可信代理来源的检查和对客户端的授权是不同事情。保持后端只对代理开放，避免直接绕过 HTTPS。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fblob%2Fv1.20.25%2Fdocs%2Fxff.md" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/blob/v1.20.25/docs/xff.md" rel="external nofollow noopener noreferrer">官方真实 IP 文档</a>。</p>
+<h3 data-id="heading-23">账号与文件安全</h3>
+<p>不要共享 owner 密码；日常传输使用 uploader 或 reader。敏感目录不要映射进容器，尤其不要挂宿主机根目录、Docker Socket 或私钥目录。匿名临时只读可以在<strong>明确受控的 LAN 卷</strong>添加 <code>r: *</code>，但它意味着所有能连到该卷入口的人都能下载；用完移除并重启。若把 data 挂成 <code>:ro</code>，应用层的 <code>w</code> 权限也无法突破文件系统只读。</p>
+<p>例如，只在受控 LAN 临时分享 <code>data/public/</code>：先创建目录、放入准备分享的文件，并保证容器 UID 可读，在原配置末尾增加以下卷，然后重启服务。主共享 <code>/files/</code> 的账号授权仍按原配置执行。</p>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-section">[/public]</span>
+  /w/public
+  accs:
+    r: *
+</code></pre>
+<p>将 <code>.env</code> 绑定地址设置为真实 LAN IP，首次改变绑定后执行 <code>docker compose up -d</code>；以后只改卷配置时执行 <code>docker compose restart copyparty</code>。匿名浏览器访问 <code>http://服务器LAN地址:3923/public/</code>，只有列目录和下载权限。主方案 <code>dav-auth</code> 仍要求 WebDAV 登录；如果先前启用了 TFTP，它也可能读取这个匿名卷，所以需要同步评估所有已启用协议。分享结束后删除这段配置并重启，或直接 <code>docker compose stop</code>。只放允许该网络访问的内容，不给匿名用户 w、m、d、a。</p>
+<p>上传文件是不可信内容，不应自动执行，也不应把共享目录当作服务器代码目录。主方案禁用媒体缩略图，降低了不需要的处理组件，但并不保证任何上传都安全。配置中的明文密码需通过文件权限和备份权限保护。</p>
+<p><code>min</code> 没有 Argon2 依赖，不能直接照搬 <code>ah-alg: argon2</code>。本次确认标准库存在 <code>hashlib.scrypt</code>，但主方案没有启用密码哈希；如使用 scrypt，要按 <code>--help-pwhash</code> 指南生成，并保持 <code>ah-salt</code> 和 <code>usernames</code> 输入规则一致，测试登录后再替换现有配置。不要把其他镜像的哈希能力默认赋给 <code>min</code>。</p>
+<p>持续关注<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Fsecurity%2Fadvisories" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/security/advisories" rel="external nofollow noopener noreferrer">官方安全公告</a>与<a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2F9001%2Fcopyparty%2Freleases" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/9001/copyparty/releases" rel="external nofollow noopener noreferrer">发布记录</a>。固定旧版本是复现手段，不是长期安全策略；本文选定版本已经包含官方近期的安全修复，今后仍要维护。共享目录应真正隔离，不能把大小写不敏感文件系统上的“隐藏子目录”当成可靠敏感数据边界。</p>
+<h2 data-id="heading-24">按需启动、备份与升级</h2>
+<h3 data-id="heading-25">常用操作</h3>
+<p>在 Compose 目录执行：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose start                  <span class="hljs-comment"># 已创建的停止容器</span>
+docker compose up -d                  <span class="hljs-comment"># 首次创建或同步 Compose 变化</span>
+docker compose stop                  <span class="hljs-comment"># 用完停止，保留容器</span>
+docker compose restart copyparty      <span class="hljs-comment"># 重启现有容器，不拉取新镜像</span>
+docker compose ps -a
+docker compose logs --<span class="hljs-built_in">tail</span>=100 copyparty
+docker compose logs -f copyparty
+docker compose up -d --force-recreate <span class="hljs-comment"># 按当前配置重建</span>
+docker compose down                  <span class="hljs-comment"># 删除本项目容器与默认网络</span>
+</code></pre>
+<p>主方案 <code>restart: "no"</code> 适合“平时关闭，需要时再启动”，不会因 Docker daemon 重启自动拉起，也不会自动处理崩溃。常驻服务可改为 <code>unless-stopped</code>，但要理解运行中的容器会在 daemon 恢复时重启；手动停止的容器保持停止。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fdocs.docker.com%2Fengine%2Fcontainers%2Fstart-containers-automatically%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://docs.docker.com/engine/containers/start-containers-automatically/" rel="external nofollow noopener noreferrer">Docker 重启策略</a>。</p>
+<p><code>stop</code> 保留容器，可以 <code>start</code>；<code>down</code> 删除容器，要重新 <code>up -d</code>。本方案使用 bind mount，删除容器或其网络不会删除宿主机 <code>data/</code> 和 <code>config/</code>。错误删除目录、磁盘故障及恶意删除仍会造成数据丢失，持久化不等于备份。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fdocs.docker.com%2Fengine%2Fstorage%2Fbind-mounts%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://docs.docker.com/engine/storage/bind-mounts/" rel="external nofollow noopener noreferrer">bind mount 文档</a>。</p>
+<h3 data-id="heading-26">备份与恢复</h3>
+<p>停止服务，避免索引数据库和文件处于写入过程；备份放在共享目录以外：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose stop
+<span class="hljs-built_in">mkdir</span> -p ../copyparty-backups
+backup_path=<span class="hljs-string">"../copyparty-backups/copyparty-<span class="hljs-subst">$(date +%Y%m%d-%H%M%S)</span>.tar.gz"</span>
+tar -czf <span class="hljs-string">"<span class="hljs-variable">$backup_path</span>"</span> compose.yaml .<span class="hljs-built_in">env</span> config data
+<span class="hljs-built_in">chmod</span> 600 <span class="hljs-string">"<span class="hljs-variable">$backup_path</span>"</span>
+<span class="hljs-comment"># 需要继续共享时再执行 docker compose start</span>
+</code></pre>
+<p>已有大量文件时，评估增量备份或存储快照，不要把这条压缩命令当成唯一方案。备份包含密码和索引，需限制访问并定期做恢复演练。</p>
+<p>恢复到新的空目录，不覆盖正在使用的数据：</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">mkdir</span> -p <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/copyparty-restore"</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$HOME</span>/copyparty-restore"</span>
+tar -tzf /path/to/copyparty-backup.tar.gz
+tar -xzf /path/to/copyparty-backup.tar.gz
+<span class="hljs-built_in">ls</span> -ldn config data
+docker compose config --quiet
+docker compose up -d
+</code></pre>
+<p>恢复前检查备份来源、路径及空间；恢复后核对 <code>.env</code> 地址、UID/GID、目录属主，确认不存在同名容器冲突，并重新验证认证和文件哈希。索引状态与配置也随 <code>config/</code> 恢复。</p>
+<h3 data-id="heading-27">升级与回滚</h3>
+<p>查看运行版本、所用镜像 ID，记录升级前状态：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose <span class="hljs-built_in">exec</span> copyparty python3 -m copyparty --version
+docker inspect copyparty-files --format <span class="hljs-string">'&#123;&#123;.Image&#125;&#125;'</span>
+docker image inspect copyparty/min:1.20.25 --format <span class="hljs-string">'&#123;&#123;json .RepoDigests&#125;&#125;'</span>
+</code></pre>
+<p>先阅读新版本的 release notes 和安全公告，备份后把 Compose 标签改为已核验的新版本；若使用摘要，也必须更新它。执行：</p>
+<pre><code class="hljs language-bash" lang="bash">docker compose config --quiet
+docker compose pull
+docker compose up -d
+docker compose ps
+docker compose logs --<span class="hljs-built_in">tail</span>=100 copyparty
+</code></pre>
+<p><code>pull</code> 只是下载；<code>up -d</code> 才根据新镜像/配置重新创建容器。<code>restart</code> 不会切到刚拉取的新镜像。重做 reader 下载、uploader 上传、匿名拒绝和已启用协议检查后，才能判断升级成功。</p>
+<p>回滚时把 <code>image:</code> 改回记录的旧标签或摘要，再 <code>docker compose up -d</code>。如果新版本改变配置语法或元数据格式，仅换旧镜像可能不足，应停止服务并恢复兼容的配置/索引备份，同时保护升级后新增的共享文件。不要对包含这些新增数据的目录直接执行破坏性恢复。</p>
+<h3 data-id="heading-28">资源占用怎么测</h3>
+<p>本文不提供未经实测的 CPU/内存排行榜。可用 <code>docker stats --no-stream copyparty-files</code> 观察容器指标，配合 <code>df -h</code>、<code>iostat -xz 1</code> 和客户端哈希验证。比较时固定硬件、架构、镜像摘要、磁盘、网络、文件集、客户端、协议、TLS 与并发数，分别测空闲状态、单大文件和大量小文件；注明冷缓存/热缓存及后台扫描条件。镜像下载大小、磁盘占用、RSS 和容器内存指标不是同一概念。</p>
+<p>外部改动文件需要等待或触发索引重新扫描；主方案 <code>e2dsa</code> 启动扫描，可在维护窗口重启确认。元数据更新策略与直接目录列表显示是不同问题。大量文件扫描会增加磁盘 I/O，不必为了“功能完整”开启媒体分析。</p>
+<h2 data-id="heading-29">故障排查</h2>
+<p>先看 <code>docker compose ps -a</code>、启动日志和展开后的配置，再按症状定位。<code>docker compose config</code> 与配置文件可能含敏感信息，不要原样公开。</p>
+<table><thead><tr><th>故障现象</th><th>可能原因</th><th>检查方法</th><th>处理方向</th></tr></thead><tbody><tr><td>容器启动后退出</td><td>配置语法/不支持参数、端口冲突</td><td><code>docker compose ps -a</code>；<code>docker compose logs --tail=100</code></td><td>修正具体报错；不要靠重启循环掩盖</td></tr><tr><td>配置未生效</td><td><code>.conf</code> 放错目录、挂载错误、未重启</td><td><code>docker inspect copyparty-files --format '&#123;&#123;json .Mounts&#125;&#125;'</code>；检查日志卷列表</td><td>确认宿主机 config 内文件被挂到 <code>/cfg</code>；重启</td></tr><tr><td>出现匿名写权限</td><td>没有有效卷配置，回落默认共享</td><td>启动日志的 volumes/permissions</td><td>先停止服务，修复 <code>/files</code> 配置后再开放入口</td></tr><tr><td>本机能访问，LAN 不通</td><td>仍绑定 127.0.0.1、接口地址错误</td><td><code>docker compose port copyparty 3923</code>；宿主机 <code>ss -lnt</code></td><td>修改 <code>.env</code>、<code>up -d</code> 重建；检查 Docker 实际转发策略</td></tr><tr><td>全部入口无法访问</td><td>容器退出、端口被占用、客户端路由</td><td><code>curl -v http://127.0.0.1:3923/files/</code>；<code>ss -lnt</code></td><td>先通本机再测试远端；分辨监听与转发</td></tr><tr><td>登录失败</td><td>未按 usernames 模式登录、配置密码错误、封禁</td><td><code>curl --user reader -v URL</code>；日志</td><td>Web 用 <code>用户名:密码</code>；客户端分开填；修复失败原因</td></tr><tr><td>上传 403 或拒绝</td><td>账号只有 r、宿主机权限不足、只读挂载</td><td><code>docker compose exec copyparty id</code>；<code>ls -ldn config data</code>；Mounts</td><td>同时核对应用权限和系统权限</td></tr><tr><td>上传磁盘错误</td><td>空间/inode 不足</td><td><code>df -h</code>；<code>df -i</code>；日志</td><td>清理确定可删的文件或扩容，不盲删索引</td></tr><tr><td>下载 404/403</td><td>URL 编码、文件名、卷路径或权限</td><td>登录后查看列表；<code>curl --user reader -I URL</code></td><td>区分文件不存在与权限拒绝；核对 <code>/files/</code></td></tr><tr><td>WebDAV 挂载失败</td><td>WebClient 策略、认证、客户端行为</td><td>curl PROPFIND；WinSCP 或 rclone 对照</td><td>服务端 207 正常后检查客户端；优先 HTTPS</td></tr><tr><td>WebDAV 修改生成新名字</td><td>客户端覆盖条件不满足</td><td>权限与请求日志；是否带 <code>x-oc-mtime</code></td><td>只对专用编辑卷评估 d 和 daw，不扩大普通上传权限</td></tr><tr><td>FTP 登录后不能列目录</td><td>PASV 地址或数据范围不通</td><td>FileZilla 详细日志；<code>curl -v --ftp-pasv</code></td><td>同步 ftp-nat、ftp-pr、端口映射和网络转发</td></tr><tr><td>FTP 内网正常公网异常</td><td>公网地址/NAT 回流/防火墙</td><td>比较内外网 PASV/EPSV 与实际目的地址</td><td>验证路由器同号转发；优先 VPN 内访问</td></tr><tr><td>TFTP 请求超时</td><td>只映射 69，数据端口未放行</td><td>检查 <code>tftp-pr</code>；抓取 UDP；TFTP 日志</td><td>映射同号 UDP 数据范围，检查只读匿名卷</td></tr><tr><td>代理 502</td><td>后端关闭、proxy_pass 地址错误</td><td>宿主机 curl 后端；<code>nginx -t</code>；代理错误日志</td><td>明确代理在宿主机还是容器；按需启动后端</td></tr><tr><td>HTTPS 上传 413</td><td>代理/CDN 请求体上限</td><td>Nginx 配置与错误日志；比较直连</td><td>设置合理大小限制；检查链路每一层</td></tr><tr><td>大文件中断</td><td>空闲超时、磁盘慢、网络/CDN 限制</td><td>传输时间、服务/代理日志、磁盘指标</td><td>找到发生中断的层；验证实际文件集与客户端</td></tr><tr><td>所有用户被同时封禁</td><td>容器只看见代理 IP</td><td>请求日志、真实代理来源</td><td>正确设置 xff-src 和可信链，再处理封禁</td></tr><tr><td>宿主机改文件后结果异常</td><td>索引未扫描、缓存、后端挂载掉线</td><td><code>ls data</code>、启动扫描日志、实际存储挂载</td><td>检查后端状态；在维护窗口重新扫描</td></tr><tr><td>更新后启动不兼容</td><td>参数或索引格式变化</td><td>新版发布说明、启动报错</td><td>恢复兼容配置/索引和旧摘要，再验证</td></tr></tbody></table>
+<p>Docker 发布端口可能与宿主机常见防火墙规则的直觉不同，要按实际 Docker 网络规则验证来源限制；不能因为 UFW 显示拒绝就认定容器端口已被隔离。<a href="https://link.juejin.cn/?target=https%3A%2F%2Fdocs.docker.com%2Fengine%2Fnetwork%2Fpacket-filtering-firewalls%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://docs.docker.com/engine/network/packet-filtering-firewalls/" rel="external nofollow noopener noreferrer">Docker 防火墙文档</a>。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南" href="https://juejin.cn/post/7701703358587191306" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南</span><span class="desc fs12">https://juejin.cn/post/7701703358587191306</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/bdda5780.html">测试人员代码阅读实战指南<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/aa62aa43.html">How Ropes & Gray Is Developing AI for Transactional Diligence<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/412863d9.html" title="WinForms / WPF / Blazor 项目模板详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7246"></div><span class="title">WinForms / WPF / Blazor 项目模板详解</span></a><a class="item" href="/rss/bd1dcadf.html" title="下载神器！Motrix 停更三年后重写回归"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6055d8b67276474e841991f2a3727919~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1793879604&x-signature=nOfb463%2BhrRQewYjaQy%2Bp7F%2Fmwg%3D"></div><span class="title">下载神器！Motrix 停更三年后重写回归</span></a><a class="item" href="/rss/7b2ae765.html" title="产业新优势基础软件的人才底盘，从Linux与数据库开始"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8406"></div><span class="title">产业新优势基础软件的人才底盘，从Linux与数据库开始</span></a><a class="item" href="/rss/b64e9b65.html" title="AutoHotkey V2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6355"></div><span class="title">AutoHotkey V2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性</span></a><a class="item" href="/rss/142d8ea3.html" title="人像清晰度加多少？用 Awaking 对照皮肤与发丝"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ea054097567544cbb6ae18caee8e8a64~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793767071&x-signature=hrEP0RxYw33Dv3S7nBorgvp4ObM%3D"></div><span class="title">人像清晰度加多少？用 Awaking 对照皮肤与发丝</span></a><a class="item" href="/rss/f054f3a.html" title="副业搞钱点子之独立开发"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9582"></div><span class="title">副业搞钱点子之独立开发</span></a><a class="item" href="/rss/e49d0b35.html" title="币安 63 亿美元被盗：被攻破的不是私钥，是那台负责签名的机器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fac4b83ce4f549bdbea9bed9e6feb30e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Gz5bCP6Jm-:q75.awebp?rk3s=f64ab15b&x-expires=1793967042&x-signature=0SuxVYlBlls%2FQ5MN%2Fd7mcmn%2BZGY%3D"></div><span class="title">币安 63 亿美元被盗：被攻破的不是私钥，是那台负责签名的机器</span></a><a class="item" href="/rss/e6bcc1a1.html" title="我有个朋友，工作八年，公司从 300 人减到 80 人"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6986"></div><span class="title">我有个朋友，工作八年，公司从 300 人减到 80 人</span></a><a class="item" href="/rss/fef40605.html" title="白杯偏蓝，色温调到哪里该停？Awaking 两版正式导出"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e56e4d8f89e64e5a80fedd0e5c7e8049~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1794025361&x-signature=%2FNNt0s%2FJhMTdAyUkrl4sYWaupec%3D"></div><span class="title">白杯偏蓝，色温调到哪里该停？Awaking 两版正式导出</span></a><a class="item" href="/rss/5c421d80.html" title="秋叶已经够黄了：用 Awaking 单独收一点黄色"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ad41374d14b64aecb81f7f81d3e06abf~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793843776&x-signature=iudbgog4XrxZqH%2BMPQCxFW6uXao%3D"></div><span class="title">秋叶已经够黄了：用 Awaking 单独收一点黄色</span></a><a class="item" href="/rss/4dbb0a01.html" title="用 Rokid AIUI 做一个「专注时刻助手」：把一段专注时间挂在眼前"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f5187425f9e047a1aa91b1e871e6fa57~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Jyh56yU5bCP5LiDXw==:q75.awebp?rk3s=f64ab15b&x-expires=1793845984&x-signature=WE1LSmqn72BRw6ZjOORilK1B0Vg%3D"></div><span class="title">用 Rokid AIUI 做一个「专注时刻助手」：把一段专注时间挂在眼前</span></a><a class="item" href="/rss/d641d5bc.html" title="窗边花瓶太暗？用 Awaking 看提亮室内的代价"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2bd39fea5c4c4b6fb895e350c793a813~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793930689&x-signature=juE8Qw3gfnzBGiMqtImsgP2WNNw%3D"></div><span class="title">窗边花瓶太暗？用 Awaking 看提亮室内的代价</span></a><a class="item" href="/rss/bdda5780.html" title="测试人员代码阅读实战指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1149"></div><span class="title">测试人员代码阅读实战指南</span></a><a class="item" href="/rss/e062be31.html" title="视野修炼-技术周刊第137期 | 编程已经面目全非"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cc2a93005c5a4966a0cc15dce38a4007~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1793789585&x-signature=1twJro4vPjSEg896nUVb63U3Olc%3D"></div><span class="title">视野修炼-技术周刊第137期 | 编程已经面目全非</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

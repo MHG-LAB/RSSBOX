@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Introducing the Cloudflare PHP Capture the Flag Challenge - RSSBOX</title>
+
+  
+    <meta name="description" content="Update — October 30, 2026: Thank you to everyone who has participated in the PHP Capture the Flag challenge. We have received a strong response from the security research community, and the submissio">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Introducing the Cloudflare PHP Capture the Flag Challenge">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/96ae5242.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Update — October 30, 2026: Thank you to everyone who has participated in the PHP Capture the Flag challenge. We have received a strong response from the security research community, and the submissio">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-27T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-27T13:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Put our WAF to the test</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How this Capture the Flag (CTF) works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Challenge requirements</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Not a substitute for patching</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-27T13:00:00.000Z">2026-10-27</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Introducing the Cloudflare PHP Capture the Flag Challenge</span></h1>
+<div>
+<p><em><strong>Update — October 30, 2026:</strong> Thank you to everyone who has participated in the PHP Capture the Flag challenge. We have received a strong response from the security research community, and the submissions have helped us harden our existing php2shell WAF protections and create new detections.</em></p><p><em>Details of managed-rule changes are available in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/change-log/changelog/"><span style="text-decoration:underline">Cloudflare WAF changelog</span></a>.</em></p><p><em>The CTF remains open. We encourage researchers to continue submitting materially distinct, reproducible bypasses through the Cloudflare HackerOne program. We will share further information and feedback as the challenge progresses. Thank you again for your contributions.</em></p><!-- unsupported block: break --><p>Last week was one for the Internet security history books. First, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/emudhra-certificate-compromise/"><span style="text-decoration:underline">eight eMudhra intermediate certificates were compromised</span></a>, creating the possibility of forged certificates that could be used to impersonate servers. Then came <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/php-vulnerabilities-waf-protection/"><span style="text-decoration:underline">php2shell</span></a>: serious vulnerabilities in PHP, the runtime behind a large portion of the Web.</p><p>Cloudflare worked around the clock as these events unfolded to protect our customers and help protect the Internet. We shipped client updates and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/emudhra-certificate-compromise/#our-response"><span style="text-decoration:underline">multiple mitigations</span></a>, updated our web application firewall (WAF) with new rules to block attackers from exploiting the PHP vulnerabilities, and introduced a new feature called <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/full-transaction-waf/"><span style="text-decoration:underline">full transaction detection</span></a>.</p><p>As always in situations like this, these new capabilities were made available on all plans, including Free.</p><h2>Put our WAF to the test</h2><p>Protecting systems from vulnerabilities like these is always an ongoing process, not a one-time event. The widespread adoption of AI allows attackers to discover new vectors with unprecedented speed and efficiency, so collecting real-world data to test our assumptions and strengthen defenses is essential.</p><p>That’s why today we're launching the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://php-rce.cloudflare.app/"><span style="text-decoration:underline">Cloudflare PHP Capture the Flag challenge</span></a>, run through our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare"><span style="text-decoration:underline">Bug Bounty program</span></a>. We've put a deliberately vulnerable PHP installation behind our WAF, and we're inviting security researchers on HackerOne to try to bypass the protections and capture a flag.</p><h2>How this Capture the Flag (CTF) works</h2><p>We are keeping this simple. The challenge focuses on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cve.org/CVERecord?id=CVE-2026-109618"><span style="text-decoration:underline">CVE-2026-109618</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cve.org/CVERecord?id=CVE-2026-109619"><span style="text-decoration:underline">CVE-2026-109619</span></a>, the two PHP vulnerabilities behind <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/php-vulnerabilities-waf-protection/"><span style="text-decoration:underline">php2shell</span></a>. The target runs stock <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/releases/8_5_11.php"><span style="text-decoration:underline">PHP 8.5.11</span></a> (with standard PHP extensions), Apache 2 (via mod_php), and an empty index.php inside a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/containers/"><span style="text-decoration:underline">Cloudflare Container</span></a>, with our default WAF protection rules for these vulnerabilities enabled in front of it. Inside the sandbox is a file called <code>/flag</code>.</p><p>The sandbox is reset every few minutes, including the flag file.</p><!-- unsupported block: image --><p>Your mission, should you choose to accept it: <strong>bypass the WAF protections, exploit the PHP sandbox, and recover the contents of /flag</strong>. You can use your own research tools. The <a target="_blank" rel="external nofollow noopener noreferrer" href="https://php-rce.cloudflare.app/"><span style="text-decoration:underline">challenge page</span></a> has the environment details, scope, and flag verification form.</p><h2>Challenge requirements</h2><p>This limited-time challenge is run via <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare?type=team"><span style="text-decoration:underline">Cloudflare's Bug Bounty program on HackerOne</span></a>. All aspects of this challenge are subject to HackerOne <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.hackerone.com/terms/community"><span style="text-decoration:underline">terms</span></a> and the Cloudflare HackerOne <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare"><span style="text-decoration:underline">program rules</span></a> the (“Bounty Terms”). If you find an eligible bypass, you must follow these requirements in order to claim the bounty:</p><ol><li>All participants must sign up for a HackerOne account and review and agree to the Bounty Terms <strong><span style="text-decoration:underline">before</span></strong> participating in the CTF.</li><li>Demonstrate attacker-controlled PHP code or command execution inside the sandbox through an authorized POST request.</li><li>Use that remote code execution (RCE) to recover the current contents of /flag, then successfully verify the flag through <a target="_blank" rel="external nofollow noopener noreferrer" href="https://php-rce.cloudflare.app/#verification"><span style="text-decoration:underline">the CTF user interface</span></a> (UI). Verify promptly before a reset; retain the successful result for later review.</li><li>Submit a private report to Cloudflare on HackerOne. Include PHP CTF in the title and provide:<ol><li>The endpoint, complete payload, and request sequence, preserving relevant headers, encoding, and body bytes.</li><li>Raw request/response captures or a readable proof of concept sufficient to reproduce the full chain.</li><li>An explanation of the WAF bypass, executed code or command, and how that execution recovered /flag.</li><li>The attempt ID, successful UI verification result, and exploit/verification UTC timestamps. Include the flag privately if needed for verification.</li><li>What makes the method or payload materially distinct, and related submissions you know about.</li></ol></li></ol><p>UI verification does not submit a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://hackerone.com/cloudflare"><span style="text-decoration:underline">HackerOne</span></a> report or establish reporting priority. File disclosure without RCE, RCE without successful flag recovery and UI verification, local-only exploits, rediscovery of the known PHP vulnerabilities, and WAF detection differences or partial chains without the full objective are not eligible.</p><p>Awards require a <strong>materially distinct Firewall (WAF) bypass method</strong>, even for the same PHP CVE. Reports using the <strong>same Firewall-bypass mechanism are duplicates</strong>, regardless of differences in the PHP exploit, payload, RCE technique, or flag-recovery method. New flags, resets, attempt IDs, or cosmetic changes—including equivalent encodings—do not qualify as unique. Equivalent submissions are duplicates even if unfixed; only the first complete, reproducible HackerOne report is considered. Cloudflare makes final duplicate and reward decisions.</p><p>We record attempted metadata and request payloads to help analyze reports, so please use test data only. Do not send credentials, personal information, or anything else you would not want included in a research record. Read Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/privacypolicy/"><span style="text-decoration:underline">privacy notice</span></a> before testing.</p><p>Testing is authorized only against the challenge hostname's WAF-protected <code>/php/*</code> endpoints (POST method only). Other Cloudflare services, direct access to the underlying infrastructure, the upstream PHP project, and third-party systems are out of scope. No denial of service, high-volume scanning, persistence, social engineering, or attacks on other participants. If you get a 429 or 503, back off.</p><p>In the event of any conflict between this blog post and the Bounty Terms, the Bounty Terms shall prevail.</p><p>Cloudflare reserves the right to suspend or terminate this challenge at any time. Once the competition is removed from HackerOne, it is officially terminated, so please refer to the Cloudflare HackerOne page for the most up-to-date information on whether this challenge remains open.</p><h2>Not a substitute for patching</h2><p>Our WAF protects you, but it is not a replacement for fixing vulnerable software. Response blocking can prevent exposed data from reaching an attacker, but it cannot undo actions already performed at the origin. If you run PHP, follow the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/security/"><span style="text-decoration:underline">latest PHP security advisories</span></a> and apply the relevant updates.</p><p>Last week was a reminder that helping build a better Internet often takes many people—researchers, maintainers, and teams across the industry—doing difficult, urgent work together.</p><p>We hope this challenge gives everyone a useful way to join in. Head over to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://php-rce.cloudflare.app/"><span style="text-decoration:underline">php-rce.cloudflare.app</span></a> if you want to participate: the flag is there, and we'd like to know if you can get it.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Introducing the Cloudflare PHP Capture the Flag challenge" href="https://blog.cloudflare.com/php-ctf/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Introducing the Cloudflare PHP Capture the Flag challenge</span><span class="desc fs12">https://blog.cloudflare.com/php-ctf/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/468085bc.html">What Took the Internet Offline in Q3 2026<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ba2a648f.html">奥迪砸40亿美元赴美建厂 保时捷泼冷水！CFO直言 ：美国生产不划算<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1b849d2d.html" title="8 eMudhra Certificates Are Compromised. Here's What You Need to Know"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9276"></div><span class="title">8 eMudhra Certificates Are Compromised. Here's What You Need to Know</span></a><a class="item" href="/rss/5bcf2829.html" title="4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6576"></div><span class="title">4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys</span></a><a class="item" href="/rss/f2de2f37.html" title="Bringing Post-Quantum Cryptography to Geographically Fenced Key Management"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5538"></div><span class="title">Bringing Post-Quantum Cryptography to Geographically Fenced Key Management</span></a><a class="item" href="/rss/7fdaa73c.html" title="Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6540"></div><span class="title">Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants</span></a><a class="item" href="/rss/2419f100.html" title="Cloudflare Deploys Protections Against Php2shell Vulnerability"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7207"></div><span class="title">Cloudflare Deploys Protections Against Php2shell Vulnerability</span></a><a class="item" href="/rss/2583077d.html" title="Cloudflare Services for Private Origins Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3221"></div><span class="title">Cloudflare Services for Private Origins Is Now Generally Available</span></a><a class="item" href="/rss/371b0881.html" title="Cutting Our Inference Bill by 68% by Being Obsessive About Optimization"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2488"></div><span class="title">Cutting Our Inference Bill by 68% by Being Obsessive About Optimization</span></a><a class="item" href="/rss/eaf1c143.html" title="How Commerce.com and Cloudflare Are Getting Storefronts Ready for AI Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6663"></div><span class="title">How Commerce.com and Cloudflare Are Getting Storefronts Ready for AI Agents</span></a><a class="item" href="/rss/e948098d.html" title="Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1992"></div><span class="title">Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang</span></a><a class="item" href="/rss/526c1a61.html" title="Introducing Full Transaction Detection for Cloudflare WAF"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8289"></div><span class="title">Introducing Full Transaction Detection for Cloudflare WAF</span></a><a class="item" href="/rss/57807819.html" title="Introducing Tsrs: A Port of TypeScript to Rust"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8844"></div><span class="title">Introducing Tsrs: A Port of TypeScript to Rust</span></a><a class="item" href="/rss/cd467d6c.html" title="Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3486"></div><span class="title">Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification</span></a><a class="item" href="/rss/91ba0fdf.html" title="Origin Range Requests: Serving Large Files Without Range-Request Tuning"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1596"></div><span class="title">Origin Range Requests: Serving Large Files Without Range-Request Tuning</span></a><a class="item" href="/rss/468085bc.html" title="What Took the Internet Offline in Q3 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9636"></div><span class="title">What Took the Internet Offline in Q3 2026</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

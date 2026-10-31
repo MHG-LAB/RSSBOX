@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>出门在外想开家里的 NAS？不必公网 IP，一台 ESP8266 就够了 - RSSBOX</title>
+
+  
+    <meta name="description" content="AI 创作声明：本文由作者基于亲身搭建与联调经验撰写大纲与事实核对，正文由 AI 辅助起草并经作者审阅修改。方案实现、代码与验证均为作者本人完成。家里搭了 NAS 之后，最省心的用法往往是：平时关机或睡眠，要用的时候再远程开机。备份、下载、相册同步这些服务，不需要 24 小时挂着；电费、噪音、硬盘寿命倒是实打实的。问题在于：关机之后，常见的 QuickConnect、花生壳、Cloudflare">
+<meta property="og:type" content="article">
+<meta property="og:title" content="出门在外想开家里的 NAS？不必公网 IP，一台 ESP8266 就够了">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/f41b2a64.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="AI 创作声明：本文由作者基于亲身搭建与联调经验撰写大纲与事实核对，正文由 AI 辅助起草并经作者审阅修改。方案实现、代码与验证均为作者本人完成。家里搭了 NAS 之后，最省心的用法往往是：平时关机或睡眠，要用的时候再远程开机。备份、下载、相册同步这些服务，不需要 24 小时挂着；电费、噪音、硬盘寿命倒是实打实的。问题在于：关机之后，常见的 QuickConnect、花生壳、Cloudflare">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/25ca8ea59bc324d7ff6fa5085905af81.jfif">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/903ea50eba16fc938e6b9b5929554df6.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/860233818998b4941517d915dd0d15fd.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp">
+<meta property="article:published_time" content="2026-10-26T01:07:54.000Z">
+<meta property="article:modified_time" content="2026-10-26T01:07:54.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="少数派">
+<meta property="article:tag" content="少数派Matrix">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/25ca8ea59bc324d7ff6fa5085905af81.jfif">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">为什么不能只靠「远程访问」那一套</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">方案长什么样</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">开始之前：先确认 NAS 真的能被叫醒</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第一步：部署 Cloudflare 开机页</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第二步：烧录家里的 ESP8266</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">第三步：联调一次真正的远程开机</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">和「公网 IP + 端口转发」比，它好在哪</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">小结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/">少数派</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%B0%91%E6%95%B0%E6%B4%BE/%E5%B0%91%E6%95%B0%E6%B4%BEmatrix/">少数派Matrix</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-26T01:07:54.000Z">2026-10-26</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>出门在外想开家里的 NAS？不必公网 IP，一台 ESP8266 就够了</span></h1>
+<div>
+<img class="lazy" alt="Article Cover Image" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/25ca8ea59bc324d7ff6fa5085905af81.jfif" style="display: block; margin: 0 auto;"><br><blockquote><p><strong>AI 创作声明</strong>：本文由作者基于亲身搭建与联调经验撰写大纲与事实核对，正文由 AI 辅助起草并经作者审阅修改。方案实现、代码与验证均为作者本人完成。</p></blockquote><p>家里搭了 NAS 之后，最省心的用法往往是：<strong>平时关机或睡眠，要用的时候再远程开机</strong>。</p><p>备份、下载、相册同步这些服务，不需要 24 小时挂着；电费、噪音、硬盘寿命倒是实打实的。问题在于：关机之后，常见的 QuickConnect、花生壳、Cloudflare Tunnel 统统帮不上忙——机器都没起来，隧道和内网穿透也跟着睡了。</p><p>少数派上那篇 <a href="https://sspai.com/post/60303" target="_blank" rel="external nofollow noopener noreferrer">《家里搭建了 NAS 需要远程访问？这几个步骤很重要》</a> 把「有公网 IP → DDNS → 端口转发」讲得很清楚。那是<strong>机器已经开机</strong>之后，怎么从外面连进去。</p><p>本文解决的是更前面一步：<strong>机器还关着，怎么安全地把它叫醒</strong>——而且尽量不依赖公网 IP、不做端口转发、也不把 NAS 直接暴露到公网。</p><p>完整代码开源在 <a href="https://github.com/Leshao-Zhang/nas-wake-cloudflare" target="_blank" rel="external nofollow noopener noreferrer">nas-wake-cloudflare</a>。</p><hr><h2>为什么不能只靠「远程访问」那一套</h2><p>传统远程开机，常见思路是：</p><ol><li>家里有公网 IP（或至少能端口转发）</li><li>路由器做端口映射，外网打进来某个端口</li><li>在局域网里发 Wake-on-LAN（魔术包）把 NAS 叫醒</li></ol><p>这条路在国内经常卡在第一步。移动宽带大量是内网；即便电信、联通给了公网 IP，也往往是动态的，还要再叠 DDNS。更麻烦的是：只要往外开端口，攻击面就跟着扩大——开机这种事，本身不该依赖「谁都能打到你家路由器」。</p><p>现成方案也不少：插 PCI-E / USB 的物联网开机卡，用厂商 App 远程点开机；或者给 NAS 配智能插座，靠「来电自启」间接唤醒——都能用，各有账户绑定、功耗和可控粒度上的取舍。手上正好有一块 ESP8266 NodeMCU，本着生命不息、折腾不止的原则，就自己做了这一套。</p><p>我想要的体验很简单：</p><blockquote><p>人在外面，手机打开一个网页，输入密码，按一下「开机」。几秒到十几秒后，家里的 NAS 开始启动。家里路由器不用为这件事做任何端口转发。</p></blockquote><p>要实现它，关键只有一句话：</p><p><strong>外网只负责「登记一下想开机」；真正发魔术包的动作，必须发生在家里局域网里。</strong></p><hr><h2>方案长什么样</h2><p>整套东西只有三块：</p><pre class="language-"><code>手机浏览器
+    │ HTTPS 打开开机页、输入密码
+    ▼
+Cloudflare Worker（网页 + 接口 + 状态）
+    ▲
+    │ 家里的 ESP8266 每隔几秒来问一次
+    │
+ESP8266（常开、功耗很低）
+    │ 看到「待开机」
+    │ 向局域网广播发 Wake-on-LAN 魔术包
+    ▼
+NAS 网卡被叫醒 → 开机
+</code></pre><p>分工很干净：</p><figure class="table"><table><thead><tr><th>角色</th><th>做什么</th><th>不做什么</th></tr></thead><tbody><tr><td>Cloudflare Worker</td><td>提供密码页、校验密码、记住「有没有待执行的开机指令」</td><td>碰不到你的局域网，也发不出魔术包</td></tr><tr><td>ESP8266</td><td>轮询云端、在局域网发魔术包、回报「已经发出去了」</td><td>不暴露端口，不跑复杂服务</td></tr><tr><td>NAS</td><td>打开网络唤醒，关机后网口待机供电保持</td><td>关机时不必联网、不必开隧道</td></tr></tbody></table></figure><p>网页密码和设备令牌是两把钥匙：浏览器只能用开机密码；ESP 只能用设备令牌。猜错密码不会改状态；没有令牌也轮询不到真指令。</p><p>待开机默认只保留约 2 分钟。超时就标成「未送达」，避免一条过期指令在板子恢复后突然补发。</p><p>费用方面：Worker 停在免费额度完全够用；ESP8266 用手机充电器供电，一天几毛钱电费都算夸张。</p><hr><h2>开始之前：先确认 NAS 真的能被叫醒</h2><p>这一步跟云无关，却最容易被跳过。</p><ol><li>在 NAS / 主板 BIOS 里打开 <strong>Wake-on-LAN / 网络唤醒</strong>。</li><li>关掉会切断网卡待机供电的节电选项（很多主板上叫 <strong>ErP</strong>、深度休眠一类）。</li><li>关机或睡眠后，看一眼网口：<strong>待机灯还应亮着</strong>。灯都灭了，魔术包到了也没用。</li><li>记下 NAS 有线网卡的 <strong>MAC 地址</strong>，以及它所在网段的<strong>广播地址</strong>（例如 <code>192.168.10.0/24</code> 的广播是 <code>192.168.10.255</code>）。</li></ol><p>ESP8266 必须和 NAS 在同一二层网络。路由器不能开 <strong>AP 隔离 / 客户端隔离</strong>，否则无线侧发出的广播到不了有线网卡，唤醒会失败。</p><hr><h2>第一步：部署 Cloudflare 开机页</h2><p>仓库里的 <code>worker/</code> 就是云端部分。准备：</p><ul><li>Node.js 20+</li><li>一个 Cloudflare 账号（免费计划即可）</li><li>一个挂在同一账号下的自定义域名（推荐）。部分网络对 <code>workers.dev</code> 的 DNS 不友好，自定义域名更稳</li></ul><pre class="language-bash"><code>cd worker
+npm install
+npx wrangler login
+</code></pre><p>设置两把密钥（只存在 Cloudflare，不要写进仓库）：</p><pre class="language-bash"><code># 生成一长串随机令牌给以后的 ESP 用
+openssl rand -base64 24
+
+<p>npx wrangler secret put WAKE_PASSWORD   # 你在网页上输入的开机密码<br>npx wrangler secret put DEVICE_TOKEN    # 上面生成的那串，给 ESP8266<br></p></code></pre><p>然后部署：</p><pre class="language-bash"><code>npx wrangler deploy<br></code></pre><p>把自定义域名指到这个 Worker（仓库的 <code>wrangler.jsonc</code> 里可以写好路由）。部署后用手机流量打开页面试一下：</p><ul><li>密码框为空时，「开机」不能按</li><li>密码错误时提示错误，状态不变</li><li>密码正确后显示「待开机」</li><li>两分钟内没有设备回报，变为「未送达」</li></ul><figure class="image ss-img-wrapper"><img class="lazy" data-original="https://cdnfile.sspai.com/2026/10/25/903ea50eba16fc938e6b9b5929554df6.png?imageView2/2/format/webp" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/903ea50eba16fc938e6b9b5929554df6.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"></figure><p>此时家里还没有板子，页面卡在「待开机」再过期是正常的——说明云端状态机已经通了。</p><p>更细的接口说明见仓库里的 <code>worker/部署.md</code>。</p><hr><h2>第二步：烧录家里的 ESP8266</h2><p>板子职责极窄：连家里 Wi-Fi → 每隔约 8 秒问云端要不要开机 → 需要就发魔术包 → 回报已消费。<br> </p><figure class="image ss-img-wrapper"><img class="lazy" data-original="https://cdnfile.sspai.com/2026/10/25/860233818998b4941517d915dd0d15fd.png?imageView2/2/format/webp" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/860233818998b4941517d915dd0d15fd.png?imageView2/2/w/1120/q/90/interlace/1/ignore-error/1/format/webp"></figure><p><br>准备一块 NodeMCU &#x2F; 同类 ESP8266，以及 Arduino IDE（或 PlatformIO）。从示例复制本地密钥文件：</p><pre class="language-bash"><code># Arduino 工程<p></p>
+<h1 id="编辑-esp8266-NasWake-secrets-h"><a href="#编辑-esp8266-NasWake-secrets-h" class="headerlink" title="编辑 esp8266/NasWake/secrets.h"></a>编辑 esp8266/NasWake/secrets.h</h1><h1 id="或"><a href="#或" class="headerlink" title="或"></a>或</h1><p>cd esp8266<br>cp include/secrets.h.example include/secrets.h<br></p></code></pre><p>填三项：家里 Wi-Fi 名、Wi-Fi 密码、和 Cloudflare 里相同的 <code>DEVICE_TOKEN</code>。MAC 和广播地址写在固件源码里，<strong>不会出现在开机网页上</strong>——网页上也不该出现你家内网拓扑。</p><p>烧录成功后接上串口监视器（115200），正常时应看到类似：</p><pre class="language-text"><code>WiFi 已连接<br>时间已同步<br>poll 空闲<br>poll 空闲<br>...<br></code></pre><p>偶发一次 HTTPS 失败（例如 <code>poll HTTP -1</code>）后自动恢复，在 ESP8266 上并不少见；固件里对 TLS 做了重试。若长期证书校验失败，先确认 NTP 时间同步，再按仓库说明更新信任锚。</p><p>板载 USB 坏掉、只能用 Arduino Uno 当转接烧录的情况，仓库里有单独一篇踩坑记录：<code>esp8266/用Arduino烧录.md</code>。USB 正常的板子直接烧即可。</p><p>日常供电：拔掉电脑，插个 5V USB 充电器就行。两轮轮询之间不要深睡——每次重新握手 HTTPS，很容易拖过下一轮间隔。</p><hr><h2>第三步：联调一次真正的远程开机</h2><p>顺序建议这样：</p><ol><li>确认 ESP 已在串口里稳定 <code>poll 空闲</code></li><li>把 NAS 关机或睡眠，确认网口待机灯仍亮</li><li><strong>手机关掉 Wi-Fi，只用蜂窝数据</strong>打开开机页（避免你其实还连着家里局域网，测了个寂寞）</li><li>输入密码，按开机</li><li>页面应很快变为「待开机」；一轮轮询内，串口出现「要开机 → 魔术包已发出 → 已回报消费」；页面变为「指令已消费」</li><li>看 NAS 是否开始启动</li></ol><p>「指令已消费」只表示魔术包已经发出，不保证系统已经进桌面。若要以后做「真的起来了没有」的探测，那是另一件事；开机指令本身应保持简单、可重试、幂等——重复发魔术包通常是无害的。</p><hr><h2>和「公网 IP + 端口转发」比，它好在哪</h2><p>对照那篇远程访问教程，可以这样理解两者的关系：</p><figure class="table"><table><thead><tr><th> </th><th>公网 IP + DDNS + 端口转发</th><th>本文：Worker + ESP8266</th></tr></thead><tbody><tr><td>解决的问题</td><td>开机后怎么连进家里服务</td><td>关机时怎么安全叫醒</td></tr><tr><td>要不要公网 IP</td><td>通常要</td><td>不要</td></tr><tr><td>要不要端口转发</td><td>要</td><td>不要</td></tr><tr><td>NAS 是否暴露公网</td><td>端口暴露面更大</td><td>关机时几乎无暴露；开机后仍可按你原来的方式访问</td></tr><tr><td>额外硬件</td><td>一般不需要</td><td>一块常开的 ESP8266</td></tr><tr><td>适合谁</td><td>已有公网、愿意维护端口映射</td><td>内网宽带、或只想要一个「远程开机按钮」</td></tr></tbody></table></figure><p>两者并不互斥。很多人的最终形态是：</p><ul><li><strong>平时关机</strong>，靠这套方案远程唤醒</li><li><strong>开机之后</strong>，再用 Tailscale、WireGuard、Cloudflare Tunnel 或自家 DDNS 去访问文件和服务</li></ul><p>Tunnel 很香，但记住它的前提：出口设备必须醒着。NAS 自己当隧道出口时，关机等于隧道一起消失——所以仍然需要局域网里有一台「永远醒着的小东西」来发魔术包。ESP8266 刚好胜任这个角色。</p><hr><h2>小结</h2><p>远程访问 NAS，和远程<strong>唤醒</strong> NAS，是两件不同的事。</p><p>前者依赖机器已经在线；后者需要在局域网里有一个常开的「信使」。用 Cloudflare Worker 当外网按钮和状态机，用一块 ESP8266 当信使发 Wake-on-LAN，可以在没有公网 IP、不开放端口的前提下，用手机流量完成一次干净的远程开机。</p><p>物料清单很短：一个 Cloudflare 账号、一个域名、一块 ESP8266、以及一台已经打开网络唤醒的 NAS。</p><p>代码与部署说明：<a href="https://github.com/Leshao-Zhang/nas-wake-cloudflare" target="_blank" rel="external nofollow noopener noreferrer">github.com&#x2F;Leshao-Zhang&#x2F;nas-wake-cloudflare</a></p><p>如果你已经按那篇少数派文章配好了 DDNS 和端口转发，不妨把 NAS 改成「用时再开」——电费和硬盘都会谢谢你。</p><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="出门在外想开家里的 NAS？不必公网 IP，一台 ESP8266 就够了" href="https://sspai.com/post/117393" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">出门在外想开家里的 NAS？不必公网 IP，一台 ESP8266 就够了</span><span class="desc fs12">https://sspai.com/post/117393</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/db84b324.html">Seam Cutter<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/92a1d90b.html">我用 SONOS 的这些年：从一台音箱，到一套家庭影院<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a404281f.html" title="一支毛笔 ，一本旧杂志，一条黄河，一碗面"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/cc2bf43f8bb4fcdde7c1cbed8cc1051b.jpg"></div><span class="title">一支毛笔 ，一本旧杂志，一条黄河，一碗面</span></a><a class="item" href="/rss/cec3edf0.html" title="关键时刻，为什么有人掉链子，有人大心脏？——对 Choking Under Pressure 的新理解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/24/a88b43bf917d6d1f24b26cee48ef314b.png"></div><span class="title">关键时刻，为什么有人掉链子，有人大心脏？——对 Choking Under Pressure 的新理解</span></a><a class="item" href="/rss/b731bee8.html" title="云和梯田畲乡自驾4天4夜"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/23/b29cc832fd57824a337df2ef30276f0f.jpg"></div><span class="title">云和梯田畲乡自驾4天4夜</span></a><a class="item" href="/rss/92a1d90b.html" title="我用 SONOS 的这些年：从一台音箱，到一套家庭影院"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/21/d89eb767318fbcb5b4c35b30f3182675.jpg"></div><span class="title">我用 SONOS 的这些年：从一台音箱，到一套家庭影院</span></a><a class="item" href="/rss/55c8103c.html" title="如何挑选一款旅行背包"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/22/f682721e2356ca2e4f6a281ba930260f.png"></div><span class="title">如何挑选一款旅行背包</span></a><a class="item" href="/rss/88c6328b.html" title="君到姑苏见——城市漫步指南（上）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/22/f17c71c4d02a0de3edad01ae88ef214f.jpeg"></div><span class="title">君到姑苏见——城市漫步指南（上）</span></a><a class="item" href="/rss/b1119c25.html" title="我用AI做了一张两千年的中国历史地图"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/26/8169c31a3a81dc4df607ada431ff2d9a.png"></div><span class="title">我用AI做了一张两千年的中国历史地图</span></a><a class="item" href="/rss/5f7587e2.html" title="打尖儿：在家吃遍天下美食"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/25/154f5a92152142e2b10f2201e362b851.jpg"></div><span class="title">打尖儿：在家吃遍天下美食</span></a><a class="item" href="/rss/f487940a.html" title="把「想法」和「收藏」分开：我的 Obsidian 知识库搭建实践"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/20/08642634b7f6538616cb4dedd6a592fe.jpeg"></div><span class="title">把「想法」和「收藏」分开：我的 Obsidian 知识库搭建实践</span></a><a class="item" href="/rss/9f03be08.html" title="本来想买台富士，最后给索尼 A7CR 刷进了 3 个富士风格预设（已开源）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/26/b40cb383d312365dbb661f2b577af264.png"></div><span class="title">本来想买台富士，最后给索尼 A7CR 刷进了 3 个富士风格预设（已开源）</span></a><a class="item" href="/rss/3b127b7f.html" title="有的放矢的艺术——游戏设计中的克制与繁复，以 KR 和 BTD6 为例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/24/210ae32f12097231341ea6cb1fd97342.jpeg"></div><span class="title">有的放矢的艺术——游戏设计中的克制与繁复，以 KR 和 BTD6 为例</span></a><a class="item" href="/rss/d452f1da.html" title="让 AI 在你我身旁，陪我把网页上的事做完"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/22/fddcad276cffffcfa89e46b080ca06d8.png"></div><span class="title">让 AI 在你我身旁，陪我把网页上的事做完</span></a><a class="item" href="/rss/c0a645df.html" title="记录一次移除 iPhone 激活锁的过程"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/29/10/2026/article/4ad9adc3-3a9b-1cb5-06f0-a2bce8c1c781.jpeg"></div><span class="title">记录一次移除 iPhone 激活锁的过程</span></a><a class="item" href="/rss/cd57e1c0.html" title="济州偶来，徒步小路"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://sspai.com&url=https://cdnfile.sspai.com/2026/10/22/9b211460e049c7f92940c7de8ca4cd4d.jpg"></div><span class="title">济州偶来，徒步小路</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

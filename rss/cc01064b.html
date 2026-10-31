@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>我在 2 核 2G 云主机上跑 OpenViking：一次关于云主机、模型选型与长期成本的真实复盘 - RSSBOX</title>
+
+  
+    <meta name="description" content="limuyang2: 最近把自己的 AI Coding Agent 记忆底座迁移到了自建的 OpenViking 上（ OpenViking 真的满足我所有的要求：即是各种 Agent 的统一大脑自进化、又是知识库，检索的时候是两方面综合起来的）。RAG 相关的东西看着挺吓人，动辄推荐高配服务器和本地显存，实际上用下来，只要选型想清楚，一台几十块钱的入门级云服务器完全能跑得飞起。 这篇不是教你怎">
+<meta property="og:type" content="article">
+<meta property="og:title" content="我在 2 核 2G 云主机上跑 OpenViking：一次关于云主机、模型选型与长期成本的真实复盘">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/cc01064b.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="limuyang2: 最近把自己的 AI Coding Agent 记忆底座迁移到了自建的 OpenViking 上（ OpenViking 真的满足我所有的要求：即是各种 Agent 的统一大脑自进化、又是知识库，检索的时候是两方面综合起来的）。RAG 相关的东西看着挺吓人，动辄推荐高配服务器和本地显存，实际上用下来，只要选型想清楚，一台几十块钱的入门级云服务器完全能跑得飞起。 这篇不是教你怎">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-31T16:52:23.000Z">
+<meta property="article:modified_time" content="2026-10-31T16:52:23.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="V2EX">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">1. 云主机：为什么我选 99 元的 2G ，不选友商更便宜的 4G ？</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">2. 向量模型（ Embedding ）：花钱的大头，必须一步到位</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么必须一步到位？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么放弃 SiliconFlow 免费的 BGE-M3 ？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">为什么选火山方舟的豆包 Vision （ 0.7 元），没选阿里千问？</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3. 意图分析（ Query Planner ）：90% 的人都漏看的“隐藏开关”</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">维度一：响应耗时（时间预算必须死守在 1 秒内）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">维度二：生成结构（严苛遵循 OpenViking 要求的 JSON 协议）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">维度三：规划表现评估（业务意图的决断质量）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4. 重排序（ Rerank ）与 VLM：务实的经济账与容灾</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">5. 写在最后的一些大白话心得</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/v2ex/">V2EX</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-31T16:52:23.000Z">2026-11-01</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>我在 2 核 2G 云主机上跑 OpenViking：一次关于云主机、模型选型与长期成本的真实复盘</span></h1>
+<div>
+limuyang2: <p>最近把自己的 AI Coding Agent 记忆底座迁移到了自建的 OpenViking 上（ OpenViking 真的满足我所有的要求：即是各种 Agent 的统一大脑自进化、又是知识库，检索的时候是两方面综合起来的）。RAG 相关的东西看着挺吓人，动辄推荐高配服务器和本地显存，实际上用下来，只要选型想清楚，一台几十块钱的入门级云服务器完全能跑得飞起。</p>
+<p>这篇不是教你怎么敲命令的安装教程，只是聊聊折腾这一圈下来，在云主机、模型组合、算力开销上的一些真实心得和踩坑取舍。</p>
+<hr>
+<h2>1. 云主机：为什么我选 99 元的 2G ，不选友商更便宜的 4G ？</h2>
+<p>买云服务器时，第一眼很容易被一些友商“几十块钱买 4G 甚至 8G”的新客促销吸引。但我最终还是选了阿里云 99 元/年的 2 核 2G （ ecs.e-c1m1.large ）。</p>
+<p>核心原因就一个：<strong>算长期的续费账，避开“首年低价、次年暴涨”的套路。</strong></p>
+<p>如果只是搭个无状态的个人博客，一年一换、到处搬家无所谓。但 OpenViking 是你的<strong>记忆数据库</strong>，里面存的是日常所有的会话轨迹、沉淀的项目架构、实体图谱和向量索引，是强状态资产。很多友商首年 60 块，第二年续费直接跳到 600 、800 甚至上千，一年后为了省钱被迫停机、跨云拷贝几千兆数据、重新配安全组和域名解析，折腾成本远超那点差价。</p>
+<p>阿里云这款活动最大的诚意，是保证<strong>来年依然可以 99 元无套路同价续费</strong>。</p>
+<p>2G 内存虽然紧凑，但只要做好 Swap 兜底，限制好容器内存，并把计算全都甩给外部 API ，机器本地只做存储检索，日常内存占用常态也就几百兆。拿稍微调优一下系统为代价，换一个每年只要 99 块、不用频繁搬家的稳定记忆底盘，这笔账怎么算都更划算。</p>
+<hr>
+<h2>2. 向量模型（ Embedding ）：花钱的大头，必须一步到位</h2>
+<p>整套系统跑起来，持续花钱的大头其实就是向量模型。但我从一开始就放弃了“白嫖免费模型”的想法，坚定选择花钱买商业服务，并且要“一步到位”。</p>
+<h3>为什么必须一步到位？</h3>
+<p>VLM 、意图分析、重排模型这些都是即时推理，今天觉得不好用，改一行配置重启一下直接就换了。但<strong>向量模型决定了数据库底层的空间几何特征</strong>。一旦以后你想换向量模型，哪怕输出维度一模一样，之前的向量也全都废了，<strong>必须全库全量重建索引（ Re-index ）</strong>。随着记忆越积越多，二次重构的代价和停机风险极高，所以向量模型选型必须一开始就选最好的。</p>
+<h3>为什么放弃 SiliconFlow 免费的 BGE-M3 ？</h3>
+<p>很多教程推荐用硅基流动上免费的 BGE-M3 。我们在实际做向量召回测试时发现，它的召回质量被新一代模型拉开了非常明显的代际差距。BGE-M3 是 2024 年 1 月的模型，底子太老，而且是个纯文本模型，图片只能当附件存，根本建不了索引，做不到“以文搜图”。</p>
+<p>更关键的是，<strong>公用免费池已经被羊毛党挤烂了</strong>。我们在测试免费模型做路由时频繁遇到丢包、高延迟、无响应。作为核心基础设施的底座，把身家性命系在免费公共池上，纯属给自己找麻烦。</p>
+<h3>为什么选火山方舟的豆包 Vision （ 0.7 元），没选阿里千问？</h3>
+<p>最终我用的是火山方舟的 <code>doubao-embedding-vision-251215</code>，官方定价是推理输入 <strong>0.7 元 / 百万 tokens</strong>。</p>
+<p>其实阿里百炼也有一款多模态向量模型（<code>qwen3-vl-embedding</code>），价格一模一样也是 0.7 元，但两者有个致命差距：</p>
+<ul>
+<li><strong>阿里千问的上下文窗口只有 32K</strong>；</li>
+<li><strong>火山豆包的上下文窗口高达 128K</strong>。</li>
+</ul>
+<p>对于 Agent 场景，经常要塞入长篇开发规范、长上下文代码切片或者多张高清截图，128K 带来了整整 4 倍的安全容限，彻底不用担心超长切片溢出。加上 OpenViking 本身就是字节火山引擎开源的，原生 Provider 兼容最稳，同价位下显然选 128K 的豆包。</p>
+<p><em>注：如果你完全没有图片、截图的检索需求，只做纯文本或代码笔记，阿里百炼的纯文本向量 <code>qwen3.7-text-embedding</code> 是个很好的省钱备选，价格只要 0.5 元/百万 tokens 。</em></p>
+<hr>
+<h2>3. 意图分析（ Query Planner ）：90% 的人都漏看的“隐藏开关”</h2>
+<p>很多人刚用 OpenViking 时都有个共同的困惑：“为什么这玩意儿响应这么迟钝？每次在 IDE 或终端里刚敲完一句话，光标都要卡顿个五六秒才开始有反应？”不少人甚至因此觉得是机器配置不够，或者系统本身设计笨重。</p>
+<p>其实根本不是性能问题，而是<strong>绝大多数人压根没仔细看配置文档，不知道还能单独配一个意图分析模型</strong>。</p>
+<p>官方默认示例里大家一般只填 <code>vlm</code> 和 <code>embedding</code>。但只要没在配置里显式声明 <code>query_planner</code>，OpenViking 在处理每一轮对话时，就会<strong>默认回退去调用主模型 VLM</strong> 来分析这轮对话是不是闲聊、要不要搜记忆、怎么提取关键词。如果你的 VLM 选了个大模型或者带思考链的模型（比如智谱 <code>glm-5.3-flash</code>），单次前置分析直接就能吃掉 6~7 秒，前端交互自然卡成 PPT 。</p>
+<p>为了解决这个前置卡顿，起初我试图在主流的通用大模型里寻找替代方案。但跑了一圈下来非常沮丧：</p>
+<ul>
+<li>阿里百炼官方的 <strong>Qwen3.7-Flash</strong> 默认带深度思考，跑一次要想 10 秒；</li>
+<li>硅基流动上的 <strong>Qwen/Qwen3.5-9B</strong> 吞吐偏慢（常态 30 tok/s ），每次提问依然要停顿 4 秒；</li>
+<li>硅基流动上的 <strong>Qwen/Qwen2.5-7B</strong> 格式飘忽，爱吐裸数组；</li>
+<li>硅基流动公用免费池的模型（如 <strong>Qwen3.5-4B</strong>）更是被羊毛脚本挤爆，频繁丢包超时。</li>
+</ul>
+<p>正当我们卡在通用大模型的选型瓶颈时，**我在阿里百炼模型广场里无意间翻出了一个宝藏模型——<a target="_blank" href="https://bailian.console.aliyun.com/cn-beijing/model/market/detail/tongyi-xiaomi-analysis-flash?serviceSite=asia-pacific-china&amp;ref=list" rel="external nofollow noopener noreferrer"><code>tongyi-xiaomi-analysis-flash</code>（伶鹊-对话分析-flash ）</a>**。官方介绍写得很朴实：专攻对话信息抽取、场景分类与低时延分析的领域模型。</p>
+<p>我立刻把它拉进测试矩阵，和前面的候选模型来了一场同台竞技。<strong>需要特别说明的是，为了公平对比，我们在压测所有候选模型时，全都显式关闭了思考模式（开启非思维链模式，纯直接输出）</strong>。</p>
+<p>在实际评估中，我们重点死磕了三个核心维度：<strong>响应耗时、生成结构、规划表现</strong>。在三项严苛检验下，这个意外淘到的宝藏模型给出了教科书级的表现：</p>
+<h3>维度一：响应耗时（时间预算必须死守在 1 秒内）</h3>
+<p><code>query_planner</code> 处于用户敲下回车、模型真正回答前的<strong>关键阻塞路径（ Critical Path ）</strong>上，耗时哪怕多 1 秒，体感都是极其明显的卡顿。</p>
+<ul>
+<li><strong>阿里百炼 Qwen3.7-Flash</strong>：即使关掉思考模式（<code>enable_thinking: false</code>），单次分析依然要 1.1~1.4 秒（ 70~90 tok/s ），作为高频前置拦截还是略重；</li>
+<li><strong>硅基流动 Qwen/Qwen3.5-9B</strong>：关掉思考后，受限于供应商 30 tok/s 的生成吞吐瓶颈，跑完一段多轮分析依然需要 <strong>3.8 ~ 4.2 秒</strong>；</li>
+<li><strong>硅基流动免费池（如 Qwen3.5-4B ）</strong>：公用免费池常年被羊毛脚本挤占，延迟严重抖动甚至直接超时；</li>
+<li><strong>通义伶鹊（ Flash ）</strong>：首字延迟（ TTFT ）仅 <strong>0.31 秒</strong>，生成吞吐高达 <strong>200+ tok/s</strong>，整轮规划耗时直接干到了 <strong>0.8 秒左右</strong>，完美落在亚秒级预算内。</li>
+</ul>
+<h3>维度二：生成结构（严苛遵循 OpenViking 要求的 JSON 协议）</h3>
+<p>OpenViking 底层的意图解析器对输出格式有明确的契约要求：模型必须返回形如 <code>&#123;"queries": [...]&#125;</code> 的标准 JSON 对象结构（由内部代码直接反序列化提取检索意图），容不得半点格式偏差：</p>
+<ul>
+<li><strong>通用大模型的通病</strong>：喜欢画蛇添足加礼貌用语（“好的，为您规划如下”），或者在外面套一层 <code>json ... </code> 围栏，把本该干净的输出搞得拖泥带水，全靠系统写正则兜底去清洗；</li>
+<li><strong>硅基流动 Qwen/Qwen2.5-7B 的硬伤</strong>：虽然速度压缩到了 1.8 秒，但格式极其不服从规范，经常丢掉 OpenViking 要求的顶层 Key ，直接吐出一个裸数组 <code>[...]</code>。一旦丢了对象结构，极易触发解析异常导致检索失败；</li>
+<li><strong>通义伶鹊（ Flash ）</strong>：官方特性主打“自定义分析标准遵循”，实测下来对 OpenViking 要求的 JSON 协议做到了 <strong>100% 严格执行</strong>——输出纯净裸 JSON ，没有 markdown 围栏，没有前后废话，与 OpenViking 的反序列化契约严丝合缝。</li>
+</ul>
+<h3>维度三：规划表现评估（业务意图的决断质量）</h3>
+<p>意图分析模型绝不是盲目生成检索词，它必须具备清晰的业务场景决断力：</p>
+<ul>
+<li><strong>闲聊拒搜率</strong>：面对“你好”、“谢谢”、“帮我写个冒泡排序”这种无需长程记忆介入的输入，通义伶鹊能像防火墙一样在 <strong>0.4 秒</strong> 内果断断定无需检索，并输出空数组 <code>&#123;"queries": []&#125;</code>，避免了无意义的向量库查询与上下文污染；</li>
+<li><strong>多轮指代消解与实体抽取</strong>：在多轮对话中（比如用户追问“把刚才说的那个服务端口发我”），它能从历史上下文里把代词精准还原成具体的实体词（展开为“OpenViking 1933 端口配置”），提取出来的 Query 极其精准紧凑，绝不发散脑补。</li>
+</ul>
+<p>事实证明，这个无意间淘到的宝藏模型绝非侥幸胜出，而是其专攻“对话抽取、场景分类、格式遵循”的垂直微调定位，正好与 OpenViking 前置路由的工程诉求完成了教科书般的精准对齐。</p>
+<hr>
+<h2>4. 重排序（ Rerank ）与 VLM：务实的经济账与容灾</h2>
+<p>最后说说剩下的两个组件：</p>
+<ul>
+<li><strong>重排序（ Rerank ）</strong>：我依然放在了硅基流动上，用的是 <code>Qwen/Qwen3-Reranker-4B</code>。
+之所以用它，是因为它走的是轻量商业计费通道（避开了免费池的排队），调用一次只要几厘钱。关键是我账号里还有送的 16 块钱代金券，不用白不用。实测 4 条文档打分 0.26 秒，30 条文档打分 0.57 秒，速度快而且打分很准，性价比拉满。</li>
+<li><strong>VLM （多模态语义抽取）</strong>：用的是智谱 Coding 套餐里的 <code>glm-5.3-flash</code>，顺便配了双 Key 主备容灾。
+这里有个<strong>极其关键的实战经验：配置里一定要把思考模式显式改为 <code>reasoning_effort: "low"</code><strong>。
+我们专门做过多组 A/B 实测，默认不传参或者设为 <code>high</code> 时，模型会先深度思考大几十秒（耗时 20~48 秒，生成上千个无意义的思维链 Token ），而最终提取出来的实体和概览内容与 <code>low</code> 几乎毫无区别。记忆提取本质上是信息抽取和结构化归档，根本用不着复杂的数学逻辑推演，开 <code>high</code> 纯属白白浪费时间和算力。
+即使设为 <code>low</code>，单次抽取依然需要 4~6 秒（有底层基础思考和 20~30 tok/s 的吞吐上限），它也是目前系统唯一的耗时点。但因为 VLM 只在后台异步做会话归档和概览生成，</strong>完全不阻塞前端的提问交互</strong>；加上 Coding 套餐按年付费极度便宜，配合双 Key 容灾非常稳定，现阶段完全不需要花钱折腾换它。</li>
+</ul>
+<hr>
+<h2>5. 写在最后的一些大白话心得</h2>
+<p>折腾完这套配置，最大的几点感悟：</p>
+<ol>
+<li><strong>状态型服务，买服务器先看续费</strong>：做长期记忆库，宁可前期在 2G 上花点时间调优，也别为了贪图首年几块钱的便宜去买续费暴涨的机器，搬家真的很累。</li>
+<li><strong>核心资产一步到位，无状态节点随时优化</strong>：向量模型决定了你的底层空间，别贪免费，多模态 + 大上下文（ 128K ）直接锁死，避免以后二次重建；而 VLM 和 Rerank 这种纯推理节点，谁快谁便宜就换谁。</li>
+<li><strong>专用小模型在垂直场景吊打通用大模型</strong>：意图分析这种讲究“分类、提取、严格 JSON 格式、极速”的任务，微调过的对话分析小模型比动不动就写小作文、开思考链的通用大模型好用太多倍。</li>
+</ol>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="我在 2 核 2G 云主机上跑 OpenViking：一次关于云主机、模型选型与长期成本的真实复盘" href="https://www.v2ex.com/t/1253468" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">我在 2 核 2G 云主机上跑 OpenViking：一次关于云主机、模型选型与长期成本的真实复盘</span><span class="desc fs12">https://www.v2ex.com/t/1253468</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/b2e5198d.html">有没有 Claude 至今没跳 Kyc 没封的 v 友，来讲讲做法？<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/497576a8.html">孙颖莎 4：3战胜早田希娜，晋级 WTT 蒙彼利埃冠军赛四强，如何评价本场比赛？<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/36ef03f.html" title="Make V2EX Clean Again，纯粹简单的内容屏蔽插件"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://i.imgur.com/gBYHZPw.png"></div><span class="title">Make V2EX Clean Again，纯粹简单的内容屏蔽插件</span></a><a class="item" href="/rss/c80facde.html" title="V 友是否有一直在用的不降智的节点"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1442"></div><span class="title">V 友是否有一直在用的不降智的节点</span></a><a class="item" href="/rss/c8c43de6.html" title="《我享云》机场代理 · 性价比之王 · 十一月份优惠码 · 注册免费试用 5-10 天 · 一块钱用上专线"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2124"></div><span class="title">《我享云》机场代理 · 性价比之王 · 十一月份优惠码 · 注册免费试用 5-10 天 · 一块钱用上专线</span></a><a class="item" href="/rss/a86f3978.html" title="不用 Jio 的那个 Gemini Pro 还有别的国内购买渠道吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1124"></div><span class="title">不用 Jio 的那个 Gemini Pro 还有别的国内购买渠道吗？</span></a><a class="item" href="/rss/4029478a.html" title="中年失业程序员的碎碎念（二）- 亦是终篇"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9759"></div><span class="title">中年失业程序员的碎碎念（二）- 亦是终篇</span></a><a class="item" href="/rss/f960c007.html" title="写了一个纸质书籍扫描成 PDF 的 App，大家帮忙做下内测"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6796"></div><span class="title">写了一个纸质书籍扫描成 PDF 的 App，大家帮忙做下内测</span></a><a class="item" href="/rss/9fedf5ed.html" title="分享最近做的两个小程序 - 心愿档案室 & 本地工具箱"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://i.imgur.com/83Ifs9L.jpeg"></div><span class="title">分享最近做的两个小程序 - 心愿档案室 & 本地工具箱</span></a><a class="item" href="/rss/5664ee7a.html" title="做了个给 2D 游戏用的 AI 精灵图生成器：一张角色图生成待机、攻击动画，直接导出精灵图和 JSON"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://spritecanvas.com/media/v2ex/witch-reference-to-animation.gif"></div><span class="title">做了个给 2D 游戏用的 AI 精灵图生成器：一张角色图生成待机、攻击动画，直接导出精灵图和 JSON</span></a><a class="item" href="/rss/126762b1.html" title="压缩的尽头是自指？从 LZMA2、PAQ8PX 到 zstd/ZIP/RAR Quine，我折腾了一遍“自包含压缩包”"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9370"></div><span class="title">压缩的尽头是自指？从 LZMA2、PAQ8PX 到 zstd/ZIP/RAR Quine，我折腾了一遍“自包含压缩包”</span></a><a class="item" href="/rss/cae62ba1.html" title="大家用 DSH 这么久，不觉得插件一多左边栏就很乱吗？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://raw.githubusercontent.com/exoticknight/dsh-better-left-sidebar/main/docs/images/sidebar.png"></div><span class="title">大家用 DSH 这么久，不觉得插件一多左边栏就很乱吗？</span></a><a class="item" href="/rss/2ab01526.html" title="彩虹易支付 Syskey 泄露高危后门, 可被利用发起订单退款等操作"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://www.v2ex.com&url=https://cdn.jsdelivr.net/gh/solstice23/argon-theme/stickers/dinosaur//3.jpg"></div><span class="title">彩虹易支付 Syskey 泄露高危后门, 可被利用发起订单退款等操作</span></a><a class="item" href="/rss/b2e5198d.html" title="有没有 Claude 至今没跳 Kyc 没封的 v 友，来讲讲做法？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7509"></div><span class="title">有没有 Claude 至今没跳 Kyc 没封的 v 友，来讲讲做法？</span></a><a class="item" href="/rss/384a1e44.html" title="有没有这样的保温壶？根据场景匹配温度？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3328"></div><span class="title">有没有这样的保温壶？根据场景匹配温度？</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

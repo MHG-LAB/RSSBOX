@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>AutoHotkey V2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性 - RSSBOX</title>
+
+  
+    <meta name="description" content="承接 Part 9。上一章，我们给路线录制器添加了重复回放功能。这一章，我们进一步观察回放过程：计划什么时候发送按键，脚本实际什么时候准备发送，为什么两者会逐渐偏离，以及为什么不能为了追赶时间而牺牲路线。 一、Part 9 留下的问题 Part 9 的回放核心逻辑是这样的： PreviousEventTime :&#x3D; 0 for Event in RouteEvents &amp;#123;     In">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AutoHotkey V2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b64e9b65.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="承接 Part 9。上一章，我们给路线录制器添加了重复回放功能。这一章，我们进一步观察回放过程：计划什么时候发送按键，脚本实际什么时候准备发送，为什么两者会逐渐偏离，以及为什么不能为了追赶时间而牺牲路线。 一、Part 9 留下的问题 Part 9 的回放核心逻辑是这样的： PreviousEventTime :&#x3D; 0 for Event in RouteEvents &amp;#123;     In">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-30T11:50:47.000Z">
+<meta property="article:modified_time" content="2026-10-30T11:50:47.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">一、Part 9 留下的问题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">二、误差从哪来：Sleep 不是精确的</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.1 Windows 的计时器精度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.2 误差会累积</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">2.3 为什么不能简单&quot;少睡一点&quot;</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">三、绝对时间调度：每个事件对准自己的时刻</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.1 思路</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.2 误差不再累积</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">3.3 代码</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">四、高精度计时：为什么不用 A_TickCount</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.1 A_TickCount 的局限</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.2 QueryPerformanceCounter</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.3 为什么先除后乘</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">4.4 初始化要检查失败</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">五、Sleep 精度：timeBeginPeriod 与最后几毫秒</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.1 临时提高系统计时器精度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.2 等到目标时刻的写法</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">5.3 绝对调度的好处：不追求单次极致精度</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">六、可中断等待：轮间等待与 F12</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.1 轮间等待不能直接用 Sleep</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.2 可中断等待</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">6.3 两种等待的分工</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">七、诊断日志：让误差可见</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7.1 三个时间字段</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7.2 日志只写内存，不写磁盘</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">7.3 日志能告诉你什么</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">八、错误处理：不让一次异常毁掉整轮日志</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.1 try &#x2F; catch &#x2F; finally</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.2 单事件级别的错误定位</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">8.3 资源清理</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">九、完整结构回顾</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">十、小结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">这一篇讲了什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">下一篇预告</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-30T11:50:47.000Z">2026-10-30</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>AutoHotkey V2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性</span></h1>
+<div>
+<p>承接 Part 9。上一章，我们给路线录制器添加了重复回放功能。这一章，我们进一步观察回放过程：计划什么时候发送按键，脚本实际什么时候准备发送，为什么两者会逐渐偏离，以及为什么不能为了追赶时间而牺牲路线。</p>
+<h2 data-id="heading-0">一、Part 9 留下的问题</h2>
+<p>Part 9 的回放核心逻辑是这样的：</p>
+<pre><code class="hljs language-ahk" lang="ahk">PreviousEventTime := 0
+for Event in RouteEvents &#123;
+    Interval := Event.Time - PreviousEventTime
+    Sleep(Interval)
+    SendEvent("&#123;" Event.ScanCode " down&#125;")
+    PreviousEventTime := Event.Time
+&#125;
+</code></pre>
+<p>它每次只等"相邻两个事件之间的时间差"。看起来没问题，但实测日志会变成这样：</p>
+<pre><code class="hljs language-text" lang="text">事件 1:   DelayMs = 0
+事件 2:   DelayMs = 16
+事件 3:   DelayMs = 31
+事件 4:   DelayMs = 47
+...
+事件 54:  DelayMs = 1000
+</code></pre>
+<p>每轮末尾晚约 1 秒，跑 25 轮就是 25 秒的累计偏差。Part 9 的文章里我们把这归因于"逐事件累加 Sleep 误差"。Part 10 要回答三个问题：</p>
+<ol>
+<li>这个误差到底从哪来？</li>
+<li>为什么"等到绝对时刻"能消除它？</li>
+<li>AHK v2 里怎么把"等到绝对时刻"写得准、写得稳、还能随时按 F12 停？</li>
+</ol>
+<hr>
+<h2 data-id="heading-1">二、误差从哪来：Sleep 不是精确的</h2>
+<h3 data-id="heading-2">2.1 Windows 的计时器精度</h3>
+<p>Windows 默认的系统计时器精度是 <strong>15.6ms</strong>（1/64 秒）。你调用 <code>Sleep(16)</code>，实际可能睡 15ms，也可能睡 31ms，取决于当前 tick 落在哪里。</p>
+<pre><code class="hljs language-ahk" lang="ahk">Sleep(16)   ; 实际耗时可能是 15ms 或 31ms
+</code></pre>
+<p>即使你调用 <code>timeBeginPeriod(1)</code> 把精度提到 1ms，<code>Sleep(1)</code> 实际也常是 1~2ms，而且有调度开销。</p>
+<p>你可以把它理解成：<strong>你让程序“休息 16 毫秒”，但系统不一定能准时叫醒它。</strong></p>
+<p>想象你在等公交车：</p>
+<ul>
+<li>你希望 <strong>16 分钟后出发</strong>。</li>
+<li>但公交车不是随到随走，而是隔一段时间才来一班。</li>
+<li>到了你想出发的时间，如果车还没来，你就得继续等。</li>
+</ul>
+<h3 data-id="heading-3">2.2 误差会累积</h3>
+<p>相对调度的每个间隔误差，会<strong>叠加</strong>到下一个间隔上：</p>
+<pre><code class="hljs language-text" lang="text">计划间隔: 100  100  100  100
+实际间隔: 115  115  115  115
+实际时刻: 115  230  345  460   ← 误差线性增长
+</code></pre>
+<p>54 个事件，每个多约 18ms，累积起来正好约 1 秒。这就是日志里 <code>DelayMs</code> 从 0 涨到 1000 的原因。</p>
+<h3 data-id="heading-4">2.3 为什么不能简单"少睡一点"</h3>
+<p>有人会想：那我 <code>Sleep(Interval - 10)</code> 不就行了？</p>
+<p>不行。因为误差不是固定 10ms，它随系统负载、tick 位置波动。你减 10ms，可能这次刚好，下次又多了 5ms，再下次少了 3ms。<strong>开环补偿治标不治本。</strong></p>
+<p>正确的做法是<strong>闭环</strong>：每个事件都对准一个绝对时刻，晚了就少等，早了就多等。</p>
+<hr>
+<h2 data-id="heading-5">三、绝对时间调度：每个事件对准自己的时刻</h2>
+<h3 data-id="heading-6">3.1 思路</h3>
+<p>路线里每个事件记录的是"相对于路线起点的绝对时间"：</p>
+<pre><code class="hljs language-text" lang="text">事件 1: 1000ms
+事件 2: 1688ms
+事件 3: 5813ms
+</code></pre>
+<p>回放时，先记下本轮开始的时刻 <code>RoundStartMs</code>，然后对每个事件计算它的绝对目标时刻：</p>
+<pre><code class="hljs language-text" lang="text">TargetMs = RoundStartMs + Event.Time
+</code></pre>
+<p>然后<strong>一直等到 <code>TargetMs</code></strong>，而不是等"和上一个事件的差值"。</p>
+<h3 data-id="heading-7">3.2 误差不再累积</h3>
+<pre><code class="hljs language-text" lang="text">计划时刻: 100  200  300  400
+实际时刻: 115  200  315  400
+误差:     +15    0  +15    0
+</code></pre>
+<p>第 1 个事件晚了 15ms，第 2 个事件发现"已经 115ms 了，目标 200ms，再等 85ms 就行"，于是准时。第 3 个又晚 15ms，第 4 个又追回来。<strong>误差有界，不增长。</strong></p>
+<h3 data-id="heading-8">3.3 代码</h3>
+<pre><code class="hljs language-ahk" lang="ahk">PlayOneRouteRound() &#123;
+    RoundStartMs := QpcMs()
+
+<pre><code>for EventIndex, Event in RouteEvents &amp;#123;
+    PlannedTime := Round(Event.Time * PlaybackSpeed)
+    TargetMs := RoundStartMs + PlannedTime
+
+    ; 等到绝对时刻
+    PreciseSleepUntilMs(TargetMs)
+
+    SendEvent(&quot;&amp;#123;&quot; Event.ScanCode &quot; down&amp;#125;&quot;)
+&amp;#125;
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>注意：<code>RoundStartMs</code> 只在每轮开始时取一次，轮内所有事件都基于它计算目标时刻。这样某个事件晚了，不会影响后面事件的目标时刻。</p>
+<hr>
+<h2 data-id="heading-9">四、高精度计时：为什么不用 A_TickCount</h2>
+<h3 data-id="heading-10">4.1 A_TickCount 的局限</h3>
+<p><code>A_TickCount</code> 返回系统启动以来的毫秒数，够用，但：</p>
+<ul>
+<li>精度受系统计时器影响，默认 15.6ms；</li>
+<li>它是整数毫秒，短间隔事件（16ms）的舍入误差占比很大；</li>
+<li>不适合做"毫秒级对准"。</li>
+</ul>
+<h3 data-id="heading-11">4.2 QueryPerformanceCounter</h3>
+<p>Windows 提供高精度计时器 <code>QueryPerformanceCounter</code>（QPC），精度通常是微秒级。AHK v2 通过 <code>DllCall</code> 调用：</p>
+<pre><code class="hljs language-ahk" lang="ahk">InitQpc() &#123;
+    global QpcFreq
+    DllCall("QueryPerformanceFrequency", "Int64*", &amp;QpcFreq)
+&#125;
+
+<p>QpcMs() &amp;#123;<br>    global QpcFreq<br>    DllCall(“QueryPerformanceCounter”, “Int64*”, &amp;Count)<br>    return Count &#x2F; QpcFreq * 1000<br>&amp;#125;<br></p></code></pre><p></p>
+<p><code>QueryPerformanceFrequency</code> 返回每秒的计数频率（比如 10,000,000），<code>QueryPerformanceCounter</code> 返回当前计数。两者相除就是秒，乘 1000 就是毫秒。</p>
+<h3 data-id="heading-12">4.3 为什么先除后乘</h3>
+<pre><code class="hljs language-ahk" lang="ahk">return Count / QpcFreq * 1000
+</code></pre>
+<p>而不是：</p>
+<pre><code class="hljs language-ahk" lang="ahk">return Count * 1000 / QpcFreq   ; 不推荐
+</code></pre>
+<p>因为 <code>Count</code> 是 64 位整数，乘 1000 可能溢出，或者先转成浮点丢精度。先除后乘，中间结果是浮点，安全。</p>
+<h3 data-id="heading-13">4.4 初始化要检查失败</h3>
+<p><code>DllCall</code> 可能失败，<code>QpcFreq</code> 可能是 0。除以 0 会抛异常，所以在初始化时检查：</p>
+<pre><code class="hljs language-ahk" lang="ahk">if !Freq
+    throw Error("QueryPerformanceFrequency 返回 0，无法进行高精度计时。")
+</code></pre>
+<p>回放开始前调用 <code>InitQpc()</code>，失败就取消回放并提示，而不是跑到一半崩掉。</p>
+<hr>
+<h2 data-id="heading-14">五、Sleep 精度：timeBeginPeriod 与最后几毫秒</h2>
+<h3 data-id="heading-15">5.1 临时提高系统计时器精度</h3>
+<pre><code class="hljs language-ahk" lang="ahk">DllCall("winmm\timeBeginPeriod", "UInt", 1)
+</code></pre>
+<p>这行告诉 Windows："接下来一段时间我需要 1ms 精度的计时器。" 调用后，<code>Sleep(1)</code> 实际约 1~2ms，而不是 15.6ms。</p>
+<p><strong>用完要还</strong>，否则会影响系统功耗和其他程序：</p>
+<pre><code class="hljs language-ahk" lang="ahk">DllCall("winmm\timeEndPeriod", "UInt", 1)
+</code></pre>
+<p>脚本里用 <code>TimePeriodSet</code> 标志记录是否设置过，在 <code>CleanupBeforeExit</code> 里恢复。</p>
+<h3 data-id="heading-16">5.2 等到目标时刻的写法</h3>
+<pre><code class="hljs language-ahk" lang="ahk">PreciseSleepUntilMs(TargetMs) &#123;
+    global IsRoutePlaying
+
+<pre><code>while IsRoutePlaying &amp;#123;
+    Remaining := TargetMs - QpcMs()
+
+    if Remaining &amp;lt;= 0
+        return true
+
+    if Remaining &amp;gt; 3 &amp;#123;
+        Sleep(Min(5, Max(1, Floor(Remaining) - 2)))
+    &amp;#125; else &amp;#123;
+        Sleep(1)
+    &amp;#125;
+&amp;#125;
+
+return false
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>几个设计点：</p>
+<p><strong>为什么大块时间用 <code>Sleep(5)</code> 而不是 <code>Sleep(Remaining)</code>？</strong>
+因为 <code>Sleep(Remaining)</code> 可能睡过头，醒来发现已经超过目标。每次睡一小段，醒来重新检查剩余时间，更稳。</p>
+<p><strong>为什么最后 3ms 用 <code>Sleep(1)</code> 而不是纯忙等？</strong>
+纯忙等（<code>while QpcMs() &lt; TargetMs</code>）会占满 CPU，AHK 的消息循环停止，F12 热键、窗口焦点检查都无法及时响应。<code>Sleep(1)</code> 在 <code>timeBeginPeriod(1)</code> 下精度足够，又能让出 CPU。</p>
+<p><strong>为什么循环条件里有 <code>IsRoutePlaying</code>？</strong>
+这样 F12 紧急停止时，<code>IsRoutePlaying</code> 变成 false，等待循环立即退出，不会卡在 <code>Sleep</code> 里。</p>
+<h3 data-id="heading-17">5.3 绝对调度的好处：不追求单次极致精度</h3>
+<p>因为每个事件都对准绝对时刻，单次晚 10ms 不影响下一个事件。所以 <code>PreciseSleepUntilMs</code> 不需要精确到 1ms 以内，只要"平均误差小、不累积"就够了。这让实现可以兼顾精度和响应性。</p>
+<hr>
+<h2 data-id="heading-18">六、可中断等待：轮间等待与 F12</h2>
+<h3 data-id="heading-19">6.1 轮间等待不能直接用 Sleep</h3>
+<p>Part 9 的轮间等待是：</p>
+<pre><code class="hljs language-ahk" lang="ahk">Sleep(PlaybackRepeatIntervalMs)
+</code></pre>
+<p>问题是：<code>Sleep(8000)</code> 期间，F12 按了也没用，脚本要等 8 秒才响应。</p>
+<h3 data-id="heading-20">6.2 可中断等待</h3>
+<pre><code class="hljs language-ahk" lang="ahk">InterruptibleSleep(DurationMs) &#123;
+    global IsRoutePlaying
+
+<pre><code>if DurationMs &amp;lt;= 0
+    return IsRoutePlaying
+
+EndTick := A_TickCount + DurationMs
+
+while A_TickCount &amp;lt; EndTick &amp;#123;
+    if !IsRoutePlaying
+        return false
+
+    Remaining := EndTick - A_TickCount
+    Sleep(Min(Remaining, 20))
+&amp;#125;
+
+return IsRoutePlaying
+</code></pre>
+<p>&amp;#125;<br></p></code></pre><p></p>
+<p>思路：把长等待切成 20ms 的小段，每段醒来检查 <code>IsRoutePlaying</code>。F12 把 <code>IsRoutePlaying</code> 设为 false，下一个 20ms 内就退出。</p>
+<p><strong>为什么用 <code>A_TickCount</code> 而不是 QPC？</strong>
+轮间等待不参与事件计划时间，精度要求低，<code>A_TickCount</code> 足够，而且 <code>InterruptibleSleep</code> 本身会被调用很多次，用更轻量的 <code>A_TickCount</code> 更合适。</p>
+<h3 data-id="heading-21">6.3 两种等待的分工</h3>
+<table><thead><tr><th>函数</th><th>用途</th><th>计时器</th><th>精度要求</th></tr></thead><tbody><tr><td><code>PreciseSleepUntilMs</code></td><td>轮内事件对准</td><td>QPC</td><td>高</td></tr><tr><td><code>InterruptibleSleep</code></td><td>轮间等待、倒计时</td><td>A_TickCount</td><td>低</td></tr></tbody></table>
+<p>这个分工很重要：不是所有等待都需要高精度，轮间 8 秒等待差 5ms 完全无所谓。</p>
+<hr>
+<h2 data-id="heading-22">七、诊断日志：让误差可见</h2>
+<h3 data-id="heading-23">7.1 三个时间字段</h3>
+<pre><code class="hljs language-ahk" lang="ahk">PlannedTime  := Round(Event.Time * PlaybackSpeed)
+ActualTime   := Round(QpcMs() - RoundStartMs)
+DelayMs      := ActualTime - PlannedTime
+</code></pre>
+<ul>
+<li><code>PlannedTime</code>：按路线和速度倍率算出的计划相对时刻；</li>
+<li><code>ActualTime</code>：实际发送前，相对于本轮开始的时刻；</li>
+<li><code>DelayMs</code>：实际减计划，正数表示晚了，负数表示早了。</li>
+</ul>
+<h3 data-id="heading-24">7.2 日志只写内存，不写磁盘</h3>
+<pre><code class="hljs language-ahk" lang="ahk">AppendPlaybackLog(...) &#123;
+    global PlaybackLogRows
+    PlaybackLogRows.Push(&#123;...&#125;)
+&#125;
+</code></pre>
+<p>每个事件都写磁盘会显著放大计时误差。正确做法是：事件之间只往数组里 push，回放全部结束后一次性写 CSV。</p>
+<h3 data-id="heading-25">7.3 日志能告诉你什么</h3>
+<ul>
+<li><code>DelayMs</code> 随事件序号增长 → 相对调度，误差累积；</li>
+<li><code>DelayMs</code> 在固定范围抖动 → 绝对调度，误差有界；</li>
+<li><code>GameActive = 0</code> → 发送时窗口失去焦点，回放被中断；</li>
+<li>某个事件 <code>DelayMs</code> 异常大 → 那个位置系统负载高，或 Sleep 被拉长。</li>
+</ul>
+<hr>
+<h2 data-id="heading-26">八、错误处理：不让一次异常毁掉整轮日志</h2>
+<h3 data-id="heading-27">8.1 try / catch / finally</h3>
+<p>回放主循环用 <code>try ... catch ... finally</code> 包住：</p>
+<pre><code class="hljs language-ahk" lang="ahk">try &#123;
+    Loop PlaybackRepeatCount &#123;
+        ...
+        if !PlayOneRouteRound()
+            break
+        ...
+    &#125;
+&#125; catch as Err &#123;
+    MsgBox("轮次：" CurrentPlaybackRound "`n错误：" Err.Message ...)
+&#125; finally &#123;
+    IsRoutePlaying := false
+    ReleaseAllRecordedKeys()
+    ReleaseCommonGameKeys()
+    try SavePlaybackLogToCsv()
+&#125;
+</code></pre>
+<p><strong><code>finally</code> 是关键</strong>：无论正常结束、F12 中断、失焦、还是抛异常，都执行清理和日志保存。这样即使第 13 轮出错，前 12 轮的诊断日志还在。</p>
+<h3 data-id="heading-28">8.2 单事件级别的错误定位</h3>
+<p><code>PlayOneRouteRound</code> 里每个事件包了 try/catch：</p>
+<pre><code class="hljs language-ahk" lang="ahk">try &#123;
+    ...
+&#125; catch as Err &#123;
+    throw Error(
+        "第 " CurrentPlaybackRound " 轮第 " EventIndex " 个事件出错。"
+        . "`n按键：" Event.Key " / 动作：" Event.Action
+        . "`n原始错误：" Err.Message
+    )
+&#125;
+</code></pre>
+<p>这样报错时能看到"第几轮、第几个事件、哪个键"，而不是只有一行"DllCall 失败"。</p>
+<h3 data-id="heading-29">8.3 资源清理</h3>
+<p><code>CleanupBeforeExit</code> 在脚本退出时执行：</p>
+<pre><code class="hljs language-ahk" lang="ahk">if TimePeriodSet &#123;
+    try DllCall("winmm\timeEndPeriod", "UInt", 1)
+    TimePeriodSet := false
+&#125;
+</code></pre>
+<p>恢复系统计时器精度，释放按键，保存日志。<strong>自己设置的状态，自己负责恢复。</strong></p>
+<hr>
+<h2 data-id="heading-30">九、完整结构回顾</h2>
+<p>把 Part 10 新增的部分放回整个脚本，结构是这样的：</p>
+<pre><code class="hljs language-text" lang="text">全局配置
+  ├─ PlaybackRepeatIntervalMs = 8000
+  ├─ QpcFreq, TimePeriodSet
+  └─ ...
+
+<p>基础设置<br>  ├─ SetKeyDelay<br>  ├─ OnExit(CleanupBeforeExit)<br>  └─ InitializeKeyboardRecorder()</p>
+<p>高精度计时<br>  ├─ InitQpc()          ; 初始化 QPC + timeBeginPeriod(1)<br>  ├─ QpcMs()            ; 返回高精度毫秒<br>  └─ PreciseSleepUntilMs(TargetMs)   ; 等到绝对时刻</p>
+<p>录制（Part 9 不变）<br>  ├─ StartRouteRecording<br>  ├─ RecordAnyKeyboardEvent<br>  └─ StopRouteRecording</p>
+<p>回放（Part 10 改动）<br>  ├─ PlayRecordedRoute          ; 轮次循环 + 轮间等待<br>  ├─ PlayOneRouteRound          ; 绝对时间调度<br>  ├─ InterruptibleSleep         ; 轮间可中断等待<br>  └─ ReplayKeyboardEvent</p>
+<p>诊断日志<br>  ├─ InitializePlaybackLog<br>  ├─ AppendPlaybackLog<br>  └─ SavePlaybackLogToCsv</p>
+<p>清理<br>  ├─ EmergencyStop              ; F12<br>  └─ CleanupBeforeExit          ; 退出时恢复计时器精度<br></p></code></pre><p></p>
+<hr>
+<h2 data-id="heading-31">十、小结</h2>
+<h3 data-id="heading-32">这一篇讲了什么</h3>
+<ol>
+<li><strong>Sleep 不精确</strong>，相对调度的误差会线性累积；</li>
+<li><strong>绝对时间调度</strong>让每个事件对准自己的目标时刻，误差有界；</li>
+<li><strong>QPC</strong> 提供微秒级计时，替代 <code>A_TickCount</code>；</li>
+<li><strong>timeBeginPeriod(1)</strong> 临时提高系统计时器精度，用完要 <code>timeEndPeriod(1)</code>；</li>
+<li><strong>PreciseSleepUntilMs</strong> 大块 Sleep + 最后 Sleep(1)，兼顾精度和响应性；</li>
+<li><strong>InterruptibleSleep</strong> 把长等待切段，保证 F12 能及时停；</li>
+<li><strong>诊断日志</strong>只写内存，结束后一次性落盘；</li>
+<li><strong>try/catch/finally</strong> 保证异常时也保存日志、释放按键、恢复计时器精度。</li>
+</ol>
+<h3 data-id="heading-33">下一篇预告</h3>
+<p>Part 11 可以往两个方向走：</p>
+<ul>
+<li><strong>条件等待与状态检测</strong>：用 <code>PixelGetColor</code> / <code>PixelSearch</code> 判断游戏是否加载完成、是否回到起点，把"死等 8 秒"变成"加载完就走"；</li>
+<li><strong>多路线与流程编排</strong>：把多个 CSV 路线串起来，支持"跑图 → 偷窃 → 回城"这样的复合流程。</li>
+</ul>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-selector-id">#Requires</span> AutoHotkey v2<span class="hljs-selector-class">.0</span>
+<span class="hljs-selector-id">#SingleInstance</span> Force
+<span class="hljs-selector-id">#Warn</span>
+
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 八方旅人路线录制器 - AutoHotkey v2<br>; 功能：<br>; <span class="hljs-number">1</span>. 全键盘 Down&#x2F;Up 录制<br>; <span class="hljs-number">2</span>. 路线 CSV 保存与加载<br>; <span class="hljs-number">3</span>. 多轮重复回放<br>; <span class="hljs-number">4</span>. 绝对时间调度回放，避免逐事件 Sleep 误差累积<br>; <span class="hljs-number">5</span>. 输出计划时间、实际发送时间、延迟、焦点状态等回放诊断日志<br>; <span class="hljs-number">6</span>. F12 紧急停止并释放按键<br>;<br>; 热键：<br>; F5  设置重复回放次数<br>; F6  查看脚本状态<br>; F7  捕获当前活动窗口作为游戏窗口<br>; F8  开始录制<br>; F9  停止录制并保存<br>; F10 回放路线<br>; F11 从 CSV 重新加载路线<br>; F12 紧急停止并释放按键<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 全局配置 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>global GameHwnd :&#x3D; <span class="hljs-number">0</span><br>global IsRouteRecording :&#x3D; false<br>global IsRoutePlaying :&#x3D; false<br>global RouteStartTick :&#x3D; <span class="hljs-number">0</span><br>global RouteEvents :&#x3D; []<br>global RecordedKeyStates :&#x3D; <span class="hljs-built_in">Map</span>()<br>global RegisteredKeyboardKeys :&#x3D; []<br>global RouteFile :&#x3D; A_ScriptDir <span class="hljs-string">“\octopath_route.csv”</span></p>
+<p>; 回放诊断日志。每次按 F10 启动新的完整回放任务时覆盖旧日志。<br>global PlaybackLogFile :&#x3D; A_ScriptDir <span class="hljs-string">“\octopath_playback_log.csv”</span><br>global PlaybackLogRows :&#x3D; []</p>
+<p>; 回放速度倍率：<span class="hljs-number">1.00</span> 原速；<span class="hljs-number">0.90</span> 更快；<span class="hljs-number">1.10</span> 更慢。<br>global PlaybackSpeed :&#x3D; <span class="hljs-number">1.00</span></p>
+<p>; 重复回放次数。可以直接修改，也可以运行时按 F5 设置。<br>global PlaybackRepeatCount :&#x3D; <span class="hljs-number">1</span></p>
+<p>; 每轮路线结束后，到下一轮开始前的等待时间，单位毫秒。<br>global PlaybackRepeatIntervalMs :&#x3D; <span class="hljs-number">8000</span></p>
+<p>; 回放前倒计时秒数。仅在整个回放任务开始前执行一次。<br>global PlaybackCountdownSeconds :&#x3D; <span class="hljs-number">3</span></p>
+<p>; 当前正在执行第几轮，仅用于状态显示和日志记录。<br>global CurrentPlaybackRound :&#x3D; <span class="hljs-number">0</span></p>
+<p>; 是否实时显示最新录制事件。<br>global ShowRecordingEventToolTip :&#x3D; true</p>
+<p>; 只在已捕获游戏窗口位于前台时记录。<br>global RecordOnlyWhenGameActive :&#x3D; true<br>global RecordingWasPausedForFocus :&#x3D; false<br>global RecordingPauseStartedTick :&#x3D; <span class="hljs-number">0</span></p>
+<p>; 高精度计时相关。<br>global QpcFreq :&#x3D; <span class="hljs-number">0</span><br>global TimePeriodSet :&#x3D; false</p>
+<p>; F5-F12 是脚本控制键，不写入路线。<br>global ExcludedRecordingKeys :&#x3D; <span class="hljs-built_in">Map</span>(<br>    <span class="hljs-string">“F5”</span>, true,<br>    <span class="hljs-string">“F6”</span>, true,<br>    <span class="hljs-string">“F7”</span>, true,<br>    <span class="hljs-string">“F8”</span>, true,<br>    <span class="hljs-string">“F9”</span>, true,<br>    <span class="hljs-string">“F10”</span>, true,<br>    <span class="hljs-string">“F11”</span>, true,<br>    <span class="hljs-string">“F12”</span>, true<br>)</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 基础设置 &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">SetKeyDelay</span>(<span class="hljs-number">10</span>, <span class="hljs-number">10</span>)<br><span class="hljs-built_in">CoordMode</span>(“Mouse”, “Screen”)<br><span class="hljs-built_in">CoordMode</span>(“Pixel”, “Screen”)<br><span class="hljs-built_in">CoordMode</span>(“ToolTip”, “Screen”)<br><span class="hljs-built_in">OnExit</span>(CleanupBeforeExit)</p>
+<p>; 自动执行段在第一条热键定义处结束，因此启动初始化必须放在热键之前<br><span class="hljs-built_in">InitializeKeyboardRecorder</span>()<br><span class="hljs-built_in">ShowTemporaryToolTip</span>(<br>    “路线录制器已启动<code>n&quot;     . &quot;F7 捕获窗口，F8 开始录制</code>n”<br>    . “F5 设置重复回放次数”,<br>    <span class="hljs-number">3200</span><br>)</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D; 控制热键. &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>F5::<span class="hljs-built_in">SetPlaybackRepeatCount</span>()<br>F6::<span class="hljs-built_in">ShowRecorderStatus</span>()<br>F7::<span class="hljs-built_in">CaptureGameWindow</span>()<br>F8::<span class="hljs-built_in">StartRouteRecording</span>()<br>F9::<span class="hljs-built_in">StopRouteRecording</span>()<br>F10::<span class="hljs-built_in">PlayRecordedRoute</span>()<br>F11::<span class="hljs-built_in">LoadRouteFromCsv</span>()<br>F12::<span class="hljs-built_in">EmergencyStop</span>()</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 高精度计时初始化<br>; 同时把 Windows 系统计时器精度临时提高到 <span class="hljs-number">1ms</span>，退出时恢复<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">InitQpc</span>() &amp;#123;<br>    global QpcFreq, TimePeriodSet</p>
+<pre><code>if !QpcFreq &amp;#123;
+    Freq := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    try &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;DllCall&lt;/span&gt;(&quot;QueryPerformanceFrequency&quot;, &quot;Int64*&quot;, &amp;amp;Freq)
+    &amp;#125; catch as Err &amp;#123;
+        throw &lt;span class=&quot;hljs-built_in&quot;&gt;Error&lt;/span&gt;(&quot;QueryPerformanceFrequency 调用失败：&quot; Err.Message)
+    &amp;#125;
+
+    if !Freq
+        throw &lt;span class=&quot;hljs-built_in&quot;&gt;Error&lt;/span&gt;(&quot;QueryPerformanceFrequency 返回 &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;，无法进行高精度计时。&quot;)
+
+    QpcFreq := Freq
+&amp;#125;
+
+if !TimePeriodSet &amp;#123;
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;DllCall&lt;/span&gt;(&quot;winmm\timeBeginPeriod&quot;, &quot;UInt&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    TimePeriodSet := true
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 返回高精度毫秒时间.<br>; 先除后乘，避免 Count * <span class="hljs-number">1000</span> 在 AHK v2 中溢出或丢精度<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">QpcMs</span>() &amp;#123;<br>    global QpcFreq</p>
+<pre><code>if !QpcFreq
+    &lt;span class=&quot;hljs-built_in&quot;&gt;InitQpc&lt;/span&gt;()
+
+Count := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+try &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;DllCall&lt;/span&gt;(&quot;QueryPerformanceCounter&quot;, &quot;Int64*&quot;, &amp;amp;Count)
+&amp;#125; catch as Err &amp;#123;
+    throw &lt;span class=&quot;hljs-built_in&quot;&gt;Error&lt;/span&gt;(&quot;QueryPerformanceCounter 调用失败：&quot; Err.Message)
+&amp;#125;
+
+if !QpcFreq
+    throw &lt;span class=&quot;hljs-built_in&quot;&gt;Error&lt;/span&gt;(&quot;QpcFreq 为 &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;，无法计算高精度时间。&quot;)
+
+return Count / QpcFreq * &lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 等到指定的绝对毫秒时间点.<br>; 大块时间用 Sleep；最后阶段用 <span class="hljs-built_in">Sleep</span>(<span class="hljs-number">1</span>)，不再纯忙等，<br>; 保证 F12 热键和窗口焦点检查能及时响应。<br>; 因为回放是绝对时间调度，即使某个事件晚了几毫秒，下一个事件会追赶，<br>; 不会像旧逻辑那样逐事件累积误差。<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">PreciseSleepUntilMs</span>(TargetMs) &amp;#123;<br>    global IsRoutePlaying</p>
+<pre><code>while IsRoutePlaying &amp;#123;
+    if !&lt;span class=&quot;hljs-built_in&quot;&gt;EnsurePlaybackWindowActive&lt;/span&gt;()
+        return false
+
+    Remaining := TargetMs - &lt;span class=&quot;hljs-built_in&quot;&gt;QpcMs&lt;/span&gt;()
+
+    if Remaining &amp;lt;= &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+        return true
+
+    if Remaining &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt; &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;Sleep&lt;/span&gt;(Min(&lt;span class=&quot;hljs-number&quot;&gt;5&lt;/span&gt;, Max(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;, Floor(Remaining) - &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;)))
+    &amp;#125; else &amp;#123;
+        ; &lt;span class=&quot;hljs-built_in&quot;&gt;timeBeginPeriod&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) 下 &lt;span class=&quot;hljs-built_in&quot;&gt;Sleep&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) 约 &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;~&lt;span class=&quot;hljs-number&quot;&gt;2ms&lt;/span&gt;，
+        ; 比纯忙等更能保持消息循环响应。
+        &lt;span class=&quot;hljs-built_in&quot;&gt;Sleep&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    &amp;#125;
+&amp;#125;
+
+return false
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 设置重复回放次数<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">SetPlaybackRepeatCount</span>() &amp;#123;<br>    global PlaybackRepeatCount, IsRouteRecording, IsRoutePlaying</p>
+<pre><code>if IsRouteRecording &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;录制期间不能修改回放次数。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+if IsRoutePlaying &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;回放期间不能修改回放次数。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+Result := &lt;span class=&quot;hljs-built_in&quot;&gt;InputBox&lt;/span&gt;(
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;请输入路线重复回放次数。`n范围：1 至 999。`n`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;当前设置：&quot;&lt;/span&gt; PlaybackRepeatCount,
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;设置重复回放次数&quot;&lt;/span&gt;,
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;w360 h175&quot;&lt;/span&gt;,
+    PlaybackRepeatCount
+)
+
+if Result.Result != &lt;span class=&quot;hljs-string&quot;&gt;&quot;OK&quot;&lt;/span&gt;
+    return
+
+InputValue := &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Result.Value)
+
+if !&lt;span class=&quot;hljs-built_in&quot;&gt;IsInteger&lt;/span&gt;(InputValue) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;请输入整数，例如 &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;、&lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt; 或 &lt;span class=&quot;hljs-number&quot;&gt;10&lt;/span&gt;。&quot;, &quot;输入无效&quot;, &quot;Icon!&quot;)
+    return
+&amp;#125;
+
+NewCount := &lt;span class=&quot;hljs-built_in&quot;&gt;Integer&lt;/span&gt;(InputValue)
+
+if NewCount &amp;lt; &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; || NewCount &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;999&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;重复次数必须在 &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; 至 &lt;span class=&quot;hljs-number&quot;&gt;999&lt;/span&gt; 之间。&quot;, &quot;输入无效&quot;, &quot;Icon!&quot;)
+    return
+&amp;#125;
+
+PlaybackRepeatCount := NewCount
+&lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;重复回放次数已设置为：&quot;&lt;/span&gt; PlaybackRepeatCount, &lt;span class=&quot;hljs-number&quot;&gt;2200&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 注册大部分键盘扫描码的 Down&#x2F;Up 监听<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">InitializeKeyboardRecorder</span>() &amp;#123;<br>    global RegisteredKeyboardKeys<br>    RegisteredKeyboardKeys :&#x3D; []</p>
+<pre><code>Loop &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;x1FF &amp;#123;
+    ScanCode := &lt;span class=&quot;hljs-built_in&quot;&gt;Format&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;sc&amp;#123;:03X&amp;#125;&quot;&lt;/span&gt;, A_Index)
+    KeyName := &lt;span class=&quot;hljs-built_in&quot;&gt;GetKeyName&lt;/span&gt;(ScanCode)
+
+    if KeyName = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt; || &lt;span class=&quot;hljs-built_in&quot;&gt;IsExcludedRecordingKey&lt;/span&gt;(KeyName)
+        continue
+
+    try &amp;#123;
+        ; $ 防止脚本自己的 SendEvent 再触发录制。
+        ; ~ 不拦截真实按键，按键仍传给游戏。
+        ; * 无论修饰键状态如何都能触发。
+        &lt;span class=&quot;hljs-built_in&quot;&gt;Hotkey&lt;/span&gt;(
+            &quot;$~*&quot; ScanCode,
+            RecordAnyKeyboardEvent.Bind(ScanCode, KeyName, &quot;Down&quot;),
+            &quot;On&quot;
+        )
+
+        &lt;span class=&quot;hljs-built_in&quot;&gt;Hotkey&lt;/span&gt;(
+            &quot;$~*&quot; ScanCode &quot; Up&quot;,
+            RecordAnyKeyboardEvent.Bind(ScanCode, KeyName, &quot;Up&quot;),
+            &quot;On&quot;
+        )
+
+        RegisteredKeyboardKeys&lt;span class=&quot;hljs-selector-class&quot;&gt;.Push&lt;/span&gt;(&amp;#123;
+            ScanCode: ScanCode,
+            KeyName: KeyName
+        &amp;#125;)
+    &amp;#125; catch &amp;#123;
+        ; 某些扫描码无法注册，忽略即可。
+    &amp;#125;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 捕获当前活动窗口<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">CaptureGameWindow</span>() &amp;#123;<br>    global GameHwnd, IsRouteRecording, IsRoutePlaying</p>
+<pre><code>if IsRouteRecording || IsRoutePlaying &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;录制或回放期间不能重新捕获窗口。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+ActiveHwnd := &lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;A&quot;&lt;/span&gt;)
+if !ActiveHwnd &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;没有找到当前活动窗口。&quot;)
+    return
+&amp;#125;
+
+try &amp;#123;
+    WindowTitle := &lt;span class=&quot;hljs-built_in&quot;&gt;WinGetTitle&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;ahk_id &quot;&lt;/span&gt; ActiveHwnd)
+    ProcessName := &lt;span class=&quot;hljs-built_in&quot;&gt;WinGetProcessName&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;ahk_id &quot;&lt;/span&gt; ActiveHwnd)
+&amp;#125; catch as Err &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;无法读取窗口信息。`n`n错误：&quot; Err.Message)
+    return
+&amp;#125;
+
+GameHwnd := ActiveHwnd
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口捕获成功`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;标题：&quot;&lt;/span&gt; WindowTitle &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;进程：&quot;&lt;/span&gt; ProcessName &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;将角色放到固定起点后按 F8&quot;&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+)
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(HideToolTip, -&lt;span class=&quot;hljs-number&quot;&gt;4000&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 开始录制<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">StartRouteRecording</span>() &amp;#123;<br>    global GameHwnd, IsRouteRecording, IsRoutePlaying<br>    global RouteStartTick, RouteEvents, RecordedKeyStates<br>    global RecordingWasPausedForFocus, RecordingPauseStartedTick</p>
+<pre><code>if IsRoutePlaying &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;当前正在回放，不能开始录制。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+if IsRouteRecording &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;路线录制已经开始。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1500&lt;/span&gt;)
+    return
+&amp;#125;
+
+if !GameHwnd || !&lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+    GameHwnd := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口无效。`n`n请激活游戏窗口后按 F7。&quot;&lt;/span&gt;)
+    return
+&amp;#125;
+
+if !&lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;游戏窗口当前不在前台。`n`n请先点击游戏窗口，再按 F8。&quot;)
+    return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+RouteEvents := []
+RecordedKeyStates := &lt;span class=&quot;hljs-built_in&quot;&gt;Map&lt;/span&gt;()
+RecordingWasPausedForFocus := false
+RecordingPauseStartedTick := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+RouteStartTick := A_TickCount
+IsRouteRecording := true
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;100&lt;/span&gt;)
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;全键盘路线录制已开始`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;仅记录游戏窗口中的键盘事件`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;F5-F12 不会写入路线`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;到达目标后按 F9&quot;&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 记录一个键盘事件<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">RecordAnyKeyboardEvent</span>(ScanCode, KeyName, Action, *) &amp;#123;<br>    global GameHwnd, IsRouteRecording, IsRoutePlaying<br>    global RouteStartTick, RouteEvents, RecordedKeyStates<br>    global RecordOnlyWhenGameActive, ShowRecordingEventToolTip</p>
+<pre><code>if !IsRouteRecording || IsRoutePlaying
+    return
+
+if &lt;span class=&quot;hljs-built_in&quot;&gt;IsExcludedRecordingKey&lt;/span&gt;(KeyName)
+    return
+
+if RecordOnlyWhenGameActive &amp;#123;
+    if !GameHwnd || !&lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd)
+        return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ResumeRouteRecordingClock&lt;/span&gt;()
+
+if !RecordedKeyStates&lt;span class=&quot;hljs-selector-class&quot;&gt;.Has&lt;/span&gt;(ScanCode)
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt; := false
+
+if Action = &lt;span class=&quot;hljs-string&quot;&gt;&quot;Down&quot;&lt;/span&gt; &amp;#123;
+    ; 忽略长按产生的重复 Down。
+    if RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt;
+        return
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt; := true
+&amp;#125; else &amp;#123;
+    ; 忽略没有对应 Down 的孤立 Up。
+    if !RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt;
+        return
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt; := false
+&amp;#125;
+
+RelativeTime := A_TickCount - RouteStartTick
+
+RouteEvents.&lt;span class=&quot;hljs-built_in&quot;&gt;Push&lt;/span&gt;(&amp;#123;
+    &lt;span class=&quot;hljs-selector-tag&quot;&gt;Time&lt;/span&gt;: RelativeTime,
+    Key: KeyName,
+    ScanCode: ScanCode,
+    Action: Action
+&amp;#125;)
+
+if ShowRecordingEventToolTip &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+        &quot;正在录制游戏路线`n&quot;
+        . &quot;事件数量：&quot; RouteEvents.Length &quot;`n&quot;
+        . &quot;按键：&quot; KeyName &quot;`n&quot;
+        . &quot;动作：&quot; Action &quot;`n&quot;
+        . &quot;时间：&quot; RelativeTime &quot; ms`n&quot;
+        . &quot;按 F9 停止&quot;,
+        &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+        &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+    )
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 录制期间监控窗口焦点<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">CheckRecordingWindowFocus</span>() &amp;#123;<br>    global GameHwnd, IsRouteRecording, RecordingWasPausedForFocus<br>    global RouteStartTick, RecordingPauseStartedTick</p>
+<pre><code>if !IsRouteRecording &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+    return
+&amp;#125;
+
+if !GameHwnd || !&lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;StopRouteRecordingBecauseWindowLost&lt;/span&gt;()
+    return
+&amp;#125;
+
+if !&lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+    if !RecordingWasPausedForFocus &amp;#123;
+        RecordingPauseStartedTick := A_TickCount
+        RecordingWasPausedForFocus := true
+        &lt;span class=&quot;hljs-built_in&quot;&gt;CloseHeldKeysAtTime&lt;/span&gt;(RecordingPauseStartedTick - RouteStartTick)
+    &amp;#125;
+
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+        &quot;录制已暂停`n&quot;
+        . &quot;游戏窗口当前不在前台`n&quot;
+        . &quot;重新激活游戏后继续记录&quot;,
+        &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+        &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+    )
+    return
+&amp;#125;
+
+if RecordingWasPausedForFocus &amp;#123;
+    ; 将失焦时长从路线时钟中扣除，恢复后路线时间继续从暂停点累计
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ResumeRouteRecordingClock&lt;/span&gt;()
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(&quot;游戏窗口已恢复前台`n路线录制继续&quot;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 恢复路线录制时钟<br>; 比如暂停<span class="hljs-number">5000ms</span>，恢复后路线起始时间需要增加这段暂停的时间，从而获得更精准的相对时间<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ResumeRouteRecordingClock</span>() &amp;#123;<br>    global RouteStartTick, RecordingPauseStartedTick, RecordingWasPausedForFocus</p>
+<pre><code>if !RecordingWasPausedForFocus
+    return
+
+RouteStartTick += A_TickCount - RecordingPauseStartedTick
+RecordingPauseStartedTick := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+RecordingWasPausedForFocus := false
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 当找不到游戏窗口时，停止录制并保存<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">StopRouteRecordingBecauseWindowLost</span>() &amp;#123;<br>    global IsRouteRecording</p>
+<pre><code>if !IsRouteRecording
+    return
+
+IsRouteRecording := false
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口已关闭或句柄失效。`n本次录制已停止，未自动保存。&quot;&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 停止录制并保存<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">StopRouteRecording</span>() &amp;#123;<br>    global IsRouteRecording, RouteEvents, RouteStartTick, RouteFile<br>    global RecordingWasPausedForFocus, RecordingPauseStartedTick</p>
+<pre><code>if !IsRouteRecording &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;当前没有正在进行的路线录制。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+StopTime := RecordingWasPausedForFocus
+    ? RecordingPauseStartedTick - RouteStartTick
+    : A_TickCount - RouteStartTick
+IsRouteRecording := false
+RecordingWasPausedForFocus := false
+RecordingPauseStartedTick := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;CloseHeldKeysAtTime&lt;/span&gt;(StopTime)
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+if RouteEvents.Length = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;没有录制到游戏窗口中的键盘事件。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;2200&lt;/span&gt;)
+    return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;SortRouteEventsByTime&lt;/span&gt;()
+
+try &lt;span class=&quot;hljs-built_in&quot;&gt;SaveRouteToCsv&lt;/span&gt;()
+catch as Err &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;路线保存失败。`n`n错误：&quot; Err.Message)
+    return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+    &quot;路线录制完成并已保存`n&quot;
+    . &quot;事件数量：&quot; RouteEvents.Length &quot;`n&quot;
+    . &quot;总时长：&quot; Round(GetRouteDuration() / &lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;) &quot; 秒`n&quot;
+    . &quot;文件：&quot; RouteFile &quot;`n&quot;
+    . &quot;按 F5 设置次数，按 F10 回放&quot;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+)
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(HideToolTip, -&lt;span class=&quot;hljs-number&quot;&gt;5000&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 释放当前按住的所有键.<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">CloseHeldKeysAtCurrentTime</span>() &amp;#123;<br>    global RouteStartTick<br>    <span class="hljs-built_in">CloseHeldKeysAtTime</span>(A_TickCount - RouteStartTick)<br>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 释放当前按住的所有键<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">CloseHeldKeysAtTime</span>(EventTime) &amp;#123;<br>    global RouteEvents, RecordedKeyStates</p>
+<pre><code>for ScanCode, IsPressed in RecordedKeyStates &amp;#123;
+    if !IsPressed
+        continue
+
+    KeyName := &lt;span class=&quot;hljs-built_in&quot;&gt;GetKeyName&lt;/span&gt;(ScanCode)
+    if KeyName = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+        KeyName := ScanCode
+
+    RouteEvents.&lt;span class=&quot;hljs-built_in&quot;&gt;Push&lt;/span&gt;(&amp;#123;
+        &lt;span class=&quot;hljs-selector-tag&quot;&gt;Time&lt;/span&gt;: EventTime,
+        Key: KeyName,
+        ScanCode: ScanCode,
+        Action: &lt;span class=&quot;hljs-string&quot;&gt;&quot;Up&quot;&lt;/span&gt;
+    &amp;#125;)
+
+    ; 补记路线松键时，也发送实际松键，避免按键状态残留。
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;SendEvent&lt;/span&gt;(&quot;&amp;#123;&quot; ScanCode &quot; up&amp;#125;&quot;)
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt; := false
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 按时间稳定排序<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">SortRouteEventsByTime</span>() &amp;#123;<br>    global RouteEvents</p>
+<pre><code>Count := RouteEvents.Length
+if Count &amp;lt; &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;
+    return
+
+Loop Count - &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; &amp;#123;
+    SourceIndex := A_Index + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+    CurrentEvent := RouteEvents[SourceIndex]
+    InsertIndex := SourceIndex - &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+
+    while InsertIndex &amp;gt;= &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+        &amp;amp;&amp;amp; RouteEvents[InsertIndex].Time &amp;gt; CurrentEvent.Time &amp;#123;
+
+        RouteEvents&lt;span class=&quot;hljs-selector-attr&quot;&gt;[InsertIndex + 1]&lt;/span&gt; := RouteEvents[InsertIndex]
+        InsertIndex -= &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+    &amp;#125;
+    RouteEvents&lt;span class=&quot;hljs-selector-attr&quot;&gt;[InsertIndex + 1]&lt;/span&gt; := CurrentEvent
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 保存和加载路线 CSV.<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">SaveRouteToCsv</span>() &amp;#123;<br>    global RouteEvents, RouteFile</p>
+<pre><code>CsvContent := &lt;span class=&quot;hljs-string&quot;&gt;&quot;TimeMs,ScanCode,Action,KeyName`n&quot;&lt;/span&gt;
+
+for Event in RouteEvents &amp;#123;
+    CsvContent .= Event&lt;span class=&quot;hljs-selector-class&quot;&gt;.Time&lt;/span&gt; &quot;,&quot;
+        . &lt;span class=&quot;hljs-built_in&quot;&gt;EscapeCsvField&lt;/span&gt;(Event.ScanCode) &quot;,&quot;
+        . &lt;span class=&quot;hljs-built_in&quot;&gt;EscapeCsvField&lt;/span&gt;(Event.Action) &quot;,&quot;
+        . &lt;span class=&quot;hljs-built_in&quot;&gt;EscapeCsvField&lt;/span&gt;(Event.Key) &quot;`n&quot;
+&amp;#125;
+
+; 先完整写入同目录临时文件，再替换正式路线，避免写入失败时丢失旧文件。
+TempRouteFile := RouteFile &lt;span class=&quot;hljs-string&quot;&gt;&quot;.tmp&quot;&lt;/span&gt;
+try &amp;#123;
+    if &lt;span class=&quot;hljs-built_in&quot;&gt;FileExist&lt;/span&gt;(TempRouteFile)
+        &lt;span class=&quot;hljs-built_in&quot;&gt;FileDelete&lt;/span&gt;(TempRouteFile)
+
+    &lt;span class=&quot;hljs-built_in&quot;&gt;FileAppend&lt;/span&gt;(CsvContent, TempRouteFile, &quot;UTF-&lt;span class=&quot;hljs-number&quot;&gt;8&lt;/span&gt;&quot;)
+    &lt;span class=&quot;hljs-built_in&quot;&gt;FileMove&lt;/span&gt;(TempRouteFile, RouteFile, true)
+&amp;#125; catch as Err &amp;#123;
+    if &lt;span class=&quot;hljs-built_in&quot;&gt;FileExist&lt;/span&gt;(TempRouteFile)
+        try &lt;span class=&quot;hljs-built_in&quot;&gt;FileDelete&lt;/span&gt;(TempRouteFile)
+    throw Err
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 加载路线 CSV<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">LoadRouteFromCsv</span>() &amp;#123;<br>    global RouteEvents, RouteFile, IsRouteRecording, IsRoutePlaying<br>    global PlaybackRepeatCount</p>
+<pre><code>if IsRouteRecording || IsRoutePlaying &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;录制或回放期间不能加载路线。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return false
+&amp;#125;
+
+if !&lt;span class=&quot;hljs-built_in&quot;&gt;FileExist&lt;/span&gt;(RouteFile) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;路线文件不存在：`n&quot; RouteFile)
+    return false
+&amp;#125;
+
+try FileContent := &lt;span class=&quot;hljs-built_in&quot;&gt;FileRead&lt;/span&gt;(RouteFile, &lt;span class=&quot;hljs-string&quot;&gt;&quot;UTF-8&quot;&lt;/span&gt;)
+catch as Err &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;路线文件读取失败。`n`n错误：&quot; Err.Message)
+    return false
+&amp;#125;
+
+LoadedEvents := []
+Lines := &lt;span class=&quot;hljs-built_in&quot;&gt;StrSplit&lt;/span&gt;(FileContent, &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&quot;`r&quot;&lt;/span&gt;)
+
+for LineNumber, Line in Lines &amp;#123;
+    if LineNumber = &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; || &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Line) = &quot;&quot;
+        continue
+
+    &lt;span class=&quot;hljs-attribute&quot;&gt;Columns&lt;/span&gt; := &lt;span class=&quot;hljs-built_in&quot;&gt;ParseCsvLine&lt;/span&gt;(Line)
+    if Columns.Length &amp;lt; &lt;span class=&quot;hljs-number&quot;&gt;4&lt;/span&gt;
+        continue
+
+    TimeText := &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Columns[&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;])
+    ScanCode := &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Columns[&lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;])
+    Action := &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Columns[&lt;span class=&quot;hljs-number&quot;&gt;3&lt;/span&gt;])
+    KeyName := &lt;span class=&quot;hljs-built_in&quot;&gt;Trim&lt;/span&gt;(Columns[&lt;span class=&quot;hljs-number&quot;&gt;4&lt;/span&gt;])
+
+    if !&lt;span class=&quot;hljs-built_in&quot;&gt;IsInteger&lt;/span&gt;(TimeText)
+        continue
+    if ScanCode = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+        continue
+    if Action != &lt;span class=&quot;hljs-string&quot;&gt;&quot;Down&quot;&lt;/span&gt; &amp;amp;&amp;amp; Action != &lt;span class=&quot;hljs-string&quot;&gt;&quot;Up&quot;&lt;/span&gt;
+        continue
+
+    LoadedEvents.&lt;span class=&quot;hljs-built_in&quot;&gt;Push&lt;/span&gt;(&amp;#123;
+        &lt;span class=&quot;hljs-selector-tag&quot;&gt;Time&lt;/span&gt;: &lt;span class=&quot;hljs-built_in&quot;&gt;Integer&lt;/span&gt;(TimeText),
+        ScanCode: ScanCode,
+        Action: Action,
+        Key: KeyName
+    &amp;#125;)
+&amp;#125;
+
+if LoadedEvents&lt;span class=&quot;hljs-selector-class&quot;&gt;.Length&lt;/span&gt; = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;路线文件中没有有效的键盘事件。&quot;)
+    return false
+&amp;#125;
+
+RouteEvents := LoadedEvents
+&lt;span class=&quot;hljs-built_in&quot;&gt;SortRouteEventsByTime&lt;/span&gt;()
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;路线读取成功`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;事件数量：&quot;&lt;/span&gt; RouteEvents.Length &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;总时长：&quot;&lt;/span&gt; &lt;span class=&quot;hljs-built_in&quot;&gt;Round&lt;/span&gt;(&lt;span class=&quot;hljs-built_in&quot;&gt;GetRouteDuration&lt;/span&gt;() / &lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;) &lt;span class=&quot;hljs-string&quot;&gt;&quot; 秒`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;重复次数：&quot;&lt;/span&gt; PlaybackRepeatCount,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+)
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(HideToolTip, -&lt;span class=&quot;hljs-number&quot;&gt;3500&lt;/span&gt;)
+return true
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 用来把一个字段转换成合法的 CSV 格式，避免内容里的逗号或引号被误认为字段分隔符<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">EscapeCsvField</span>(Value) &amp;#123;<br>    Value :&#x3D; <span class="hljs-built_in">String</span>(Value)</p>
+<pre><code>if &lt;span class=&quot;hljs-built_in&quot;&gt;InStr&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&#39;&quot;&#39;&lt;/span&gt;)
+    Value := &lt;span class=&quot;hljs-built_in&quot;&gt;StrReplace&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&#39;&quot;&#39;&lt;/span&gt;, &lt;span class=&quot;hljs-string&quot;&gt;&#39;&quot;&quot;&#39;&lt;/span&gt;)
+
+if &lt;span class=&quot;hljs-built_in&quot;&gt;InStr&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&quot;,&quot;&lt;/span&gt;)
+    || &lt;span class=&quot;hljs-built_in&quot;&gt;InStr&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&#39;&quot;&#39;&lt;/span&gt;)
+    || &lt;span class=&quot;hljs-built_in&quot;&gt;InStr&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;)
+    || &lt;span class=&quot;hljs-built_in&quot;&gt;InStr&lt;/span&gt;(Value, &lt;span class=&quot;hljs-string&quot;&gt;&quot;`r&quot;&lt;/span&gt;) &amp;#123;
+
+    return &#39;&quot;&#39; Value &#39;&quot;&#39;
+&amp;#125;
+
+return Value
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 解析CSV每一行<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ParseCsvLine</span>(Line) &amp;#123;<br>    Fields :&#x3D; []<br>    CurrentField :&#x3D; <span class="hljs-string">“”</span><br>    InsideQuotes :&#x3D; false<br>    Index :&#x3D; <span class="hljs-number">1</span><br>    LineLength :&#x3D; <span class="hljs-built_in">StrLen</span>(Line)</p>
+<pre><code>while Index &amp;lt;= LineLength &amp;#123;
+    Character := &lt;span class=&quot;hljs-built_in&quot;&gt;SubStr&lt;/span&gt;(Line, Index, &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+
+    if Character = &lt;span class=&quot;hljs-string&quot;&gt;&#39;&quot;&#39;&lt;/span&gt; &amp;#123;
+        if InsideQuotes
+            &amp;amp;&amp;amp; Index &amp;lt; LineLength
+            &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;SubStr&lt;/span&gt;(Line, Index + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;) = &#39;&quot;&#39; &amp;#123;
+
+            CurrentField .= &#39;&quot;&#39;
+            Index += &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;
+            continue
+        &amp;#125;
+
+        InsideQuotes := !InsideQuotes
+        Index += &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+        continue
+    &amp;#125;
+
+    if Character = &quot;,&quot; &amp;amp;&amp;amp; !InsideQuotes &amp;#123;
+        Fields&lt;span class=&quot;hljs-selector-class&quot;&gt;.Push&lt;/span&gt;(CurrentField)
+        CurrentField := &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+        Index += &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+        continue
+    &amp;#125;
+
+    CurrentField .= Character
+    Index += &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+&amp;#125;
+
+Fields&lt;span class=&quot;hljs-selector-class&quot;&gt;.Push&lt;/span&gt;(CurrentField)
+return Fields
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 回放诊断日志<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">InitializePlaybackLog</span>() &amp;#123;<br>    global PlaybackLogRows<br>    PlaybackLogRows :&#x3D; []<br>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 追加回放诊断日志<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">AppendPlaybackLog</span>(<br>    RoundNumber,<br>    EventIndex,<br>    PlannedTime,<br>    ActualTime,<br>    DelayMs,<br>    KeyName,<br>    Action,<br>    GameActive<br>) &amp;#123;<br>    global PlaybackLogRows</p>
+<pre><code>; 只写入内存，不在事件之间访问磁盘，避免日志本身造成明显计时干扰。
+PlaybackLogRows&lt;span class=&quot;hljs-selector-class&quot;&gt;.Push&lt;/span&gt;(&amp;#123;
+    Round: RoundNumber,
+    EventIndex: EventIndex,
+    PlannedTime: PlannedTime,
+    ActualTime: ActualTime,
+    DelayMs: DelayMs,
+    Key: KeyName,
+    Action: Action,
+    GameActive: GameActive
+&amp;#125;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 保存回放诊断日志<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">SavePlaybackLogToCsv</span>() &amp;#123;<br>    global PlaybackLogRows, PlaybackLogFile</p>
+<pre><code>CsvContent := &lt;span class=&quot;hljs-string&quot;&gt;&quot;Round,EventIndex,PlannedTime,ActualTime,DelayMs,Key,Action,GameActive`n&quot;&lt;/span&gt;
+
+for Row in PlaybackLogRows &amp;#123;
+    CsvContent .= Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.Round&lt;/span&gt; &quot;,&quot;
+        . Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.EventIndex&lt;/span&gt; &quot;,&quot;
+        . Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.PlannedTime&lt;/span&gt; &quot;,&quot;
+        . Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.ActualTime&lt;/span&gt; &quot;,&quot;
+        . Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.DelayMs&lt;/span&gt; &quot;,&quot;
+        . &lt;span class=&quot;hljs-built_in&quot;&gt;EscapeCsvField&lt;/span&gt;(Row.Key) &quot;,&quot;
+        . &lt;span class=&quot;hljs-built_in&quot;&gt;EscapeCsvField&lt;/span&gt;(Row.Action) &quot;,&quot;
+        . Row&lt;span class=&quot;hljs-selector-class&quot;&gt;.GameActive&lt;/span&gt; &quot;`n&quot;
+&amp;#125;
+
+if &lt;span class=&quot;hljs-built_in&quot;&gt;FileExist&lt;/span&gt;(PlaybackLogFile)
+    &lt;span class=&quot;hljs-built_in&quot;&gt;FileDelete&lt;/span&gt;(PlaybackLogFile)
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;FileAppend&lt;/span&gt;(CsvContent, PlaybackLogFile, &quot;UTF-&lt;span class=&quot;hljs-number&quot;&gt;8&lt;/span&gt;&quot;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 重复回放路线<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">PlayRecordedRoute</span>() &amp;#123;<br>    global GameHwnd, IsRouteRecording, IsRoutePlaying<br>    global RouteEvents, PlaybackSpeed, PlaybackCountdownSeconds<br>    global PlaybackRepeatCount, PlaybackRepeatIntervalMs, CurrentPlaybackRound<br>    global PlaybackLogFile</p>
+<pre><code>if IsRouteRecording &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;请先按 F9 停止录制。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1800&lt;/span&gt;)
+    return
+&amp;#125;
+
+if IsRoutePlaying &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(&quot;路线已经在回放。&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1600&lt;/span&gt;)
+    return
+&amp;#125;
+
+if !GameHwnd || !&lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;游戏窗口无效。`n请重新激活游戏窗口并按 F7 捕获。&quot;)
+    return
+&amp;#125;
+
+if RouteEvents&lt;span class=&quot;hljs-selector-class&quot;&gt;.Length&lt;/span&gt; = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt; &amp;#123;
+    if !&lt;span class=&quot;hljs-built_in&quot;&gt;LoadRouteFromCsv&lt;/span&gt;()
+        return
+&amp;#125;
+
+if PlaybackRepeatCount &amp;lt; &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;重复回放次数无效，请按 F5 重新设置。&quot;)
+    return
+&amp;#125;
+
+try &lt;span class=&quot;hljs-built_in&quot;&gt;WinActivate&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd)
+catch as Err &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;无法激活游戏窗口。`n`n错误：&quot; Err.Message)
+    return
+&amp;#125;
+
+if !&lt;span class=&quot;hljs-built_in&quot;&gt;WinWaitActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd, , &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;) &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;游戏窗口未能获得焦点，回放已取消。&quot;)
+    return
+&amp;#125;
+
+; 回放开始前初始化高精度计时，并把系统计时器精度临时提高到 &lt;span class=&quot;hljs-number&quot;&gt;1ms&lt;/span&gt;。
+try &lt;span class=&quot;hljs-built_in&quot;&gt;InitQpc&lt;/span&gt;()
+catch as Err &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&quot;高精度计时初始化失败，回放已取消。`n`n错误：&quot; Err.Message)
+    return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;InitializePlaybackLog&lt;/span&gt;()
+IsRoutePlaying := true
+CurrentPlaybackRound := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+CompletedRounds := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+PlaybackErrorMessage := &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+try &amp;#123;
+    ; 初始化回放环境
+    &lt;span class=&quot;hljs-built_in&quot;&gt;SetKeyDelay&lt;/span&gt;(-&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;, -&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+    RemainingSeconds := PlaybackCountdownSeconds
+    while RemainingSeconds &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt; &amp;#123;
+        &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+            RemainingSeconds &quot; 秒后开始回放`n&quot;
+            . &quot;计划重复：&quot; PlaybackRepeatCount &quot; 次`n&quot;
+            . &quot;按 F12 可紧急停止&quot;,
+            &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+            &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+        )
+        if !&lt;span class=&quot;hljs-built_in&quot;&gt;InterruptibleSleep&lt;/span&gt;(&lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;)
+            break
+        RemainingSeconds -= &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+    &amp;#125;
+
+    if IsRoutePlaying &amp;#123;
+        Loop PlaybackRepeatCount &amp;#123;
+            if !IsRoutePlaying
+                break
+
+            CurrentPlaybackRound := A_Index
+
+            ; 每一轮开始前确认窗口仍存在并处于前台。
+            if !GameHwnd || !&lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+                IsRoutePlaying := false
+                &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口已不存在，重复回放已停止。&quot;&lt;/span&gt;)
+                break
+            &amp;#125;
+
+            if !&lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+                IsRoutePlaying := false
+                &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口失去焦点`n重复回放已停止&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+                break
+            &amp;#125;
+
+            ; 保证上一轮没有留下按住状态。
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+                &quot;正在回放路线`n&quot;
+                . &quot;当前轮次：&quot; CurrentPlaybackRound &quot; / &quot; PlaybackRepeatCount &quot;`n&quot;
+                . &quot;事件数量：&quot; RouteEvents.Length &quot;`n&quot;
+                . &quot;速度倍率：&quot; PlaybackSpeed &quot;`n&quot;
+                . &quot;按 F12 可紧急停止&quot;,
+                &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+                &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+            )
+
+            ; 执行单轮路线。返回 false 表示被中断或失焦。
+            if !&lt;span class=&quot;hljs-built_in&quot;&gt;PlayOneRouteRound&lt;/span&gt;()
+                break
+
+            CompletedRounds += &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+
+            ; 每轮结束后释放按键。
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+            ; 最后一轮结束后不再等待。
+            if CurrentPlaybackRound &amp;lt; PlaybackRepeatCount &amp;#123;
+                &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+                    &quot;第 &quot; CurrentPlaybackRound &quot; 轮完成`n&quot;
+                    . &quot;下一轮：&quot; (CurrentPlaybackRound + &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+                    . &quot; / &quot; PlaybackRepeatCount &quot;`n&quot;
+                    . &quot;等待：&quot; PlaybackRepeatIntervalMs &quot; ms`n&quot;
+                    . &quot;按 F12 可停止&quot;,
+                    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+                    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+                )
+
+                if !&lt;span class=&quot;hljs-built_in&quot;&gt;InterruptibleSleep&lt;/span&gt;(PlaybackRepeatIntervalMs)
+                    break
+            &amp;#125;
+        &amp;#125;
+    &amp;#125;
+&amp;#125; catch as Err &amp;#123;
+    PlaybackErrorMessage := &lt;span class=&quot;hljs-string&quot;&gt;&quot;路线回放过程中发生错误。`n`n&quot;&lt;/span&gt;
+        . &lt;span class=&quot;hljs-string&quot;&gt;&quot;轮次：&quot;&lt;/span&gt; CurrentPlaybackRound &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+        . &lt;span class=&quot;hljs-string&quot;&gt;&quot;错误：&quot;&lt;/span&gt; Err.Message &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+        . &lt;span class=&quot;hljs-string&quot;&gt;&quot;行号：&quot;&lt;/span&gt; Err.Line &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+        . &lt;span class=&quot;hljs-string&quot;&gt;&quot;函数：&quot;&lt;/span&gt; (Err.What != &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt; ? Err.What : &lt;span class=&quot;hljs-string&quot;&gt;&quot;未知&quot;&lt;/span&gt;)
+&amp;#125; finally &amp;#123;
+    IsRoutePlaying := false
+    CurrentPlaybackRound := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+    &lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+    ; 无论正常结束、F12 中断、失焦或异常，都尽量保存已收集的日志。
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;SavePlaybackLogToCsv&lt;/span&gt;()
+&amp;#125;
+
+if PlaybackErrorMessage != &quot;&quot; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;MsgBox&lt;/span&gt;(PlaybackErrorMessage, &quot;回放错误&quot;)
+    return
+&amp;#125;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ShowTemporaryToolTip&lt;/span&gt;(
+    &quot;重复回放结束`n&quot;
+    . &quot;完整执行轮次：&quot; CompletedRounds &quot; / &quot; PlaybackRepeatCount &quot;`n&quot;
+    . &quot;诊断日志：&quot; PlaybackLogFile,
+    &lt;span class=&quot;hljs-number&quot;&gt;3500&lt;/span&gt;
+)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 执行一轮完整路线（绝对时间调度）<br>;<br>; 每个事件的目标时间是：<br>;     TargetMs &#x3D; RoundStartMs + <span class="hljs-built_in">Round</span>(Event.Time * PlaybackSpeed)<br>; 某个事件晚了不会推迟后续事件的目标时间，因此误差不会累积<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">PlayOneRouteRound</span>() &amp;#123;<br>    global GameHwnd, IsRoutePlaying, RouteEvents, PlaybackSpeed<br>    global CurrentPlaybackRound</p>
+<pre><code>RoundStartMs := &lt;span class=&quot;hljs-built_in&quot;&gt;QpcMs&lt;/span&gt;()
+
+for EventIndex, Event in RouteEvents &amp;#123;
+    if !IsRoutePlaying
+        return false
+
+    if !&lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd) &amp;#123;
+        IsRoutePlaying := false
+        &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口失去焦点`n路线回放已停止&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+        return false
+    &amp;#125;
+
+    try &amp;#123;
+        ; 该事件在本轮中的计划相对时间（已按速度倍率缩放）。
+        PlannedTime := &lt;span class=&quot;hljs-built_in&quot;&gt;Round&lt;/span&gt;(Event.Time * PlaybackSpeed)
+
+        ; 绝对目标时间：本轮开始时间 + 计划相对时间。
+        TargetMs := RoundStartMs + PlannedTime
+
+        ; 等到绝对目标时间，而不是等待相邻事件时间差。
+        if !&lt;span class=&quot;hljs-built_in&quot;&gt;PreciseSleepUntilMs&lt;/span&gt;(TargetMs)
+            return false
+
+        if !IsRoutePlaying
+            return false
+
+        ; 等待期间可能切换窗口，发送前再次检查。
+        GameActive := &lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;ahk_id &quot;&lt;/span&gt; GameHwnd) ? &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt; : &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+
+        ; ActualTime 是调用 SendEvent 之前，相对于本轮开始的实际时间。
+        ActualTime := &lt;span class=&quot;hljs-built_in&quot;&gt;Round&lt;/span&gt;(&lt;span class=&quot;hljs-built_in&quot;&gt;QpcMs&lt;/span&gt;() - RoundStartMs)
+        DelayMs := ActualTime - PlannedTime
+
+        if !GameActive &amp;#123;
+            &lt;span class=&quot;hljs-built_in&quot;&gt;AppendPlaybackLog&lt;/span&gt;(
+                CurrentPlaybackRound,
+                EventIndex,
+                PlannedTime,
+                ActualTime,
+                DelayMs,
+                Event.Key,
+                Event.Action,
+                &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+            )
+
+            IsRoutePlaying := false
+            &lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口失去焦点`n路线回放已停止&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+            return false
+        &amp;#125;
+
+        ; 保留原来的发送方式。
+        &lt;span class=&quot;hljs-built_in&quot;&gt;ReplayKeyboardEvent&lt;/span&gt;(Event)
+
+        ; 只把日志加入内存，不在事件之间写磁盘，避免额外放大计时误差。
+        &lt;span class=&quot;hljs-built_in&quot;&gt;AppendPlaybackLog&lt;/span&gt;(
+            CurrentPlaybackRound,
+            EventIndex,
+            PlannedTime,
+            ActualTime,
+            DelayMs,
+            Event.Key,
+            Event.Action,
+            &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;
+        )
+    &amp;#125; catch as Err &amp;#123;
+        throw &lt;span class=&quot;hljs-built_in&quot;&gt;Error&lt;/span&gt;(
+            &quot;第 &quot; CurrentPlaybackRound &quot; 轮第 &quot; EventIndex &quot; 个事件出错。&quot;
+            . &quot;`n按键：&quot; Event.Key &quot; / 动作：&quot; Event.Action
+            . &quot;`n原始错误：&quot; Err.Message,
+            -&lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;,
+            Err.Message
+        )
+    &amp;#125;
+&amp;#125;
+
+return IsRoutePlaying
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 普通可中断等待，用于轮次间隔，不参与事件计划时间<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">InterruptibleSleep</span>(DurationMs) &amp;#123;<br>    global IsRoutePlaying</p>
+<pre><code>if DurationMs &amp;lt;= &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    return IsRoutePlaying
+
+EndTick := A_TickCount + DurationMs
+
+while A_TickCount &amp;lt; EndTick &amp;#123;
+    if !&lt;span class=&quot;hljs-built_in&quot;&gt;EnsurePlaybackWindowActive&lt;/span&gt;()
+        return false
+
+    Remaining := EndTick - A_TickCount
+    &lt;span class=&quot;hljs-built_in&quot;&gt;Sleep&lt;/span&gt;(&lt;span class=&quot;hljs-built_in&quot;&gt;Min&lt;/span&gt;(Remaining, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;))
+&amp;#125;
+
+return IsRoutePlaying
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 确保回放窗口处于激活状态，如果不是则停止回放<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">EnsurePlaybackWindowActive</span>() &amp;#123;<br>    global GameHwnd, IsRoutePlaying</p>
+<pre><code>if !IsRoutePlaying
+    return false
+
+if GameHwnd &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;WinActive&lt;/span&gt;(&quot;ahk_id &quot; GameHwnd)
+    return true
+
+IsRoutePlaying := false
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;游戏窗口失去焦点或已关闭`n路线回放已停止&quot;&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+return false
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 回放原来的键盘事件<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ReplayKeyboardEvent</span>(Event) &amp;#123;<br>    global RecordedKeyStates</p>
+<pre><code>ReplayKey := Event.ScanCode != &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt; ? Event.ScanCode : Event.Key
+if ReplayKey = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+    return
+
+if Event.Action = &lt;span class=&quot;hljs-string&quot;&gt;&quot;Down&quot;&lt;/span&gt; &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;SendEvent&lt;/span&gt;(&quot;&amp;#123;&quot; ReplayKey &quot; down&amp;#125;&quot;)
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ReplayKey]&lt;/span&gt; := true
+&amp;#125; else &amp;#123;
+    &lt;span class=&quot;hljs-built_in&quot;&gt;SendEvent&lt;/span&gt;(&quot;&amp;#123;&quot; ReplayKey &quot; up&amp;#125;&quot;)
+    RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ReplayKey]&lt;/span&gt; := false
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 释放监听的按键<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ReleaseAllRecordedKeys</span>() &amp;#123;<br>    global RecordedKeyStates</p>
+<pre><code>for ScanCode, IsPressed in RecordedKeyStates &amp;#123;
+    if IsPressed &amp;#123;
+        try &lt;span class=&quot;hljs-built_in&quot;&gt;SendEvent&lt;/span&gt;(&quot;&amp;#123;&quot; ScanCode &quot; up&amp;#125;&quot;)
+        RecordedKeyStates&lt;span class=&quot;hljs-selector-attr&quot;&gt;[ScanCode]&lt;/span&gt; := false
+    &amp;#125;
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 释放通用按键<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ReleaseCommonGameKeys</span>() &amp;#123;<br>    CommonKeys :&#x3D; [<br>        <span class="hljs-string">“Up”</span>, <span class="hljs-string">“Down”</span>, <span class="hljs-string">“Left”</span>, <span class="hljs-string">“Right”</span>,<br>        <span class="hljs-string">“w”</span>, <span class="hljs-string">“a”</span>, <span class="hljs-string">“s”</span>, <span class="hljs-string">“d”</span>,<br>        <span class="hljs-string">“Enter”</span>, <span class="hljs-string">“Escape”</span>, <span class="hljs-string">“Space”</span>, <span class="hljs-string">“Tab”</span>,<br>        <span class="hljs-string">“LShift”</span>, <span class="hljs-string">“RShift”</span>,<br>        <span class="hljs-string">“LControl”</span>, <span class="hljs-string">“RControl”</span>,<br>        <span class="hljs-string">“LAlt”</span>, <span class="hljs-string">“RAlt”</span><br>    ]</p>
+<pre><code>for KeyName in CommonKeys &amp;#123;
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;SendEvent&lt;/span&gt;(&quot;&amp;#123;&quot; KeyName &quot; up&amp;#125;&quot;)
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 紧急停止<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">EmergencyStop</span>() &amp;#123;<br>    global IsRouteRecording, IsRoutePlaying, RecordedKeyStates<br>    global CurrentPlaybackRound</p>
+<pre><code>WasRecording := IsRouteRecording
+WasPlaying := IsRoutePlaying
+StoppedRound := CurrentPlaybackRound
+
+IsRouteRecording := false
+IsRoutePlaying := false
+CurrentPlaybackRound := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+RecordedKeyStates := &lt;span class=&quot;hljs-built_in&quot;&gt;Map&lt;/span&gt;()
+
+; 如果回放被中止，保存截至中止时已经收集的诊断日志。
+if WasPlaying &amp;#123;
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;SavePlaybackLogToCsv&lt;/span&gt;()
+&amp;#125;
+
+Message := &lt;span class=&quot;hljs-string&quot;&gt;&quot;自动化已紧急停止`n所有常用按键已释放&quot;&lt;/span&gt;
+
+if WasRecording
+    Message .= &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n未完成的录制不会自动保存&quot;&lt;/span&gt;
+else if WasPlaying
+    Message .= &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n已中止第 &quot;&lt;/span&gt; StoppedRound &lt;span class=&quot;hljs-string&quot;&gt;&quot; 轮回放`n诊断日志已保存&quot;&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(Message, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;)
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(HideToolTip, -&lt;span class=&quot;hljs-number&quot;&gt;3000&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 退出清理<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">CleanupBeforeExit</span>(ExitReason, ExitCode) &amp;#123;<br>    global IsRouteRecording, IsRoutePlaying, CurrentPlaybackRound<br>    global TimePeriodSet</p>
+<pre><code>WasPlaying := IsRoutePlaying
+IsRouteRecording := false
+IsRoutePlaying := false
+CurrentPlaybackRound := &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(CheckRecordingWindowFocus, &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;)
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseAllRecordedKeys&lt;/span&gt;()
+&lt;span class=&quot;hljs-built_in&quot;&gt;ReleaseCommonGameKeys&lt;/span&gt;()
+
+if WasPlaying &amp;#123;
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;SavePlaybackLogToCsv&lt;/span&gt;()
+&amp;#125;
+
+; 恢复系统计时器精度。
+if TimePeriodSet &amp;#123;
+    try &lt;span class=&quot;hljs-built_in&quot;&gt;DllCall&lt;/span&gt;(&quot;winmm\timeEndPeriod&quot;, &quot;UInt&quot;, &lt;span class=&quot;hljs-number&quot;&gt;1&lt;/span&gt;)
+    TimePeriodSet := false
+&amp;#125;
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 状态与辅助函数<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ShowRecorderStatus</span>() &amp;#123;<br>    global GameHwnd, IsRouteRecording, IsRoutePlaying<br>    global RouteEvents, RouteFile, PlaybackSpeed, RegisteredKeyboardKeys<br>    global PlaybackRepeatCount, PlaybackRepeatIntervalMs, CurrentPlaybackRound<br>    global PlaybackLogFile</p>
+<pre><code>if IsRouteRecording
+    CurrentStatus := &lt;span class=&quot;hljs-string&quot;&gt;&quot;正在录制&quot;&lt;/span&gt;
+else if IsRoutePlaying
+    CurrentStatus := &lt;span class=&quot;hljs-string&quot;&gt;&quot;正在回放第 &quot;&lt;/span&gt; CurrentPlaybackRound &lt;span class=&quot;hljs-string&quot;&gt;&quot; 轮&quot;&lt;/span&gt;
+else
+    CurrentStatus := &lt;span class=&quot;hljs-string&quot;&gt;&quot;空闲&quot;&lt;/span&gt;
+
+if GameHwnd &amp;amp;&amp;amp; &lt;span class=&quot;hljs-built_in&quot;&gt;WinExist&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;ahk_id &quot;&lt;/span&gt; GameHwnd) &amp;#123;
+    try GameTitle := &lt;span class=&quot;hljs-built_in&quot;&gt;WinGetTitle&lt;/span&gt;(&lt;span class=&quot;hljs-string&quot;&gt;&quot;ahk_id &quot;&lt;/span&gt; GameHwnd)
+    catch
+        GameTitle := &lt;span class=&quot;hljs-string&quot;&gt;&quot;无法读取&quot;&lt;/span&gt;
+    WindowStatus := &lt;span class=&quot;hljs-string&quot;&gt;&quot;已捕获：&quot;&lt;/span&gt; GameTitle
+&amp;#125; else &amp;#123;
+    WindowStatus := &lt;span class=&quot;hljs-string&quot;&gt;&quot;尚未捕获游戏窗口&quot;&lt;/span&gt;
+&amp;#125;
+
+DurationText := RouteEvents.Length &amp;gt; &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    ? &lt;span class=&quot;hljs-built_in&quot;&gt;Round&lt;/span&gt;(&lt;span class=&quot;hljs-built_in&quot;&gt;GetRouteDuration&lt;/span&gt;() / &lt;span class=&quot;hljs-number&quot;&gt;1000&lt;/span&gt;, &lt;span class=&quot;hljs-number&quot;&gt;2&lt;/span&gt;) &lt;span class=&quot;hljs-string&quot;&gt;&quot; 秒&quot;&lt;/span&gt;
+    : &lt;span class=&quot;hljs-string&quot;&gt;&quot;无路线&quot;&lt;/span&gt;
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;ToolTip&lt;/span&gt;(
+    &lt;span class=&quot;hljs-string&quot;&gt;&quot;路线录制器状态`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;状态：&quot;&lt;/span&gt; CurrentStatus &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;窗口：&quot;&lt;/span&gt; WindowStatus &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;已注册键数：&quot;&lt;/span&gt; RegisteredKeyboardKeys.Length &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;路线事件数：&quot;&lt;/span&gt; RouteEvents.Length &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;单轮时长：&quot;&lt;/span&gt; DurationText &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;回放倍率：&quot;&lt;/span&gt; PlaybackSpeed &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;重复次数：&quot;&lt;/span&gt; PlaybackRepeatCount &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;轮次间隔：&quot;&lt;/span&gt; PlaybackRepeatIntervalMs &lt;span class=&quot;hljs-string&quot;&gt;&quot; ms`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;路线文件：&quot;&lt;/span&gt; RouteFile &lt;span class=&quot;hljs-string&quot;&gt;&quot;`n&quot;&lt;/span&gt;
+    . &lt;span class=&quot;hljs-string&quot;&gt;&quot;日志文件：&quot;&lt;/span&gt; PlaybackLogFile,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;,
+    &lt;span class=&quot;hljs-number&quot;&gt;20&lt;/span&gt;
+)
+
+&lt;span class=&quot;hljs-built_in&quot;&gt;SetTimer&lt;/span&gt;(HideToolTip, -&lt;span class=&quot;hljs-number&quot;&gt;6000&lt;/span&gt;)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 获得总持续时间<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">GetRouteDuration</span>() &amp;#123;<br>    global RouteEvents</p>
+<pre><code>return RouteEvents&lt;span class=&quot;hljs-selector-class&quot;&gt;.Length&lt;/span&gt; = &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    ? &lt;span class=&quot;hljs-number&quot;&gt;0&lt;/span&gt;
+    : RouteEvents[RouteEvents.Length].Time
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 排除录制相关快捷键<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">IsExcludedRecordingKey</span>(KeyName) &amp;#123;<br>    global ExcludedRecordingKeys</p>
+<pre><code>NormalizedName := &lt;span class=&quot;hljs-built_in&quot;&gt;GetKeyName&lt;/span&gt;(KeyName)
+if NormalizedName = &lt;span class=&quot;hljs-string&quot;&gt;&quot;&quot;&lt;/span&gt;
+    NormalizedName := KeyName
+
+return ExcludedRecordingKeys.&lt;span class=&quot;hljs-built_in&quot;&gt;Has&lt;/span&gt;(NormalizedName)
+</code></pre>
+<p>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 隐藏临时提示<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">ShowTemporaryToolTip</span>(Message, DurationMs :&#x3D; <span class="hljs-number">1500</span>) &amp;#123;<br>    <span class="hljs-built_in">ToolTip</span>(Message, <span class="hljs-number">20</span>, <span class="hljs-number">20</span>)<br>    <span class="hljs-built_in">SetTimer</span>(HideToolTip, -DurationMs)<br>&amp;#125;</p>
+<p>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br>; 隐藏提示<br>; &#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;&#x3D;<br><span class="hljs-built_in">HideToolTip</span>() &amp;#123;<br>    <span class="hljs-built_in">ToolTip</span>()<br>&amp;#125;<br></p></code></pre><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="AutoHotkey v2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性" href="https://juejin.cn/post/7702123946717102095" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">AutoHotkey v2 零基础快速入门 Part 10：给路线回放添加高精度计时，理解累计延迟与路线一致性</span><span class="desc fs12">https://juejin.cn/post/7702123946717102095</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/581eee4.html">本周看什么 | 最近值得一看的 9 部作品<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/e49d0b35.html">币安 63 亿美元被盗：被攻破的不是私钥，是那台负责签名的机器<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/412863d9.html" title="WinForms / WPF / Blazor 项目模板详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7246"></div><span class="title">WinForms / WPF / Blazor 项目模板详解</span></a><a class="item" href="/rss/bd1dcadf.html" title="下载神器！Motrix 停更三年后重写回归"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/6055d8b67276474e841991f2a3727919~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1793879604&x-signature=nOfb463%2BhrRQewYjaQy%2Bp7F%2Fmwg%3D"></div><span class="title">下载神器！Motrix 停更三年后重写回归</span></a><a class="item" href="/rss/7b2ae765.html" title="产业新优势基础软件的人才底盘，从Linux与数据库开始"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8406"></div><span class="title">产业新优势基础软件的人才底盘，从Linux与数据库开始</span></a><a class="item" href="/rss/142d8ea3.html" title="人像清晰度加多少？用 Awaking 对照皮肤与发丝"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ea054097567544cbb6ae18caee8e8a64~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793767071&x-signature=hrEP0RxYw33Dv3S7nBorgvp4ObM%3D"></div><span class="title">人像清晰度加多少？用 Awaking 对照皮肤与发丝</span></a><a class="item" href="/rss/2ce8a964.html" title="Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2e3176e4bb544fb9ba2140af00f4ff79~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&x-expires=1793860680&x-signature=BqL%2FbF40QIhP%2FAf4xtxxKDNQ3Yo%3D"></div><span class="title">Copyparty 轻量文件共享：Docker Compose 部署、权限与多协议使用全指南</span></a><a class="item" href="/rss/f054f3a.html" title="副业搞钱点子之独立开发"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9582"></div><span class="title">副业搞钱点子之独立开发</span></a><a class="item" href="/rss/e49d0b35.html" title="币安 63 亿美元被盗：被攻破的不是私钥，是那台负责签名的机器"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/fac4b83ce4f549bdbea9bed9e6feb30e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Gz5bCP6Jm-:q75.awebp?rk3s=f64ab15b&x-expires=1793967042&x-signature=0SuxVYlBlls%2FQ5MN%2Fd7mcmn%2BZGY%3D"></div><span class="title">币安 63 亿美元被盗：被攻破的不是私钥，是那台负责签名的机器</span></a><a class="item" href="/rss/e6bcc1a1.html" title="我有个朋友，工作八年，公司从 300 人减到 80 人"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6986"></div><span class="title">我有个朋友，工作八年，公司从 300 人减到 80 人</span></a><a class="item" href="/rss/fef40605.html" title="白杯偏蓝，色温调到哪里该停？Awaking 两版正式导出"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e56e4d8f89e64e5a80fedd0e5c7e8049~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1794025361&x-signature=%2FNNt0s%2FJhMTdAyUkrl4sYWaupec%3D"></div><span class="title">白杯偏蓝，色温调到哪里该停？Awaking 两版正式导出</span></a><a class="item" href="/rss/5c421d80.html" title="秋叶已经够黄了：用 Awaking 单独收一点黄色"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ad41374d14b64aecb81f7f81d3e06abf~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793843776&x-signature=iudbgog4XrxZqH%2BMPQCxFW6uXao%3D"></div><span class="title">秋叶已经够黄了：用 Awaking 单独收一点黄色</span></a><a class="item" href="/rss/4dbb0a01.html" title="用 Rokid AIUI 做一个「专注时刻助手」：把一段专注时间挂在眼前"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f5187425f9e047a1aa91b1e871e6fa57~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Jyh56yU5bCP5LiDXw==:q75.awebp?rk3s=f64ab15b&x-expires=1793845984&x-signature=WE1LSmqn72BRw6ZjOORilK1B0Vg%3D"></div><span class="title">用 Rokid AIUI 做一个「专注时刻助手」：把一段专注时间挂在眼前</span></a><a class="item" href="/rss/d641d5bc.html" title="窗边花瓶太暗？用 Awaking 看提亮室内的代价"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2bd39fea5c4c4b6fb895e350c793a813~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1793930689&x-signature=juE8Qw3gfnzBGiMqtImsgP2WNNw%3D"></div><span class="title">窗边花瓶太暗？用 Awaking 看提亮室内的代价</span></a><a class="item" href="/rss/bdda5780.html" title="测试人员代码阅读实战指南"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1149"></div><span class="title">测试人员代码阅读实战指南</span></a><a class="item" href="/rss/e062be31.html" title="视野修炼-技术周刊第137期 | 编程已经面目全非"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cc2a93005c5a4966a0cc15dce38a4007~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57Kl6YeM5pyJ5Yu657OW:q75.awebp?rk3s=f64ab15b&x-expires=1793789585&x-signature=1twJro4vPjSEg896nUVb63U3Olc%3D"></div><span class="title">视野修炼-技术周刊第137期 | 编程已经面目全非</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

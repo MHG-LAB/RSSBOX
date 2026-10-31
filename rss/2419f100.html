@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Cloudflare Deploys Protections Against Php2shell Vulnerability - RSSBOX</title>
+
+  
+    <meta name="description" content="Update - On October 23, the PHP project published an informational advisory for a related vulnerability, CVE-2026-115560, in PHP&#39;s session upload progress feature. It affects fully patched PHP releas">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cloudflare Deploys Protections Against Php2shell Vulnerability">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/2419f100.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Update - On October 23, the PHP project published an informational advisory for a related vulnerability, CVE-2026-115560, in PHP&#39;s session upload progress feature. It affects fully patched PHP releas">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-10-21T13:56:45.000Z">
+<meta property="article:modified_time" content="2026-10-21T13:56:45.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What we know about the vulnerabilities</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">New rules</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Review events and customize protection</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Update PHP and keep the protection enabled</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Rules"><span class="toc-text">Rules</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Step-1-Inventory-every-place-PHP-runs"><span class="toc-text">Step 1: Inventory every place PHP runs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Step-2-Decide-if-each-instance-is-vulnerable"><span class="toc-text">Step 2: Decide if each instance is vulnerable</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Step-3-Fix-only-after-I-approve-the-plan-for-prod"><span class="toc-text">Step 3: Fix (only after I approve the plan for prod)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Step-4-Temporary-mitigations-ONLY-if-patching-isn%E2%80%99t-possible-right-away"><span class="toc-text">Step 4: Temporary mitigations (ONLY if patching isn’t possible right away)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Step-5-Look-for-signs-of-compromise-read-only"><span class="toc-text">Step 5: Look for signs of compromise (read-only)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Final-report"><span class="toc-text">Final report</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-10-21T13:56:45.000Z">2026-10-21</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Cloudflare Deploys Protections Against Php2shell Vulnerability</span></h1>
+<div>
+<p>Update - On October 23, the PHP project published an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/archive/2026.php#2026-10-23-1">informational advisory</a> for a related vulnerability, CVE-2026-115560, in PHP's session upload progress feature. It affects fully patched PHP releases, including 8.5.12, and will be fixed in PHP's next regular release.</p><p>All Cloudflare WAF customers are protected against known exploit attempts if their site uses PHP's default upload progress field name. Customers who have changed <code>session.upload_progress.name</code> are not covered by the WAF rule.</p><p>The existing rules "PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #6" protects against this vulnerability.</p><p>More information to follow.</p><!-- unsupported block: break --><p>October 21, Calif.io, Wiz, OpenAI and Quarkslab disclosed two<strong> </strong>vulnerabilities in PHP, tracked as CVE-2026-109618 and CVE-2026-109619 and known as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/archive/2026.php#2026-10-21-5"><span style="text-decoration:underline">php2shell</span></a>. The vulnerabilities affect all web servers running PHP 5.4 or later and they may allow an attacker to cause denial of service, remote code execution, and data exposure when an application processes specially crafted HTTP traffic.</p><p>Cloudflare has been part of a coordinated effort to deploy mitigations to protect the Internet, working with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://thephp.foundation/blog/2026/10/21/todays-php-security-release-and-how-were-strengthening-php-security/"><span style="text-decoration:underline">PHP foundation</span></a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="http://openai.com/index/coordinated-disclosure-of-critical-vulnerabilities"><span style="text-decoration:underline">OpenAI</span></a> and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.wiz.io/blog/php2shell-php-rce"><span style="text-decoration:underline">Wiz</span></a> among others. Cloudflare has developed and deployed web application firewall (WAF) protections since early October 2026, which were deployed about 9 hours ahead of public disclosure. <strong>Starting on October 21 3:02 am UTC, Cloudflare customers using our free or paid WAF were protected by default against php2shell.</strong></p><p>Cloudflare successfully deployed multiple mitigations for all its customers while the vulnerability was leaked before the official release date and we observed attack traffic targeting our customers. We observed how attackers were mutating the attack payload to try to bypass our protections by tracking the volume of matches and cross-referencing with the rule logic.</p><p>Protecting against php2shell required more than standard request-based rules. Request data alone does not always provide enough evidence to distinguish an exploit from legitimate traffic. The origin’s response adds context, helping identify whether an exploit succeeded while reducing the risk of false positives.</p><p>To deliver this protection, we developed full transaction detection, a new Cloudflare WAF capability that combines signals from the request and response within the same HTTP transaction. Response rules can then block a matching origin response before it reaches the requester. The php2shell protections are the first managed detections we have released using this capability.</p><p>Customers should patch their PHP repos even with WAF protections providing an additional layer of defense-in-depth mitigation. Our security analysts continue monitoring attack activity and update the rules when and if new techniques and variations emerge in the hours and days ahead. You can track new rules in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/change-log/changelog/"><span style="text-decoration:underline">changelog</span></a>.</p><p>The protections are available and deployed automatically on all plans with WAF deployed, including Free users.</p><h2>What we know about the vulnerabilities</h2><p>PHP is used by almost <a target="_blank" rel="external nofollow noopener noreferrer" href="https://w3techs.com/technologies/details/pl-php"><span style="text-decoration:underline">70% of websites</span></a>. The php2shell vulnerabilities affect the PHP runtime itself and can allow attackers to execute malicious code on vulnerable servers, expose customer data, or disrupt services. Because PHP underpins widely used platforms such as WordPress and Magento, these flaws could potentially affect a large number of applications across the Internet.</p><p>The two vulnerabilities involve how PHP handles memory when something goes wrong while processing a HTTP request. Normally, PHP allocates memory to store the data it needs to process a request, then releases it when that work finishes. If processing stops unexpectedly, for example because it runs out of memory, PHP fails to clean up the memory safely. These vulnerabilities arise when PHP handles an error and then tries to use data that was not fully set up or memory that has already been released.</p><p>An attacker can send specially crafted HTTP requests to trigger these conditions. Large requests are one way to put memory under pressure, but the problem goes beyond consuming server resources. By manipulating the data PHP encounters in this invalid memory, an attacker may be able to crash a PHP process, expose sensitive information, or execute code provided by the attacker.</p><p>The two vulnerabilities differ in when the unsafe memory access happens:</p><table><tbody><tr><td><p>Vulnerability</p></td><td><p>What goes wrong</p></td></tr><tr><td><p>CVE-2026-109618</p></td><td><p>PHP runs out of memory and interrupts its work before some internal data has been properly initialized. During cleanup of that request, PHP may use this unfinished data as though it were valid.</p></td></tr><tr><td><p>CVE-2026-109619</p></td><td><p>A fatal error interrupts a request, leaving PHP holding references to memory that is released when the request ends. When the same PHP process handles a later request, it may follow those outdated references and access memory that is no longer valid and expose sensitive data.</p></td></tr></tbody></table><p>These flaws are in the PHP runtime, so updating website code or a plugin(s) alone does not fix these vulnerabilities. Administrators need to update the PHP software running their applications. If a hosting provider manages PHP, ask the provider to apply the security update.</p><p>Administrators can follow the PHP advisory for affected versions and remediation instructions. Keep Cloudflare WAF protections enabled while patching. Restricting unnecessary uploads and limiting upload sizes can also reduce exposure, but these measures do not replace the PHP fix.</p><h2>New rules</h2><p>For Free customers, new rules have been released under the Cloudflare Managed Free Ruleset (Ruleset ID 77454fe2d30c4220b5701f6fdfb893ba). Free customers don’t have to take any actions to enable the protection. To override the ruleset behavior, you can refer to our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/managed-rules/"><span style="text-decoration:underline">documentation</span></a>.</p><table><tbody><tr><td><p>Rule Description </p></td><td><p>Rule ID</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619)</p></td><td><p>4e315666e8e344cdb64119a3b5ccf32f</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #2</p></td><td><p>00c10e6cc4da4bd08722adeebcd95984</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #3</p></td><td><p>48ddf592361e4fdb97a8a85982dab691</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #4</p></td><td><p>3556683d512a47f2937899c524b1a4c6</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #5</p></td><td><p>da07c85852e34625bb478496302ede46</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #6</p></td><td><p>19373a83abb840e18ab3ce5a7975ce1b</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #7</p></td><td><p>07f0b6ddaabf40b1b2042dade8d613fa</p></td></tr></tbody></table><p>Protection for paid plans has been released as part of the Cloudflare Managed Ruleset (Ruleset ID efb7b8c949ac4650a09736fc376e9aee). If you are on a Professional, Business, or Enterprise plan, review your Managed Ruleset deployment to confirm it has <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/managed-rules/deploy-zone-dashboard/"><span style="text-decoration:underline">deployed</span></a> block mode.</p><table><tbody><tr><td><p>Rule Description </p></td><td><p>Rule ID</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619)</p></td><td><p>c1d409ad838f47f59446f21cc438d5dd</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #2</p></td><td><p>f9a45927414245e3a64bb12d0a0c2f64</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #3</p></td><td><p>771c654ae1154d4daa72f4e1545d163c</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #4</p></td><td><p>217005865f0145f392300bac212afcc9</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #5</p></td><td><p>38efdb17ea594501bb55a1d71867b12e</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #6</p></td><td><p>4148ae686fdb4d01be673fab9d9c073d</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619) #7</p></td><td><p>1389aa259617437392ce149c48143645</p></td></tr></tbody></table><p>To better identify exploit attempts, Cloudflare developed full transaction detection, a new WAF capability that analyzes both sides of the same HTTP transaction. While some malicious payloads can be identified using the request alone, the response contains useful signals that can be used to create rules with higher confidence, reducing false positives. A matching full transaction rule can block the origin response before it reaches the requester. Learn how it works in our full transaction detection <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/full-transaction-waf/"><span style="text-decoration:underline">blog post</span></a>.</p><p>The new Cloudflare Managed Response Firewall Default has been automatically deployed for customers on all plans, including Free. To verify that the response rules are active, you can visit the <strong>Security &gt; Security Rules</strong> page. Read the full transaction <a target="_blank" rel="external nofollow noopener noreferrer" href="http://blog.cloudflare.com/full-transaction-waf/"><span style="text-decoration:underline">blog</span></a> to learn how to customize its deployment.</p><!-- unsupported block: image --><h2>Review events and customize protection</h2><p>To analyze blocked requests, visit <strong>Security &gt; Security Analytics &gt; Events</strong>. Filter by the rule IDs in the table above and inspect the matched request, action, and path. Events identify whether the action came from a managed or custom rule. Customers who need to tailor the protection can <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/managed-rules/reference/cloudflare-managed-ruleset/#deploy-in-the-dashboard"><span style="text-decoration:underline">update the scope</span></a> of the Managed Ruleset to the parts of an application where it is relevant.</p><h2>Update PHP and keep the protection enabled</h2><p>Cloudflare customers using our Managed Ruleset are protected by default. We recommend following the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/archive/2026.php#2026-10-21-5"><span style="text-decoration:underline">advisory</span></a> recommendation and applying the vendor update to your PHP repos as soon as possible while keeping the WAF protection enabled as an additional protection. Our WAF analysts will continue to update protections as new techniques emerge.</p><aside data-copy-prompt-fallback><strong>Copy prompt to fix!</strong><pre><code># Security task: check and fix "php2shell" (CVE-2026-109618, CVE-2026-109619)
+
+<p>Two critical PHP runtime vulnerabilities were disclosed on 2026-10-21 (CVSS v4.0 9.2).<br>They allow unauthenticated remote code execution, data exposure and DoS through crafted<br>HTTP requests. Exploitation is already happening. The bug is in the PHP runtime itself,<br>so updating app code, frameworks, WordPress or plugins does NOT fix it.</p>
+<p>Official advisory (treat as source of truth, re-fetch it in case it was updated):<br><a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.php.net/archive/2026.php#2026-10-21-5">https://www.php.net/archive/2026.php#2026-10-21-5</a></p>
+<ul>
+<li>GHSA-w8hw-w9fx-j79w (CVE-2026-109618, RCE via OOM corruption)</li>
+<li>GHSA-6wmf-4rv5-p3rp (CVE-2026-109619, RCE via stale global state)</li>
+</ul>
+<p><strong>Fixed upstream versions:</strong> 8.5.12, 8.4.27, 8.3.36, 8.2.35<br><strong>Affected:</strong> every PHP install that serves web requests (PHP-FPM, Apache mod_php,<br>php-cgi, FrankenPHP, LiteSpeed). mod_php has the highest risk: a demonstrated exploit<br>triggers before any application code runs.</p>
+<h2 id="Rules"><a href="#Rules" class="headerlink" title="Rules"></a>Rules</h2><ul>
+<li>Do NOT guess. If you can’t confirm a version or setting, say so.</li>
+<li>Ask me before changing anything on production or shared infrastructure,<br>restarting production services, or editing deploy config. Read-only discovery is fine.</li>
+<li>Don’t stop at the first finding. Inventory everything, then report.</li>
+</ul>
+<h2 id="Step-1-Inventory-every-place-PHP-runs"><a href="#Step-1-Inventory-every-place-PHP-runs" class="headerlink" title="Step 1: Inventory every place PHP runs"></a>Step 1: Inventory every place PHP runs</h2><p>Search the current repo&#x2F;workspace AND any machines&#x2F;containers I have access to:</p>
+<ul>
+<li>Repo: <code>*.php</code>, <code>composer.json</code>&#x2F;<code>composer.lock</code> (check <code>require.php</code> and<br><code>config.platform.php</code>), <code>Dockerfile*</code>, <code>docker-compose*</code>, <code>.php-version</code>,<br><code>.tool-versions</code>, <code>.devcontainer/</code>, CI files (GitHub Actions <code>setup-php</code>, GitLab CI<br><code>image:</code>), IaC (Terraform, Ansible, Helm, k8s manifests), PaaS config<br>(<code>app.yaml</code>, <code>Procfile</code>, Platform.sh, Laravel Forge&#x2F;Vapor, etc.).</li>
+<li>Base images: list every <code>FROM php:*</code>, <code>FROM wordpress:*</code>, <code>FROM bitnami/*</code>,<br><code>FROM serversideup/*</code>, <code>FROM dunglas/frankenphp*</code> and similar, with tags.</li>
+<li>Running hosts&#x2F;containers (if accessible): <code>php -v</code>, <code>php-fpm -v</code>, <code>php -i | grep -i &quot;server api&quot;</code>,<br><code>apachectl -M | grep -i php</code>, <code>docker ps</code> + <code>docker exec &amp;lt;c&amp;gt; php -v</code>.</li>
+<li>Note the SAPI for each (FPM &#x2F; mod_php &#x2F; CGI &#x2F; FrankenPHP &#x2F; LiteSpeed &#x2F; CLI-only).</li>
+<li>Note long-running workers (Laravel Octane, RoadRunner, Swoole, FrankenPHP worker<br>mode). These are relevant to the stale-state bug.</li>
+</ul>
+<p>If no PHP is found anywhere, tell me clearly and stop. Nothing else is needed.</p>
+<h2 id="Step-2-Decide-if-each-instance-is-vulnerable"><a href="#Step-2-Decide-if-each-instance-is-vulnerable" class="headerlink" title="Step 2: Decide if each instance is vulnerable"></a>Step 2: Decide if each instance is vulnerable</h2><p>For each instance, classify it as PATCHED &#x2F; VULNERABLE &#x2F; UNKNOWN:</p>
+<ul>
+<li>Upstream builds: vulnerable if below 8.5.12 &#x2F; 8.4.27 &#x2F; 8.3.36 &#x2F; 8.2.35 on that branch.</li>
+<li><strong>PHP 8.1 and older are EOL upstream:</strong> vulnerable unless a vendor backport is confirmed.</li>
+<li><strong>Distro packages (Debian&#x2F;Ubuntu&#x2F;RHEL&#x2F;Alpine&#x2F;etc.)</strong> often backport fixes WITHOUT<br>bumping the upstream version, so <code>php -v</code> alone isn’t enough. Check the package<br>changelog for the CVE IDs, e.g.<br><code>apt changelog &amp;lt;php-pkg&amp;gt; | grep -E &quot;CVE-2026-10961[89]&quot;</code> or<br><code>rpm -q --changelog &amp;lt;php-pkg&amp;gt; | grep -E &quot;CVE-2026-10961[89]&quot;</code>.</li>
+<li>If PHP comes from <code>rpms.remirepo.net</code>: the advisory says it will not have same-day<br>updates. Flag this and recommend distro packages or building from source.</li>
+<li>Managed hosting &#x2F; shared hosting &#x2F; PaaS: mark UNKNOWN and tell me to ask the provider.</li>
+</ul>
+<h2 id="Step-3-Fix-only-after-I-approve-the-plan-for-prod"><a href="#Step-3-Fix-only-after-I-approve-the-plan-for-prod" class="headerlink" title="Step 3: Fix (only after I approve the plan for prod)"></a>Step 3: Fix (only after I approve the plan for prod)</h2><ol>
+<li>Upgrade PHP to a fixed version (or the vendor-patched package):<ul>
+<li>Bump Docker base image tags to a fixed patch release, rebuild, redeploy.</li>
+<li>Update CI <code>php-version</code> pins.</li>
+<li><code>apt</code>&#x2F;<code>dnf</code>&#x2F;<code>apk</code> upgrade of the distro PHP packages.</li>
+<li>7.4 &#x2F; 8.0 &#x2F; 8.1 built from source: the PHP security team published minimal<br>backport branches linked from the advisory. Otherwise upgrade to a supported version.</li>
+</ul>
+</li>
+<li><strong>Restart EVERY PHP worker</strong> (FPM pools, Apache, FrankenPHP, LiteSpeed, Octane&#x2F;<br>RoadRunner&#x2F;Swoole). Old processes keep running vulnerable code until restarted.</li>
+<li>Verify each instance afterwards (version + changelog check) and report the evidence.</li>
+</ol>
+<h2 id="Step-4-Temporary-mitigations-ONLY-if-patching-isn’t-possible-right-away"><a href="#Step-4-Temporary-mitigations-ONLY-if-patching-isn’t-possible-right-away" class="headerlink" title="Step 4: Temporary mitigations (ONLY if patching isn’t possible right away)"></a>Step 4: Temporary mitigations (ONLY if patching isn’t possible right away)</h2><p>These reduce exposure but do NOT make the server safe. Apply them in php.ini &#x2F; the FPM<br>pool &#x2F; server config (not <code>ini_set()</code> or <code>.user.ini</code>) and restart every worker:</p>
+<ul>
+<li>CVE-2026-109618:<ul>
+<li><code>memory_limit=-1</code>, set non-overridably (e.g. <code>php_admin_value</code>), and confirm nothing<br>re-applies a finite limit.</li>
+<li>Low <code>post_max_size</code> (8M with no uploads, 32M with uploads), with<br><code>upload_max_filesize</code> below it.</li>
+<li>Enforce request size &#x2F; field count &#x2F; multipart part count &#x2F; header limits at the<br>web server or proxy, including requests without <code>Content-Length</code>.</li>
+<li>Use container&#x2F;cgroup memory limits. Do NOT use <code>RLIMIT_AS</code>&#x2F;<code>RLIMIT_DATA</code>.</li>
+</ul>
+</li>
+<li>CVE-2026-109619:<ul>
+<li><code>session.upload_progress.enabled=0</code>.</li>
+<li>On PHP 8.5: <code>fatal_error_backtraces=0</code>.</li>
+<li>Remove invalid&#x2F;deprecated per-request settings that emit diagnostics early (hiding<br>them via <code>error_reporting</code>&#x2F;<code>display_errors</code>&#x2F;<code>@</code> does not help).</li>
+<li>Fix attacker-reachable fatal errors and timeouts.</li>
+</ul>
+</li>
+<li>If the site sits behind Cloudflare: confirm the WAF Managed Ruleset is deployed in<br><strong>block</strong> mode (Free plans get the Managed Free Ruleset automatically). This is<br>defense in depth, not a replacement for patching.</li>
+</ul>
+<h2 id="Step-5-Look-for-signs-of-compromise-read-only"><a href="#Step-5-Look-for-signs-of-compromise-read-only" class="headerlink" title="Step 5: Look for signs of compromise (read-only)"></a>Step 5: Look for signs of compromise (read-only)</h2><p>Since exploitation started before disclosure, check what you can access:</p>
+<ul>
+<li>PHP-FPM&#x2F;Apache error logs for segfaults, “Allowed memory size exhausted”, or<br>worker crashes, especially clustered around unusually large POST&#x2F;multipart requests.</li>
+<li>Recently modified or unexpected files in web roots (webshells), new cron jobs,<br>unexpected processes or outbound connections from PHP users.<br>Report anything suspicious. Do not delete evidence.</li>
+</ul>
+<h2 id="Final-report"><a href="#Final-report" class="headerlink" title="Final report"></a>Final report</h2><p>Give me a table: location | how PHP is provided | SAPI | version | status<br>(PATCHED&#x2F;VULNERABLE&#x2F;UNKNOWN) | action taken or needed. Then list:</p>
+<ul>
+<li>What you changed (files, commands), what still needs my approval, and anything that<br>needs a hosting provider.</li>
+<li>Mitigations applied as stopgaps and when they should be removed.</li>
+<li>Any compromise indicators found.</li></ul></code></pre></aside></div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Cloudflare deploys protections against php2shell vulnerability" href="https://blog.cloudflare.com/php-vulnerabilities-waf-protection/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Cloudflare deploys protections against php2shell vulnerability</span><span class="desc fs12">https://blog.cloudflare.com/php-vulnerabilities-waf-protection/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/eaf1c143.html">How Commerce.com and Cloudflare Are Getting Storefronts Ready for AI Agents<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/526c1a61.html">Introducing Full Transaction Detection for Cloudflare WAF<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/1b849d2d.html" title="8 eMudhra Certificates Are Compromised. Here's What You Need to Know"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9276"></div><span class="title">8 eMudhra Certificates Are Compromised. Here's What You Need to Know</span></a><a class="item" href="/rss/5bcf2829.html" title="4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6576"></div><span class="title">4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys</span></a><a class="item" href="/rss/f2de2f37.html" title="Bringing Post-Quantum Cryptography to Geographically Fenced Key Management"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5538"></div><span class="title">Bringing Post-Quantum Cryptography to Geographically Fenced Key Management</span></a><a class="item" href="/rss/7fdaa73c.html" title="Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6540"></div><span class="title">Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants</span></a><a class="item" href="/rss/2583077d.html" title="Cloudflare Services for Private Origins Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3221"></div><span class="title">Cloudflare Services for Private Origins Is Now Generally Available</span></a><a class="item" href="/rss/371b0881.html" title="Cutting Our Inference Bill by 68% by Being Obsessive About Optimization"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2488"></div><span class="title">Cutting Our Inference Bill by 68% by Being Obsessive About Optimization</span></a><a class="item" href="/rss/eaf1c143.html" title="How Commerce.com and Cloudflare Are Getting Storefronts Ready for AI Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6663"></div><span class="title">How Commerce.com and Cloudflare Are Getting Storefronts Ready for AI Agents</span></a><a class="item" href="/rss/e948098d.html" title="Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1992"></div><span class="title">Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang</span></a><a class="item" href="/rss/526c1a61.html" title="Introducing Full Transaction Detection for Cloudflare WAF"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8289"></div><span class="title">Introducing Full Transaction Detection for Cloudflare WAF</span></a><a class="item" href="/rss/96ae5242.html" title="Introducing the Cloudflare PHP Capture the Flag Challenge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6391"></div><span class="title">Introducing the Cloudflare PHP Capture the Flag Challenge</span></a><a class="item" href="/rss/57807819.html" title="Introducing Tsrs: A Port of TypeScript to Rust"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8844"></div><span class="title">Introducing Tsrs: A Port of TypeScript to Rust</span></a><a class="item" href="/rss/cd467d6c.html" title="Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3486"></div><span class="title">Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification</span></a><a class="item" href="/rss/91ba0fdf.html" title="Origin Range Requests: Serving Large Files Without Range-Request Tuning"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1596"></div><span class="title">Origin Range Requests: Serving Large Files Without Range-Request Tuning</span></a><a class="item" href="/rss/468085bc.html" title="What Took the Internet Offline in Q3 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9636"></div><span class="title">What Took the Internet Offline in Q3 2026</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
