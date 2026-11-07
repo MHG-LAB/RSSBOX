@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Vue 编译器换掉 Source Map，快了三四成 - RSSBOX</title>
+
+  
+    <meta name="description" content="Vue 的核心仓库里有个还在讨论中的 PR，把编译器的 source map 换了一套做法，CPU 省掉三成左右，内存省掉三分之一，顺手修掉十几个报错指错行的问题。 提这个 PR 的是 johnsoncodehk，Vue 核心团队成员，muggle-string 就是他自己的库。 先说清楚 source map 是什么。 写 .vue 的时候，报错堆栈要指回第几行第几列，浏览器开发者工具里下断点">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Vue 编译器换掉 Source Map，快了三四成">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/629d9275.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Vue 的核心仓库里有个还在讨论中的 PR，把编译器的 source map 换了一套做法，CPU 省掉三成左右，内存省掉三分之一，顺手修掉十几个报错指错行的问题。 提这个 PR 的是 johnsoncodehk，Vue 核心团队成员，muggle-string 就是他自己的库。 先说清楚 source map 是什么。 写 .vue 的时候，报错堆栈要指回第几行第几列，浏览器开发者工具里下断点">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b2e5c8daf1bc48f293848a6fcbfd4aa2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=ArhvFzsaHeAbQEDfcojI1YatBCo%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dfcebcca502145cda9417fd4253c952b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=Y0%2FXbLr8d%2BYyHkpBiSxyjAvNGCs%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/caf8882209314c3bb220b88cf6dfd993~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=YtduWPj3UQ63VubvgImw8z11Ywc%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58a7beace2894d60864acafe790145cb~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=NwelNwWl7LcUROwvEG8F%2FupPwtE%3D">
+<meta property="article:published_time" content="2026-11-06T14:36:21.000Z">
+<meta property="article:modified_time" content="2026-11-06T14:36:21.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b2e5c8daf1bc48f293848a6fcbfd4aa2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=ArhvFzsaHeAbQEDfcojI1YatBCo%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+
+<div class="widget-wrap" id="recent"><div class="widget-header cap dis-select"><span class="name">最近更新</span><a class="cap-action" id="rss" title="Subscribe" href="/atom.xml"><svg class="icon" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8938"><path d="M800.966 947.251c0-404.522-320.872-732.448-716.69-732.448V62.785c477.972 0 865.44 395.987 865.44 884.466h-148.75z m-162.273 0h-148.74c0-228.98-181.628-414.598-405.678-414.598v-152.01c306.205 0 554.418 253.68 554.418 566.608z m-446.24-221.12c59.748 0 108.189 49.503 108.189 110.557 0 61.063-48.44 110.563-108.188 110.563-59.747 0-108.18-49.5-108.18-110.563 0-61.054 48.433-110.556 108.18-110.556z" p-id="8939"/></svg></a></div><div class="widget-body fs14"><div class="more-item"><a class="title" href="/rss/e2e46c13.html">APEC经济体代表聚厦门共商亚太海洋生态保护与韧性提升</a></div><div class="more-item"><a class="title" href="/rss/97d58556.html">西电自研船用导航雷达成功应用</a></div><div class="more-item"><a class="title" href="/rss/d3210dd3.html">（第九届进博会）舌尖上的进博会</a></div><div class="more-item"><a class="title" href="/rss/10fff2c8.html">西安交通大学科技商学高质量发展大会暨科技商学院揭牌仪式举行</a></div><div class="more-item"><a class="title" href="/rss/e91cf0c5.html">浙江省深海工程新材料和装备产业与技术创新联盟成立</a></div></div></div>
+
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-06T14:36:21.000Z">2026-11-06</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Vue 编译器换掉 Source Map，快了三四成</span></h1>
+<div>
+<p>Vue 的核心仓库里有个还在讨论中的 PR，把编译器的 source map 换了一套做法，CPU 省掉三成左右，内存省掉三分之一，顺手修掉十几个报错指错行的问题。</p>
+<p>提这个 PR 的是 <code>johnsoncodehk</code>，Vue 核心团队成员，<code>muggle-string</code> 就是他自己的库。</p>
+<p>先说清楚 source map 是什么。</p>
+<p>写 <code>.vue</code> 的时候，报错堆栈要指回第几行第几列，浏览器开发者工具里下断点也要落在 <code>.vue</code> 文件上，靠的就是编译时顺手生成的一份对照表，业内叫 source map。</p>
+<p>旧的生成方式有点绕，一边用 <code>magic-string</code> 改源码字符串，一边用 <code>source-map-js</code> 另外记一份映射，两套并排走。</p>
+<p>平时没事，一碰上多行表达式、<code>v-for</code>、<code>v-model</code> 这种要插代码的场景，两边就容易对不上。</p>
+<p><img class="lazy" alt loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b2e5c8daf1bc48f293848a6fcbfd4aa2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=ArhvFzsaHeAbQEDfcojI1YatBCo%3D"></p>
+<p>新做法换了思路，每一段生成代码自带来源范围，映射直接由片段拼出来，不再单独维护。</p>
+<p>那错位具体长什么样呢。</p>
+<p>比如多行的 <code>:class</code>，生成的取值会被指到上一行的末尾。</p>
+<p><code>v-for</code> 的行里，生成的开始标记和文本转换会指错行。</p>
+<p><code>v-model</code> 编译出来的那层指令包装，在旧版里干脆没有映射，点了断点跳不到源码。</p>
+<p>这些零碎的错位，PR 里一共列了十几个，散落在不同编译器包上，这次一起修了。</p>
+<p>快多少呢。</p>
+<p><img class="lazy" alt loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/dfcebcca502145cda9417fd4253c952b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=Y0%2FXbLr8d%2BYyHkpBiSxyjAvNGCs%3D"></p>
+<p>编译脚本热启动的 CPU 从 2988 毫秒降到 2108 毫秒，少了 29%，峰值内存从 848 MB 降到 563 MB。</p>
+<p>冷启动从 4517 毫秒降到 3575 毫秒，内存从 759 MB 降到 445 MB，少了四成。</p>
+<p>带内联映射的编译模板少了 37%，解析阶段掉得最狠，从 491 毫秒降到 277 毫秒。</p>
+<p>1297 个组件解析完，保留堆从 113.4 MB 降到 42.0 MB，少了六成多。</p>
+<p>他交代了测试口径，1297 个 <code>.vue</code> 文件、Node 24、Apple Silicon、只跑一轮，没说这些数字可以当排名看。</p>
+<p>装的东西也跟着少了一点。</p>
+<p><img class="lazy" alt loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/caf8882209314c3bb220b88cf6dfd993~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=YtduWPj3UQ63VubvgImw8z11Ywc%3D"></p>
+<p><code>compiler-sfc</code> 的安装树从 12 个包降到 11 个，<code>source-map-js</code> 从几个编译器包里一起摘掉了，只剩一个间接依赖还在用。</p>
+<p>浏览器产物那边，<code>compiler-sfc</code> 小 5%，<code>compiler-vapor</code> 小 8%，运行时那个全局包基本没动。</p>
+<p>顺手还修了几个不算映射的问题。</p>
+<p><code>await await foo()</code> 这种写法，旧版外层拿到的是空值，现在能拿到正确结果。宏参数里写 <code>await</code>，以前直接报语法错误，现在能正常渲染。<code>defineModel</code> 的选项对象以前会被算三次，现在算一次。</p>
+<p>代价呢。</p>
+<p>最直接的一条，<code>MagicString</code> 不再从 <code>@vue/compiler-sfc</code> 导出了，PR 里写明这是故意的破坏性改动。在线演练场那类工具会受影响，修复已经进了主分支，等下一个版本发出来。</p>
+<p>另一条是，这个改动会进小版本，不是补丁版本。</p>
+<p>现在什么状态呢。</p>
+<p><img class="lazy" alt loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58a7beace2894d60864acafe790145cb~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&amp;x-expires=1794580581&amp;x-signature=NwelNwWl7LcUROwvEG8F%2FupPwtE%3D"></p>
+<p>改动提出来之后，标题改了两次，从重构改成了性能优化。</p>
+<p>第二天作者重跑了生态测试，十六个套件里还有八个是红的，nuxt、vue-i18n、vuetify、router 这些都在里面。</p>
+<p>他自己分析过原因，一类是快照要更新，一类是新依赖发布太新，被包管理器的发布年龄策略拦住装不上，等版本老一点重跑就行。</p>
+<p>同一天定时跑的基线是全绿的，所以红的那部分，是这次改动带出来的。</p>
+<p>还有一点挺有意思，分支名里带着 cursor 字样，不少提交把 Cursor Agent 写成共同作者。</p>
+<p>一个影响整条 Vue 编译链的改动，一部分提交已经交给 AI 编码助手来写，人负责看和改。</p>
+<p>值不值得看呢，如果你只写业务代码，短期没什么感觉，除了升级时留意 <code>MagicString</code> 那一条。</p>
+<p>要是你在做构建工具、在线演练场，或者自己包了一层编译器，这个 PR 值得从头读一遍，它把「生成的代码怎么留住出处」重新做了一遍。</p>
+<p>PR 地址：<code>https://github.com/vuejs/core/pull/16126</code>。</p>
+<hr>
+<p>关于我：</p>
+<ul>
+<li>农村程序员（<code>2020年回农村，至今未出村</code>）</li>
+<li>独立开发者（<code>致力于开发 1000 个小产品</code>）</li>
+<li>技术观察者（<code>分享编程技术，行业资讯等</code>）</li>
+<li>前端之虎陈随易（<code>自封的</code>）</li>
+<li>我的官网是：<code>https://yicode.tech</code></li>
+</ul>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Vue 编译器换掉 source map，快了三四成" href="https://juejin.cn/post/7704923158558867510" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Vue 编译器换掉 source map，快了三四成</span><span class="desc fs12">https://juejin.cn/post/7704923158558867510</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/d8d3b569.html">Beyond Code Generation: A Developer&#8217;s Guide to Agentic Engineering<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/a0ca73ee.html">美国10月非农就业激增16.5万，远超预期！失业率意外降至4.1%，12月加息预期升温<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a0462be4.html" title="CDP、行为分析、归因与营销自动化有什么区别？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2449"></div><span class="title">CDP、行为分析、归因与营销自动化有什么区别？</span></a><a class="item" href="/rss/31ca5f08.html" title="TanStarter，从搭建到支付，一步到位开始赚美元"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7c1ad8e6e560417888153876481e8b30~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1794532147&x-signature=UK0wPrfXMAfAZYXgsgqTjlvNDNQ%3D"></div><span class="title">TanStarter，从搭建到支付，一步到位开始赚美元</span></a><a class="item" href="/rss/b7d3137e.html" title="Rolldown 把插件改动回传提速 26 倍"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f1b429308f6f415092c77be67afef43c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1794608095&x-signature=w0vl39wtceOfTS8MzNGU9eUcUdY%3D"></div><span class="title">Rolldown 把插件改动回传提速 26 倍</span></a><a class="item" href="/rss/1cdfa009.html" title="《道德经》第 13 章：别让评价系统控制你的心"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9674"></div><span class="title">《道德经》第 13 章：别让评价系统控制你的心</span></a><a class="item" href="/rss/8d5326c.html" title="【A股分钟级高频数据完全手册 #04】指数分钟级行情数据接口：沪深指数Pro版最新分时取数"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3148"></div><span class="title">【A股分钟级高频数据完全手册 #04】指数分钟级行情数据接口：沪深指数Pro版最新分时取数</span></a><a class="item" href="/rss/26551302.html" title="【A股分钟级高频数据完全手册 #03】股票历史1分钟K线数据接口怎么用：Pro版批量拉取与本地缓存"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6194"></div><span class="title">【A股分钟级高频数据完全手册 #03】股票历史1分钟K线数据接口怎么用：Pro版批量拉取与本地缓存</span></a><a class="item" href="/rss/280d08e3.html" title="【A股分钟级高频数据完全手册 #05】指数历史分钟数据接口：Pro版沪深指数分时回放"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4864"></div><span class="title">【A股分钟级高频数据完全手册 #05】指数历史分钟数据接口：Pro版沪深指数分时回放</span></a><a class="item" href="/rss/bdf415ee.html" title="实时标签怎样验收？从数据更新到分群可用"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4028"></div><span class="title">实时标签怎样验收？从数据更新到分群可用</span></a><a class="item" href="/rss/2d84118b.html" title="【A股分钟级高频数据完全手册 #06】北交所分钟级数据接口：京市股票Pro版最新分时"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4045"></div><span class="title">【A股分钟级高频数据完全手册 #06】北交所分钟级数据接口：京市股票Pro版最新分时</span></a><a class="item" href="/rss/7061ea37.html" title="山间站台不必转暖：用 Awaking 留住冷光与红箱"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/ed1d85f315524f08a31b132adb4287db~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1794535509&x-signature=YydVMUrhlYk3zk6smJIVueJlNpE%3D"></div><span class="title">山间站台不必转暖：用 Awaking 留住冷光与红箱</span></a><a class="item" href="/rss/848cb5c.html" title="新质生产力路线图解读:数据库性能优化与Linux调优专场"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5929"></div><span class="title">新质生产力路线图解读:数据库性能优化与Linux调优专场</span></a><a class="item" href="/rss/62d3bc07.html" title="晨雾河岸的旧书摊：用 Awaking 给木色一点暖光"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/93157c2703c443dc9f61bdf5c83d76b4~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1794633042&x-signature=mxgvQyQHUToKws3A7TgmxqywM90%3D"></div><span class="title">晨雾河岸的旧书摊：用 Awaking 给木色一点暖光</span></a><a class="item" href="/rss/4ecbc260.html" title="神级 Skill，让 AI 用 HTML 代替 Markdown 回复"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/5e056307145c4fbeba7e91208e222259~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YmN56uv5LmL6JmO6ZmI6ZqP5piT:q75.awebp?rk3s=f64ab15b&x-expires=1794543541&x-signature=goCSBKrp43HBEOOAoIs71zW%2FgZo%3D"></div><span class="title">神级 Skill，让 AI 用 HTML 代替 Markdown 回复</span></a><a class="item" href="/rss/5615b740.html" title="高端化转型进入“补底层”阶段：Linux与数据库的再定位"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5638"></div><span class="title">高端化转型进入“补底层”阶段：Linux与数据库的再定位</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

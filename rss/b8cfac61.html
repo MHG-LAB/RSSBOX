@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How We Halved DNS Build Delay and Cut Memory Use by 85% - RSSBOX</title>
+
+  
+    <meta name="description" content="When I last wrote about our DNS propagation pipeline in 2022, the Zone Builder received about 250 DNS record changes per second. Today it receives about 700, nearly three times as many, plus about 10">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How We Halved DNS Build Delay and Cut Memory Use by 85%">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/b8cfac61.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="When I last wrote about our DNS propagation pipeline in 2022, the Zone Builder received about 250 DNS record changes per second. Today it receives about 700, nearly three times as many, plus about 10">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-02T14:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-02T14:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How DNS changes reach the edge</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why full builds stopped scaling</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Making events say what changed</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Choosing the smallest safe build</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">When one name means more than one zone</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Planning from the event, verifying before writing</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Combining changes in one scheduler</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Keeping Kafka moving</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Releasing safely</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Results</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Why full builds still exist</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-02T14:00:00.000Z">2026-11-02</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How We Halved DNS Build Delay and Cut Memory Use by 85%</span></h1>
+<div>
+<p>When I <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/dns-build-improvement/"><span style="text-decoration:underline">last wrote about our DNS propagation pipeline in 2022</span></a>, the Zone Builder received about 250 DNS record changes per second. Today it receives about 700, nearly three times as many, plus about 100 other events, such as <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/fundamentals/concepts/accounts-and-zones/"><span style="text-decoration:underline">zone</span></a> setting changes. However, the number of events was never the real problem. The problem was the kind of work some of those events needed, and how that work grows with the size of a zone. Some zones now hold more than 20 million records, and we expect them to keep growing toward hundreds of millions.</p><p>Each event starts a clock that measures how long it takes us to turn that change into data our authoritative DNS servers can use. We call that work a build. A build reads the current database state, converts it into the format used at the edge, and writes any changes to <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/introducing-quicksilver-configuration-distribution-at-internet-scale/"><span style="text-decoration:underline">Quicksilver</span></a>.</p><p>In 2022, per-record builds were 150 times faster than full builds on average. On a test zone with one million records, per-record builds were 4,250 times faster. We ended that post with the obvious next step: do the same thing for zone settings.</p><p><em>Why doesn't the Zone Builder just rebuild the setting that changed?</em></p><p>It should, and that is where we ended up. However, proving when it was safe took most of the work. A record event identifies what changed. A zone event can come from many Cloudflare products, may not say why the zone changed, and can alter data shared by several zones with the same name. Choosing too much work wastes capacity. Choosing too little can leave stale or incorrect DNS data at the edge.</p><p>We built a targeted build planner that chooses the smallest build we can prove is safe, and a new scheduler that combines work for the same zone. Zone setting changes no longer rebuild zones with tens of millions of records. Together, they cut peak memory by 85%, and the extra headroom let us safely shorten waits the pipeline has always needed for resilience, halving the time from a DNS change to its data being written to Quicksilver.</p><h2>How DNS changes reach the edge</h2><p>A DNS zone is the collection of records and settings for a domain. Cloudflare uses a multi-stage pipeline to turn a change to that zone into data available across our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/network/"><span style="text-decoration:underline">global network</span></a>.</p><ol><li>A customer changes a DNS record through the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/api/resources/dns/subresources/records/"><span style="text-decoration:underline">DNS Records API</span></a> or dashboard, or another Cloudflare service changes a zone setting.</li><li>The change is stored in a database.</li><li>The database change or another system produces a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://kafka.apache.org/"><span style="text-decoration:underline">Kafka</span></a> event.</li><li>The DNS Kafka Aggregator combines events from several Kafka topics and sends them to the Zone Builder.</li><li>The Zone Builder reads the required zone data and converts it into keys understood by our authoritative DNS servers.</li><li>The Zone Builder compares those keys with <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/introducing-quicksilver-configuration-distribution-at-internet-scale/"><span style="text-decoration:underline">Quicksilver</span></a>, our distributed key-value store. It writes only what changed, and Quicksilver propagates those changes across Cloudflare's network.</li></ol><!-- unsupported block: image --><p>This is a simplified view. The Zone Builder does not copy database rows directly to the edge. It combines records with zone settings, applies DNS serving rules, and organizes the result so our authoritative DNS servers can read it quickly.</p><h2>Why full builds stopped scaling</h2><p>The original Zone Builder had one useful property: it did not need to know why a zone changed. It rebuilt the desired state from the current database state.</p><ol><li>Read the current zone and its settings.</li><li>Read every DNS record in the zone.</li><li>Convert those records into Quicksilver keys.</li><li>Compare the new keys with those already stored.</li><li>Remove stale keys, write changed keys, and update zone metadata.</li></ol><p>The final write contains only changed keys. However, a full build still reads, encodes, and compares every record, and holds the whole zone in memory while it does so. That is cheap for a small zone. For our largest zones, with tens of millions of records, the zone does not fit in memory at all. I explain how we handle that below.</p><p>Zone settings made targeting harder. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/"><span style="text-decoration:underline">Universal SSL</span></a> is one example. Enabling or disabling it updates metadata and can change Certification Authority Authorization (CAA) records at the zone apex, the bare domain, such as <code>example.com</code>. <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/ssl/edge-certificates/caa-records/"><span style="text-decoration:underline">CAA records</span></a> tell certificate authorities whether they may issue a certificate for the domain.</p><p>A full build only needed to know that the zone changed. A targeted build must answer three questions:</p><ol><li>Which DNS names can change?</li><li>Can shared metadata or the list of published zones change?</li><li>What previous state must be removed from Quicksilver?</li></ol><p>Answering those questions safely meant solving five problems, which the rest of this post covers in order:</p><ol><li>Events had to say what changed.</li><li>Each change had to map to the smallest build that is still correct.</li><li>Builds had to account for data shared by every zone with the same name.</li><li>The database could change between the event and the build.</li><li>Combining work could not lose a Kafka message.</li></ol><h2>Making events say what changed</h2><p>We changed the event producer to include changed zone fields and settings, with previous and new values when available. We then traced each setting through the code that generates DNS output and classified what it could affect.</p><p>Not every event was that specific. Some database functions only update a timestamp to say, in effect, "something about this zone changed." Sometimes that is harmless bookkeeping. Sometimes it means data changed elsewhere and must be read again.</p><p>Those cases look identical in the event. Until we can identify the caller and its purpose, a timestamp-only update still causes a full build. The same rule applies to missing details, unknown events, or any change that may affect records anywhere in the zone. The planner never turns uncertainty into less work.</p><h2>Choosing the smallest safe build</h2><p>Quicksilver output has two parts that matter here. Record keys contain the DNS answers for one zone and name. A smaller shared metadata key tells our authoritative DNS servers how to use that zone, including where to find special records such as nameservers and wildcards. Some events change only record keys; others must update both.</p><p>With that distinction, the planner can choose one of five build types:</p><ol><li><strong>Resources only:</strong> Rebuild the records at specific DNS names, which we call resources, without changing zone metadata. Ordinary A, AAAA, TXT, and CNAME changes usually take this path.</li><li><strong>Resources and metadata:</strong> Rebuild specific names and shared metadata. Nameserver and wildcard changes use this path.</li><li><strong>Apex and metadata:</strong> Rebuild the zone apex and metadata. Settings such as Universal SSL can use this path.</li><li><strong>Purge:</strong> Remove a zone that should no longer be published.</li><li><strong>Full zone:</strong> Rebuild every record when smaller work cannot be proven safe.</li></ol><p>The rule is simple: every key a targeted build writes must be byte-for-byte identical to what a full build would write. If we cannot prove that, we do a full build.</p><p>Removing old state works as it did for per-record builds in 2022. Record events include deleted records and the previous version of updated ones. The Zone Builder then scans Quicksilver for the existing keys under each name it rebuilds, removing any that the new build did not write.</p><p>Full builds remain necessary when a change can affect records anywhere in the zone or when a zone may need to be published for the first time.</p><p>There is one deliberate exception. A full build holds every record from the database and every existing Quicksilver key for the zone in memory at once, and our largest zones do not fit. Above a fixed record-count threshold, the Zone Builder never escalates to a full build. It rebuilds the apex, the metadata, and every name identified by the queued events instead. We accept this tradeoff because a full build of those zones cannot finish, and, while it retries, it holds back every other change on its Kafka partition. Many of the cases that would otherwise need a full build involve several zones sharing one name, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/fundamentals/account/account-security/zone-holds/"><span style="text-decoration:underline">zone holds</span></a> reduce that risk by stopping the same name from being added to another account. For the rare cases that remain, such as enabling a zone on another network, we can manually rebuild individual names in the zone.</p><h2>When one name means more than one zone</h2><p>Quicksilver stores each zone's record keys separately. It also stores one metadata key shared by every Cloudflare zone with that domain name. This shared key acts like a directory: it tells our authoritative DNS servers which internal zone IDs they may use when answering a query.</p><p>Why can one name have several zone IDs? During customer onboarding, offboarding, and other <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/dns/zone-setups/reference/domain-status/"><span style="text-decoration:underline">lifecycle</span></a> changes, multiple Cloudflare zone objects can briefly exist for the same public domain. We use a priority policy to choose a small, bounded set to publish.</p><p>Consider four internal zones for <code>example.com</code>: Zone 101, Zone 202, Zone 303, and Zone 404. The metadata key currently lists Zones 101, 202, and 303. Zone 404 exists, but it is not selected. The numbers identify separate Cloudflare zone objects; customers still see one domain name.</p><p>A TXT record change at <code>www.example.com</code> in Zone 202 affects only Zone 202's record keys, so the metadata key does not change. Nameserver and wildcard changes are different because the metadata key records information about them. Those builds must update both the zone's records and the metadata key.</p><p>At execution time, the Zone Builder reads the current list again. If it writes the metadata key, it rebuilds the whole key from that fresh view rather than patching an older copy. It writes the triggering zone's records before the metadata that refers to them.</p><h2>Planning from the event, verifying before writing</h2><p>An event describes what happened in the past. A build may wait while more events arrive and the database changes, so planning happens twice. The event first creates a conservative work list. Immediately before execution, the Zone Builder reads a fresh publication snapshot: the current zone settings, whether this Zone Builder should publish the zone to its network, and which same-name zone IDs belong in the metadata key. Here, a network is a separate, isolated copy of Quicksilver for one environment. Each Zone Builder deployment writes to one network, and a zone can be enabled on some networks but not others. For example, a zone can be served from Cloudflare's global network and also from the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/products/china-network/"><span style="text-decoration:underline">China Network</span></a>.</p><p>Fresh state can change the result in four ways:</p><ol><li>A targeted build can become a full build if the zone now has a feature that requires complete-zone work.</li><li>A build can become a purge if the zone should no longer be published to this network.</li><li>A build can be skipped if the triggering zone no longer belongs in the metadata key.</li><li>A metadata build can reconstruct the shared key from the current candidate set.</li></ol><p>The fresh read comes from read-only copies of the database, called replicas, so builds do not compete with customer writes. Kafka delivery and database replication move independently: an event can arrive before its database change is visible on a replica. The DNS Kafka Aggregator delays events long enough to cover normal lag, and a final database check rejects the read if that replica is still behind.</p><h2>Combining changes in one scheduler</h2><p>Record work and full-zone work previously used different schedulers. Each could combine its own work, but not work from the other scheduler. We replaced them with one unified scheduler. The planner decides what must be built, and the scheduler decides when it can run.</p><p>When several events for one zone arrive before a build starts, the scheduler combines their work:</p><ol><li>An A record changes at <code>www.example.com</code>, requiring that name.</li><li>A wildcard changes at <code>*.example.com</code>, requiring that name and shared metadata.</li><li>The scheduler combines both names and the metadata update into one build.</li></ol><!-- unsupported block: image --><p>Merging only adds work. If any event requires the complete zone, the combined build becomes a full build. A purge overrides every rebuild because its desired result is that the zone is no longer published.</p><p>The scheduler tracks two things separately: the DNS work that must be performed and the Kafka messages waiting to be acknowledged. A retry preserves both. Even when a full build or purge no longer needs the individual record names, the messages stay attached until the result is safely written.</p><h2>Keeping Kafka moving</h2><p>One slow build can delay unrelated customers even when workers are available. Kafka divides messages into ordered partitions. For each partition, it stores one committed offset: the point before which every message is known to be complete. Moving that offset past unfinished work could lose a customer change after a restart.</p><p>We use soft committing, which I previously described in my <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/secondary-dns-deep-dive/"><span style="text-decoration:underline">Secondary DNS deep dive</span></a>. A build can finish out of order and be marked complete in memory, but Kafka's committed position advances only after every earlier message has also finished.</p><!-- unsupported block: image --><p>In the diagram, message 2 is still running, so messages 3 through n cannot be committed. If the Zone Builder restarts, those in-memory completions disappear and Kafka replays messages 2 through n. We deliberately choose repeated work over losing a change.</p><p>Targeted plans reduce how long the oldest message stays unfinished. The scheduler also prevents one busy zone from taking every worker. After a zone builds, its next build waits for a per-zone rebuild interval, which differs by Cloudflare plan. Changes that arrive in the meantime are merged into that next build. The scheduler normally enforces this interval, but lets old queued work run before it blocks a Kafka partition for too long. Zone locks and retry delays still apply, so a failing build cannot run in a tight loop.</p><h2>Releasing safely</h2><p>A smaller build is useful only if it produces the same DNS data. We added equivalence tests for nameserver, wildcard, and apex paths. Each test runs a full build and a targeted build from the same database state, pins time-dependent values, and compares every Quicksilver key owned by the targeted plan byte for byte. Planner and scheduler tests cover classification, same-name zones, merging, purges, and escalation.</p><p>During rollout, we also ran a full build next to every targeted build and compared the output. It was expensive by design, reading the complete zone every time, so we used it only until the mirror comparison below gave us the same confidence.</p><p>Tests cannot reproduce every customer combination, so every release also runs through a mirror Zone Builder. It consumes the production Kafka stream and reads production database state, but writes to a separate Quicksilver environment that serves no customer traffic.</p><!-- unsupported block: image --><p>A comparer checks a 20% sample of zones for missing keys, extra keys, and different values. The two environments do not always build a zone at the same instant, so a temporary mismatch is not automatically a regression. We look for new types of differences that remain after both pipelines catch up. That gives us confidence that targeted builds produce the same output as production.</p><p>We built the DNS Mirror Dashboard to group those differences and keep examples for investigation. Naturally, it runs on the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/"><span style="text-decoration:underline">Cloudflare Developer Platform</span></a>: a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/workers/"><span style="text-decoration:underline">Worker</span></a> receives results, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/durable-objects/"><span style="text-decoration:underline">Durable Objects</span></a> maintain state, and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cloudflare.com/zero-trust/products/access/"><span style="text-decoration:underline">Cloudflare Access</span></a> protects it. The critical groups in the screenshot below were each checked and confirmed safe before release. The diff rate is the share of compared zones where production and mirror disagreed on at least one key at the moment of comparison. Most of those are timing differences that disappear once both pipelines catch up, so we watch two things: that the rate stays low, and that no new kind of difference appears.</p><!-- unsupported block: image --><p>After the mirror results remained healthy, we rolled the scheduler out by a hash of the zone name. Hashing the name rather than the zone ID kept every zone sharing a name on the same scheduler, so two schedulers never wrote the same metadata key. We increased the percentage for free zones, then repeated the process for paid zones.</p><h2>Results</h2><p>Over 24 hours, we measured 86.81% of builds as resources only, 2.54% as resources and metadata, 2.30% as apex and metadata, and 1.30% as purges. Together, 92.95% of builds avoided rebuilding the complete zone. Full builds were the remaining 7.04%.</p><p>The two metadata build types were full builds before, even for large zones. Together, they account for 4.84% of builds. Combined with the 7.04% that are still full builds, that is 11.88%, so full builds fell by about 40%. Their share of the count also understates the work avoided, because they include the largest zones. The full builds that remain average 0.35 seconds, because the events that still trigger them, such as a zone being published for the first time, mostly affect new zones with few records.</p><!-- unsupported block: image --><p>In 2022, we also planned a batching system. The unified scheduler makes it unnecessary: it does not wait to form batches, and it merges events only when work is already queued for the same zone. Before, long full builds held back the committed offset for their partition. With fewer of them, we now consume Kafka at the rate events arrive, instead of falling behind and catching up in bursts of up to 1,550 messages per second.</p><!-- unsupported block: image --><!-- unsupported block: image --><p>We also measured build completion delay: the time from a DNS record or zone setting change until the Zone Builder finished writing to Quicksilver. It does not include Quicksilver's distribution across our network, which varies by location and is unaffected by this work. Production ran the old schedulers, and the mirror ran the unified scheduler on the same events over the same 24 hours. The two environments are identical apart from the code: they consume the same Kafka events, read from the same database, and write equivalent data to Quicksilver. That makes this a controlled, side-by-side comparison. The figures combine every build type and customer plan, so they are not a latency guarantee for an individual zone. A large share of this time is the rebuild interval described earlier, not build work. At each measurement point, p99 is the time within which 99% of events finished. Typical delays barely changed here, because most builds were already small. The difference is in the tail: the largest p99 spike fell from 14.6 minutes to 1.21 minutes, a 12-fold reduction. The chart uses a logarithmic scale.</p><!-- unsupported block: image --><p>Targeted builds also load complete large zones far less often. Aggregate working-set memory, the memory actively used by the deployment, fell from an average of 49 GiB to 7 GiB, an 86% reduction. Peaks fell from 79 GiB to 12 GiB, an 85% reduction.</p><!-- unsupported block: image --><p>Those were the immediate results of the new scheduler. They also let us revisit two safeguards. The first is the rebuild interval, which stops one busy zone from rebuilding constantly and taking capacity from everyone else. With builds now cheaper, and far fewer of them reading complete zones, we could safely shorten that interval on most plans. The second is how long the DNS Kafka Aggregator holds each event, to make sure database replicas have caught up before we read from them. Once our databases began rejecting reads from replicas that had fallen behind, that buffer could safely be smaller. Together, these halved the median build completion delay, from about 7.7 seconds to about 3.3 seconds. In the chart below, the first step down is the DNS Kafka Aggregator change. The red band marks the Zone Builder release with shorter rebuild intervals. That release rolled out gradually across our servers, so the delay falls in two further steps rather than all at once.</p><!-- unsupported block: image --><p>The p90 and p99 lines in that chart are less precise than they look. The histogram had buckets at 1, 5, 10, and 30 seconds, and a percentile that falls between two edges is estimated as if delays were spread evenly across that range. Most delays sit near the bottom of their range, so those estimates come out high: p99 reads close to 30 seconds, and p90 above 7 seconds. The exact average, which does not depend on buckets, confirms the halving. We have since switched to a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://prometheus.io/docs/specs/native_histograms/"><span style="text-decoration:underline">native histogram</span></a>, which chooses fine-grained buckets automatically. It puts p90 at about 5.5 seconds and p99 at about 12 seconds.</p><!-- unsupported block: image --><h2>Why full builds still exist</h2><p>In 2022, we said we planned to eliminate full builds entirely. We now know that is neither realistic nor useful. A zone being published for the first time needs every record written. A change that can affect records anywhere in the zone needs every record checked. An event that does not say what changed still gets a full build, because the planner never turns uncertainty into less work. For a small zone, a full build is also cheap.</p><p>As we learn what more events change, we will keep moving them to targeted builds. However, the biggest gain has already landed: the events that used to rebuild our largest zones no longer do, and the full builds that remain are mostly triggered by events, such as first publication, that affect new, small zones.</p><p>Want to know what happens after the Zone Builder writes a change? Read how <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/introducing-quicksilver-configuration-distribution-at-internet-scale/"><span style="text-decoration:underline">Quicksilver distributes configuration</span></a> to every Cloudflare data center in seconds.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How we halved DNS build delay and cut memory use by 85%" href="https://blog.cloudflare.com/dns-targeted-zone-builds/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How we halved DNS build delay and cut memory use by 85%</span><span class="desc fs12">https://blog.cloudflare.com/dns-targeted-zone-builds/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/c983cfdf.html">华为拿下三类医疗器械认证：旗下首款动态血糖仪即将登场<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/93e61ce8.html">存储大涨拖累手机芯片市场！Q3全球SoC出货量大跌21%：华为、小米未进前五<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/5bcf2829.html" title="4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9474"></div><span class="title">4 Real? Tracking Exploitation and Patching of eMudhra’s Weak Keys</span></a><a class="item" href="/rss/963a9eb9.html" title="Agents Aren’t Humans (But They Kinda Are)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3666"></div><span class="title">Agents Aren’t Humans (But They Kinda Are)</span></a><a class="item" href="/rss/f2de2f37.html" title="Bringing Post-Quantum Cryptography to Geographically Fenced Key Management"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4853"></div><span class="title">Bringing Post-Quantum Cryptography to Geographically Fenced Key Management</span></a><a class="item" href="/rss/7fdaa73c.html" title="Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4249"></div><span class="title">Cloudflare DDoS Threat Report 2026 Q3: More Swarms, Fewer Giants</span></a><a class="item" href="/rss/2583077d.html" title="Cloudflare Services for Private Origins Is Now Generally Available"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7788"></div><span class="title">Cloudflare Services for Private Origins Is Now Generally Available</span></a><a class="item" href="/rss/e948098d.html" title="Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6541"></div><span class="title">Cross-Request KV Cache Exposure in the GLM-5.3 Workers AI Model, and Our Remediation With SGLang</span></a><a class="item" href="/rss/d75625b8.html" title="Introducing Zero Wire, a Hub for Investigating Critical Internet Vulnerabilities "><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1163"></div><span class="title">Introducing Zero Wire, a Hub for Investigating Critical Internet Vulnerabilities </span></a><a class="item" href="/rss/526c1a61.html" title="Introducing Full Transaction Detection for Cloudflare WAF"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3892"></div><span class="title">Introducing Full Transaction Detection for Cloudflare WAF</span></a><a class="item" href="/rss/96ae5242.html" title="Introducing the Cloudflare PHP Capture the Flag Challenge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3152"></div><span class="title">Introducing the Cloudflare PHP Capture the Flag Challenge</span></a><a class="item" href="/rss/cd467d6c.html" title="Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6674"></div><span class="title">Localizing Compliance at Scale: Achieving South Korea’s ISMS Certification</span></a><a class="item" href="/rss/34f2b7ea.html" title="See the Agents, Set the Terms: New Visibility and Control for Personal Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=937"></div><span class="title">See the Agents, Set the Terms: New Visibility and Control for Personal Agents</span></a><a class="item" href="/rss/91ba0fdf.html" title="Origin Range Requests: Serving Large Files Without Range-Request Tuning"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3400"></div><span class="title">Origin Range Requests: Serving Large Files Without Range-Request Tuning</span></a><a class="item" href="/rss/6dfd21f1.html" title="The Post-Quantum Future of Web Privacy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=606"></div><span class="title">The Post-Quantum Future of Web Privacy</span></a><a class="item" href="/rss/468085bc.html" title="What Took the Internet Offline in Q3 2026"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6850"></div><span class="title">What Took the Internet Offline in Q3 2026</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
