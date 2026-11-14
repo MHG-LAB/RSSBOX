@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>CANviz 使用指南｜Linux 安装、DBC 解码、实时曲线与 J1939 实战 - RSSBOX</title>
+
+  
+    <meta name="description" content="1. 为什么需要 CANviz 刚接上设备时,用 candump 抓到一条报文 123#112233603B000000，知道第 4、5 个字节是转速，手算一次并不难。同一个 ID 如果每秒发几十次，想看转速在哪一刻掉下去、掉了多久，就得把这些字节按时间排好再看。接下来如果要盯住几个 ID、看信号随工况怎么变，浏览器里的表格和曲线更顺手。下面在虚拟 CAN 上走一遍这个过程，把 60 3B 解成">
+<meta property="og:type" content="article">
+<meta property="og:title" content="CANviz 使用指南｜Linux 安装、DBC 解码、实时曲线与 J1939 实战">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/549a33d5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="1. 为什么需要 CANviz 刚接上设备时,用 candump 抓到一条报文 123#112233603B000000，知道第 4、5 个字节是转速，手算一次并不难。同一个 ID 如果每秒发几十次，想看转速在哪一刻掉下去、掉了多久，就得把这些字节按时间排好再看。接下来如果要盯住几个 ID、看信号随工况怎么变，浏览器里的表格和曲线更顺手。下面在虚拟 CAN 上走一遍这个过程，把 60 3B 解成">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cb43bf122b2d41bd84112c73c3251ca6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=8Jom%2FHAGDabvhf7QPqq%2Fb3QqKlE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b0a663d8cecd402ca55d4775601e9f19~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=2uTYroUYPnA97bmOZcEngKfOPrY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7f3cb08cb42b4bad84fec3fcfdc422c9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=5nV%2FBdR2tCkKl%2Fic0FD241HfauI%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/342399aeb5a0468f9de062bc2638dea8~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=NLLEiajlC9%2FaNTXMUj1DZ2Du7NE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/63dabd97c47c4367b4ff3515f1645ac3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=PNegogsuc2Jtf940fzfgg8GsctM%3D">
+<meta property="article:published_time" content="2026-11-12T08:31:22.000Z">
+<meta property="article:modified_time" content="2026-11-12T08:31:22.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cb43bf122b2d41bd84112c73c3251ca6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=8Jom%2FHAGDabvhf7QPqq%2Fb3QqKlE%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">1. 为什么需要 CANviz</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">2. CANviz 能做什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">3. 在 Linux 上安装 CANviz</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">创建环境</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">准备接口并打开网页</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">4. 用完怎么卸载</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">5. 用 vcan0 看报文、过滤和发送</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">6. 用 DBC 把 60 3B 解成 1900 rpm</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">7. 画实时曲线，再用日志重建</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">8. J1939 与 FMS 数据怎么读</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">先从 29 位 ID 读出 PGN</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">用模拟 FMS V05 帧看转速、车速和油量</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">从 BAM 里拼出 VIN</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">DM1 先看原帧，再核对故障码</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">9. 日常调试还能怎么用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">10. 三个实战应用</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">看一次转速升降</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">从 FMS 接口读取车辆数据</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">记录工业设备的一次通信异常</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">11. 常见问题与总结</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-12T08:31:22.000Z">2026-11-12</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>CANviz 使用指南｜Linux 安装、DBC 解码、实时曲线与 J1939 实战</span></h1>
+<div>
+<h2 data-id="heading-0">1. 为什么需要 CANviz</h2>
+<p>刚接上设备时,用 <code>candump</code> 抓到一条报文 <code>123#112233603B000000</code>，知道第 4、5 个字节是转速，手算一次并不难。同一个 ID 如果每秒发几十次，想看转速在哪一刻掉下去、掉了多久，就得把这些字节按时间排好再看。接下来如果要盯住几个 ID、看信号随工况怎么变，浏览器里的表格和曲线更顺手。下面在虚拟 CAN 上走一遍这个过程，把 <code>60 3B</code> 解成 1900 rpm，再录一段转速变化。</p>
+<p>调试时可以两个窗口并开。网页看趋势，终端留逐帧记录。比如转速曲线多了一个尖峰，翻回同一时刻的原始字节，就能判断是设备真的报了那个数，还是解码时遇到了状态值。</p>
+<h2 data-id="heading-1">2. CANviz 能做什么</h2>
+<p>CANviz 是开源的 Web CAN 分析工具。它按 ID 汇总收到的帧，可以过滤报文、查看载荷和计数。导入 DBC 后，同一条报文能展开成带单位的信号，也能添加到实时曲线。工具还提供日志录制、原始帧回放和 J1939 查看功能。下文使用 <strong>CANviz 0.3.1</strong>。 <a href="https://link.juejin.cn/?target=https%3A%2F%2Fgithub.com%2FChanchaldhiman%2FCANviz" ref="nofollow noopener noreferrer" target="_blank" title="https://github.com/Chanchaldhiman/CANviz" rel="external nofollow noopener noreferrer">项目主页</a> · <a href="https://link.juejin.cn/?target=https%3A%2F%2Fpypi.org%2Fproject%2Fcanviz%2F0.3.1%2F" ref="nofollow noopener noreferrer" target="_blank" title="https://pypi.org/project/canviz/0.3.1/" rel="external nofollow noopener noreferrer">下载页</a></p>
+<p>Linux 上的数据先到 SocketCAN 接口，再由 CANviz 接收并推送给浏览器。物理 CAN 接口和 <code>vcan0</code> 都可以做输入，浏览器只需能访问 CANviz 服务。</p>
+<p><img class="lazy" alt="CANviz 通过 Linux SocketCAN 接收报文并在浏览器显示" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cb43bf122b2d41bd84112c73c3251ca6~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=8Jom%2FHAGDabvhf7QPqq%2Fb3QqKlE%3D"></p>
+<h2 data-id="heading-2">3. 在 Linux 上安装 CANviz</h2>
+<p>准备支持 SocketCAN 的 Linux 和 <strong>Python 3.10 或更高版本</strong>。做下面的模拟实验还需要内核支持 vcan，并安装 <code>can-utils</code>。先用 <code>python3 -V</code> 看版本。Ubuntu 或 Debian 上如果缺少 venv 组件或 CAN 工具，可以用 <code>sudo apt install python3-venv can-utils</code> 安装对应软件包。</p>
+<p>临时调试用 venv 很方便。Python 依赖集中在本次目录，收工时可以一起清理。下面用 <code>/userdata/testapp/canviz-test</code> 作为示例 BASE。普通账号没有写权限时，把第一行换成自己的可写目录，例如 <code>BASE="$HOME/canviz-test"</code>。</p>
+<h3 data-id="heading-3">创建环境</h3>
+<p>在同一个 Bash 终端执行，记下打印出来的 <code>RUN</code>。每次安装会得到一个新目录，日志和临时文件也放在里面。</p>
+<pre><code class="hljs language-bash" lang="bash">BASE=<span class="hljs-string">"/userdata/testapp/canviz-test"</span>
+<span class="hljs-built_in">mkdir</span> -p -- <span class="hljs-string">"<span class="hljs-variable">$BASE</span>/runs"</span> || <span class="hljs-built_in">exit</span> 1
+BASE=$(<span class="hljs-built_in">realpath</span> -e -- <span class="hljs-string">"<span class="hljs-variable">$BASE</span>"</span>) || <span class="hljs-built_in">exit</span> 1
+RUN=$(<span class="hljs-built_in">mktemp</span> -d -- <span class="hljs-string">"<span class="hljs-variable">$BASE</span>/runs/canviz.XXXXXXXX"</span>) || <span class="hljs-built_in">exit</span> 1
+<span class="hljs-built_in">printf</span> <span class="hljs-string">'RUN=%s\n'</span> <span class="hljs-string">"<span class="hljs-variable">$RUN</span>"</span>
+<span class="hljs-built_in">mkdir</span> -- <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/tmp"</span> <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/replay-uploads"</span> <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/logs"</span> || <span class="hljs-built_in">exit</span> 1
+
+<p>python3 -m venv <span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;.venv”</span> || <span class="hljs-built_in">exit</span> 1<br>. <span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;.venv&#x2F;bin&#x2F;activate”</span> || <span class="hljs-built_in">exit</span> 1<br>TMPDIR&#x3D;<span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;tmp”</span> <span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;.venv&#x2F;bin&#x2F;python”</span> -m pip install <br>  –no-cache-dir <span class="hljs-string">‘canviz&#x3D;&#x3D;0.3.1’</span> || <span class="hljs-built_in">exit</span> 1<br><span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;.venv&#x2F;bin&#x2F;python”</span> -m pip check<br><span class="hljs-string">“<span class="hljs-variable">$RUN</span>&#x2F;.venv&#x2F;bin&#x2F;python”</span> -m pip show canviz<br></p></code></pre><p></p>
+<p><code>pip check</code> 应显示依赖没有冲突，<code>pip show</code> 中的版本为 <code>0.3.1</code>。安装用了 <code>--no-cache-dir</code>，这次下载的包不会留在共享 pip 缓存里。</p>
+<h3 data-id="heading-4">准备接口并打开网页</h3>
+<p>先用虚拟接口跑一遍。下面只在缺少 <code>vcan0</code> 时创建它，并把本轮目录名写进接口 alias，方便结束时认领。已有的 <code>vcan0</code> 要确认是 UP 的虚拟接口，且当前可供本次实验使用。如果提示不支持 <code>vcan</code>，可尝试 <code>sudo modprobe vcan</code>，再检查内核是否提供该模块。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-keyword">if</span> ! ip <span class="hljs-built_in">link</span> show dev vcan0 &gt;/dev/null 2&gt;&amp;1; <span class="hljs-keyword">then</span>
+  sudo ip <span class="hljs-built_in">link</span> add dev vcan0 <span class="hljs-built_in">type</span> vcan &amp;&amp;
+  sudo ip <span class="hljs-built_in">link</span> <span class="hljs-built_in">set</span> dev vcan0 <span class="hljs-built_in">alias</span> <span class="hljs-string">"<span class="hljs-variable">$&#123;RUN##*/&#125;</span>"</span> &amp;&amp;
+  sudo ip <span class="hljs-built_in">link</span> <span class="hljs-built_in">set</span> dev vcan0 up || <span class="hljs-built_in">exit</span> 1
+<span class="hljs-keyword">fi</span>
+[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+</code></pre>
+<p>在该终端前台启动 CANviz。服务工作目录设为 <code>RUN</code>，录制文件会写到它的 <code>logs/</code>。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$RUN</span>"</span> || <span class="hljs-built_in">exit</span> 1
+TMPDIR=<span class="hljs-string">"<span class="hljs-variable">$RUN</span>/tmp"</span> canviz_UPLOAD_DIR=<span class="hljs-string">"<span class="hljs-variable">$RUN</span>/replay-uploads"</span> \
+  <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/.venv/bin/canviz"</span> serve \
+  --interface socketcan --channel vcan0 \
+  --host 127.0.0.1 --port 8080 --headless
+</code></pre>
+<p>同机打开 <code>http://127.0.0.1:8080/</code>。<code>--headless</code> 只跳过自动打开浏览器。等启动终端显示 <strong>Auto-connected</strong> 后，在第二个终端运行 <code>curl -fsS http://127.0.0.1:8080/status</code>，确认 <code>connected</code> 为 <code>true</code>，<code>channel</code> 为 <code>vcan0</code>。</p>
+<p>在远程 Linux 上运行时，保持服务监听回环地址，从电脑走已授权的 SSH 转发。把命令中的用户和主机名换成实际值，连接后打开 <code>http://127.0.0.1:18080/</code>。</p>
+<pre><code class="hljs language-bash" lang="bash">ssh -N -L 127.0.0.1:18080:127.0.0.1:8080 user@host
+</code></pre>
+<p>这套 venv 安装方法也适合具备相应 Python 环境、CAN 接口和驱动的 Linux 工业设备，例如映翰通 EC312。现场采集时，将启动命令中的通道换成设备上已配置好只监听的 SocketCAN 接口。</p>
+<h2 data-id="heading-5">4. 用完怎么卸载</h2>
+<p>做完后面的实验再回到这里。先停掉网页中的发送定时器、录制和回放，下载要留存的日志。回到启动终端按 <strong>Ctrl+C</strong>，远程使用时再关闭本轮 SSH 转发。用 <code>ss -ltnp 'sport = :8080'</code> 确认本轮服务已退出。</p>
+<p>在原终端沿用 <code>BASE</code> 和 <code>RUN</code>。下面先核对 RUN 的实际路径、目录名和所有者，再交互删除本轮 venv 与临时文件。确认这些目录没有挂入共享存储后执行。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n <span class="hljs-string">"<span class="hljs-variable">$&#123;BASE:-&#125;</span>"</span> &amp;&amp; -n <span class="hljs-string">"<span class="hljs-variable">$&#123;RUN:-&#125;</span>"</span> ]] || <span class="hljs-built_in">exit</span> 1
+<span class="hljs-keyword">if</span> [[ <span class="hljs-variable">$&#123;VIRTUAL_ENV:-&#125;</span> == <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/.venv"</span> ]]; <span class="hljs-keyword">then</span>
+  deactivate
+<span class="hljs-keyword">fi</span>
+<span class="hljs-built_in">cd</span> <span class="hljs-string">"<span class="hljs-variable">$BASE</span>"</span> || <span class="hljs-built_in">exit</span> 1
+run_path=$(<span class="hljs-built_in">realpath</span> -e -- <span class="hljs-string">"<span class="hljs-variable">$RUN</span>"</span>) || <span class="hljs-built_in">exit</span> 1
+[[ <span class="hljs-string">"<span class="hljs-variable">$run_path</span>"</span> == <span class="hljs-string">"<span class="hljs-variable">$RUN</span>"</span> &amp;&amp; <span class="hljs-string">"<span class="hljs-variable">$&#123;run_path%/*&#125;</span>"</span> == <span class="hljs-string">"<span class="hljs-variable">$BASE</span>/runs"</span> &amp;&amp;
+   <span class="hljs-string">"<span class="hljs-variable">$&#123;run_path##*/&#125;</span>"</span> =~ ^canviz\.[[:alnum:]]&#123;8&#125;$ &amp;&amp;
+   -d <span class="hljs-string">"<span class="hljs-variable">$run_path</span>"</span> &amp;&amp; -O <span class="hljs-string">"<span class="hljs-variable">$run_path</span>"</span> ]] || <span class="hljs-built_in">exit</span> 1
+
+<p><span class="hljs-built_in">rm</span> -rI –one-file-system – <span class="hljs-string">“<span class="hljs-variable">$run_path</span>“</span>&#x2F;&amp;#123;.venv,tmp,replay-uploads&amp;#125; || <span class="hljs-built_in">exit</span> 1<br><span class="hljs-built_in">du</span> -sh – <span class="hljs-string">“<span class="hljs-variable">$run_path</span>“</span><br></p></code></pre><p></p>
+<p>日志仍在 <code>$RUN/logs/</code>，可归档后按需删除。要收回虚拟接口，用 <code>ip -d link show dev vcan0</code> 确认它的类型是 vcan，alias 等于本轮的 <code>$&#123;RUN##*/&#125;</code>，并确认其他程序已经不用它，再执行 <code>sudo ip link delete dev vcan0</code>。如果这次复用的是已有接口，跳过删除。</p>
+<h2 data-id="heading-6">5. 用 vcan0 看报文、过滤和发送</h2>
+<p>在设备上的另一个终端发模拟帧。先确认网页连的是 <strong>SocketCAN (Linux)</strong> 的 <code>vcan0</code>，菜单里的 <strong>virtual (testing)</strong> 是进程内总线，外部 <code>cansend</code> 的帧进不到那里。以下发帧、定时发送和回放都使用虚拟接口。</p>
+<p>可以先在一个终端运行 <code>candump -L -n 3 vcan0</code>，再从另一个终端发送。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+cansend vcan0 123<span class="hljs-comment">#1122334455667788</span>
+cansend vcan0 18F004E5<span class="hljs-comment">#FFFF91603BFFFFFF</span>
+cansend vcan0 123<span class="hljs-comment">#AA22334455667788</span>
+</code></pre>
+<p>网页里应该有 <code>0x123</code> 和 <code>0x18F004E5</code> 两行。前者是 11 位标准帧，后者是 29 位扩展帧。两条样例的 DLC 都是 8，表示有 8 个数据字节。最后一帧到达后，<code>0x123</code> 的首字节会变成 <code>AA</code>，<strong>Count</strong> 增加。要找前一帧，就看刚才的 <code>candump</code> 输出。</p>
+<p>打开 <strong>Filters → ID Filter</strong>，填 <code>0x100-0x1FF</code>。表格会留下 <code>0x123</code>，扩展帧被筛掉。点 <strong>Clear filters</strong> 即可恢复。</p>
+<p>想从网页发一帧，在 <strong>Send Frame</strong> 里填 ID <code>0x321</code>、DLC <code>8</code>、数据 <code>01 23 45 67 89 AB CD EF</code>，保持 <strong>29-bit</strong> 未勾选。用 <code>candump -L -n 1 vcan0,321:7FF</code> 等待，然后点击上箭头 <strong>Send once</strong>，终端应收到 <code>321#0123456789ABCDEF</code>。同一面板也能设 <strong>Interval</strong> 做周期发送，用完点 <strong>Stop timer</strong>。</p>
+<p>录制时点 <strong>Record → ● Record</strong>，再发一条帧。点 <strong>■ Stop</strong> 后可以下载 CSV 或 ASC。录制好的文件也会留在服务端。想重新看一轮报文，可在 <strong>Connection</strong> 区点 <strong>Clear</strong> 清空表格和曲线缓冲。</p>
+<h2 data-id="heading-7">6. 用 DBC 把 <code>60 3B</code> 解成 1900 rpm</h2>
+<p>DBC 说明某个 ID 的数据区里，哪些位对应什么信号。这个例子给 <code>0x123</code> 定义一个转速信号，从第 4 字节的最低位开始读取 16 位。将下方保存成 <code>engine_demo.dbc</code>。</p>
+<pre><code class="hljs language-dbc" lang="dbc">VERSION "CANviz teaching fixture"
+
+<p>NS_ :</p>
+<p>BS_:</p>
+<p>BU_: Simulator Viewer</p>
+<p>BO_ 291 DemoEngine: 8 Simulator<br> SG_ EngineSpeed : 24|16@1+ (0.125,0) [0|8191.875] “rpm” Viewer<br></p></code></pre><p></p>
+<p><code>BO_</code> 后的十进制 291 对应 <code>0x123</code>。<code>24|16@1+</code> 表示从 bit 24 取 16 位，<code>@1</code> 是 Intel 小端，<code>+</code> 表示无符号。括号里的 0.125 和 0 分别是 <strong>Factor</strong> 和 <strong>Offset</strong>。第 4、5 字节为 <code>60 3B</code> 时，小端原值是 <code>0x3B60 = 15200</code>，乘 0.125 再加 0，得到 <strong>1900 rpm</strong>。</p>
+<p><img class="lazy" alt="转速字段的小端换算" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b0a663d8cecd402ca55d4775601e9f19~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=2uTYroUYPnA97bmOZcEngKfOPrY%3D"></p>
+<p>展开 <strong>DBC / Signals</strong>，点击 <strong>Drop .dbc file or click to browse</strong> 选中 DBC，开启 <strong>Show decoded signals</strong>。导入后再发一帧，让它走一次接收和解码。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+cansend vcan0 123<span class="hljs-comment">#112233603B000000</span>
+</code></pre>
+<p>展开 <code>0x123</code> 这行，<code>DemoEngine.EngineSpeed</code> 应显示 <code>1900.000 rpm</code>。如果字节看起来对，但数值差了很多，可以先拿 <code>60 3B</code> 手算一遍，检查有没有把高低字节读反。</p>
+<h2 data-id="heading-8">7. 画实时曲线，再用日志重建</h2>
+<p>收到转速后，打开 <strong>Plot → + add signal</strong>，选 <code>DemoEngine.EngineSpeed</code>，窗口设为 <strong>30s</strong>。点 <strong>Record → ● Record</strong>，切回 Plot。另开设备终端运行下面的循环，五个载荷依次对应 800、1200、1900、1500 和 1000 rpm。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+<span class="hljs-keyword">for</span> data <span class="hljs-keyword">in</span> 0019 8025 603B E02E 401F; <span class="hljs-keyword">do</span>
+  <span class="hljs-keyword">for</span> ((i=<span class="hljs-number">0</span>; i&lt;<span class="hljs-number">8</span>; i++)); <span class="hljs-keyword">do</span>
+    cansend vcan0 <span class="hljs-string">"123#112233<span class="hljs-variable">$&#123;data&#125;</span>000000"</span> || <span class="hljs-built_in">exit</span> 1
+    <span class="hljs-built_in">sleep</span> 0.2
+  <span class="hljs-keyword">done</span>
+<span class="hljs-keyword">done</span>
+</code></pre>
+<p>曲线应该先升到 1900 rpm，再降到 1000 rpm。用鼠标拖选可以放大一段，双击回到实时滚动。点 <strong>Record → ■ Stop</strong>，下载 CSV 或 ASC。在第二个设备终端做日志操作时，先把安装终端打印的 RUN 路径复制过来。</p>
+<pre><code class="hljs language-bash" lang="bash"><span class="hljs-built_in">read</span> -r -p <span class="hljs-string">'粘贴 RUN 的绝对路径: '</span> RUN
+</code></pre>
+<p>如果只想看当时的原始帧，打开 <strong>Replay</strong> 并上传刚才的 CSV。0.3.1 的内置回放直接把帧送到网页，DBC 解码流程不会重新执行。此时能看到报文，Plot 仍可能是空的。</p>
+<p>想重建转速曲线，停止内置 Replay，保留 DBC，把 CSV 转成 <code>canplayer</code> 能读的格式，再送回 <code>vcan0</code>。下面的代码按文件名选取最近一次录制。转换适用于本例的经典 CAN 数据帧，并保留时间戳和扩展帧标志。</p>
+<pre><code class="hljs language-bash" lang="bash">logs=(<span class="hljs-string">"<span class="hljs-variable">$RUN</span>"</span>/logs/canviz_*.csv)
+CSV=<span class="hljs-variable">$&#123;logs[-1]&#125;</span>
+[[ -f <span class="hljs-string">"<span class="hljs-variable">$CSV</span>"</span> ]] || &#123; <span class="hljs-built_in">printf</span> <span class="hljs-string">'%s\n'</span> <span class="hljs-string">'先完成一轮录制'</span> &gt;&amp;2; <span class="hljs-built_in">exit</span> 1; &#125;
+REPLAY_LOG=$(<span class="hljs-built_in">mktemp</span> -- <span class="hljs-string">"<span class="hljs-variable">$RUN</span>/tmp/replay.XXXXXXXX.log"</span>) || <span class="hljs-built_in">exit</span> 1
+python3 - <span class="hljs-string">"<span class="hljs-variable">$CSV</span>"</span> <span class="hljs-string">"<span class="hljs-variable">$REPLAY_LOG</span>"</span> &lt;&lt;<span class="hljs-string">'PY'</span> || <span class="hljs-built_in">exit</span> 1
+import csv
+import math
+import sys
+
+<p>frames &#x3D; []<br>with open(sys.argv[1], newline&#x3D;<span class="hljs-string">“”</span>, encoding&#x3D;<span class="hljs-string">“utf-8-sig”</span>) as src:<br>    <span class="hljs-keyword">for</span> row <span class="hljs-keyword">in</span> csv.DictReader(src):<br>        stamp &#x3D; <span class="hljs-built_in">float</span>(row[<span class="hljs-string">“timestamp”</span>])<br>        can_id &#x3D; int(row[<span class="hljs-string">“id”</span>], 16)<br>        data &#x3D; bytes.fromhex(row[<span class="hljs-string">“data”</span>])<br>        flag &#x3D; row[<span class="hljs-string">“is_extended_id”</span>]<br>        <span class="hljs-keyword">if</span> not math.isfinite(stamp) or flag not <span class="hljs-keyword">in</span> (<span class="hljs-string">“0”</span>, <span class="hljs-string">“1”</span>):<br>            raise SystemExit(<span class="hljs-string">“CSV 时间戳或扩展帧标志无效”</span>)<br>        width, <span class="hljs-built_in">limit</span> &#x3D; (8, 0x1FFFFFFF) <span class="hljs-keyword">if</span> flag &#x3D;&#x3D; <span class="hljs-string">“1”</span> <span class="hljs-keyword">else</span> (3, 0x7FF)<br>        dlc &#x3D; int(row[<span class="hljs-string">“dlc”</span>])<br>        <span class="hljs-keyword">if</span> not 0 &lt;&#x3D; can_id &lt;&#x3D; <span class="hljs-built_in">limit</span> or len(data) !&#x3D; dlc or dlc &gt; 8:<br>            raise SystemExit(<span class="hljs-string">“需要经典 CAN 数据帧”</span>)<br>        token &#x3D; f<span class="hljs-string">“&amp;#123;can_id:0&amp;#123;width&amp;#125;X&amp;#125;#&amp;#123;data.hex().upper()&amp;#125;”</span><br>        frames.append(f<span class="hljs-string">“(&amp;#123;stamp:.6f&amp;#125;) vcan0 &amp;#123;token&amp;#125;\n”</span>)<br><span class="hljs-keyword">if</span> not frames:<br>    raise SystemExit(<span class="hljs-string">“CSV 中没有数据帧”</span>)<br>with open(sys.argv[2], <span class="hljs-string">“w”</span>, encoding&#x3D;<span class="hljs-string">“ascii”</span>) as dst:<br>    dst.writelines(frames)<br>PY<br>[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1<br>canplayer -I <span class="hljs-string">“<span class="hljs-variable">$REPLAY_LOG</span>“</span> vcan0&#x3D;vcan0<br></p></code></pre><p></p>
+<p>新帧经 SocketCAN 到达，CANviz 会重新匹配 DBC。若刚清空过视图，收到第一帧后在 Plot 重新添加转速信号。这里复建的是按原间隔到达的信号变化，曲线横轴使用这次接收的时间。手里已有 <code>candump -L</code> 保存的同类日志时，可以直接用 <code>canplayer</code>，省去 CSV 转换。</p>
+<p><img class="lazy" alt="把日志转换后回放至 vcan0，CANviz 再次执行 DBC 解码" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7f3cb08cb42b4bad84fec3fcfdc422c9~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=5nV%2FBdR2tCkKl%2Fic0FD241HfauI%3D"></p>
+<h2 data-id="heading-9">8. J1939 与 FMS 数据怎么读</h2>
+<h3 data-id="heading-10">先从 29 位 ID 读出 PGN</h3>
+<p>看到 <code>18F004E5#FFFF91603BFFFFFF</code> 时，先拆 ID。优先级是 6，源地址 <strong>SA</strong> 是 <code>0xE5</code>，<strong>PGN</strong> 是 <code>0xF004</code>（61444），即 EEC1。PGN 标识参数组，<strong>SPN</strong> 标识组内的具体参数。EEC1 里的 SPN 190 是发动机转速，SPN 513 是实际扭矩百分比。</p>
+<p><img class="lazy" alt="J1939 29 位 ID 及 PDU1、PDU2 的 PS 含义" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/342399aeb5a0468f9de062bc2638dea8~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=NLLEiajlC9%2FaNTXMUj1DZ2Du7NE%3D"></p>
+<p>拆 PGN 时先看 <strong>PF</strong>。PF 小于 <code>0xF0</code> 时是 PDU1，PS 是目的地址，算 PGN 时清零低字节。比如 <code>0x18EA25E5</code> 的目的地址是 <code>0x25</code>，PGN 是 <code>0xEA00</code>。PF 大于等于 <code>0xF0</code> 时是 PDU2，PS 参与 PGN 计算，EEC1 就属于这一类。</p>
+<pre><code class="hljs language-python" lang="python"><span class="hljs-keyword">for</span> can_id <span class="hljs-keyword">in</span> (<span class="hljs-number">0x18EA25E5</span>, <span class="hljs-number">0x18F004E5</span>):
+    pf = (can_id &gt;&gt; <span class="hljs-number">16</span>) &amp; <span class="hljs-number">0xFF</span>
+    ps = (can_id &gt;&gt; <span class="hljs-number">8</span>) &amp; <span class="hljs-number">0xFF</span>
+    pgn = (can_id &gt;&gt; <span class="hljs-number">8</span>) &amp; <span class="hljs-number">0x3FFFF</span>
+    <span class="hljs-keyword">if</span> pf &lt; <span class="hljs-number">0xF0</span>:
+        pgn &amp;= <span class="hljs-number">0x3FF00</span>
+    <span class="hljs-built_in">print</span>(<span class="hljs-string">f"PGN=0x<span class="hljs-subst">&#123;pgn:X&#125;</span>, PS=0x<span class="hljs-subst">&#123;ps:02X&#125;</span>, SA=0x<span class="hljs-subst">&#123;can_id &amp; <span class="hljs-number">0xFF</span>:02X&#125;</span>"</span>)
+</code></pre>
+<p>在网页右侧打开 <strong>J1939 → Enable Decoder</strong>，可以查看收到的 PGN、节点和近期记录。扩展帧也可能承载其他协议，分析实车数据时结合接口说明和报文内容来判断。</p>
+<h3 data-id="heading-11">用模拟 FMS V05 帧看转速、车速和油量</h3>
+<p>商用车的 CAN 型 FMS 接口通常用来读取一部分 J1939 数据，例如转速、车速和累计里程。手头有车厂给的 DBC 时，可以用它把载荷换算成工程值。下面是一份 FMS V05 教学 DBC，按完整 CAN ID 匹配。保存为 <code>fms_demo.dbc</code>，在网页里卸载前一个 DBC，再导入这份。</p>
+<pre><code class="hljs language-dbc" lang="dbc">VERSION "CANviz teaching fixture"
+
+<p>NS_ :</p>
+<p>BS_:</p>
+<p>BU_: Simulator Viewer</p>
+<p>BO_ 2565866725 FMS_F004: 8 Simulator<br> SG_ EngineSpeed : 24|16@1+ (0.125,0) [0|8031.875] “rpm” Viewer<br> SG_ ActualTorque : 16|8@1+ (1,-125) [-125|125] “%” Viewer</p>
+<p>BO_ 2566844901 FMS_FEF1: 8 Simulator<br> SG_ WheelSpeed : 8|16@1+ (0.00390625,0) [0|250.99609375] “km&#x2F;h” Viewer</p>
+<p>BO_ 2566847717 FMS_FEFC: 8 Simulator<br> SG_ FuelLevel1 : 8|8@1+ (0.4,0) [0|100] “%” Viewer</p>
+<p>BO_ 2566841829 FMS_FEE5: 8 Simulator<br> SG_ EngineHours : 0|32@1+ (0.05,0) [0|210554060.75] “h” Viewer</p>
+<p>BO_ 2566832613 FMS_FEC1: 8 Simulator<br> SG_ HighResDistance : 0|32@1+ (0.005,0) [0|21055406.075] “km” Viewer</p>
+<p>BO_ 2566842853 FMS_FEE9: 8 Simulator<br> SG_ TotalFuelUsed : 32|32@1+ (0.5,0) [0|2105540607.5] “L” Viewer<br></p></code></pre><p></p>
+<p>扩展帧在 DBC 的 <code>BO_</code> ID 中置 bit 31，例如 <code>0x18F004E5</code> 写成 <code>0x98F004E5</code>，十进制为 <code>2565866725</code>。总线上仍发原始 ID。换一台车时，优先级或源地址变了，PGN 可能相同，DBC 匹配的完整 ID 则要重新核对。</p>
+<p>保持 CANviz 连接 <code>vcan0</code>，清空旧帧后发下面六条。字节位置从 1 数，下面的数值字段按无符号小端读取。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+cansend vcan0 18F004E5<span class="hljs-comment">#FFFF91603BFFFFFF</span>
+cansend vcan0 18FEF1E5<span class="hljs-comment">#FF004BFFFFFFFFFF</span>
+cansend vcan0 18FEFCE5<span class="hljs-comment">#FF7DFFFFFFFFFFFF</span>
+cansend vcan0 18FEE5E5<span class="hljs-comment">#204E0000FFFFFFFF</span>
+cansend vcan0 18FEC1E5<span class="hljs-comment">#00127A00FFFFFFFF</span>
+cansend vcan0 18FEE9E5<span class="hljs-comment">#FFFFFFFF204E0000</span>
+</code></pre>
+<table><thead><tr><th>PGN</th><th>SPN 与字节</th><th>解码结果</th></tr></thead><tbody><tr><td><code>F004</code></td><td>190，字节 4–5</td><td>15200 × 0.125 = 1900 rpm</td></tr><tr><td><code>F004</code></td><td>513，字节 3</td><td>145 − 125 = 20% 扭矩</td></tr><tr><td><code>FEF1</code></td><td>84，字节 2–3</td><td>19200 ÷ 256 = 75 km/h</td></tr><tr><td><code>FEFC</code></td><td>96，字节 2</td><td>125 × 0.4 = 50% 油量</td></tr><tr><td><code>FEE5</code></td><td>247，字节 1–4</td><td>20000 × 0.05 = 1000 h</td></tr><tr><td><code>FEC1</code></td><td>917，字节 1–4</td><td>8000000 × 0.005 = 40000 km</td></tr><tr><td><code>FEE9</code></td><td>250，字节 5–8</td><td>20000 × 0.5 = 10000 L</td></tr></tbody></table>
+<p>看转速时要识别状态值。例如 SPN 190 的 <code>00 FE</code> 对应原值 <code>0xFE00</code>，表示错误。<code>FF FF</code> 表示不可用。通用 DBC 解码可能照常换算，把它们画成 8128 和 8191.875 rpm。遇到类似尖峰，先看原始字节，统计时把这些状态点筛掉。接车时以车辆网关实际提供的数据和字段定义为准。</p>
+<h3 data-id="heading-12">从 BAM 里拼出 VIN</h3>
+<p>VIN 对应 PGN <code>0xFEEC</code> 和 SPN 237。这里用虚构标识 <code>ZZZTEST0123456789*</code>，末尾 <code>*</code> 是分隔符，总长 18 字节。经典 CAN 的一帧装不下，所以用 BAM 广播。TP.CM 先宣布目标 PGN、总长度和包数，再由三条 TP.DT 按序号送出数据。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+cansend vcan0 1CECFFE5<span class="hljs-comment">#20120003FFECFE00 &amp;&amp; sleep 0.1 &amp;&amp;</span>
+cansend vcan0 1CEBFFE5<span class="hljs-comment">#015A5A5A54455354 &amp;&amp; sleep 0.1 &amp;&amp;</span>
+cansend vcan0 1CEBFFE5<span class="hljs-comment">#0230313233343536 &amp;&amp; sleep 0.1 &amp;&amp;</span>
+cansend vcan0 1CEBFFE5<span class="hljs-comment">#033738392AFFFFFF</span>
+</code></pre>
+<p>首帧的数据是 <code>20 12 00 03 FF EC FE 00</code>。<code>20</code> 表示 BAM，<code>12 00</code> 是小端长度 18，<code>03</code> 是三包，最后三个字节 <code>EC FE 00</code> 给出目标 PGN。三条 DT 的首字节是 1、2、3，拼接其余字节后只取前 18 个，去掉填充的 <code>FF</code>，再按 ASCII 读取。</p>
+<p><img class="lazy" alt="BAM 宣告总长，三包按序拼接并去掉填充" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/63dabd97c47c4367b4ff3515f1645ac3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YiY6ams5oOz5pS-5YGH:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795077081&amp;x-signature=PNegogsuc2Jtf940fzfgg8GsctM%3D"></p>
+<p>打开 <strong>J1939 → BAM Log</strong> 查看重组结果。需要完整数据时，在设备终端运行 <code>curl -fsS http://127.0.0.1:8080/j1939/status</code>，看 <code>recent_bam</code> 里的 PGN 65260、长度 18 和十六进制载荷。遇到缺包时，先在 <code>candump</code> 里按源地址、时间和包序号对齐同一次广播。</p>
+<h3 data-id="heading-13">DM1 先看原帧，再核对故障码</h3>
+<p>DM1 的 PGN 是 <code>0xFECA</code>，用于报告活动故障。前两字节 <code>04 FF</code> 是灯状态和闪烁状态，中间 <code>64 00 01 03</code> 是一条 DTC，最后两字节是填充。</p>
+<pre><code class="hljs language-bash" lang="bash">[[ -n $(ip -o -d <span class="hljs-built_in">link</span> show dev vcan0 up <span class="hljs-built_in">type</span> vcan) ]] || <span class="hljs-built_in">exit</span> 1
+cansend vcan0 18FECAE5<span class="hljs-comment">#04FF64000103FFFF</span>
+</code></pre>
+<p>对转换方法 <code>CM=0</code>，可用这几行从 DTC 提取 SPN、故障模式 FMI 和出现次数 OC。</p>
+<pre><code class="hljs language-python" lang="python">a, b, c, d = <span class="hljs-built_in">bytes</span>.fromhex(<span class="hljs-string">"64 00 01 03"</span>)
+cm = d &gt;&gt; <span class="hljs-number">7</span>
+spn = a | (b &lt;&lt; <span class="hljs-number">8</span>) | ((c &gt;&gt; <span class="hljs-number">5</span>) &lt;&lt; <span class="hljs-number">16</span>)
+fmi = c &amp; <span class="hljs-number">0x1F</span>
+oc = d &amp; <span class="hljs-number">0x7F</span>
+<span class="hljs-built_in">print</span>(spn, fmi, oc, cm)  <span class="hljs-comment"># 100 1 3 0</span>
+</code></pre>
+<p>0.3.1 的 DM1 面板对这条样例会解错。遇到该版本的结果，保留原帧并按字节独立核对 DTC。若原帧的 CM 为 1，查 ECU 的旧转换方法。现场判断还要核对报文来自哪个 ECU，以及厂商对 SPN 和 FMI 的说明。</p>
+<h2 data-id="heading-14">9. 日常调试还能怎么用</h2>
+<ul>
+<li><strong>盯住一个 ID。</strong> 先用过滤缩小范围，在操作设备前后分别看 <strong>Data</strong> 和 <strong>Count</strong>。网页上看到某个字节在变时，把原始帧也留一份，后面可以逐条比较。</li>
+<li><strong>把两个信号放到同一窗口。</strong> 比如把转速和扭矩一起画出来，再记下加负载的时刻。对比哪个信号先变、哪个恢复得慢，能更快找到需要回看的一段数据。</li>
+<li><strong>从日志里算周期。</strong> 用 <code>candump -L</code> 的采集时间戳筛出同一 ID 和来源的帧，计算相邻间隔。连续少了几帧、突然扎堆或周期拉长，都比只看网页上的 Last Seen 更容易定位。</li>
+</ul>
+<h2 data-id="heading-15">10. 三个实战应用</h2>
+<h3 data-id="heading-16">看一次转速升降</h3>
+<p>用第 7 节的五档数据练一遍。先记住 1900 rpm 对应的原始字节，打开 Plot 再录制，等转速降到 1000 rpm 后停止。回放时核对峰值和先后顺序。排查现场掉速也可以这么做，把异常时间记下来，再查当时的转速和相关工况信号。</p>
+<h3 data-id="heading-17">从 FMS 接口读取车辆数据</h3>
+<p>接入车厂允许使用的 FMS 口后，先抓几帧确认源地址和 PGN，再导入车辆对应的 DBC。起步时可以同时看 EEC1 转速和车速，核对车辆从静止到移动时两个信号的变化。油量、小时数和里程适合抽样核对。碰到读数异常，先分清总线上没收到对应 PGN，还是字段本身给出了错误或不可用状态。</p>
+<h3 data-id="heading-18">记录工业设备的一次通信异常</h3>
+<p>以 EC312 等具备 SocketCAN 的 Linux 边缘设备为例，让 CANviz 连接到已配置好只监听的接口，通过 SSH 转发在电脑上查看。平时用 ID 过滤盯住相关报文，故障发生前后保存一段日志，并记下时间和操作。把日志带回分析机后再回放和检查信号。示例里的发帧和注入回放都留在独立的 <code>vcan0</code> 上。</p>
+<h2 data-id="heading-19">11. 常见问题与总结</h2>
+<ul>
+<li><strong>安装完启动失败。</strong> 确认调用的是 <code>$RUN/.venv/bin/canviz</code>，用 <code>pip check</code> 检查依赖，再看启动终端是否提示端口占用。</li>
+<li><strong>网页打不开。</strong> 在运行服务的 Linux 上先请求 <code>/status</code>。远程设备能响应而电脑打不开时，检查 SSH 转发的端口和访问地址。</li>
+<li><strong>网页没有帧。</strong> 先确认 <code>candump</code> 能收到，接着检查 SocketCAN 通道和过滤条件。</li>
+<li><strong>DBC 解码不对。</strong> 按原始帧核对完整 ID、帧格式、载荷长度和字节序。刚导入 DBC 时再收一条新帧。</li>
+<li><strong>曲线空白。</strong> 展开帧确认已经有解码值，再检查 Plot 选中的信号、时间窗口和滚动状态。</li>
+<li><strong>Replay 有帧但没有信号。</strong> 内置回放用于查看原始帧。要重画曲线，按第 7 节回放到 <code>vcan0</code>。</li>
+</ul>
+<p>调试收工前，把原始日志、用过的 DBC 和异常时间放在一起，再清理这轮 venv。下次遇到同样的问题，可以直接从那几秒的报文重建曲线，核对当时到底收到了什么。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="CANviz 使用指南｜Linux 安装、DBC 解码、实时曲线与 J1939 实战" href="https://juejin.cn/post/7707106296344559625" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">CANviz 使用指南｜Linux 安装、DBC 解码、实时曲线与 J1939 实战</span><span class="desc fs12">https://juejin.cn/post/7707106296344559625</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/9c8c814c.html">Mac 选购指南 2026 冬季版<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/b42d7bda.html">城市漫步指南｜夏末大阪，「青黄不接」的时节刚刚好<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/a73f5f25.html" title="Claude Fable 5.2 发布后，开发者该关注什么"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a4e6d8e6780b4242adb2ed8fd9599b8e~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5YuH5a6d6Laj5a2m5YmN56uv:q75.awebp?rk3s=f64ab15b&x-expires=1795054075&x-signature=q%2BgO3qFPR%2BjhYGs9Wr4DsmO%2B99c%3D"></div><span class="title">Claude Fable 5.2 发布后，开发者该关注什么</span></a><a class="item" href="/rss/ff3a23e1.html" title="PVC-O 400 级和 500 级差多少？把 32 页扫描版 ISO 标准做成可计算数据"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=414"></div><span class="title">PVC-O 400 级和 500 级差多少？把 32 页扫描版 ISO 标准做成可计算数据</span></a><a class="item" href="/rss/ec3ccfce.html" title="wangEditor V5 精简完整参考手册"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4336"></div><span class="title">wangEditor V5 精简完整参考手册</span></a><a class="item" href="/rss/63ea2c99.html" title="RAG vs SKILL vs MCP vs RLM"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/58893c57af8242c79365f4fec073c7cc~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1795165966&x-signature=%2BgusiVBLxsuDl66JVNWdrpM1hPU%3D"></div><span class="title">RAG vs SKILL vs MCP vs RLM</span></a><a class="item" href="/rss/f568297e.html" title="SQL Server PIVOT 详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4129"></div><span class="title">SQL Server PIVOT 详解</span></a><a class="item" href="/rss/93fcdb1a.html" title="京东PLUS开卡红包刷50元的方法"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://ywfudai.taskauto.vip:39080/static/uploads/aisi-articles/1/article-a51f2fe83fe4/image-2.jpg"></div><span class="title">京东PLUS开卡红包刷50元的方法</span></a><a class="item" href="/rss/c5238a6d.html" title="分析云202611发版速览：7大硬核功能重磅升级！"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/2f6236e6e78240609c7d88a57dd3e43c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgR3Jvd2luZ0lP5oqA5pyv56S-5Yy6:q75.awebp?rk3s=f64ab15b&x-expires=1795057967&x-signature=cxNmSveTaRJPUFdLrht6VBz%2FPs0%3D"></div><span class="title">分析云202611发版速览：7大硬核功能重磅升级！</span></a><a class="item" href="/rss/22d00598.html" title="柔光屏平板怎么选？华为 MatePad Air Z 柔光版学"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://ywfudai.taskauto.vip:39080/static/uploads/aisi-articles/1/article-265908e518bb/image-2.jpg"></div><span class="title">柔光屏平板怎么选？华为 MatePad Air Z 柔光版学</span></a><a class="item" href="/rss/fc9f757f.html" title="正则表达式完整参考手册（JavaScript 版，兼容绝大多数语言）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3930"></div><span class="title">正则表达式完整参考手册（JavaScript 版，兼容绝大多数语言）</span></a><a class="item" href="/rss/aa231fe5.html" title="深圳APEC峰会倒计时：数据库与Linux运维的" 隐形考场""><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4122"></div><span class="title">深圳APEC峰会倒计时：数据库与Linux运维的"隐形考场"</span></a><a class="item" href="/rss/42ba8037.html" title="用户行为分析工具怎么评估？用真实任务验证功能"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3575"></div><span class="title">用户行为分析工具怎么评估？用真实任务验证功能</span></a><a class="item" href="/rss/70538f62.html" title="用户路径分析与漏斗分析有什么区别？什么时候用哪一种"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3137"></div><span class="title">用户路径分析与漏斗分析有什么区别？什么时候用哪一种</span></a><a class="item" href="/rss/3c7ed90f.html" title="留存率怎么算？用户范围、回访行为与时间窗口"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=893"></div><span class="title">留存率怎么算？用户范围、回访行为与时间窗口</span></a><a class="item" href="/rss/a8f5b935.html" title="阴天窗边的柿子：用 Awaking 让暖色成为主角"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/d901b8b8f5fa487c9263c630bdf8820b~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1795149202&x-signature=A4iXDs7vyFneUuhVhO0LjSHVr%2BQ%3D"></div><span class="title">阴天窗边的柿子：用 Awaking 让暖色成为主角</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
