@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>MIT 6.S081 操作系统工程：Lab3-页表实验笔记 - RSSBOX</title>
+
+  
+    <meta name="description" content="MIT 6.S081 Lab3 页表实验笔记：ugetpid、vmprint、pgaccess 与一个链接器坑  实验环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链，QEMU riscv64。 本文记录 Lab3 三个任务的实现思路，以及一个由链接器引发的 RWX 权限问题。后者是我做完这个 lab 之后觉得最值得记录的部分。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MIT 6.S081 操作系统工程：Lab3-页表实验笔记">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/282e82f1.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="MIT 6.S081 Lab3 页表实验笔记：ugetpid、vmprint、pgaccess 与一个链接器坑  实验环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链，QEMU riscv64。 本文记录 Lab3 三个任务的实现思路，以及一个由链接器引发的 RWX 权限问题。后者是我做完这个 lab 之后觉得最值得记录的部分。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/648229226d424b85a6301828f379e962~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=jrE2ZRx5jK0ESm%2FyiuDujvmFnnY%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1c73580e440244619aa03ac5ca72ba66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=S3UCDPvtufKNVsDJY5CHn%2FUc1J8%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7d5f4588ce404fd9913cceec57bce4ae~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=l7pRxWRg6%2FRJyV0sv1YNa0lvlCA%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b46a988e566b49e2a888f1e0a6cc39c3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=%2F%2FfBVPN67YvJHgfSqEfElWad%2FPU%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/77a4184f323e42369829bbe19611b130~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=TIbQoncOzqRn1Cz0CZ35igpR7X4%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1f0e074c9f294f1680b5623365655c1c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=CSs9mevGVtl%2Fw%2BhwdNoi%2FeRGtSk%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1ea3ec753801477dbfc60373bdd65f23~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=%2BaA3PDO5WATPqAKjmznxEX2RkCI%3D">
+<meta property="article:published_time" content="2026-11-14T13:06:59.000Z">
+<meta property="article:modified_time" content="2026-11-14T13:06:59.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/648229226d424b85a6301828f379e962~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=jrE2ZRx5jK0ESm%2FyiuDujvmFnnY%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">MIT 6.S081 Lab3 页表实验笔记：ugetpid、vmprint、pgaccess 与一个链接器坑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、Lab3 要做什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、任务一：用共享页加速 getpid</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.1 思路</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.2 allocproc：分配页并写入 pid</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.3 结构体声明</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.4 proc_pagetable：只读映射</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.5 释放：先 unmap，再 kfree</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2.6 易错点</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、任务二：实现 vmprint</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.1 三级页表</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.2 地址转换宏</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.3 输出格式</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3.4 调用点</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、任务三：实现 pgaccess</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.1 目标</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.2 PTE_A</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.3 实现步骤</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.4 为什么放在 sysproc.c</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4.5 易错点</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、思考题一：哪些系统调用可以用共享页加速？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">六、思考题二：vmprint 与用户地址空间</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">七、深挖：链接器把代码段变成了 RWX</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.1 现象</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.2 原因</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.3 权限链</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.4 修复</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.5 更深一层：W^X 需要内核策略和段粒度配合</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7.6 可以带走的结论</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">八、总结</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-14T13:06:59.000Z">2026-11-14</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>MIT 6.S081 操作系统工程：Lab3-页表实验笔记</span></h1>
+<div>
+<h2 data-id="heading-0">MIT 6.S081 Lab3 页表实验笔记：ugetpid、vmprint、pgaccess 与一个链接器坑</h2>
+<blockquote>
+<p>实验环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链，QEMU riscv64。</p>
+<p>本文记录 Lab3 三个任务的实现思路，以及一个由链接器引发的 RWX 权限问题。后者是我做完这个 lab 之后觉得最值得记录的部分。</p>
+</blockquote>
+<h3 data-id="heading-1">一、Lab3 要做什么</h3>
+<p>xv6 的页表 lab 有三个任务：</p>
+<ol start="0">
+<li><strong>ugetpid</strong>：在用户页表里映射一个只读共享页，把进程 pid 放进去，让用户态不用系统调用就能读到 pid；</li>
+<li><strong>vmprint</strong>：实现一个函数，按树状结构打印当前进程的页表；</li>
+<li><strong>pgaccess</strong>：实现系统调用，报告从某个用户地址开始的若干页是否被访问过。</li>
+</ol>
+<p>另外还有两道思考题：</p>
+<ul>
+<li>哪些系统调用可以用共享页加速？</li>
+<li><code>vmprint</code> 的输出如何对应教材里的用户地址空间图？</li>
+</ul>
+<hr>
+<h3 data-id="heading-2">二、任务一：用共享页加速 getpid</h3>
+<h4 data-id="heading-3">2.1 思路</h4>
+<p><code>getpid</code> 是系统调用，每次调用都要走完整路径：</p>
+<pre><code class="hljs">用户 → ecall → 内核 → sys_getpid → 返回值放进 a0 → 用户
+</code></pre>
+<p>如果频繁获取 pid，陷入内核的开销不划算。</p>
+<p>改进思路：</p>
+<ul>
+<li>每个进程创建时，内核分配一页，把 pid 写进去；</li>
+<li>这一页以<strong>只读</strong>方式映射到用户地址空间，地址是 <code>USYSCALL</code>；</li>
+<li>用户态 <code>ugetpid()</code> 直接读这一页，不陷入内核。</li>
+</ul>
+<p>pid 在整个进程生命周期内不变，所以只需要在 <code>allocproc()</code> 时写一次。fork 出的子进程有自己的 pid，也有自己的页。</p>
+<blockquote>
+<p>这里顺便纠正一个常见误解：<code>getpid</code> <strong>不经过 copyout</strong>。它只是返回一个整数，通过 <code>p-&gt;trapframe-&gt;a0</code> 带回用户态。copyout 用于“内核把数据复制到用户指针指向的内存”，比如 <code>sysinfo</code>、<code>read</code>。</p>
+</blockquote>
+<h4 data-id="heading-4">2.2 allocproc：分配页并写入 pid</h4>
+<p>要点：</p>
+<ol start="0">
+<li>在 <code>p-&gt;pagetable = proc_pagetable(p);</code> <strong>之前</strong>分配，因为映射时页必须已经存在；</li>
+<li><code>kalloc()</code> 失败要走完整错误路径：<code>freeproc(p); release(&amp;p-&gt;lock); return 0;</code></li>
+<li>分配后 <code>memset</code> 清零；</li>
+<li>写入 <code>p-&gt;usyscall-&gt;pid = p-&gt;pid;</code></li>
+</ol>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/648229226d424b85a6301828f379e962~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=jrE2ZRx5jK0ESm%2FyiuDujvmFnnY%3D"></p>
+<h4 data-id="heading-5">2.3 结构体声明</h4>
+<p><code>struct usyscall</code> 已经在 <code>kernel/memlayout.h</code> 里定义好了（在 <code>#ifdef LAB_PGTBL</code> 中）：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-keyword">struct</span> <span class="hljs-title class_">usyscall</span> &#123;
+  <span class="hljs-type">int</span> pid;
+&#125;;
+</code></pre>
+<p>所以 <code>kernel/proc.h</code> 里<strong>不要重复定义</strong>，只需要前置声明 + 加字段：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-keyword">struct</span> <span class="hljs-title class_">usyscall</span>;
+
+<p><span class="hljs-keyword">struct</span> <span class="hljs-title class_">proc</span> &amp;#123;<br>  …<br>  <span class="hljs-keyword">struct</span> <span class="hljs-title class_">usyscall</span> *usyscall;<br>&amp;#125;;<br></p></code></pre><p></p>
+<h4 data-id="heading-6">2.4 proc_pagetable：只读映射</h4>
+<p>在映射完 TRAMPOLINE 和 TRAPFRAME 之后，增加 USYSCALL 映射：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">mappages</span>(pagetable, USYSCALL, PGSIZE,
+         (uint64)(p-&gt;usyscall), PTE_R | PTE_U);
+</code></pre>
+<p>要点：</p>
+<ul>
+<li>权限必须是 <code>PTE_R | PTE_U</code>，<strong>不能加 <code>PTE_W</code></strong>，否则用户可写共享页；</li>
+<li>映射失败时，要清理<strong>之前已经成功</strong>的映射：unmap <code>TRAMPOLINE</code> 和 <code>TRAPFRAME</code>，再 <code>uvmfree</code>；</li>
+<li><strong>不要</strong>在失败路径里 <code>uvmunmap(USYSCALL)</code>：mappages 失败说明这条映射根本没建立，<code>uvmunmap</code> 遇到未映射的 PTE 会 panic。</li>
+</ul>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1c73580e440244619aa03ac5ca72ba66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=S3UCDPvtufKNVsDJY5CHn%2FUc1J8%3D"></p>
+<h4 data-id="heading-7">2.5 释放：先 unmap，再 kfree</h4>
+<p><code>proc_freepagetable()</code> 里增加：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">uvmunmap</span>(pagetable, USYSCALL, <span class="hljs-number">1</span>, <span class="hljs-number">0</span>);
+</code></pre>
+<p><code>freeproc()</code> 里增加：</p>
+<pre><code class="hljs language-ini" lang="ini">if(p-&gt;usyscall)
+  kfree(p-&gt;usyscall)<span class="hljs-comment">;</span>
+p-&gt;<span class="hljs-attr">usyscall</span> = <span class="hljs-number">0</span><span class="hljs-comment">;</span>
+</code></pre>
+<p>顺序很重要：<strong>先解除页表映射，再释放物理页</strong>。如果先 <code>kfree</code>，页表里还留着指向已释放页的映射。</p>
+<blockquote>
+<p>【图 3：freeproc 中释放 usyscall 页并置 0 —— 发布前插入截图】</p>
+</blockquote>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7d5f4588ce404fd9913cceec57bce4ae~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=l7pRxWRg6%2FRJyV0sv1YNa0lvlCA%3D"></p>
+<h4 data-id="heading-8">2.6 易错点</h4>
+<ul>
+<li>忘了 <code>PTE_U</code>：用户访问 <code>USYSCALL</code> 会 page fault；</li>
+<li>加了 <code>PTE_W</code>：共享页变成可写，违反只读约定；</li>
+<li>只 unmap 不 <code>kfree</code>：物理页泄漏；</li>
+<li>只 <code>kfree</code> 不 unmap：页表里留下指向已释放页的映射；</li>
+<li>在 <code>exec</code> 里释放 usyscall 页：exec 会新建页表，但 usyscall 页属于进程，不应该在那里释放。</li>
+</ul>
+<hr>
+<h3 data-id="heading-9">三、任务二：实现 vmprint</h3>
+<h4 data-id="heading-10">3.1 三级页表</h4>
+<p>RISC-V Sv39 的页表是一棵三级树：</p>
+<ul>
+<li>每级 512 个 PTE；</li>
+<li>非叶子 PTE 只设置 <code>PTE_V</code>，它的 PPN 指向下一级页表页；</li>
+<li>叶子 PTE 设置 <code>PTE_R</code> / <code>PTE_W</code> / <code>PTE_X</code> 中的一个或多个，指向真正的数据页。</li>
+</ul>
+<p>所以递归判断是：</p>
+<pre><code class="hljs language-scss" lang="scss">if ((pte &amp; (PTE_W | PTE_R | PTE_X)) == <span class="hljs-number">0</span>)
+    <span class="hljs-comment">// 没有 R/W/X，说明它指向下一级页表页，继续递归</span>
+</code></pre>
+<p>反过来，只要 R/W/X 有一个为 1，就到达叶子层，停止递归。</p>
+<p>可以参考答案里的 <code>freewalk()</code>，它就是递归遍历三级页表的例子。<code>walk()</code> 是“查单个虚拟地址”的迭代函数，和这里的遍历目标不同。</p>
+<h4 data-id="heading-11">3.2 地址转换宏</h4>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">PTE2PA</span>(pte) = (pte &gt;&gt; <span class="hljs-number">10</span>) &lt;&lt; <span class="hljs-number">12</span>   <span class="hljs-comment">// PTE → 物理地址</span>
+<span class="hljs-built_in">PA2PTE</span>(pa)  = (pa &gt;&gt; <span class="hljs-number">12</span>) &lt;&lt; <span class="hljs-number">10</span>    <span class="hljs-comment">// 物理地址 → PTE，低 10 位为 0</span>
+</code></pre>
+<ul>
+<li><code>PTE2PA()</code> 取出 PPN，再左移 12 位，还原成物理页基地址；</li>
+<li><code>PA2PTE()</code> 只填 PPN，权限位默认为 0；<code>PTE_V</code> 由 <code>mappages()</code> 另外加上。</li>
+</ul>
+<h4 data-id="heading-12">3.3 输出格式</h4>
+<ul>
+<li>第一行：<code>page table %p</code></li>
+<li>每个 PTE：<code>%d: pte %p pa %p</code></li>
+<li>每深一层多一个 <code>" .."</code> 前缀；</li>
+<li>只打印 <code>PTE_V</code> 为 1 的项；</li>
+<li>用 <code>%p</code> 打印 64 位十六进制，避免 <code>%x</code> 截断。</li>
+</ul>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/b46a988e566b49e2a888f1e0a6cc39c3~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=%2F%2FfBVPN67YvJHgfSqEfElWad%2FPU%3D"></p>
+<h4 data-id="heading-13">3.4 调用点</h4>
+<p>在 <code>kernel/exec.c</code> 的 <code>return argc;</code> 之前：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">if</span>(p-&gt;pid == <span class="hljs-number">1</span>)
+  <span class="hljs-built_in">vmprint</span>(p-&gt;pagetable);
+</code></pre>
+<p>这样第一个用户进程 exec 完 init 后，会打印它的页表。</p>
+<hr>
+<h3 data-id="heading-14">四、任务三：实现 pgaccess</h3>
+<h4 data-id="heading-15">4.1 目标</h4>
+<p>实现系统调用：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-function"><span class="hljs-type">int</span> <span class="hljs-title">pgaccess</span><span class="hljs-params">(<span class="hljs-type">void</span> *start, <span class="hljs-type">int</span> npages, <span class="hljs-type">void</span> *bitmask)</span></span>;
+</code></pre>
+<ul>
+<li>从 <code>start</code> 开始，检查 <code>npages</code> 个页；</li>
+<li>位图第 i 位对应第 i 页是否被访问过；</li>
+<li>返回 0 表示成功，-1 表示失败。</li>
+</ul>
+<p>实现里可以把扫描页数限制在 <strong>32 页</strong>以内，因为测试的位图是 <code>unsigned int</code>（4 字节）。</p>
+<h4 data-id="heading-16">4.2 PTE_A</h4>
+<p>在 <code>kernel/riscv.h</code> 增加：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-meta">#<span class="hljs-keyword">define</span> PTE_A (1L &lt;&lt; 6)</span>
+</code></pre>
+<p>注意：</p>
+<ul>
+<li>A 位是 <strong>RISC-V 硬件规定</strong>的（bit 6），不是软件随便选的；</li>
+<li>宏只是给内核一个名字，方便检查和清除；</li>
+<li>检查到 A 位后必须<strong>清除</strong>，否则下次调用会一直认为该页被访问过。</li>
+</ul>
+<h4 data-id="heading-17">4.3 实现步骤</h4>
+<ol start="0">
+<li>
+<p>取参数：</p>
+<pre><code class="hljs language-scss" lang="scss">uint64 start, user_mask;
+int npages;
+<span class="hljs-built_in">argaddr</span>(<span class="hljs-number">0</span>, &amp;start);
+<span class="hljs-built_in">argint</span>(<span class="hljs-number">1</span>, &amp;npages);
+<span class="hljs-built_in">argaddr</span>(<span class="hljs-number">2</span>, &amp;user_mask);
+</code></pre>
+</li>
+<li>
+<p>限制页数：</p>
+<pre><code class="hljs language-kotlin" lang="kotlin"><span class="hljs-keyword">if</span>(npages &lt; <span class="hljs-number">0</span> || npages &gt; <span class="hljs-number">32</span>)
+  <span class="hljs-keyword">return</span> -<span class="hljs-number">1</span>;
+</code></pre>
+</li>
+<li>
+<p>逐页查表：</p>
+<pre><code class="hljs language-ini" lang="ini">for(int <span class="hljs-attr">i</span> = <span class="hljs-number">0</span><span class="hljs-comment">; i &lt; npages; i++)&#123;</span>
+  uint64 <span class="hljs-attr">va</span> = start + (uint64)i * PGSIZE<span class="hljs-comment">;</span>
+  if(va &gt;= MAXVA)
+    break<span class="hljs-comment">;</span>
+  pte_t *<span class="hljs-attr">pte</span> = walk(p-&gt;pagetable, va, <span class="hljs-number">0</span>)<span class="hljs-comment">;</span>
+  if(<span class="hljs-attr">pte</span> == <span class="hljs-number">0</span>) continue<span class="hljs-comment">;</span>
+  if((*pte &amp; PTE_V) == 0) continue<span class="hljs-comment">;</span>
+  if((*pte &amp; PTE_U) == 0) continue<span class="hljs-comment">;</span>
+  if(*pte &amp; PTE_A)&#123;
+    mask |= (1U &lt;&lt; i)<span class="hljs-comment">;</span>
+    *pte &amp;= ~PTE_A<span class="hljs-comment">;</span>
+  &#125;
+&#125;
+</code></pre>
+</li>
+<li>
+<p><code>copyout</code> 写回 4 字节位图：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">copyout</span>(p-&gt;pagetable, user_mask, (char *)&amp;<span class="hljs-attribute">mask</span>, <span class="hljs-built_in">sizeof</span>(mask));
+</code></pre>
+</li>
+<li>
+<p>可选：增加 <code>start % PGSIZE != 0</code> 的检查。测试用例保证了页对齐，但内核里做检查会更健壮。</p>
+</li>
+</ol>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/77a4184f323e42369829bbe19611b130~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=TIbQoncOzqRn1Cz0CZ35igpR7X4%3D"></p>
+<h4 data-id="heading-18">4.4 为什么放在 sysproc.c</h4>
+<p><code>sys_pgaccess()</code> 放在 <code>kernel/sysproc.c</code> 是合适的，因为：</p>
+<ul>
+<li>它是系统调用处理函数，统一放在 <code>sysproc.c</code>；</li>
+<li>需要 <code>myproc()</code> 拿到当前进程的 <code>p-&gt;pagetable</code>；</li>
+<li>需要 <code>argaddr</code> / <code>argint</code> 从用户 trapframe 取参数；</li>
+<li>需要 <code>copyout</code> 把位图写回用户地址；</li>
+<li><code>walk()</code> 在 <code>vm.c</code>，<code>sysproc.c</code> 可以直接调用。</li>
+</ul>
+<blockquote>
+<p>注意：C 语言并没有“vm.c 不能调用 proc.c”这种限制，<code>vm.c</code> 也能通过 <code>defs.h</code> 调用 <code>proc.c</code> 的函数。放到 <code>sysproc.c</code> 主要是<strong>职责划分</strong>。</p>
+</blockquote>
+<h4 data-id="heading-19">4.5 易错点</h4>
+<table><thead><tr><th>问题</th><th>后果</th></tr></thead><tbody><tr><td>用 <code>walkaddr()</code> 而不是 <code>walk()</code></td><td>拿不到 PTE，无法检查 A 位</td></tr><tr><td>忘记清除 <code>PTE_A</code></td><td>下次调用仍然报告“被访问”</td></tr><tr><td><code>PTE_A</code> 位写错</td><td>必须 bit 6</td></tr><tr><td><code>copyout</code> 写 8 字节</td><td>测试的位图是 4 字节，会踩坏用户栈</td></tr><tr><td>不检查 <code>PTE_V</code> / <code>PTE_U</code></td><td>可能访问无效页或非用户页</td></tr><tr><td>不检查 <code>MAXVA</code></td><td><code>start + npages*PGSIZE</code> 越界，<code>walk</code> 可能 panic</td></tr></tbody></table>
+<hr>
+<h3 data-id="heading-20">五、思考题一：哪些系统调用可以用共享页加速？</h3>
+<p>先问几个问题：</p>
+<ul>
+<li>系统调用返回后，内核里的数据会不会改变？</li>
+<li>会不会阻塞？</li>
+<li>会不会写其他用户内存？</li>
+<li>返回值是不是每个进程固定不变，或者用户态能不能自己算出来？</li>
+</ul>
+<p>如果返回值是<strong>每个进程固定不变</strong>的数据，或者内核可以把它写进一块共享页，就适合用共享页加速。</p>
+<p><code>uptime</code> 是一个合适的候选：共享页里放 <code>ticks</code> 的 4 字节副本，用户态通过一个固定虚拟地址（类似 <code>USYSCALL</code>）直接读，不调系统调用。页表权限设为 <code>PTE_R | PTE_U</code>，用户只读。</p>
+<p>不能“直接读内核全局变量”——<code>ticks</code> 是内核数据，用户页表里没有映射，用户态访问会触发 page fault 并被杀掉。这不是效率问题，是根本不通。</p>
+<p>更新策略有两种：</p>
+<ul>
+<li><strong>每进程副本</strong>：<code>clockintr</code> 每 tick 遍历 <code>proc[]</code> 写每个进程的共享页，代价是每 tick O(NPROC) 次写；或者 <code>scheduler()</code> 在进程被调度时更新自己的副本，代价是每次调度一次写，但用户读到的值滞后一个调度周期。</li>
+<li><strong>全局共享页</strong>：因为 <code>ticks</code> 是全局数据，更合理的做法是分配一个全局只读页，所有进程映射同一个物理页，<code>clockintr</code> 每 tick 只写一次。写入次数从 NPROC 降到 1，所有进程读到的值一致，最多滞后一个 tick（约 100ms），对 <code>uptime</code> 语义可接受。</li>
+</ul>
+<p>收益可以粗略写成：</p>
+<pre><code class="hljs language-bash" lang="bash">加速收益 = 每次读省掉的 <span class="hljs-built_in">trap</span> 路径 × 读次数
+         - 内核写入成本 × 更新次数
+</code></pre>
+<p>是否划算取决于用户读的频率：读频繁时收益显著；读很少时，更新成本可能超过收益。</p>
+<hr>
+<h3 data-id="heading-21">六、思考题二：vmprint 与用户地址空间</h3>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1f0e074c9f294f1680b5623365655c1c~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=CSs9mevGVtl%2Fw%2BhwdNoi%2FeRGtSk%3D"></p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/1ea3ec753801477dbfc60373bdd65f23~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1795871191&amp;x-signature=%2BaA3PDO5WATPqAKjmznxEX2RkCI%3D"></p>
+<p>教材 Figure 3.4 的标题是 <strong>“A process's user address space, with its initial stack”</strong> ，也就是用户地址空间布局：</p>
+<pre><code class="hljs language-arduino" lang="arduino">低地址
+  text
+  data
+  guard page
+  stack
+  heap
+  ...
+  trampoline
+  trapframe
+高地址
+</code></pre>
+<p><code>vmprint</code> 输出的结构和它对应：</p>
+<ul>
+<li>低地址的 L0 叶子项：用户程序的 text、data、guard、stack；</li>
+<li>高地址的 L0 叶子项（本 lab 是 509/510/511）：<code>USYSCALL</code>、<code>TRAPFRAME</code>、<code>TRAMPOLINE</code>。</li>
+</ul>
+<p>注意：<code>TRAPFRAME</code> 和 <code>TRAMPOLINE</code> 是用户页表里的特殊页，但只有内核能访问（<code>PTE_U=0</code>），不要把它们说成“内核地址空间”。</p>
+<p>四个页的权限：</p>
+<table><thead><tr><th>页</th><th>虚拟地址</th><th>内容</th><th>PTE</th><th>用户态能否访问</th><th></th><th></th><th></th></tr></thead><tbody><tr><td>0</td><td><code>0x0</code></td><td>text（代码）</td><td><code>0x1b</code> = V</td><td>R</td><td>X</td><td>U</td><td>可读、可执行，不可写</td></tr><tr><td>1</td><td><code>0x1000</code></td><td>data（数据）</td><td><code>0x17</code> = V</td><td>R</td><td>W</td><td>U</td><td>可读、可写</td></tr><tr><td>2</td><td><code>0x2000</code></td><td>guard page</td><td><code>0x07</code> = V</td><td>R</td><td>W</td><td>不可访问（没有 U）</td><td></td></tr><tr><td>509</td><td><code>USYSCALL</code></td><td>共享 pid 页</td><td><code>0x13</code> = V</td><td>R</td><td>U</td><td>只读</td><td></td></tr></tbody></table>
+<ul>
+<li>页 0 是文本段，文件内容在 ELF offset <code>0x1000</code> 处；</li>
+<li>页 1 是数据段，用户态可以合法读写；</li>
+<li>页 2 是保护页，<code>exec</code> 用 <code>uvmclear()</code> 清掉 <code>PTE_U</code>，防止栈溢出悄悄覆盖数据；</li>
+<li>倒数第三页 509 是任务一新增的 <code>USYSCALL</code> 共享页。</li>
+</ul>
+<hr>
+<h3 data-id="heading-22">七、深挖：链接器把代码段变成了 RWX</h3>
+<p>这是整个 lab 里我认为最值得记录的一个坑。</p>
+<h4 data-id="heading-23">7.1 现象</h4>
+<p>运行 <code>usertests</code> 时，<code>copyout</code> 测试失败：</p>
+<pre><code class="hljs language-ini" lang="ini">test copyout: usertrap(): unexpected scause 0x000000000000000c <span class="hljs-attr">pid</span>=<span class="hljs-number">6</span>
+<span class="hljs-attr">sepc</span>=<span class="hljs-number">0</span>x0000000000056e0a stval=<span class="hljs-number">0</span>x0000000000056e0a
+FAILED
+</code></pre>
+<ul>
+<li><code>scause = 0xc</code>：取指令时页错误；</li>
+<li><code>sepc = stval = 0x56e0a</code>：CPU 想从这个地址执行，但该地址不可执行。</li>
+</ul>
+<p>用干净的 <code>origin/pgtbl</code> 分支对比，基线也会以完全相同的方式失败，说明不是 lab 代码的 bug。</p>
+<h4 data-id="heading-24">7.2 原因</h4>
+<p>链接器把代码和数据合并成了一个“可读 + 可写 + 可执行”的 LOAD 段：</p>
+<pre><code class="hljs language-ini" lang="ini"><span class="hljs-section">[.text]</span><span class="hljs-section">[.rodata]</span><span class="hljs-section">[.data]</span><span class="hljs-section">[.bss]</span> → 一个段，<span class="hljs-attr">flags</span> = R-W-X
+</code></pre>
+<p>内核 <code>exec</code> 照着这个标签，把整段每一页都设成了：</p>
+<pre><code class="hljs language-ini" lang="ini">V|R|W|X|<span class="hljs-attr">U</span> = <span class="hljs-number">0</span>x1f
+</code></pre>
+<p>于是地址 0 的代码页也可写。<code>usertests</code> 的 <code>copyout</code> 测试故意调用 <code>read(fd, (void *)0, 8192)</code>，期望内核拒绝写入；现在内核检查到 <code>W=1</code>，认为可以写，就把文件内容复制到了地址 0，覆盖了用户代码。CPU 随后执行被改坏的指令，跳到非法地址，触发指令页错误。</p>
+<h4 data-id="heading-25">7.3 权限链</h4>
+<p><code>exec.c</code> 读取每个 program header：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">uvmalloc</span>(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags));
+</code></pre>
+<p><code>flags2perm()</code> 只读取 ELF 的 X（bit 0）和 W（bit 1）：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">if</span>(flags &amp; <span class="hljs-number">0</span>x1) perm |= PTE_X;
+<span class="hljs-built_in">if</span>(flags &amp; <span class="hljs-number">0</span>x2) perm |= PTE_W;
+</code></pre>
+<p><code>uvmalloc()</code> 再补上 <code>R</code> 和 <code>U</code>：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">mappages</span>(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm);
+</code></pre>
+<p><code>mappages()</code> 最后补上 <code>V</code>：</p>
+<pre><code class="hljs language-ini" lang="ini">*<span class="hljs-attr">pte</span> = PA2PTE(pa) | perm | PTE_V<span class="hljs-comment">;</span>
+</code></pre>
+<p>所以：</p>
+<table><thead><tr><th>PTE 位</th><th>来源</th></tr></thead><tbody><tr><td><code>PTE_W</code> / <code>PTE_X</code></td><td>链接器写的 ELF <code>p_flags</code>，经 <code>flags2perm</code> 翻译</td></tr><tr><td><code>PTE_R</code></td><td>内核 <code>uvmalloc</code> 无条件加</td></tr><tr><td><code>PTE_U</code></td><td>内核 <code>uvmalloc</code> 无条件加（用户程序页）</td></tr><tr><td><code>PTE_V</code></td><td>内核 <code>mappages</code> 加</td></tr></tbody></table>
+<p><strong>关键点</strong>：ELF 里的 <code>PF_R</code> 并没有被 <code>flags2perm</code> 使用；R 是内核固定加的。链接器真正能影响的是 <strong>W 和 X</strong>。</p>
+<h4 data-id="heading-26">7.4 修复</h4>
+<p>给用户程序的链接命令加 <code>-z separate-code</code>，让代码和数据分成两个段：</p>
+<pre><code class="hljs language-ruby" lang="ruby"><span class="hljs-variable">$(</span><span class="hljs-variable constant_">LD</span>) <span class="hljs-variable">$(</span><span class="hljs-variable constant_">LDFLAGS</span>) -z separate-code -T <span class="hljs-variable">$U</span>/user.ld -o <span class="hljs-variable">$@</span> <span class="hljs-variable">$^</span>
+</code></pre>
+<p>效果：</p>
+<pre><code class="hljs">LOAD ... R E   ← 代码段
+LOAD ... RW    ← 数据段
+</code></pre>
+<p>地址 0 的 PTE 恢复成 <code>0x1b</code>（V|R|X|U），<code>copyout</code> 测试就能通过。</p>
+<h4 data-id="heading-27">7.5 更深一层：W^X 需要内核策略和段粒度配合</h4>
+<p>如果在内核里强制 W^X：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-built_in">if</span>(perm &amp; PTE_X)
+  perm &amp;= ~PTE_W;
+</code></pre>
+<p>会有两种结果：</p>
+<table><thead><tr><th>链接方式</th><th>结果</th></tr></thead><tbody><tr><td>单段 RWX</td><td>强制 W^X 后，数据段也变成 R-X，用户程序写全局变量会 fault</td></tr><tr><td><code>-z separate-code</code></td><td>代码段 R-X，数据段 RW，程序正常运行，W^X 成立</td></tr></tbody></table>
+<p>这说明：</p>
+<blockquote>
+<p><strong>W^X 不只是内核策略，还要求链接器把代码和数据分到不同的页/段；粒度不对，策略就无法落地。</strong></p>
+</blockquote>
+<h4 data-id="heading-28">7.6 可以带走的结论</h4>
+<ol start="0">
+<li>链接器在 ELF 里写的是<strong>段标签</strong>：W / X；</li>
+<li>内核 <code>exec</code> 读标签，补上 R / U / V；</li>
+<li>内核保留最终解释权，可以强制 W^X、限制某些权限；</li>
+<li>栈、guard page、trampoline、trapframe 等特殊页的权限完全由内核硬编码；</li>
+<li>内核和用户程序的隔离靠<strong>独立页表、<code>PTE_U</code> 和特权级</strong>，不是靠“内核能识别 ELF 的内容”。</li>
+</ol>
+<hr>
+<h3 data-id="heading-29">八、总结</h3>
+<p>这个 lab 表面上是在写三个功能，实际把“权限从哪来”这件事讲透了：</p>
+<pre><code class="hljs language-bash" lang="bash">链接器（ELF 段标签：W/X）
+        ↓
+内核（<span class="hljs-built_in">exec</span>：加 R/U/V，特殊页硬编码，可选 W^X）
+        ↓
+MMU（按 PTE 执行）
+</code></pre>
+<p>一句话：</p>
+<blockquote>
+<p><strong>ELF 只是“申请”，内核是“审批”，MMU 是“执行”。</strong></p>
+</blockquote>
+<p>理解这一点之后，再看 <code>mappages()</code> 就不会误以为“内核自己决定了所有权限”；它只是流水线上的执行者，真正的决策分散在链接器、<code>exec</code> 和内核策略里。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="MIT 6.S081 操作系统工程：lab3-页表实验笔记" href="https://juejin.cn/post/7707598382437482496" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">MIT 6.S081 操作系统工程：lab3-页表实验笔记</span><span class="desc fs12">https://juejin.cn/post/7707598382437482496</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/6d9cc049.html">一颗心，装不下两个「我」<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/274c2520.html">【开发者自荐】体重反弹后，我重启了拖延两年的禁食 APP<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/49d11339.html" title="Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=890"></div><span class="title">Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面</span></a><a class="item" href="/rss/61713885.html" title="B站“慢内容”狂飙270%：别只盯着短视频了，高价值用户的“私厨”已经开席"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/cf3c11d6b87a475b82e98977b6fe50c2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5rOv5rO3:q75.awebp?rk3s=f64ab15b&x-expires=1795869848&x-signature=xobKFOhDiLjN1hOJhY8ZrU7nYlQ%3D"></div><span class="title">B站“慢内容”狂飙270%：别只盯着短视频了，高价值用户的“私厨”已经开席</span></a><a class="item" href="/rss/fcf06c12.html" title="CKEditor5 完整详解"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7459"></div><span class="title">CKEditor5 完整详解</span></a><a class="item" href="/rss/a4aebfc4.html" title="SQL Server 2008 T-SQL 系统函数参考手册"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5959"></div><span class="title">SQL Server 2008 T-SQL 系统函数参考手册</span></a><a class="item" href="/rss/ddbf35cc.html" title="SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=562"></div><span class="title">SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）</span></a><a class="item" href="/rss/5cc3fd78.html" title="事件与属性怎么设计？一份埋点需求表的填写示例"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1360"></div><span class="title">事件与属性怎么设计？一份埋点需求表的填写示例</span></a><a class="item" href="/rss/c03d1945.html" title="使用场景不同，模型“推理速度慢”的原因也不同"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p6-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1795744136&x-signature=gkXBWs6%2BTJsZBoArd4e%2BaprXUnI%3D"></div><span class="title">使用场景不同，模型“推理速度慢”的原因也不同</span></a><a class="item" href="/rss/d7265482.html" title="多平台架构对比"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1016"></div><span class="title">多平台架构对比</span></a><a class="item" href="/rss/40b3a26.html" title="洗衣房的午后斜光：用 Awaking 把光和影分开"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7c9b69d6444140b78b81154a245f404a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1795839011&x-signature=nd36u4%2Bn49Xvt%2FCG2D32mtnYOoc%3D"></div><span class="title">洗衣房的午后斜光：用 Awaking 把光和影分开</span></a><a class="item" href="/rss/55470bf1.html" title="海边游乐场的黄昏：用 Awaking 留住一层暖光"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/513ef117562b4bf2bb8f782f1c2f5842~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1795485747&x-signature=anQzI6MY7VUQHXtQgU2JASl7Go0%3D"></div><span class="title">海边游乐场的黄昏：用 Awaking 留住一层暖光</span></a><a class="item" href="/rss/d9aaee88.html" title="消息丢了、重复消费了，MQ 这套账该怎么算"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1500"></div><span class="title">消息丢了、重复消费了，MQ 这套账该怎么算</span></a><a class="item" href="/rss/7fd72ad8.html" title="理解 JavaScript 对象、原型与包装类"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8061"></div><span class="title">理解 JavaScript 对象、原型与包装类</span></a><a class="item" href="/rss/14e135fa.html" title="电池数据整理复盘：从 MAT 文件到充电曲线"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2753"></div><span class="title">电池数据整理复盘：从 MAT 文件到充电曲线</span></a><a class="item" href="/rss/9e7d3211.html" title="雨后的黄电车：用 Awaking 给灰色街景定一个主角"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/f436606f8efb49e88122c14789a0e722~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg6Iy25bqV5LiW55WM5LmL5LiL:q75.awebp?rk3s=f64ab15b&x-expires=1795661266&x-signature=aVYOoY6ArCbjC6gZdAWX9kftqs0%3D"></div><span class="title">雨后的黄电车：用 Awaking 给灰色街景定一个主角</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

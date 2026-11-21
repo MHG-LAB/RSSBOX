@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>How Cloudflare WAF Helps Protect Against phpAfterShell and Other Critical PHP Flaws - RSSBOX</title>
+
+  
+    <meta name="description" content="On November 19, 2026, the security research company depthfirst disclosed phpAfterShell (CVE-2026-126714), a vulnerability in PHP&#39;s default file-based session handler that can lead to remote code exec">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How Cloudflare WAF Helps Protect Against phpAfterShell and Other Critical PHP Flaws">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/6c5eaa73.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="On November 19, 2026, the security research company depthfirst disclosed phpAfterShell (CVE-2026-126714), a vulnerability in PHP&#39;s default file-based session handler that can lead to remote code exec">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-20T20:00:45.000Z">
+<meta property="article:modified_time" content="2026-11-20T20:00:45.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What we know about phpAfterShell</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">The other critical flaws</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Who is affected</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">How Cloudflare WAF protects you</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">phpAfterShell: protection on every plan</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">New rules for PHP-FPM and SOAP flaws</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">What the WAF cannot see</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Adding defense in depth with WAF attack score</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Deploy protections and patch</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Update every PHP runtime now</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-20T20:00:45.000Z">2026-11-21</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>How Cloudflare WAF Helps Protect Against phpAfterShell and Other Critical PHP Flaws</span></h1>
+<div>
+<p>On November 19, 2026, the security research company depthfirst disclosed <a target="_blank" rel="external nofollow noopener noreferrer" href="https://depthfirst.com/research/phpaftershell"><span style="text-decoration:underline">phpAfterShell (CVE-2026-126714)</span></a>, a vulnerability in PHP's default file-based session handler that can lead to remote code execution. Under the Common Vulnerability Scoring System (CVSS) 4.0, it scores 9.2 out of 10 (Critical). The PHP project fixed it the same day in versions 8.2.36, 8.3.37, 8.4.28, 8.5.13, and 8.6.0. These releases fix 16 other security vulnerabilities, six of them also rated critical.</p><p>Cloudflare’s <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/"><span style="text-decoration:underline">web application firewall (WAF)</span></a> blocks known phpAfterShell attack patterns, including for customers on the Free plan. The protection comes from a PHP remote code execution rule we first deployed in October 2026 for the php2shell vulnerabilities. That rule already detected part of the phpAfterShell attack pattern before the vulnerability was disclosed, and on November 19 we updated its detection logic to cover phpAfterShell. The rule is part of both the Cloudflare Free Managed Ruleset and the Cloudflare Managed Ruleset, is enabled by default, and its default action is Block.</p><p>In the same WAF release, we added three new rules to the Cloudflare Managed Ruleset for paid plans: one for a request smuggling flaw in PHP-FPM (CVE-2026-129289), and two for flaws in PHP's SOAP extension (CVE-2026-15353 and CVE-2026-129506) that PHP fixed in the same releases. These rules are enabled by default with the Log action, because the request patterns they look for can also appear in legitimate traffic, and blocking by default could disrupt it. Customers can review matching requests in Security Events now and change the action to Block once they confirm the rules do not affect legitimate traffic.</p><p>The WAF is an additional layer of defense, not a replacement for the patch. Several of the critical flaws depend on server configuration or can be reached through paths a WAF does not see, and the only complete fix is to upgrade PHP and restart every worker. Our analysts continue to monitor attack activity and will update the rules as new techniques and variations appear. You can track rule changes in the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/change-log/changelog/"><span style="text-decoration:underline">WAF changelog</span></a> and follow how the vulnerabilities develop in the dedicated <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/zero-wire/php-november-2026-security-release-phpaftershell"><span style="text-decoration:underline">Cloudflare Zero Wire briefing</span></a>.</p><p>There appears to be no indication so far that these vulnerabilities have been exploited. As of November 19, 2026, none of the 17 vulnerabilities was listed in CISA's <a target="_blank" rel="external nofollow noopener noreferrer" href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog"><span style="text-decoration:underline">Known Exploited Vulnerabilities catalog</span></a>, and no source we reviewed reports exploitation in the wild.</p><h2>What we know about phpAfterShell</h2><p>PHP stores session data in files by default. When an application calls session_start(), PHP reads the session file and deserializes its content into the $_SESSION array. When the request ends, PHP writes the updated session back to the same file.</p><p>phpAfterShell is triggered when that write is interrupted. The session file can then hold the beginning of the new session data followed by the end of the old one. On the next request, session_start() deserializes this mixed content. If an attacker controlled the old data, PHP can end up deserializing objects of the attacker's choice.</p><p>An attacker trying to exploit the flaw is likely to first search for a way to place controlled data in the session. PHP's <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/php/php-src/security/advisories/GHSA-fm2m-fjf5-v3cp"><span style="text-decoration:underline">advisory</span></a> names two:</p><ul><li><strong>Session upload progress</strong>, a PHP feature that writes information about a running file upload into the session. A remote client can use it to shape the stored data.</li><li><strong>Applications that store large user-controlled strings in the session</strong>.</li></ul><p>According to PHP, code execution also requires an interruption at a useful point in the write and a suitable deserialization gadget chain in the application. depthfirst reports that it reached code execution without an application gadget by chaining a second, undisclosed memory-corruption bug in a PHP-native class. The sources we reviewed do not establish whether that second bug is fixed in the November 19 releases.</p><p>depthfirst says it discovered and reported phpAfterShell. The CVE record credits Leo Lin and Asahi as reporters.</p><h3>The other critical flaws</h3><p>The same releases fix six more critical vulnerabilities. Each one needs a specific configuration to be exploitable:</p><table><tbody><tr><td><p><strong>CVE</strong></p></td><td><p><strong>Component</strong></p></td><td><p><strong>Impact</strong></p></td><td><p><strong>Conditions</strong></p></td></tr><tr><td><p>CVE-2026-129289</p></td><td><p>PHP-FPM</p></td><td><p>An unauthenticated attacker can smuggle a second FastCGI request into PHP-FPM and run PHP code as the worker.</p></td><td><p>A front end that reuses backend FastCGI connections (nginx with fastcgi_keep_conn on, Apache mod_proxy_fcgi with enablereuse=on, or HAProxy), an application path that opens php://input without reading it to the end, and the path of an existing PHP script.</p></td></tr><tr><td><p>CVE-2026-115560</p></td><td><p>Session serializer</p></td><td><p>Object injection through a mismatch between session serializers. First covered in our php2shell briefing, now fixed.</p></td><td><p>Session upload progress enabled. PHP widened the scope: applications, pools or command-line jobs that use different serializers and share a session store are affected.</p></td></tr><tr><td><p>CVE-2026-129496</p></td><td><p>Timezone cache</p></td><td><p>Use-after-free that can crash a fresh worker and possibly run code. PHP demonstrated code execution locally with known memory addresses.</p></td><td><p>Non-thread-safe builds where a startup diagnostic has been written to a PHP error log file.</p></td></tr><tr><td><p>CVE-2026-129481</p></td><td><p>Session shutdown</p></td><td><p>Use-after-free, described by PHP as an incomplete fix for CVE-2026-109619. No code execution demonstrated.</p></td><td><p>PHP 8.3 and later.</p></td></tr><tr><td><p>CVE-2026-129474</p></td><td><p>Fatal error backtraces</p></td><td><p>Use-after-free in magic method backtraces.</p></td><td><p>PHP 8.5 and later, where fatal error backtraces are enabled by default. Setting zend.exception_ignore_args=1, the php.ini-production default, blocks the demonstrated attack.</p></td></tr><tr><td><p>CVE-2026-129182</p></td><td><p>Fatal error backtraces</p></td><td><p>Use-after-free. No code execution demonstrated.</p></td><td><p>PHP 8.5, specific path-level settings, and an Apache per-directory configuration or front end that produces an early diagnostic.</p></td></tr></tbody></table><h3>Who is affected</h3><p>The vulnerable versions are PHP 8.2 before 8.2.36, 8.3 before 8.3.37, 8.4 before 8.4.28, 8.5 before 8.5.13, and the 8.6.0 release candidates. Whether a deployment is exposed depends on the conditions of each flaw.</p><p>PHP 8.1 and earlier are end-of-life. depthfirst says the official 7.4, 8.0 and 8.1 end-of-life mitigation branches are not affected by phpAfterShell, but PHP says CVE-2026-129289 was introduced in PHP 5.6.0 and that releases older than 8.2 may also be affected by CVE-2026-115560.</p><p>Linux distributions often backport fixes without changing the PHP version number. Check the full package version against your distribution's advisory.</p><h2>How Cloudflare WAF protects you</h2><p>PHP runs a large share of the web, often inside content management systems, plugins, and container images that teams do not update directly. Patching every PHP runtime takes time. Cloudflare WAF reduces your exposure while you patch.</p><h3>phpAfterShell: protection on every plan</h3><p>We released the original PHP remote code execution rules in an emergency release on October 21, 2026, after the php2shell vulnerabilities (CVE-2026-109618 and CVE-2026-109619) were disclosed. We extended them to CVE-2026-115560 on October 23 and refined them several times in the following weeks, based in part on reports from security researchers who took part in a <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/php-ctf"><span style="text-decoration:underline">PHP Capture the Flag (CTF) challenge</span></a>.</p><p>phpAfterShell shares an attack technique with php2shell: an attacker plants serialized PHP data in session storage and waits for PHP to deserialize it. Because of that overlap, the existing rule already matched part of the phpAfterShell attack pattern before disclosure. On November 19, we updated the rule's detection logic to cover phpAfterShell and added CVE-2026-126714 to its description.</p><table><tbody><tr><td><p><strong>Rule description</strong></p></td><td><p><strong>Rule ID</strong></p></td><td><p><strong>Ruleset</strong></p></td><td><p><strong>Default action</strong></p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619, CVE-2026-115560, CVE-2026-126714) #6</p></td><td><p>19373a83abb840e18ab3ce5a7975ce1b</p></td><td><p>Cloudflare Free Managed Ruleset (Free plan)</p></td><td><p>Block</p></td></tr><tr><td><p>PHP Remote Code Execution Attack (CVE-2026-109618, CVE-2026-109619, CVE-2026-115560, CVE-2026-126714) #6</p></td><td><p>4148ae686fdb4d01be673fab9d9c073d</p></td><td><p>Cloudflare Managed Ruleset (Pro, Business and Enterprise plans)</p></td><td><p>Block</p></td></tr></tbody></table><p>Free plan customers do not need to take any action. On paid plans, the rule is active wherever the Cloudflare Managed Ruleset is deployed. You can use the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/zero-wire/php-november-2026-security-release-phpaftershell#cloudflare-coverage"><span style="text-decoration:underline">links in the Zero Wire briefing</span></a> to go straight to the rules in your dashboard.</p><h3>New rules for PHP-FPM and SOAP flaws</h3><p>The three new rules are part of the Cloudflare Managed Ruleset (Ruleset ID efb7b8c949ac4650a09736fc376e9aee) and are available on Pro, Business and Enterprise plans.</p><table><tbody><tr><td><p><strong>Rule description</strong></p></td><td><p><strong>Rule ID</strong></p></td><td><p><strong>Default action</strong></p></td></tr><tr><td><p>PHP-FPM - CVE:CVE-2026-129289</p></td><td><p>8ef1c34a424b4ccfa6f6fe186c6f42b2</p></td><td><p>Log</p></td></tr><tr><td><p>PHP SOAP - CVE:CVE-2026-15353</p></td><td><p>5c5a9d6397e44837a3214b5ba54028d4</p></td><td><p>Log</p></td></tr><tr><td><p>PHP SOAP - CVE:CVE-2026-129506</p></td><td><p>00a23de67a684876ba67c5d44521b819</p></td><td><p>Log</p></td></tr></tbody></table><p>To review their matches, go to Security &gt; Analytics &gt; Events and filter by rule ID. If the matches are not legitimate traffic, change the rule action to Block: go to Security &gt; Settings, edit the Cloudflare Managed Ruleset, search for the CVE identifier and set the rule action to Block, or you can refer to the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/zero-wire/php-november-2026-security-release-phpaftershell#cloudflare-coverage"><span style="text-decoration:underline">links in the Zero Wire briefing</span></a> to go straight to the rules configuration.</p><h3>What the WAF cannot see</h3><p>A WAF can block an exploit when the malicious data arrives in an HTTP request that passes through Cloudflare. It cannot block every path to these vulnerabilities, including:</p><ul><li><strong>The deserialization step.</strong> phpAfterShell's final step happens inside PHP, when it reads a corrupted session file. The WAF can block the requests that plant the payload, not the read itself.</li><li><strong>Session data from other sources.</strong> If an application copies user-controlled data into the session from a database, a queue or an upstream API, that data may never cross the WAF in a recognizable form.</li><li><strong>Flaws triggered by server state.</strong> CVE-2026-129496, CVE-2026-129481, CVE-2026-129474 and CVE-2026-129182 depend on error logs, diagnostics and worker lifecycle. They do not have dedicated WAF rules, and the patch and the configuration changes below are the way to address them.</li><li><strong>Traffic that bypasses Cloudflare.</strong> This includes internal traffic between services and PHP-FPM listeners exposed directly to a network.</li></ul><h3>Adding defense in depth with WAF attack score</h3><p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/detections/attack-score/"><span style="text-decoration:underline">WAF attack score</span></a> adds a machine learning layer that scores each request for attack payloads. It is available on Business plans (cf.waf.score.class) and, with a dedicated remote code execution sub-score (cf.waf.score.rce) along with an overall score (cf.waf.score), on Enterprise plans.</p><p>Attack score complements the managed rules. It will not recognize every serialized object or smuggled FastCGI record on its own, but a working exploit chain usually needs more than one request, and the later stages carry payloads the model is trained to score:</p><ul><li><strong>Second-stage payloads.</strong> Once an attacker can run code, they still need to send commands: shell execution primitives (/bin/sh -c, system(), passthru()), PHP code evaluation (eval(), assert()) or reverse-shell strings in headers, query parameters or request bodies.</li><li><strong>Webshell traffic.</strong> Attackers often drop a small PHP webshell after the initial compromise. Requests that pass operating system commands to that webshell remain visible to attack score.</li></ul><h2>Deploy protections and patch</h2><p>You can find more information on how to deploy managed rules and attack score in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/get-started/"><span style="text-decoration:underline">our WAF guide</span></a>. In short:</p><ol><li><strong>Check that phpAfterShell protection is active.</strong> On the Free plan, no action is needed. On paid plans, make sure the Cloudflare Managed Ruleset is deployed and that the PHP Remote Code Execution Attack #6 rule is set to Block.</li><li><strong>Review the new rules and switch them to Block.</strong> The CVE-2026-129289, CVE-2026-15353 and CVE-2026-129506 rules are in Log mode by default. Review their matches in Security Events, then change their action to Block.</li><li><strong>Layer <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developers.cloudflare.com/waf/get-started/#2-create-custom-rule-based-on-waf-attack-score"><span style="text-decoration:underline">attack score</span></a>.</strong> Create a custom rule that blocks or challenges requests with a low remote code execution score, for example cf.waf.score.rce le 20 on Enterprise plans, or cf.waf.score.class eq "attack" on Business plans.</li><li><strong>Upgrade PHP.</strong> Move to 8.2.36, 8.3.37, 8.4.28, 8.5.13 or 8.6.0. Rebuild container images and restart the PHP-FPM master or Apache so every worker loads the new binary, then verify the version that serves web requests. After upgrading, check that no php.ini, FPM pool or virtual host still sets session.upload_progress.enabled=1, because an explicit setting overrides the new default.</li><li><strong>Apply interim mitigations if you cannot upgrade right away.</strong> Set session.upload_progress.enabled=0 and limit the untrusted data you store in sessions. Turn off FastCGI connection reuse. On PHP 8.5, set fatal_error_backtraces=0. Fix configuration errors that produce PHP startup warnings, or send PHP errors to syslog instead of a file. Keep PHP-FPM listeners off untrusted networks. These steps reduce exposure; they do not fix the flaws.</li></ol><p>For a prompt you can give an AI agent to inventory your PHP deployments and check each one against all seven critical CVEs, see the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://radar.cloudflare.com/zero-wire/php-november-2026-security-release-phpaftershell"><span style="text-decoration:underline">phpAfterShell page on Cloudflare Zero Wire</span></a>.</p><h2>Update every PHP runtime now</h2><p>phpAfterShell turns an interrupted file write in PHP's default session handler into a path to code execution, and it arrived in the same release as six other critical flaws. With technical details now public, we expect exploit attempts to follow. Cloudflare WAF blocks known phpAfterShell attack patterns for every customer, including the Free plan, and paid plans have new rules for the PHP-FPM and SOAP flaws. The fix is still to upgrade PHP and restart the services that use it.</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="How Cloudflare WAF helps protect against phpAfterShell and other critical PHP flaws" href="https://blog.cloudflare.com/phpaftershell-waf-protection/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">How Cloudflare WAF helps protect against phpAfterShell and other critical PHP flaws</span><span class="desc fs12">https://blog.cloudflare.com/phpaftershell-waf-protection/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/53d275c7.html">独占特性确认：华为 Mate 系列旗舰机“无缘”OSTA 小星芒、AI 屏等功能<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/ef02825f.html">How Cloudflare WAF Protects Against Ruby2shell (CVE-2026-132825)<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/68ffd7a2.html" title="Adapting to AI Penetration Testing Orchestrators: The Modern Security Model"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1924"></div><span class="title">Adapting to AI Penetration Testing Orchestrators: The Modern Security Model</span></a><a class="item" href="/rss/963a9eb9.html" title="Agents Aren’t Humans (But They Kinda Are)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=9088"></div><span class="title">Agents Aren’t Humans (But They Kinda Are)</span></a><a class="item" href="/rss/c175c4aa.html" title="Choosing QuePaxa, an Unusual Consensus Algorithm"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3800"></div><span class="title">Choosing QuePaxa, an Unusual Consensus Algorithm</span></a><a class="item" href="/rss/669dcd77.html" title="An Updated Clairic and Clairic-Flash Are Now Open-Weight, From the New Workers AI Superintelligence Team"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4063"></div><span class="title">An Updated Clairic and Clairic-Flash Are Now Open-Weight, From the New Workers AI Superintelligence Team</span></a><a class="item" href="/rss/b0437125.html" title="How Cloudflare WAF Helps Protect Against Java4Shell (CVE-2026-114938)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2421"></div><span class="title">How Cloudflare WAF Helps Protect Against Java4Shell (CVE-2026-114938)</span></a><a class="item" href="/rss/ef02825f.html" title="How Cloudflare WAF Protects Against Ruby2shell (CVE-2026-132825)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1750"></div><span class="title">How Cloudflare WAF Protects Against Ruby2shell (CVE-2026-132825)</span></a><a class="item" href="/rss/dd2980cd.html" title="Internet Traffic and Attacks During the 2026 U.S. Midterm Elections"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3855"></div><span class="title">Internet Traffic and Attacks During the 2026 U.S. Midterm Elections</span></a><a class="item" href="/rss/58317c7d.html" title="Introducing Spend Management: Spending Limits and Alerts for Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2651"></div><span class="title">Introducing Spend Management: Spending Limits and Alerts for Cloudflare</span></a><a class="item" href="/rss/3f145c34.html" title="Kitesurf Is Now Open Source"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=66"></div><span class="title">Kitesurf Is Now Open Source</span></a><a class="item" href="/rss/9af68da4.html" title="Launching the Vite Ecosystem Fund"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6560"></div><span class="title">Launching the Vite Ecosystem Fund</span></a><a class="item" href="/rss/8f9d2e8a.html" title="Quad9’s Withdrawal From France: A Canary in the Coal Mine"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7433"></div><span class="title">Quad9’s Withdrawal From France: A Canary in the Coal Mine</span></a><a class="item" href="/rss/34f2b7ea.html" title="See the Agents, Set the Terms: New Visibility and Control for Personal Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3364"></div><span class="title">See the Agents, Set the Terms: New Visibility and Control for Personal Agents</span></a><a class="item" href="/rss/6dfd21f1.html" title="The Post-Quantum Future of Web Privacy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4006"></div><span class="title">The Post-Quantum Future of Web Privacy</span></a><a class="item" href="/rss/dfea132.html" title="Nginx2root: Five New Nginx Vulnerabilities, and How Cloudflare Protects Origins From the Worst of Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3908"></div><span class="title">Nginx2root: Five New Nginx Vulnerabilities, and How Cloudflare Protects Origins From the Worst of Them</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

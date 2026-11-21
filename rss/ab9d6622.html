@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Running the Full Server-Side Datasette Python App in the Browser With Service Workers and Pyodide - RSSBOX</title>
+
+  
+    <meta name="description" content="Datasette Lite is my port of the Datasette Python application to run directly in the browser using WebAssembly and Pyodide. I&#39;ve released a complete rewrite of Datasette Lite using service workers,">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Running the Full Server-Side Datasette Python App in the Browser With Service Workers and Pyodide">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/ab9d6622.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Datasette Lite is my port of the Datasette Python application to run directly in the browser using WebAssembly and Pyodide. I&#39;ve released a complete rewrite of Datasette Lite using service workers,">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/cors-allow/2026/datasette-maplibre.webp">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/datasette-lite-diag.webp">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/compare-sqlite.webp">
+<meta property="article:published_time" content="2026-11-17T08:48:33.000Z">
+<meta property="article:modified_time" content="2026-11-17T08:48:33.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="AI">
+<meta property="article:tag" content="Simon Willison&#39;s Blog">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/cors-allow/2026/datasette-maplibre.webp">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-4"><a class="toc-link" href="#how-this-works-using-service-workers"><span class="toc-text">How this works, using service workers</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#bonus-feature-pick-your-version-of-sqlite"><span class="toc-text">Bonus feature: pick your version of SQLite</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#this-should-work-for-every-other-python-app-too"><span class="toc-text">This should work for every other Python app, too</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/ai/">AI</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/ai/simon-willison-s-blog/">Simon Willison's Blog</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-17T08:48:33.000Z">2026-11-17</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Running the Full Server-Side Datasette Python App in the Browser With Service Workers and Pyodide</span></h1>
+<div>
+
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://lite.datasette.io/">Datasette Lite</a> is my port of the <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datasette.io/">Datasette</a> Python application to run directly in the browser using WebAssembly and <a target="_blank" rel="external nofollow noopener noreferrer" href="https://pyodide.org/">Pyodide</a>. I've released a complete rewrite of Datasette Lite using service workers, and it's now almost indistinguishable from the real server-side application.</p>
+<p>You can now do all of the following, using a carefully crafted URL to <strong>lite.datasette.io</strong>:</p>
+<ul>
+<li>Load client-side Datasette to browse any SQLite database, JSON file, CSV file or SQL script</li>
+<li>Select a released version of Datasette to load from PyPI</li>
+<li>Load a specific commit, tag, or branch name from the Datasette GitHub repository</li>
+<li>Pick from over 100 versions of SQLite to use with Datasette</li>
+<li>Install additional Datasette plugins from PyPI or URLs to wheel files, including JavaScript visualization tools</li>
+</ul>
+<p>The ability to load specific Datasette references, plugins, and SQLite versions makes this a fantastic tool for linking to demos of work-in-progress features or bug reproductions, without needing to spin up a full web server to serve that demo.</p>
+<p>As an example, consider the following URL:</p>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://lite.datasette.io/?install=datasette-maplibre&amp;url=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/demo.db&amp;metadata=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/metadata.yml#/demo/capitals_and_countries%23map=0/4.2/180&amp;color=continent">https://lite.datasette.io/?install=datasette-maplibre&amp;url=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/demo.db&amp;metadata=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/metadata.yml#/demo/capitals_and_countries%23map=0/4.2/180&amp;color=continent</a></p>
+<p>Follow that link and, after a short loading screen, you'll find yourself on a page that looks like this:</p>
+<p><img class="lazy" alt="Screenshot of a web map interface. Toolbar: "View" set to "Clusters", "Colour by" set to "continent", plus "Filter to this area" and "Download GeoJSON" buttons. A world map shows countries outlined and shaded by continent, with coloured dots and numbered cluster circles. A popup for a point in South America reads: capital Caracas, country Venezuela, continent South America, capital_population 2985000, latitude 10.502944, longitude -66.918983. Legend: Africa (52), Asia (45), Europe (39), North America (16), South America (13), Oceania (6). Text: "All 171 rows are on the map". Below, a table with columns country, continent, capital_population, latitude, longitude, boundary. First row: Afghanistan, Asia, 3277000, 34.518636, 69.181314, with a small map in the boundary column showing Afghanistan outlined and shaded in blue." src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/cors-allow/2026/datasette-maplibre.webp" style="max-width: 100%;"></p>
+<p>That's Datasette running the new <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/datasette/datasette-maplibre">datasette-maplibre</a> plugin, loading up a database of GeoJSON shapes of countries and displaying both a combined map and individual boundary maps in a table.</p>
+<p>Let's break down that URL to see what it's doing:</p>
+<pre><code>https://lite.datasette.io/
+  ?install=datasette-maplibre
+  &amp;url=https://.../demo.db
+  &amp;metadata=https://.../metadata.yml
+  #/demo/capitals_and_countries%23map=0/4.2/180&amp;color=continent
+</code></pre>
+<p>The <code>?install=datasette-maplibre</code> installs that additional plugin from PyPI. You can pass <code>&amp;install=...</code> as many times as you like to load more plugins.</p>
+<p><code>&amp;url=https://.../demo.db</code> loads that SQLite database from the provided URL. These URLs need to have <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS">open CORS headers</a> - I host files like this in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://gist.github.com/">Gists</a>, because they provide an easy way to get open CORS headers on a web-hosted file.</p>
+<p><code>&amp;metadata=https://.../metadata.yml</code> loads <a target="_blank" rel="external nofollow noopener noreferrer" href="https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/metadata.yml">this metadata.yml file</a>. The metadata file adds HTML descriptions to various tables, and to the Datasette homepage. Visit <a target="_blank" rel="external nofollow noopener noreferrer" href="https://lite.datasette.io/?install=datasette-maplibre&amp;url=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/demo.db&amp;metadata=https://gist.githubusercontent.com/simonw/39fa5d399465766039549912e2b3d291/raw/f6dfba99a75cbb8b5d9386223220eb52272767ee/metadata.yml#/">that homepage here</a> for a guided tour of the other features of that plugin, all defined in the metadata file.</p>
+<p><code>#/demo/capitals_and_countries%23map=0/4.2/180&amp;color=continent</code> is a fragment hash that turns into a location within Datasette - here it's loading the <code>/demo/capitals_and_countries</code> SQL view, then appending <em>another</em> fragment hash to it (<code>%23</code> is a URL-encoded <code>#</code>) which tells the map plugin to zoom to a certain location and to set the color of the shapes on the map based on the <code>continent</code> column in the data.</p>
+<p>That URL is doing a lot of work! I wrote more about this trick for building URL-addressable software in <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/2025/Feb/13/url-addressable-python/">URL-addressable Pyodide Python environments</a> last year.</p>
+<p>The full set of supported URL arguments is <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/simonw/datasette-lite#load-a-different-datasette-version">described in the Datasette Lite README</a>.</p>
+<p>I've already started using Datasette Lite as part of the Datasette development process. Here's <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/simonw/datasette/issues/3056#issuecomment-6902484982">a recent issue</a> describing a pagination bug - I posted a comment there demonstrating the old, broken behavior and the new fix using links to Datasette Lite:</p>
+<blockquote>
+<p>Demo of the bug: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://lite.datasette.io/?ref=1.0a42&amp;sql=https://gist.github.com/simonw/75ececf61d50e6e8d50f0c150150ee81#/data/scores?_size=2&amp;_sort=score">https://lite.datasette.io/?ref=1.0a42&amp;sql=https://gist.github.com/simonw/75ececf61d50e6e8d50f0c150150ee81#/data/scores?_size=2&amp;_sort=score</a> - click next and the second page is empty.</p>
+<p>Here's that same page with the bug fixed (running on 1.0a43): <a target="_blank" rel="external nofollow noopener noreferrer" href="https://lite.datasette.io/?ref=1.0a43&amp;sql=https://gist.github.com/simonw/75ececf61d50e6e8d50f0c150150ee81#/data/scores?_size=2&amp;_sort=score">https://lite.datasette.io/?ref=1.0a43&amp;sql=https://gist.github.com/simonw/75ececf61d50e6e8d50f0c150150ee81#/data/scores?_size=2&amp;_sort=score</a></p>
+</blockquote>
+<h4 id="how-this-works-using-service-workers">How this works, using service workers</h4>
+<p>Datasette Lite is not a new project. I launched the first version <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/2022/May/4/datasette-lite/">back in 2022</a>, originally as a bit of a joke (running server-side apps in the browser is pretty funny) but one that quickly started proving its value.</p>
+<p>The problem with that initial version is that it was a <em>hack</em>. It worked by running Datasette in a Pyodide web worker, simulating requests through that stack, then injecting the resulting HTML back into the top level page using <code>innerHTML</code>.</p>
+<p>This worked for basic Datasette, but meant that any feature that used JavaScript failed to work, because script tags in <code>innerHTML</code> don't execute, and the web worker tricks it used failed to load additional JavaScript or CSS files.</p>
+<p>The new version takes a completely different approach based on <a target="_blank" rel="external nofollow noopener noreferrer" href="https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API">Service Workers</a>. These allow JavaScript to intercept HTTP requests for new pages and resources and serve them from client-side code instead.</p>
+<p>Datasette Lite registers a service worker for the entire <code>lite.datasette.io</code> domain. The parent page then creates an iframe that sends requests for Datasette pages to URLs that look like this:</p>
+<pre><code>/app/aa94e6851595/ # the homepage (HTML)
+/app/aa94e6851595/data/places # a table page (HTML)
+/app/aa94e6851595/-/static/navigation-search.js # (JavaScript)
+/app/aa94e6851595/-/static/app.css # (CSS)
+</code></pre>
+<p>Those are regular Datasette URLs, but with a <code>/app/aa94e6851595/</code> prefix. What's that about?</p>
+<p>The <code>/app/&lt;session&gt;/</code> prefix is necessary because of multiple tabs.</p>
+<p>Consider the URL above, which loads the demo instance with the <code>datasette-maplibre</code> plugin. That URL defines a full, custom Datasette instance. You might have that one running in a tab, then one of my other demo links running in another.</p>
+<p>The service worker for <code>lite.datasette.io</code> is shared between all of those tabs. If it routed to a single instance of Datasette then every tab would share that underlying instance, no matter what plugins or other settings their URL attempted to configure.</p>
+<p>Instead, the parent page generates a random session ID and uses it as a prefix for all of the subsequent hidden asset and page loads. The service worker can then use that session ID to route those requests back through the parent page to a web worker running a dedicated Datasette instance for that particular session.</p>
+<p>(We still need a web worker because Pyodide in a service worker would not be able to maintain state beyond around 30 seconds, depending on the browser. There are a lot of moving parts here!)</p>
+<p>I had Claude Fable 5.2 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://gisthost.github.io/?4192a5a24136cad4c8490ccb15e87d83">generate several SVG diagrams</a> to help explain this. Here's my favorite of those, now embedded in the Datasette Lite README:</p>
+<p><img class="lazy" alt="Architecture diagram titled &quot;What happens when you click a link in Datasette Lite&quot;, with a legend showing a solid arrow for &quot;request&quot; and a dashed arrow for &quot;response&quot;. A blue box labeled &quot;index.html: the page you opened - Each tab picks a random session and starts one Web Worker.&quot; contains two white boxes: &quot;iframe Datasette pages at /app/session/…&quot; and &quot;shell.js the page's own script: relays&quot;. Below it is a yellow box labeled &quot;sw.js: the service worker - Intercepts requests for /app/session/….&quot; To the right is a green box marked 4 and labeled &quot;webworker.js: a Web Worker - Pyodide: Python in WebAssembly&quot; containing three stacked white boxes: &quot;ASGI bridge + cookie jar&quot;, &quot;Datasette ASGI app&quot; and &quot;SQLite databases&quot;. Numbered arrows connect them: solid arrow 1 from the iframe down to sw.js, solid arrow 2 from sw.js up to shell.js, solid arrow 3 from shell.js across to the Web Worker, dashed arrow 5 from the Web Worker back to shell.js, dashed arrow 6 from shell.js down to sw.js, and dashed arrow 7 from sw.js up to the iframe. A numbered key at the bottom reads: 1 The page requests /app/session/fixtures. 2 sw.js intercepts it and posts it to the owning tab. 3 shell.js forwards it to the Web Worker. 4 Python adds cookies and calls Datasette, which queries SQLite. 5 The status, headers and body return to the page, 6 then to sw.js over a MessagePort, 7 which hands the browser a Response. The iframe renders it." src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/datasette-lite-diag.webp" style="max-width: 100%;"></p>
+<p>This system started life <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/2026/May/30/pyodide-asgi-browser/">back in May</a> as an <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/simonw/research/tree/main/pyodide-asgi-browser#readme">AI research spike</a> generated using Claude Opus 4.8. It wasn't until November (and Claude Fable 5.2) that I felt familiar enough with how it all works to confidently ship it to production!</p>
+<h4 id="bonus-feature-pick-your-version-of-sqlite">Bonus feature: pick your version of SQLite</h4>
+<p>I added this feature <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/simonw/datasette-lite/commit/de661dbee42a68304811a0035b78e6b683203cd1">last night</a> as an off-shoot of investigating <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/2026/Nov/16/llm/">a potential bug in SQLite</a>.</p>
+<p>Datasette is meant to work against any released version of SQLite since 3.25 (released in September 2018). There have been 87 further releases since then.</p>
+<p>Being able to fire up Datasette against a specific version of SQLite is really useful for demonstrating new SQLite features and debugging weird issues.</p>
+<p>In the past I've <a target="_blank" rel="external nofollow noopener noreferrer" href="https://til.simonwillison.net/sqlite/sqlite-version-macos-python">used various tricks</a> to get different SQLite versions running with Python on my Mac, but it's not a trivial process.</p>
+<p>WebAssembly is perfect for this. I can load up a custom SQLite build entirely in my browser, test it there, then discard it when I close my tab.</p>
+<p><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/datasette/pysqlite3-wasm-wheels">datasette/pysqlite3-wasm-wheels</a> is my new repository which contains WebAssembly compiled Python wheels for <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/coleifer/pysqlite3">pysqlite3</a> for 163 different SQLite versions. Each version gets a file with a name like this:</p>
+<p><code>pysqlite3-0.6.2-3.54.1-cp314-cp314-pyemscripten_2026_0_wasm32.whl</code></p>
+<p>That's for SQLite 3.54.1, the most recent version.</p>
+<p>Datasette Lite now takes a special <code>?sqlite=</code> URL parameter, which will accept a version number like <code>3.54.1</code>, resolve the path to the corresponding wheel file, then fetch that wheel and install it into the Pyodide environment and configure Datasette to use it.</p>
+<p>Once I'd built the wheels, I decided to have Claude Fable 5.2 build me <a target="_blank" rel="external nofollow noopener noreferrer" href="https://datasette.github.io/pysqlite3-wasm-wheels/?versions=3.54.1,3.54.0&amp;sql=select+json_object(%27a%27%2C+(select+json_array(1%29%29%29)">https://datasette.github.io/pysqlite3-wasm-wheels/?versions=3.54.1,3.54.0&amp;sql=select+json_object(%27a%27%2C+(select+json_array(1%29%29%29)"&gt;this bonus tool</a> for comparing a SQL query across any selected versions of SQLite. Here's an example showing how <code>select json_object('a', (select json_array(1)))</code> differs between SQLite 3.54.0 and 3.54.1:</p>
+<p><img class="lazy" alt="Screenshot of a web tool for comparing SQL across SQLite versions. Heading &quot;SQLite versions (163 available)&quot; sits above a filter text input with placeholder &quot;Filter, e.g. 3.4&quot;, a &quot;Clear selection&quot; button and a blue &quot;Start REPL with 2 versions&quot; button. Below is a scrollable grid of pill-shaped checkboxes, one per version, running from 3.54.1 down past 3.30.0, with 3.54.1 and 3.54.0 checked. A &quot;REPL&quot; heading follows, with two green status badges reading &quot;3.54.1 ready&quot; and &quot;3.54.0 ready&quot;, then a textarea containing &quot;select json_object('a', (select json_array(1)))&quot; beside a blue &quot;Run&quot; button, and a row of clickable example queries labeled &quot;Examples:&quot;. The output section shows the prompt &quot;sqlite&gt; select json_object('a', (select json_array(1)))&quot; followed by an orange warning &quot;Versions differ: 2 different results&quot; and two side-by-side yellow result panels, each with the query as its column header. The &quot;SQLite 3.54.1&quot; panel returns a JSON object where key &quot;a&quot; has a string value: the array containing 1, wrapped in double quotes. The &quot;SQLite 3.54.0&quot; panel returns a JSON object where key &quot;a&quot; has an actual array containing 1, with no quotes around it." src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/compare-sqlite.webp" style="max-width: 100%;"></p>
+<h4 id="this-should-work-for-every-other-python-app-too">This should work for every other Python app, too</h4>
+<p>Nothing about how Datasette Lite works is unique to Datasette. Almost any Python application should be able to pull the same trick - running entirely in the browser using WebAssembly and Pyodide, as a cheap way to provide preview environments, demonstrate features, and recreate bugs.</p>
+<p>C and Rust extensions used to be a blocker for this kind of thing, but any good coding agent can compile those to Pyodide-compatible WebAssembly now. You can <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/pypi/warehouse/pull/19804">even publish them to PyPI</a> as of PEP 783 in April 2026.</p>
+<p>One catch is databases. SQLite is no problem at all, but running PostgreSQL or MySQL in WebAssembly, while possible, is still a path less trodden.</p>
+<p>I'd love to see WebAssembly preview environments like these become a common pattern across the Python ecosystem.</p>
+<p>Tags: <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/javascript">javascript</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/projects">projects</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/python">python</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/urls">urls</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/datasette">datasette</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/webassembly">webassembly</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/service-workers">service-workers</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/pyodide">pyodide</a>, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://simonwillison.net/tags/datasette-lite">datasette-lite</a></p>
+
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Running the full server-side Datasette Python app in the browser with service workers and Pyodide" href="https://simonwillison.net/2026/Nov/17/datasette-lite/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Running the full server-side Datasette Python app in the browser with service workers and Pyodide</span><span class="desc fs12">https://simonwillison.net/2026/Nov/17/datasette-lite/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/8e52a223.html">南京民国&动物园周末游3天3夜<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/8ed437dc.html">Building the Agent Host Protocol for Sessions That Continue Across Devices<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/9e9a3c64.html" title="Gemini Omni 1.2 Flash: Fast and Cost-Effective With Longer Clips"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://blog.google&url=https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini-omni-1.2_FZLql41.max-600x600.format-webp.webp"></div><span class="title">Gemini Omni 1.2 Flash: Fast and Cost-Effective With Longer Clips</span></a><a class="item" href="/rss/7d4e10b4.html" title="External Sandboxes for Coding Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/sandbox-proxy.png"></div><span class="title">External Sandboxes for Coding Agents</span></a><a class="item" href="/rss/846eb88f.html" title="GPT‑6.2 Astra and GPT‑6.2 Sol"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/astra-6-2-max.webp"></div><span class="title">GPT‑6.2 Astra and GPT‑6.2 Sol</span></a><a class="item" href="/rss/62107dfa.html" title="PostgreSQL 19 Released"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6923"></div><span class="title">PostgreSQL 19 Released</span></a><a class="item" href="/rss/38fda50a.html" title="Quoting Daniel Stenberg"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5462"></div><span class="title">Quoting Daniel Stenberg</span></a><a class="item" href="/rss/e17ca69e.html" title="Quoting Go Proverbs"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5563"></div><span class="title">Quoting Go Proverbs</span></a><a class="item" href="/rss/5bb768a.html" title="Quoting Levent Alpöge"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6565"></div><span class="title">Quoting Levent Alpöge</span></a><a class="item" href="/rss/be0aaa5a.html" title="Quoting Ravi Vakil"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7822"></div><span class="title">Quoting Ravi Vakil</span></a><a class="item" href="/rss/6bf5f7f3.html" title="The PSF End-of-Year Fundraiser"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=526"></div><span class="title">The PSF End-of-Year Fundraiser</span></a><a class="item" href="/rss/dfef7b56.html" title="Token Fraud Is Here and It’s BAD (YouTube)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7593"></div><span class="title">Token Fraud Is Here and It’s BAD (YouTube)</span></a><a class="item" href="/rss/b688979a.html" title="Datasette 1.0a43"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6041"></div><span class="title">Datasette 1.0a43</span></a><a class="item" href="/rss/be87e1b1.html" title="Datasette-Arrows 0.1a0"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/arrow-export-dialog.webp"></div><span class="title">Datasette-Arrows 0.1a0</span></a><a class="item" href="/rss/463997dc.html" title="Datasette-Maplibre 0.1a0"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/cors-allow/2026/datasette-maplibre.webp"></div><span class="title">Datasette-Maplibre 0.1a0</span></a><a class="item" href="/rss/54ee2bb6.html" title="Llm 0.37.3"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5840"></div><span class="title">Llm 0.37.3</span></a><a class="item" href="/rss/b0a3b9bc.html" title="Llm-Gemini 0.38"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://simonwillison.net&url=https://static.simonwillison.net/static/2026/gemini-4-neon__comparison-graphi.width-2000.webp"></div><span class="title">Llm-Gemini 0.38</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
