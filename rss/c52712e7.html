@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>MIT 6.S081 操作系统工程：Lab4-Traps实验笔记 - RSSBOX</title>
+
+  
+    <meta name="description" content="MIT 6.S081 Lab4 笔记：backtrace 与 alarm 的实现与避坑  个人学习记录，代码仅供学习参考，请勿直接用于课程作业提交。 环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链 + gdb-multiarch。  Lab4 包含三部分：RISC-V 汇编问答、backtrace 和 alarm。任务数量不多，但">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MIT 6.S081 操作系统工程：Lab4-Traps实验笔记">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/c52712e7.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="MIT 6.S081 Lab4 笔记：backtrace 与 alarm 的实现与避坑  个人学习记录，代码仅供学习参考，请勿直接用于课程作业提交。 环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链 + gdb-multiarch。  Lab4 包含三部分：RISC-V 汇编问答、backtrace 和 alarm。任务数量不多，但">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/98d45f40336a41038d5eddb9fe6d7fc2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=foLw49zMlKhwYQVxcScaTXC7j9s%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/45c8ec793c5e49ac95be73020da492cb~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=7Ryu79KlAHiTWMeArjUnv74dUBs%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6baf701b8454132a39a2233932a9f6a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=IMydDmVCCu7oF8XVUdoqIm0LDAU%3D">
+<meta property="article:published_time" content="2026-11-23T12:24:55.000Z">
+<meta property="article:modified_time" content="2026-11-23T12:24:55.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/98d45f40336a41038d5eddb9fe6d7fc2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=foLw49zMlKhwYQVxcScaTXC7j9s%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">MIT 6.S081 Lab4 笔记：backtrace 与 alarm 的实现与避坑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、Lab4 要做什么</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、RISC-V assembly（Part 1）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 哪些寄存器存放函数参数？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. main 中调用 f 和 g 的代码在哪里？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. printf 的地址是多少？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. 执行 jalr 跳到 printf 后，ra 的值是多少？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5. printf(&quot;H%x Wo%s&quot;, 57616, &amp;i) 输出什么？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6. printf(&quot;x&#x3D;%d y&#x3D;%d&quot;, 3) 在 y&#x3D; 后面打印什么？</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">小结</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、Backtrace：沿 fp 链走内核栈</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 栈帧布局：fp-8 是返回地址，fp-16 是上一帧</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. 停止条件：内核栈只有一页</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. 实现</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. 验证</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、Alarm：定时器、trapframe 与 a0</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 数据结构：五个字段</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">2. sigalarm：只记录参数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. usertrap：定时器到点修改 epc</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. sigreturn：整体恢复并返回 a0</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5. 完整流程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、个人犯错记录与常见错误（重点）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">1. 头文件同时被 C 和汇编包含</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">3. argaddr 的第二个参数是输出参数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">4. sigalarm(0, 0) 是合法的关闭操作</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">5. tick 计数是每进程的，并且在两处需要重置</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">6. sys_sigreturn 的返回值会覆盖恢复出的 a0</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">7. 备份必须发生在修改 epc 之前</span></a></li><li class="toc-item toc-level-4"><a class="toc-link"><span class="toc-text">附：概念误区</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、总结</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-23T12:24:55.000Z">2026-11-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>MIT 6.S081 操作系统工程：Lab4-Traps实验笔记</span></h1>
+<div>
+<h2 data-id="heading-0">MIT 6.S081 Lab4 笔记：backtrace 与 alarm 的实现与避坑</h2>
+<blockquote>
+<p>个人学习记录，代码仅供学习参考，请勿直接用于课程作业提交。</p>
+<p>环境：Windows 11 + WSL2（Ubuntu 24.04），riscv64-linux-gnu 工具链 + gdb-multiarch。</p>
+</blockquote>
+<p>Lab4 包含三部分：RISC-V 汇编问答、backtrace 和 alarm。任务数量不多，但涉及内核栈布局、trapframe、系统调用约定和定时器中断等多个机制，边界条件比较密集。</p>
+<p>本文先梳理 backtrace 与 alarm 的实现思路，再总结实现过程中容易出现的错误。</p>
+<h3 data-id="heading-1">一、Lab4 要做什么</h3>
+<table><thead><tr><th>任务</th><th>验收</th></tr></thead><tbody><tr><td>RISC-V assembly</td><td><code>answers-traps.txt</code></td></tr><tr><td>Backtrace</td><td><code>bttest</code> + addr2line</td></tr><tr><td>Alarm test0</td><td>能跳到 handler</td></tr><tr><td>Alarm test1</td><td>完整恢复 + 重复触发</td></tr><tr><td>Alarm test2</td><td>防重入</td></tr><tr><td>Alarm test3</td><td>a0 不被覆盖</td></tr><tr><td>usertests</td><td><code>ALL TESTS PASSED</code></td></tr><tr><td>time.txt</td><td>单个整数</td></tr></tbody></table>
+<p>三个部分可以概括为：</p>
+<ul>
+<li><strong>RISC-V assembly</strong>：阅读 <code>user/call.asm</code>，回答 6 个关于参数寄存器、内联优化、端序和可变参数的问题；</li>
+<li><strong>Backtrace</strong>：沿 <code>s0</code>（fp）链遍历内核栈，读取每个栈帧固定偏移处的返回地址；</li>
+<li><strong>Alarm</strong>：定时器中断到期时把 <code>trapframe-&gt;epc</code> 改到 handler；<code>sigreturn</code> 时用提前备份的 trapframe 整体恢复用户现场。</li>
+</ul>
+<h3 data-id="heading-2">二、RISC-V assembly（Part 1）</h3>
+<p>Part 1 要求阅读 <code>user/call.c</code> 及其反汇编 <code>user/call.asm</code>，回答 6 个问题。题目代码：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-function"><span class="hljs-type">int</span> <span class="hljs-title">g</span><span class="hljs-params">(<span class="hljs-type">int</span> x)</span> </span>&#123; <span class="hljs-keyword">return</span> x+<span class="hljs-number">3</span>; &#125;
+<span class="hljs-function"><span class="hljs-type">int</span> <span class="hljs-title">f</span><span class="hljs-params">(<span class="hljs-type">int</span> x)</span> </span>&#123; <span class="hljs-keyword">return</span> <span class="hljs-built_in">g</span>(x); &#125;
+<span class="hljs-function"><span class="hljs-type">void</span> <span class="hljs-title">main</span><span class="hljs-params">(<span class="hljs-type">void</span>)</span> </span>&#123;
+  <span class="hljs-built_in">printf</span>(<span class="hljs-string">"%d %d\n"</span>, <span class="hljs-built_in">f</span>(<span class="hljs-number">8</span>)+<span class="hljs-number">1</span>, <span class="hljs-number">13</span>);
+  <span class="hljs-built_in">exit</span>(<span class="hljs-number">0</span>);
+&#125;
+</code></pre>
+<blockquote>
+<p>汇编中的地址与具体构建相关。下文数值来自实验提交时的 <code>call.asm</code>，更换工具链或重新链接后可能不同。</p>
+</blockquote>
+<h4 data-id="heading-3">1. 哪些寄存器存放函数参数？</h4>
+<p>RISC-V 使用 <code>a0-a7</code> 传递函数参数。<code>main</code> 调用 <code>printf</code> 时：<code>a0</code> 是格式串地址，<code>a1</code> 是 <code>f(8)+1</code>（被常量折叠为 12），<code>a2</code> 是 13。因此 <strong>13 存放在 <code>a2</code></strong>。</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-attr">24:</span> <span class="hljs-number">4635</span>        <span class="hljs-string">li</span> <span class="hljs-string">a2,13</span>
+<span class="hljs-attr">26:</span> <span class="hljs-string">45b1</span>        <span class="hljs-string">li</span> <span class="hljs-string">a1,12</span>
+<span class="hljs-attr">30:</span> <span class="hljs-number">00000097</span>    <span class="hljs-string">auipc</span> <span class="hljs-string">ra,0x0</span>
+<span class="hljs-attr">34:</span> <span class="hljs-number">600080e7</span>    <span class="hljs-string">jalr</span> <span class="hljs-number">1536</span><span class="hljs-string">(ra)</span>     <span class="hljs-comment"># 630 &lt;printf&gt;</span>
+</code></pre>
+<h4 data-id="heading-4">2. main 中调用 f 和 g 的代码在哪里？</h4>
+<p><code>main</code> 中没有对 <code>f</code> 或 <code>g</code> 的调用。编译器做了两层优化：<code>g</code> 被内联进 <code>f</code>，<code>f</code> 又被内联进 <code>main</code>，并且 <code>f(8)+1</code> 被常量折叠为 12。<code>f</code> 和 <code>g</code> 仍然作为独立函数存在于二进制中（它们不是 <code>static</code>），只是 <code>main</code> 没有调用。</p>
+<h4 data-id="heading-5">3. printf 的地址是多少？</h4>
+<p><code>0x630</code>，见 <code>jalr</code> 指令后的注释 <code># 630 &lt;printf&gt;</code>。</p>
+<h4 data-id="heading-6">4. 执行 jalr 跳到 printf 后，ra 的值是多少？</h4>
+<p><code>0x38</code>。<code>jalr</code> 位于 <code>0x34</code>，硬件会把下一条指令的地址写入 <code>ra</code>；<code>printf</code> 的序言会把这个返回地址保存在自己的栈帧中，函数返回时使用。</p>
+<h4 data-id="heading-7">5. printf("H%x Wo%s", 57616, &amp;i) 输出什么？</h4>
+<ul>
+<li><code>57616</code> 的十六进制是 <code>0xE110</code>；</li>
+<li><code>i = 0x00646c72</code>，小端序下内存中的字节为 <code>72 6c 64 00</code>，<code>%s</code> 从低地址逐字节读取，得到 <code>rld</code>。</li>
+</ul>
+<table><thead><tr><th>运行环境</th><th>输出</th></tr></thead><tbody><tr><td>xv6 的 printf（数字表为大写）</td><td><code>HE110 World</code></td></tr><tr><td>glibc 的 printf（小写）</td><td><code>He110 World</code></td></tr></tbody></table>
+<p>注意输出中是数字 <code>110</code>，不是字母 <code>ll0</code>。</p>
+<p>如果换成大端序：要保持 <code>rld</code> 的输出，<code>i</code> 应设为 <code>0x726c6400</code>；<code>57616</code> 不需要修改，因为 <code>%x</code> 打印的是整数值，与内存字节序无关。</p>
+<p>另外，xv6 的 <code>printf</code> 不支持宽度和补零，<code>%02x</code> 不能用于逐字节验证；可以使用 GDB 的 <code>x/4bx &amp;i</code>。</p>
+<h4 data-id="heading-8">6. printf("x=%d y=%d", 3) 在 y= 后面打印什么？</h4>
+<p>不确定。<code>a1</code> 是第一个可变参数，值为 3，第一个 <code>%d</code> 取到 3；第二个 <code>%d</code> 从 <code>a2</code> 取值，但调用者没有传第二个参数，<code>a2</code> 中是上一条指令或上一次调用遗留下来的数据，每次运行都可能不同。可变参数超过寄存器容量（<code>a1-a7</code>，共 7 个）后才会从栈上取，<code>printf</code> 同样不会检查实际参数个数。</p>
+<h4 data-id="heading-9">小结</h4>
+<ul>
+<li><strong>参数寄存器</strong>：<code>a0-a7</code>，13 在 <code>a2</code></li>
+<li><strong>f / g 调用</strong>：被内联并常量折叠，<code>main</code> 中没有调用指令</li>
+<li><strong>printf 地址</strong>：<code>0x630</code>（本次构建）</li>
+<li><strong>jalr 后的 ra</strong>：<code>0x38</code></li>
+<li><strong>大小端输出</strong>：<code>HE110 World</code>（xv6，大写）/ <code>He110 World</code>（glibc）</li>
+<li><strong>参数不足</strong>：读取 <code>a2</code> 的残留值，结果不确定</li>
+</ul>
+<h3 data-id="heading-10">二、Backtrace：沿 fp 链走内核栈</h3>
+<h4 data-id="heading-11">1. 栈帧布局：fp-8 是返回地址，fp-16 是上一帧</h4>
+<p>内核使用 <code>-fno-omit-frame-pointer</code> 编译，每个函数都有标准序言：</p>
+<pre><code class="hljs language-bash" lang="bash">addi sp, sp, -16     <span class="hljs-comment"># 开帧</span>
+sd   ra, 8(sp)       <span class="hljs-comment"># 返回地址 → fp-8</span>
+sd   s0, 0(sp)       <span class="hljs-comment"># 调用者的 fp → fp-16</span>
+addi s0, sp, 16      <span class="hljs-comment"># s0 = 帧顶 = 进入函数时的 sp</span>
+</code></pre>
+<p>布局如下：</p>
+<pre><code class="hljs language-yaml" lang="yaml"><span class="hljs-string">高地址</span>
+      <span class="hljs-string">┌───────────────┐</span> <span class="hljs-string">←</span> <span class="hljs-string">fp（s0）=</span> <span class="hljs-string">调用者的</span> <span class="hljs-string">sp</span>
+      <span class="hljs-string">│</span>  <span class="hljs-attr">fp-8:</span>   <span class="hljs-string">ra</span>   <span class="hljs-string">│</span>   <span class="hljs-string">返回地址（jalr</span> <span class="hljs-string">的下一条指令）</span>
+      <span class="hljs-string">│</span>  <span class="hljs-attr">fp-16:</span> <span class="hljs-string">旧</span> <span class="hljs-string">fp</span> <span class="hljs-string">│</span>   <span class="hljs-string">调用者的</span> <span class="hljs-string">s0，即上一帧</span> <span class="hljs-string">fp</span>
+<span class="hljs-string">sp</span> <span class="hljs-string">→</span>  <span class="hljs-string">├───────────────┤</span>
+      <span class="hljs-string">│</span>  <span class="hljs-string">局部变量</span> <span class="hljs-string">...</span> <span class="hljs-string">│</span>
+<span class="hljs-string">低地址</span>
+</code></pre>
+<p>因此回溯只需要两步：读 <code>*(fp-8)</code> 得到返回地址，读 <code>*(fp-16)</code> 得到上一帧 fp。</p>
+<blockquote>
+<p>叶子函数（内部不调用其他函数）可能省略 <code>ra</code> 的保存，上述约定不成立；但 <code>backtrace ← sys_sleep ← syscall ← usertrap</code> 这条链上都是非叶子函数，不受影响。</p>
+</blockquote>
+<h4 data-id="heading-12">2. 停止条件：内核栈只有一页</h4>
+<p><code>kernel/memlayout.h</code> 中：</p>
+<pre><code class="hljs language-scss" lang="scss"><span class="hljs-selector-id">#define</span> <span class="hljs-built_in">KSTACK</span>(p) (TRAMPOLINE - ((p)+<span class="hljs-number">1</span>)* <span class="hljs-number">2</span>*PGSIZE)
+</code></pre>
+<p>每个进程预留两页，低的一页是未映射的<strong>守护页</strong>，高的一页才是真正的栈，大小为 <strong>4096 字节，即 4KB</strong>。栈从页顶向下生长。</p>
+<p>走到最顶上的 <code>usertrap</code> 帧时有两个关键事实：</p>
+<ul>
+<li>它的 fp 恰好等于 <code>kstack + PGSIZE</code>（页顶，页对齐）；</li>
+<li>它 <code>fp-16</code> 处的"旧 fp"其实是<strong>用户态的 s0</strong>——<code>usertrap</code> 是从 trampoline 的 <code>jr t0</code> 跳进来的，不是被 <code>jalr</code> 调用的。</li>
+</ul>
+<p>因此停止条件是：记录最初 fp 所在的页 <code>PGROUNDDOWN(fp)</code>，每走一步检查当前 fp 是否仍在该页，离开即停止。</p>
+<p>这也解释了为什么恰好打印 3 个地址：</p>
+<table><thead><tr><th>帧</th><th><code>fp-8</code> 中保存的值</th><th>addr2line 显示</th></tr></thead><tbody><tr><td>backtrace</td><td>返回进 <code>sys_sleep</code></td><td><code>kernel/sysproc.c</code></td></tr><tr><td>sys_sleep</td><td>返回进 <code>syscall</code></td><td><code>kernel/syscall.c</code></td></tr><tr><td>syscall</td><td>返回进 <code>usertrap</code></td><td><code>kernel/trap.c</code></td></tr><tr><td>usertrap</td><td>用户 ra（无效）</td><td>不打印，循环停止</td></tr></tbody></table>
+<h4 data-id="heading-13">3. 实现</h4>
+<p>在 <code>kernel/riscv.h</code> 中添加读取 <code>s0</code> 的函数。<strong>必须放在 <code>#ifndef __ASSEMBLER__</code> 内部</strong>，原因见第四节：</p>
+<pre><code class="hljs language-arduino" lang="arduino"><span class="hljs-function"><span class="hljs-type">static</span> <span class="hljs-keyword">inline</span> uint64
+<span class="hljs-title">r_fp</span><span class="hljs-params">()</span>
+</span>&#123;
+  uint64 x;
+  <span class="hljs-function"><span class="hljs-keyword">asm</span> <span class="hljs-title">volatile</span><span class="hljs-params">(<span class="hljs-string">"mv %0, s0"</span> : <span class="hljs-string">"=r"</span> (x) )</span></span>;
+  <span class="hljs-keyword">return</span> x;
+&#125;
+</code></pre>
+<p>在 <code>kernel/printf.c</code> 中实现 <code>backtrace()</code>：</p>
+<p align="center"><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/98d45f40336a41038d5eddb9fe6d7fc2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=foLw49zMlKhwYQVxcScaTXC7j9s%3D"></p>
+<p>实现要点：</p>
+<ul>
+<li>使用 <strong><code>%p</code></strong> 打印：grade 的正则只匹配行首 <code>0x000000008...</code>，<code>%x</code> 不满足要求；</li>
+<li><strong>先打印 <code>*(fp-8)</code>，再更新 <code>fp = *(fp-16)</code></strong> ，顺序相反会漏掉 <code>sys_sleep</code> 那一层；</li>
+<li>输出第一行先打印 <code>backtrace:</code>。</li>
+</ul>
+<p>之后需要三处配套修改：<code>kernel/defs.h</code> 添加原型、<code>sys_sleep()</code> 开头调用、<code>panic()</code> 中调用。</p>
+<h4 data-id="heading-14">4. 验证</h4>
+<pre><code class="hljs language-bash" lang="bash">$ bttest
+0x00000000800021ea
+0x00000000800020e0
+0x0000000080001dd6
+
+<p>$ riscv64-linux-gnu-addr2line -e kernel&#x2F;kernel<br>sys_sleep   …&#x2F;kernel&#x2F;sysproc.c:59<br>syscall     …&#x2F;kernel&#x2F;syscall.c:141<br>usertrap    …&#x2F;kernel&#x2F;trap.c:76<br></p></code></pre><p></p>
+<h3 data-id="heading-15">三、Alarm：定时器、trapframe 与 a0</h3>
+<h4 data-id="heading-16">1. 数据结构：五个字段</h4>
+<pre><code class="hljs language-go" lang="go"><span class="hljs-type">int</span> interval;                 <span class="hljs-comment">// 用户传入的 tick 间隔，0 表示关闭</span>
+<span class="hljs-type">uint64</span> handler;               <span class="hljs-comment">// handler 的用户地址</span>
+<span class="hljs-type">int</span> ticks;                    <span class="hljs-comment">// 已计 tick 数</span>
+<span class="hljs-type">int</span> in_handler;               <span class="hljs-comment">// 是否正在执行 handler（防重入）</span>
+<span class="hljs-keyword">struct</span> trapframe saved_tf;    <span class="hljs-comment">// 被打断时的用户现场副本</span>
+</code></pre>
+<p>在 <code>allocproc()</code> 中初始化：</p>
+<p align="center"><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/45c8ec793c5e49ac95be73020da492cb~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=7Ryu79KlAHiTWMeArjUnv74dUBs%3D"></p>
+<p>进程槽位会复用，不初始化会残留上一个进程的状态。</p>
+<h4 data-id="heading-17">2. sigalarm：只记录参数</h4>
+<p align="center"><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a6baf701b8454132a39a2233932a9f6a~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796043376&amp;x-signature=IMydDmVCCu7oF8XVUdoqIm0LDAU%3D"></p>
+<ul>
+<li><code>n</code> 用 <code>argint</code> 获取，handler 地址用 <code>argaddr</code> 获取（64 位地址，<code>argint</code> 会截断）；</li>
+<li><code>n == 0</code> 表示关闭，不需要额外的开关字段；</li>
+<li>handler 地址可能为 0（实验说明提示 <code>periodic</code> 可能在地址 0），不能用它判断是否启用。</li>
+</ul>
+<h4 data-id="heading-18">3. usertrap：定时器到点修改 epc</h4>
+<p>在 <code>which_dev == 2</code> 分支、<code>yield()</code> 之前处理：</p>
+<pre><code class="hljs language-rust" lang="rust"><span class="hljs-title function_ invoke__">if</span>(p<span class="hljs-punctuation">-&gt;</span>interval &gt; <span class="hljs-number">0</span> &amp;&amp; !p<span class="hljs-punctuation">-&gt;</span>in_handler)&#123;
+  p<span class="hljs-punctuation">-&gt;</span>ticks++;
+  <span class="hljs-title function_ invoke__">if</span>(p<span class="hljs-punctuation">-&gt;</span>ticks == p<span class="hljs-punctuation">-&gt;</span>interval)&#123;
+    p<span class="hljs-punctuation">-&gt;</span>saved_tf = *p<span class="hljs-punctuation">-&gt;</span>trapframe;          <span class="hljs-comment">// 第一步：整体备份</span>
+    p<span class="hljs-punctuation">-&gt;</span>trapframe<span class="hljs-punctuation">-&gt;</span>epc = p<span class="hljs-punctuation">-&gt;</span>handler;       <span class="hljs-comment">// 第二步：修改 epc</span>
+    p<span class="hljs-punctuation">-&gt;</span>in_handler = <span class="hljs-number">1</span>;                    <span class="hljs-comment">// 第三步：防重入</span>
+    p<span class="hljs-punctuation">-&gt;</span>ticks = <span class="hljs-number">0</span>;                         <span class="hljs-comment">// 第四步：重新计数</span>
+  &#125;
+&#125;
+</code></pre>
+<p>需要注意：<strong>handler 在用户态执行</strong>。内核只修改 <code>epc</code>；<code>sret</code> 返回用户态后，用户程序从 handler 的第一条指令开始执行，内核不会调用 handler。</p>
+<h4 data-id="heading-19">4. sigreturn：整体恢复并返回 a0</h4>
+<pre><code class="hljs language-ini" lang="ini">uint64
+sys_sigreturn(void)
+&#123;
+  struct proc *<span class="hljs-attr">p</span> = myproc()<span class="hljs-comment">;</span>
+  *p-&gt;<span class="hljs-attr">trapframe</span> = p-&gt;saved_tf<span class="hljs-comment">;   // 恢复全部用户寄存器（含 epc、a0）</span>
+  p-&gt;<span class="hljs-attr">in_handler</span> = <span class="hljs-number">0</span><span class="hljs-comment">;</span>
+  return p-&gt;trapframe-&gt;a0<span class="hljs-comment">;       // 返回恢复出的 a0</span>
+&#125;
+</code></pre>
+<p>必须返回 a0 的原因：<code>kernel/syscall.c</code> 分发完成后一定会执行：</p>
+<pre><code class="hljs language-ini" lang="ini">p-&gt;trapframe-&gt;<span class="hljs-attr">a0</span> = syscalls[num]()<span class="hljs-comment">;</span>
+</code></pre>
+<p>如果返回 0，刚恢复的 a0 会立即被覆盖。</p>
+<h4 data-id="heading-20">5. 完整流程</h4>
+<pre><code class="hljs language-ini" lang="ini">sigalarm(n, fn) → 保存 interval / handler，ticks 清零
+定时器中断 → usertrap
+  → interval&gt;0 且 !in_handler：ticks++，到点后备份 trapframe、<span class="hljs-attr">epc</span>=handler、
+     <span class="hljs-attr">in_handler</span>=<span class="hljs-number">1</span>、ticks=<span class="hljs-number">0</span>
+  → yield → usertrapret → sret
+handler 在用户态执行
+handler 调用 sigreturn → 恢复 saved_tf → <span class="hljs-attr">in_handler</span>=<span class="hljs-number">0</span> → 返回 a0
+  → sret 回到被定时器打断的那条指令
+</code></pre>
+<h3 data-id="heading-21">四、个人犯错记录与常见错误（重点）</h3>
+<p>实现过程中，容易出问题的地方集中在四类：类型与声明、合法输入的语义、状态重置、恢复顺序。</p>
+<h4 data-id="heading-22">1. 头文件同时被 C 和汇编包含</h4>
+<p><strong>现象</strong>：编译 <code>trampoline.o</code> 时报错：</p>
+<pre><code class="hljs language-vbnet" lang="vbnet">kernel/riscv.h:<span class="hljs-number">365</span>: <span class="hljs-keyword">Error</span>: unrecognized opcode `<span class="hljs-keyword">static</span> inline uint64<span class="hljs-comment">'</span>
+kernel/riscv.h:<span class="hljs-number">366</span>: <span class="hljs-keyword">Error</span>: unrecognized opcode `r_fp()<span class="hljs-comment">'</span>
+kernel/riscv.h:<span class="hljs-number">367</span>: <span class="hljs-keyword">Error</span>: junk at <span class="hljs-keyword">end</span> <span class="hljs-keyword">of</span> line, first unrecognized character <span class="hljs-built_in">is</span> `&#123;<span class="hljs-comment">'</span>
+</code></pre>
+<p><strong>原因</strong>：<code>riscv.h</code> 以 <code>#ifndef __ASSEMBLER__</code> 开头、以 <code>#endif</code> 结束；所有 C 代码必须位于守卫内部。若 <code>r_fp()</code> 被添加到文件末尾的 <code>#endif</code> 之后，而 <code>trampoline.S</code> 会 <code>#include "riscv.h"</code>，汇编器就会把 C 函数定义当成非法指令。</p>
+<p><strong>修正</strong>：将 <code>r_fp()</code> 移入守卫内部（例如 <code>sfence_vma()</code> 与 <code>typedef uint64 pte_t;</code> 之间）。宏（<code>PGSIZE</code>、<code>PGROUNDDOWN</code>）可以放在守卫外，因为预处理器会先行展开，汇编器看不到它们。</p>
+<p><strong>要点</strong>：头文件如果会被 <code>.S</code> 文件包含，C 声明必须放进 <code>#ifndef __ASSEMBLER__</code>。</p>
+<h4 data-id="heading-23">3. argaddr 的第二个参数是输出参数</h4>
+<p><strong>现象</strong>：</p>
+<pre><code class="hljs language-sql" lang="sql">kernel<span class="hljs-operator">/</span>sysproc.c:<span class="hljs-number">103</span>: error: passing argument <span class="hljs-number">2</span> <span class="hljs-keyword">of</span> <span class="hljs-string">'argaddr'</span> <span class="hljs-keyword">from</span>
+incompatible pointer type
+kernel<span class="hljs-operator">/</span>sysproc.c:<span class="hljs-number">111</span>: error: assignment <span class="hljs-keyword">to</span> <span class="hljs-string">'uint64'</span> <span class="hljs-keyword">from</span> <span class="hljs-string">'uint64 *'</span>
+makes <span class="hljs-type">integer</span> <span class="hljs-keyword">from</span> pointer <span class="hljs-keyword">without</span> a cast
+</code></pre>
+<p><strong>原因</strong>：</p>
+<pre><code class="hljs language-ini" lang="ini">uint64 *<span class="hljs-attr">handler</span> = <span class="hljs-number">0</span><span class="hljs-comment">;</span>
+argaddr(1, &amp;handler)<span class="hljs-comment">;     // &amp;handler 的类型是 uint64**</span>
+</code></pre>
+<p><code>argaddr</code> 的原型是 <code>void argaddr(int n, uint64 *ip)</code>，它会把用户传入的地址写入给定的 <code>uint64</code> 变量。</p>
+<p><strong>修正</strong>：</p>
+<pre><code class="hljs language-ini" lang="ini">uint64 <span class="hljs-attr">handler</span> = <span class="hljs-number">0</span><span class="hljs-comment">;</span>
+argaddr(1, &amp;handler)<span class="hljs-comment">;</span>
+</code></pre>
+<p><strong>要点</strong>：<code>argint</code> / <code>argaddr</code> 采用输出参数风格，传入的是存放结果的变量地址，而不是指针变量本身。</p>
+<h4 data-id="heading-24">4. sigalarm(0, 0) 是合法的关闭操作</h4>
+<p><strong>现象</strong>：<code>alarmtest</code> 运行到 test0 时内核 panic。</p>
+<p><strong>原因</strong>：在 <code>sys_sigalarm</code> 中加入了对参数合法性的过度检查：</p>
+<pre><code class="hljs language-scss" lang="scss">if (n &lt;= <span class="hljs-number">0</span> || handler &lt;= <span class="hljs-number">0</span>) &#123;
+    <span class="hljs-built_in">panic</span>("interval &lt;= <span class="hljs-number">0</span> or handler &lt;= <span class="hljs-number">0</span>\n");
+&#125;
+</code></pre>
+<p>test0 结尾会调用 <code>sigalarm(0, 0)</code> 关闭 alarm，<code>slow_handler</code> 中也会调用；同时 handler 地址本身也可能为 0。这两种情况都是合法输入。</p>
+<p><strong>修正</strong>：删除该检查。<code>interval = 0</code> 时，<code>usertrap</code> 中的 <code>interval &gt; 0</code> 判断自然不会触发。</p>
+<p><strong>要点</strong>：不要对合法的用户输入使用 panic；panic 是内核的最后手段，不是参数校验工具。</p>
+<h4 data-id="heading-25">5. tick 计数是每进程的，并且在两处需要重置</h4>
+<p><strong>现象</strong>：修改 alarm 间隔后，alarm 有时不再触发。</p>
+<p><strong>原因</strong>：<code>sigalarm</code> 只更新了 <code>interval</code>，没有清零 <code>ticks</code>。例如残留 <code>ticks = 1</code>，新 <code>interval = 1</code>，下一次 tick 后 <code>ticks = 2</code>，之后只会继续增大，<code>ticks == interval</code> 永远不会成立。</p>
+<p><strong>修正</strong>：<code>sigalarm</code> 中设置 <code>p-&gt;ticks = 0;</code>，触发时同样清零。计数必须使用进程私有字段，不能使用全局 <code>ticks</code>——其他进程运行的时间不应计入。</p>
+<p><strong>要点</strong>：计数器要在"设置时"和"触发时"两处重置；使用相等判断时，残留值会导致永久错过。</p>
+<h4 data-id="heading-26">6. sys_sigreturn 的返回值会覆盖恢复出的 a0</h4>
+<p><strong>现象</strong>：test3 失败，报 <code>a0 changed</code>。</p>
+<p><strong>原因</strong>：<code>sys_sigreturn</code> 已将保存的 trapframe 拷回，但它自身返回 0；而 <code>syscall()</code> 分发完成后会执行：</p>
+<pre><code class="hljs language-ini" lang="ini">p-&gt;trapframe-&gt;<span class="hljs-attr">a0</span> = syscalls[num]()<span class="hljs-comment">;</span>
+</code></pre>
+<p>恢复出的 a0 立即被覆盖。</p>
+<p><strong>修正</strong>：<code>return p-&gt;trapframe-&gt;a0;</code>，把恢复值作为系统调用的返回值返回。</p>
+<p><strong>要点</strong>：系统调用的返回值最终写入 <code>trapframe-&gt;a0</code>；恢复 a0 时，返回值必须等于恢复值。</p>
+<h4 data-id="heading-27">7. 备份必须发生在修改 epc 之前</h4>
+<p><strong>现象</strong>：handler 返回后没有回到被打断的代码，而是再次跳回 handler，形成循环。</p>
+<p><strong>原因</strong>：顺序错误：</p>
+<pre><code class="hljs language-rust" lang="rust">p<span class="hljs-punctuation">-&gt;</span>trapframe<span class="hljs-punctuation">-&gt;</span>epc = p<span class="hljs-punctuation">-&gt;</span>handler;   <span class="hljs-comment">// 先修改</span>
+p<span class="hljs-punctuation">-&gt;</span>saved_tf = *p<span class="hljs-punctuation">-&gt;</span>trapframe;      <span class="hljs-comment">// 后备份：备份中的 epc 已是 handler 地址</span>
+</code></pre>
+<p><strong>修正</strong>：先备份，再修改：</p>
+<pre><code class="hljs language-ini" lang="ini">p-&gt;<span class="hljs-attr">saved_tf</span> = *p-&gt;trapframe<span class="hljs-comment">;</span>
+p-&gt;trapframe-&gt;<span class="hljs-attr">epc</span> = p-&gt;handler<span class="hljs-comment">;</span>
+</code></pre>
+<p><strong>要点</strong>：备份保存的是"被打断那一刻"的现场，所有对 trapframe 的修改都必须发生在备份之后。</p>
+<h4 data-id="heading-28">附：概念误区</h4>
+<table><thead><tr><th>错误理解</th><th>正确理解</th></tr></thead><tbody><tr><td>使用全局 <code>ticks</code> 计算 alarm 周期</td><td>计数是每进程的，在 <code>usertrap</code> 的定时器分支递增；其他进程的时间不计入</td></tr><tr><td>保存 <code>p-&gt;trapframe</code> 指针作为备份</td><td>指针指向同一页，handler 期间每次系统调用都会覆盖它；必须进行结构体拷贝</td></tr><tr><td>用 handler 地址是否为 0 判断 alarm 是否启用</td><td>handler 可能位于地址 0；应使用 <code>interval == 0</code> 判断关闭</td></tr><tr><td>恢复时只拷贝 epc 和 a0</td><td>必须整体恢复 trapframe，<code>s0-s11</code> 等寄存器也要恢复，否则 test1 会出现 <code>i != j</code></td></tr></tbody></table>
+<h3 data-id="heading-29">五、总结</h3>
+<p>两个任务的机制可以各用一句话概括：</p>
+<ul>
+<li><strong>Backtrace</strong>：<code>fp-8</code> 是返回地址，<code>fp-16</code> 是上一帧 fp；<code>PGROUNDDOWN</code> 判断当前是否仍在同一个内核栈页；</li>
+<li><strong>Alarm</strong>：定时器到点先备份 trapframe、再修改 <code>epc</code>；<code>sigreturn</code> 整体恢复，并把恢复出的 a0 作为返回值。</li>
+</ul>
+<p>实现时最重要的三个原则：</p>
+<ol start="0">
+<li><strong>类型契约</strong>：extern 声明、函数指针数组、<code>argaddr</code> 的参数类型必须严格匹配；链接器不会做类型检查；</li>
+<li><strong>恢复的完整性</strong>：epc、a0、<code>s0-s11</code> 都要恢复，备份必须发生在任何修改之前；</li>
+<li><strong>状态与语义边界</strong>：<code>interval == 0</code> 表示关闭，handler 地址可以为 0，计数是每进程的且需要重置。</li>
+</ol>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="MIT 6.S081 操作系统工程：lab4-traps实验笔记" href="https://juejin.cn/post/7711249118694522880" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">MIT 6.S081 操作系统工程：lab4-traps实验笔记</span><span class="desc fs12">https://juejin.cn/post/7711249118694522880</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/9831ec72.html">Connected Intelligence for In-House Legal<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/6242a4fa.html">十年 Markdown 笔记，VNote 尚能饭否<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/49d11339.html" title="Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5797"></div><span class="title">Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面</span></a><a class="item" href="/rss/23c09a6d.html" title="CentOS 目录穿梭"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1894"></div><span class="title">CentOS 目录穿梭</span></a><a class="item" href="/rss/e8fc4120.html" title="Linux 终端（Terminal）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7624"></div><span class="title">Linux 终端（Terminal）</span></a><a class="item" href="/rss/a4aebfc4.html" title="SQL Server 2008 T-SQL 系统函数参考手册"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1636"></div><span class="title">SQL Server 2008 T-SQL 系统函数参考手册</span></a><a class="item" href="/rss/ddbf35cc.html" title="SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3656"></div><span class="title">SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）</span></a><a class="item" href="/rss/77c551a3.html" title="《潮水漫过十七岁》好久没写了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8594"></div><span class="title">《潮水漫过十七岁》好久没写了</span></a><a class="item" href="/rss/24f5f1ed.html" title="从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/65b49996c9f34b7f917129515f07de66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR6KaB5oiQ5Li6VHlwZVNjcmlwdOmrmOaJiw==:q75.awebp?rk3s=f64ab15b&x-expires=1796092950&x-signature=6rpYcQwwTMZN98zC%2B790gVgHvuE%3D"></div><span class="title">从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单</span></a><a class="item" href="/rss/c03d1945.html" title="使用场景不同，模型“推理速度慢”的原因也不同"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1796348889&x-signature=OUc7e%2Fi%2BYO6Wu23dEgH0g7iMAY0%3D"></div><span class="title">使用场景不同，模型“推理速度慢”的原因也不同</span></a><a class="item" href="/rss/554203e6.html" title="便宜又好用的模型，为什么越来越集中在闭源阵营？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9b9327524011445da09955f353d2e746~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1796176758&x-signature=YtqdbnEJuqh5G9Xhfy%2BtohB4jr4%3D"></div><span class="title">便宜又好用的模型，为什么越来越集中在闭源阵营？</span></a><a class="item" href="/rss/ad2f1c97.html" title="【维克】KDJ量化实战：如何用它判断买卖点？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/953bf6d18afb4013b04492a537f56405~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57u05YWL5YWc546H5aSp:q75.awebp?rk3s=f64ab15b&x-expires=1796067989&x-signature=3XaBmdpbRoZH4u3cc9UoCsD%2B7v8%3D"></div><span class="title">【维克】KDJ量化实战：如何用它判断买卖点？</span></a><a class="item" href="/rss/d7265482.html" title="多平台架构对比"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5423"></div><span class="title">多平台架构对比</span></a><a class="item" href="/rss/7fd72ad8.html" title="理解 JavaScript 对象、原型与包装类"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4161"></div><span class="title">理解 JavaScript 对象、原型与包装类</span></a><a class="item" href="/rss/d9aaee88.html" title="消息丢了、重复消费了，MQ 这套账该怎么算"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2781"></div><span class="title">消息丢了、重复消费了，MQ 这套账该怎么算</span></a><a class="item" href="/rss/a4f9bb9b.html" title="痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7c05b5c5d31640a6a179ac3239f0fe71~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVvYmVydGxhbg==:q75.awebp?rk3s=f64ab15b&x-expires=1795937722&x-signature=QGC2bkMeOkMYF%2Bwp15CyDx6IMEI%3D"></div><span class="title">痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

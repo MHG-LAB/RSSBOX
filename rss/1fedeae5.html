@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>Probing DNS at Cloudflare - RSSBOX</title>
+
+  
+    <meta name="description" content="Imagine this: you’ve just pushed a release. All the unit tests passed and your dashboards are green. You sit back to relax but then suddenly your phone starts blowing up: prod is broken.This is somet">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Probing DNS at Cloudflare">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/1fedeae5.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="Imagine this: you’ve just pushed a release. All the unit tests passed and your dashboards are green. You sit back to relax but then suddenly your phone starts blowing up: prod is broken.This is somet">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-23T14:00:00.000Z">
+<meta property="article:modified_time" content="2026-11-23T14:00:00.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="These Blogs">
+<meta property="article:tag" content="Cloudflare">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">A little background</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">What is Flamingo?</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Being delightful</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">Using Flamingo to probe DNS</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">Catching bugs (SLO and steady)</span></a></li><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">The road ahead</span></a></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/these-blogs/">These Blogs</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/these-blogs/cloudflare/">Cloudflare</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-23T14:00:00.000Z">2026-11-23</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>Probing DNS at Cloudflare</span></h1>
+<div>
+<p>Imagine this: you’ve just pushed a release. All the unit tests passed and your dashboards are green. You sit back to relax but then suddenly your phone starts blowing up: prod is broken.</p><p>This is something the Cloudflare DNS team has experienced firsthand. In one rollout of the service that publishes DNS records to our edge, a scheduling bug let some record changes sit unpublished for hours. The service stayed up and was healthy, but new hostnames were slow to resolve and certificates couldn't be issued until the bug was squashed.</p><p>DNS failures are hard to catch because they are slow, spread across the network, and partial in where they cause impact. We needed to figure out a way to test DNS the way customers experience it: constantly, from every data center, and against production.</p><p>For us, the answer was to extend Flamingo, the end-to-end testing framework we were already using to run hundreds of millions of tests a day against Cloudflare's edge. This post covers how Flamingo's modular design lets us add DNS support, how we measure propagation, and how those measurements now decide whether a release goes ahead or gets rolled back.</p><h2>A little background</h2><p>At Cloudflare we’re obsessed with improving performance and safety for our customers. It’s crucial that our code is tested constantly, both at scale and against the real Cloudflare edge that our users operate in. That’s one reason why we created a tool called Flamingo: to measure the behavior of our production environments and make sure that code in lower-tier environments behaves as expected.</p><p>We’ve <a target="_blank" rel="external nofollow noopener noreferrer" href="https://blog.cloudflare.com/20-percent-internet-upgrade/#step-2-testing-and-automated-rollouts"><span style="text-decoration:underline">already written</span></a> a little about how this tool has been used in the upgrades to our CDN stack. However, this is only a small portion of how we use Flamingo internally. One of the features of Flamingo is its modular architecture that enables teams to extend the capabilities of the tool to speak other networking protocols. In our case, we wanted to use these modular capabilities to test DNS.</p><h2>What is Flamingo?</h2><p>Testing is hard. Testing at scale, when you have a widely distributed system, is even harder. There are many complex pathways that requests take and multiple systems that each network request must traverse before making its way to the origin. Unit testing alone is not nearly enough for this. We need to run constant automated testing against real systems and measure the outcomes of those requests to make informed decisions on the health of a service.</p><p>Enter Flamingo. Originally built around complex multi-step HTTP testing, its capabilities and scope have increased substantially over the years. Flamingo is built from the ground up with Cloudflare’s infrastructure in mind. We built a control plane and scheduler that let teams target specific environments, data centers, or percentages of metals. We needed to integrate with custom reporting, metrics, and analytics tooling. Additionally, it needed to be a tool with predictable performance and run well on bare-metal servers in resource-constrained environments.</p><h3>Being delightful</h3><p>When we’re building internal tooling like this, we strive to create a delightful developer experience. Internal tooling should be as easy as possible to use, but also powerful enough to handle over 80% of all use cases. And in order for a new edge acceptance test framework to be successful, it needs to be built in such a way that it forces teams to follow common guidelines and build reusable scripts in an environment that is stable, scalable, and manages complexity.</p><p>One thing that is not delightful is debugging a test. If you allow a user to write tests in a traditional programming language, when their test fails they then both need to debug the upstream system being tested <strong>and </strong>the test itself. This is why we built Flamingo to use a custom domain-specific language (DSL) consisting of a simple setup-request-response format.</p><p>For example, let’s imagine that we want to make sure we are redirecting all unencrypted traffic to its encrypted counterpart.</p><pre><code>TEST test-redirect
+SET $hostname www.cloudflare.com
+
+<p>GET “http:&#x2F;&#x2F;$(hostname)&#x2F;“</p>
+<p>ASSERT STATUS IS 301<br>ASSERT HEADER Location IS “https:&#x2F;&#x2F;$(hostname)&#x2F;“</p></code></pre><p>Here we can see the power of the DSL. In five lines of code, we have a script that can run anywhere on Cloudflare’s edge and scale to thousands of requests per minute. We can take the data produced from the millions of data points generated from this and turn those into a graph defining how our service is actually performing in the real world.</p><p>Taking the setup-request-response test format from above and modifying it slightly allows us to use Flamingo for more than just HTTP testing. Instead of the middle step being a request, we can now look at it as an <strong>action</strong>. Now we’ve changed our system from something that makes HTTP requests into something that can perform any action for which we’d like to measure the outcome.</p><p>In Flamingo we call these <strong>modules</strong> and have put immense effort into making them as easy as possible for anyone to write. Flamingo is written in Rust, due to its consistent performance characteristics and strong type system. The type system in particular lends itself to this modularity, by allowing us to use strongly-typed enumerations for input and output in the Flamingo action runner:</p><pre><code>pub enum Action &#123;<br>  Query &#123;<br>    method: String,<br>    url: Expression,<br>    parameters: Vec&lt;http::QueryParameters&gt;,<br>  &#125;,<br>  DnsQuery &#123;<br>    query_name: Expression,<br>    query_type: Expression,<br>    parameters: Vec&lt;dns::DnsQueryParameters&gt;,<br>  &#125;,<br>&#125;<p></p>
+<p>pub enum ActionOutput &#123;<br>  Http(http::FetchResponse),<br>  Dns(dns::QueryResponse),<br>&#125;</p>
+<p>pub type ActionHandlerFunction = Arc&lt;<br>  dyn Fn(<br>      Action,<br>      Arc&lt;Ctx&gt;,<br>      InterpreterConfig,<br>    )<br>      -&gt; BoxFuture&lt;'static, Result&lt;ActionOutput&gt;&gt;<br>    + Send<br>    + Sync<br>    + 'static,<br>&gt;;</p>
+<p>pub type ActionHandlerLUT = Arc&lt;<br>  dyn Fn(&amp;Action) -&gt; ActionHandlerFunction<br>    + Send<br>    + Sync<br>    + 'static,<br>&gt;;</p></code></pre><p>What we’ve done here is decouple the logic for performing an action (in this case an HTTP request) into a dynamically dispatched function that we can then call independently of other actions. This leaves things like test scheduling and resource management as higher-level operations that someone implementing a module doesn’t need to worry about. All the author needs to focus on is the logic.</p><pre><code>pub async fn query(<br>  action: Action,<br>  ctx: Arc&lt;Ctx&gt;,<br>  cfg: InterpreterConfig,<br>) -&gt; Result&lt;ActionOutput&gt; &#123;<br>  let Action::Query &#123;<br>    method,<br>    url,<br>    parameters,<br>  &#125; = action<br>  else &#123;<br>    bail!("Invalid action for module-http::query: &#123;action:?&#125;");<br>  &#125;;<br>  ...<br>&#125;<p></p>
+<p>pub async fn execute_module&lt;F&gt;(<br>  ctx: Arc&lt;Ctx&gt;,<br>  cfg: &amp;InterpreterConfig,<br>  handler_lut: F,<br>) -&gt; Result&lt;ActionOutput&gt;<br>where<br>  F: (Fn(&amp;Action) -&gt; ActionHandlerFunction),<br>&#123;<br>  let func = handler_lut(action);<br>  let action_out = (func)(action.clone(), ctx.clone(), cfg.clone()).await?;<br>  ...<br>&#125;</p></code></pre><h3>Using Flamingo to probe DNS</h3><p>The adage says that when issues arise, <a target="_blank" rel="external nofollow noopener noreferrer" href="https://isitdns.com/"><span style="text-decoration:underline">it’s always DNS</span></a>. Like many jokes, there is always a kernel of truth behind it. DNS is an incredibly important piece of the Internet, and since it relies on a complex network of interconnected sources of truth, it can become easy for a single misstep to cause a storm of failures.</p><p>DNS can be a particularly finicky system due to its hierarchical nature. When you change a DNS record for a Cloudflare zone, for example, said record needs to be propagated to the authoritative servers such that the updated record becomes widely available. To reduce latency, records are stored in physically closer caches. These records have a time to live (TTL) associated with them that tells the local DNS cache how long before it needs to refetch that record from the authoritative server. Any delays will impact time-sensitive operations like certificate issuance and traffic failover.</p><p>We’ve already mentioned that we built Flamingo for extensibility. One of the first and most impactful modules in use today was built specifically for this use case. Our team was able to add code that extended Flamingo such that instead of sending HTTP requests, we send DNS queries. By doing so we got everything else for free. No need for the DNS team to worry about managing a new probing service. No need for them to have to integrate with our reporting pipelines. It all just worked.</p><p>To probe DNS, we measure how quickly customer record changes propagate to authoritative nameservers and the public resolver (1.1.1.1). The test continuously updates a TXT record with a timestamp and queries three authoritative nameserver IPs and 1.1.1.1 from every data center, asserting freshness within 90s (authoritative) and 600s (resolver).</p><pre><code>TEST test-propagation-delay-direct-108-162-193-62<br>MOD dns<p></p>
+<p>SET $hostname "some.probe.domain"<br>SET $authNs 108.162.193.62:53 # amir.ns.cloudflare.com</p>
+<p>QUERY $hostname TXT<br>TARGET $authNs</p>
+<p>ASSERT DNS.RCODE IS NOERROR<br>ASSERT DNS.FLAGS CONTAINS AA<br>ASSERT DNS.ANSWERS[0] GT SUBTRACT(TIMESTAMP(), "90")</p></code></pre><h2>Catching bugs (SLO and steady)</h2><p>To ensure that our many systems are operating within expectations, we define what are called service-level objectives (SLOs) for observing things like availability or latency. SLOs are a percentage of some metric that is used as a target. Additionally, SLOs are measured through service-level indicators (SLIs) which are the actual series of measurements focused on the end-to-end experience that a user has when interacting with a system.</p><p>By constantly sending synthetic Flamingo traffic through our production systems, we can begin to then use that information to build a picture of what our actual end users are experiencing — and provide that data for our SLOs. When that synthetic traffic encounters issues then we can be pretty confident that Cloudflare customers are also hitting issues and triage accordingly.</p><!-- unsupported block: image --><p>Once we have this information, it allows us to make informed decisions when releasing a service. SLOs operate in terms of error budgets and burn rates. An error budget is the percentage of downtime that a service is willing to tolerate while the burn rate is the rate of change in that budget at any given time. This allows for an automated system to understand the severity of an issue. For example, burning 10% of your error budget over a three-day period might be some long running issue that, while not urgent, is affecting customers and needs to be dealt with. But if you were to burn 10% of your error budget within an hour, that means an incident is occurring and customer impact will be substantial if not fixed immediately.</p><p>Using these numbers, we can look at our SLOs while deploying and make informed decisions on the health of a service. Based on that information, we can tell our releasing systems to either promote a change or roll it back.</p><!-- unsupported block: image --><h2>The road ahead</h2><p>By moving DNS monitoring to Flamingo, we’ve created a system that can proactively detect DNS issues before they have the chance to spread to the rest of Cloudflare’s edge. If Flamingo detects a spike in propagation latency in a specific canary data center, we can automatically halt the rollout of a new software version before it impacts the rest of the Internet.</p><p>DNS is just the start for extending Flamingo. We currently have modules for testing TCP, UDP, WebSockets, and several more. Having a tool for quickly testing and monitoring services has enabled teams to deploy large changes safely without the need for a human to keep a constant watch.</p><p>If this kind of reliability engineering interests you, check out our <a target="_blank" rel="external nofollow noopener noreferrer" href="https://cloudflare.com/careers"><span style="text-decoration:underline">careers page</span></a> for open roles.</p><!-- unsupported block: image --><p></p><p></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="Probing DNS at Cloudflare" href="https://blog.cloudflare.com/probing-dns-at-cloudflare/" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">Probing DNS at Cloudflare</span><span class="desc fs12">https://blog.cloudflare.com/probing-dns-at-cloudflare/</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/6510a389.html">Ladybird's First Alpha Release<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/822695e1.html">GLM-5.4: Toward Generalized Coding With Our First Loop Transformer<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/68ffd7a2.html" title="Adapting to AI Penetration Testing Orchestrators: The Modern Security Model"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2057"></div><span class="title">Adapting to AI Penetration Testing Orchestrators: The Modern Security Model</span></a><a class="item" href="/rss/669dcd77.html" title="An Updated Clairic and Clairic-Flash Are Now Open-Weight, From the New Workers AI Superintelligence Team"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3460"></div><span class="title">An Updated Clairic and Clairic-Flash Are Now Open-Weight, From the New Workers AI Superintelligence Team</span></a><a class="item" href="/rss/c175c4aa.html" title="Choosing QuePaxa, an Unusual Consensus Algorithm"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6626"></div><span class="title">Choosing QuePaxa, an Unusual Consensus Algorithm</span></a><a class="item" href="/rss/b0437125.html" title="How Cloudflare WAF Helps Protect Against Java4Shell (CVE-2026-114938)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1571"></div><span class="title">How Cloudflare WAF Helps Protect Against Java4Shell (CVE-2026-114938)</span></a><a class="item" href="/rss/6c5eaa73.html" title="How Cloudflare WAF Helps Protect Against phpAfterShell and Other Critical PHP Flaws"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=6355"></div><span class="title">How Cloudflare WAF Helps Protect Against phpAfterShell and Other Critical PHP Flaws</span></a><a class="item" href="/rss/ef02825f.html" title="How Cloudflare WAF Protects Against Ruby2shell (CVE-2026-132825)"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1857"></div><span class="title">How Cloudflare WAF Protects Against Ruby2shell (CVE-2026-132825)</span></a><a class="item" href="/rss/dd2980cd.html" title="Internet Traffic and Attacks During the 2026 U.S. Midterm Elections"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4037"></div><span class="title">Internet Traffic and Attacks During the 2026 U.S. Midterm Elections</span></a><a class="item" href="/rss/58317c7d.html" title="Introducing Spend Management: Spending Limits and Alerts for Cloudflare"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7077"></div><span class="title">Introducing Spend Management: Spending Limits and Alerts for Cloudflare</span></a><a class="item" href="/rss/3f145c34.html" title="Kitesurf Is Now Open Source"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5147"></div><span class="title">Kitesurf Is Now Open Source</span></a><a class="item" href="/rss/f7baacac.html" title="Introducing Search for Agents"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1922"></div><span class="title">Introducing Search for Agents</span></a><a class="item" href="/rss/9af68da4.html" title="Launching the Vite Ecosystem Fund"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8155"></div><span class="title">Launching the Vite Ecosystem Fund</span></a><a class="item" href="/rss/8f9d2e8a.html" title="Quad9’s Withdrawal From France: A Canary in the Coal Mine"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7246"></div><span class="title">Quad9’s Withdrawal From France: A Canary in the Coal Mine</span></a><a class="item" href="/rss/6dfd21f1.html" title="The Post-Quantum Future of Web Privacy"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3285"></div><span class="title">The Post-Quantum Future of Web Privacy</span></a><a class="item" href="/rss/dfea132.html" title="Nginx2root: Five New Nginx Vulnerabilities, and How Cloudflare Protects Origins From the Worst of Them"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2297"></div><span class="title">Nginx2root: Five New Nginx Vulnerabilities, and How Cloudflare Protects Origins From the Worst of Them</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

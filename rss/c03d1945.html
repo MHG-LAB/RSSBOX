@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>使用场景不同，模型“推理速度慢”的原因也不同 - RSSBOX</title>
+
+  
+    <meta name="description" content="**编者按：**你有没有想过，为什么明明模型参数越来越大、算力越来越强，但大模型的响应速度却似乎始终跟不上我们的耐心消耗速度？ 文章从底层机制出发，清晰地拆解了推理过程的两大阶段：Prefill阶段受限于计算吞吐量，负责并行处理输入提示词；Decode阶段则受限于内存带宽，逐个自回归地生成输出token。作者以一个7B模型在A100上的真实案例为锚点，通过四种典型场景（短提示词、中等长度、长上">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用场景不同，模型“推理速度慢”的原因也不同">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/c03d1945.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="**编者按：**你有没有想过，为什么明明模型参数越来越大、算力越来越强，但大模型的响应速度却似乎始终跟不上我们的耐心消耗速度？ 文章从底层机制出发，清晰地拆解了推理过程的两大阶段：Prefill阶段受限于计算吞吐量，负责并行处理输入提示词；Decode阶段则受限于内存带宽，逐个自回归地生成输出token。作者以一个7B模型在A100上的真实案例为锚点，通过四种典型场景（短提示词、中等长度、长上">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=OUc7e%2Fi%2BYO6Wu23dEgH0g7iMAY0%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a1b194f080b04c488eab07f6c9fc8e01~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=b4CmRQOMwO3j18fgwsirve3ZxjE%3D">
+<meta property="og:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/20bf0b479e234b2d9adeb5c427e44997~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=iOK20By2yzCloslqiAOno%2F1G%2F38%3D">
+<meta property="article:published_time" content="2026-11-20T01:48:32.000Z">
+<meta property="article:modified_time" content="2026-11-20T01:48:32.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=OUc7e%2Fi%2BYO6Wu23dEgH0g7iMAY0%3D">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+
+<div class="widget-wrap" id="recent"><div class="widget-header cap dis-select"><span class="name">最近更新</span><a class="cap-action" id="rss" title="Subscribe" href="/atom.xml"><svg class="icon" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="8938"><path d="M800.966 947.251c0-404.522-320.872-732.448-716.69-732.448V62.785c477.972 0 865.44 395.987 865.44 884.466h-148.75z m-162.273 0h-148.74c0-228.98-181.628-414.598-405.678-414.598v-152.01c306.205 0 554.418 253.68 554.418 566.608z m-446.24-221.12c59.748 0 108.189 49.503 108.189 110.557 0 61.063-48.44 110.563-108.188 110.563-59.747 0-108.18-49.5-108.18-110.563 0-61.054 48.433-110.556 108.18-110.556z" p-id="8939"/></svg></a></div><div class="widget-body fs14"><div class="more-item"><a class="title" href="/rss/84f07794.html">探索语言科学交叉创新 上海交大携手香港理工大学成立语言科学联合研究院</a></div><div class="more-item"><a class="title" href="/rss/ab94b5cf.html">邂逅中国 爱上中国｜指尖捏万象，肯尼亚留学生近距离触摸古老非遗“新脉搏</a></div><div class="more-item"><a class="title" href="/rss/9626cdf8.html">与产业深度融合 江西省第二届高层次人才创新创业大赛举行</a></div><div class="more-item"><a class="title" href="/rss/b15a20b2.html">日本长崎核爆资料馆启动把南京大屠杀改称“南京事件”</a></div><div class="more-item"><a class="title" href="/rss/485af0eb.html">日本多方呼吁坚持“无核三原则”：绝不能重蹈历史覆辙</a></div></div></div>
+
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-20T01:48:32.000Z">2026-11-20</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>使用场景不同，模型“推理速度慢”的原因也不同</span></h1>
+<div>
+<blockquote>
+<p>**编者按：**你有没有想过，为什么明明模型参数越来越大、算力越来越强，但大模型的响应速度却似乎始终跟不上我们的耐心消耗速度？</p>
+<p>文章从底层机制出发，清晰地拆解了推理过程的两大阶段：Prefill阶段受限于计算吞吐量，负责并行处理输入提示词；Decode阶段则受限于内存带宽，逐个自回归地生成输出token。作者以一个7B模型在A100上的真实案例为锚点，通过四种典型场景（短提示词、中等长度、长上下文、超长上下文）的精确计算，揭示了令人反直觉的结论——当输入token达到约5000个时，系统会从“Decode主导”切换为“Prefill主导”，此时用户等待第一个token输出的时间将远超后续生成时间。文章进一步给出了针对性的优化路径：短提示词场景应聚焦投机解码与降低内核开销，长上下文场景则需提升Attention计算效率、采用FlashAttention及上下文压缩。</p>
+</blockquote>
+<p><strong>作者 | Abi Aryan</strong></p>
+<p><strong>编译 | 岳扬</strong></p>
+<p>你就把这当成一篇博客随笔，或者深夜的牢骚吧。在 2025 年下半年，我为了写论文（目前还在推进中）一直在做分布式系统相关的研究。<strong>在梳理文献的过程中，我发现并行与分布式系统领域（尤其是计算机体系结构方向）的大量论文都出自纯学术界，而非工业界。</strong> 这太离谱了（要知道 90 年代这个比例大概是 40%），这也恰恰说明，这个领域的信息生态已经变得多么割裂。</p>
+<p>尽管 ISCA、MICRO、HPCA、ASPLOS 和 Hot Chips 这些顶会依然有工业界持续投稿，但 MLSys 和 NeurIPS 与当下推动 LLM Inferencing 瓶颈突破的那些工作之间，仍然显得有些脱节和割裂。</p>
+<p>过去几个月里，在各种讨论中有一个观点越来越明确：LLM Inference 将是未来五年面临的一大危机。无论我们对 transformer 架构进行改进（比如引入 MoE 或 MLA），还是彻底抛弃 transformer 转向全新的方案，有一点始终不会变。那就是——</p>
+<p><strong><strong>推理，将是可预见的未来里最亟待攻克的核心难题之一。</strong></strong></p>
+<p>为什么呢？因为你终究得把结果输出给用户，如果系统不能针对实时响应做好优化，用户流失就是分分钟的事。现代人的注意力和耐心本就所剩无几，再过五年，大家的耐心估计连猫都不如。扯远了，这又是另一个话题了。但言归正传，核心结论是：我们再也回不到那个等模型吐出一个结果需要苦苦煎熬的时代了。我们想要的响应时间是微秒级，而不只是毫秒级。</p>
+<p>我整理了一份包含十篇论文的清单，想推荐给所有对推理（Inferencing）感兴趣的人。但老实说，其中大部分论文不过是那些明星实验室发出的无病呻吟，他们哪怕只是说句“太阳打东边升起”，大家也会当成当天的头条新闻来听。最关键的是，除了用一些实验去证明那些显而易见的事实外，它们并没有带来什么实质性的贡献，顶多算是提供了一些通信层面的研究思路罢了。</p>
+<p><strong>更重要的是，推理优化绝不仅仅是一个研究课题，如果不解决这个问题，AI/ML 行业根本无法实现规模化扩展。</strong> 我很反感夸大其词，但如果我说“它是下一个和氧气一样重要的东西”，那也不算撒谎。没错，问题就有这么严重。</p>
+<p>为什么呢？有以下几个主要原因：</p>
+<p>1）MoE 架构。<strong>它虽然不会大幅增加训练成本，但却通过拉大内存和通信开销让推理变得十分困难。</strong></p>
+<p>2）推理模型。<strong>并行探索（Parallel explorations）不仅会增加生成延迟，同时也会影响吞吐量。</strong></p>
+<p>3）多模态模型。<strong>与纯文本生成相比，多模态场景下，那些比纯文本“体量更大、结构更复杂”的输入数据形式需要消耗更多的算力和内存。</strong></p>
+<p>4）长上下文、RAG 和 KGs。这很明显，对吧？<strong>长上下文自然需要消耗更多的算力和内存。</strong></p>
+<p>还记得我 2 月 2 日在那场 Maven 闪电演讲[1]中提到过，为什么 Decode（解码阶段）是受内存限制的吗。提示一下：Decode 每次只生成一个 token，并且是自回归的。而且，生成每个 token 都需要读取两样东西 —— 1. 权重和 2. KV cache。因此：</p>
+<p><strong><strong>Tokens Per Second (TPS) ≈ HBM Bandwidth / (Model Size + KV Cache Size per token).</strong></strong></p>
+<p><strong>每秒生成 token 数 (TPS) ≈ HBM 带宽 / （模型大小 + 每个 token 的 KV 缓存大小）</strong></p>
+<p>另外，输出越长，延迟就越高。除非我们用之前提到的一些技术同时对 prefill（预填充）和 decode 进行优化，否则这必然会拉高每个应用的端到端延迟。这些内容后续课程里也会涵盖。</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=OUc7e%2Fi%2BYO6Wu23dEgH0g7iMAY0%3D"></p>
+<p>但今天，我想教大家一个非常基础的东西 —— 如何理解 LLM 的延迟。</p>
+<p>具体来说，Prefill（预填充）和 Decode（解码）阶段的瓶颈在于不同的硬件资源：<strong>Prefill 受限于计算吞吐量，而 Decode 受限于内存带宽。</strong></p>
+<p>因此，粗略地说，模型推理的成本可以总结为 = 输入长度 × 模型大小。这大家都知道，对吧？但在 decode 阶段，成本是随着输出长度增长的。所以，每个 token 的延迟可以总结为 ——</p>
+<p><strong><strong>Total Latency ≈ Prefill(input_tokens) + Decode(output_tokens)</strong></strong></p>
+<p><strong>总延迟 ≈ 预填充阶段(输入token数) + 解码阶段(输出token数)</strong></p>
+<p>乍看可能简单得很，但落到实际运行里，这里面弯弯绕绕可不少。</p>
+<p><strong>对于短 prompt → decode 延迟会盖过一切。</strong></p>
+<p><strong>但对于长 prompt → prefill 阶段的成本直接碾压 decode 阶段的开销。</strong></p>
+<p>让我试着用一个真实的案例来给你讲明白。</p>
+<p>假设你现在有</p>
+<ul>
+<li>
+<p>模型：一个采用标准注意力机制和 KV cache 的 7B 稠密 Transformer</p>
+</li>
+<li>
+<p>硬件：单张 A100 级别的 GPU，Batch Size = 1</p>
+</li>
+<li>
+<p>并且没有排队或网络开销</p>
+</li>
+<li>
+<p>且你的输入 token 长度 = 1,000（是 token 而不是单词）</p>
+</li>
+</ul>
+<p>接下来发生的事情是，模型会对这 1000 个 token 全部进行嵌入，并跑完所有的 Transformer 层。这也就意味着要为每个 token 计算 Q、K、V，对吧？</p>
+<p>因此，注意力机制会在 1000 x 1000 的规模上运行，同时 KV Cache 会被存下来供后续解码使用。</p>
+<p>这是一个高度并行的、单次前向传播的例子。根据经验数据，对于 7B 模型，Prefill 吞吐量 ≈ 5,000 tokens/sec</p>
+<p>所以，你的 Prefill 延迟将会是：Prefill(input_tokens= 1,000) = 1,000 / 5,000 = 0.2 seconds = 200 ms</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/a1b194f080b04c488eab07f6c9fc8e01~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=b4CmRQOMwO3j18fgwsirve3ZxjE%3D"></p>
+<p>现在，一旦 prefill 完成，也就是生成阶段（也叫 Decode）就要开始了，</p>
+<p><img class="lazy" alt="image.png" loading="lazy" referrerpolicy="no-referrer" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/20bf0b479e234b2d9adeb5c427e44997~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&amp;x-expires=1796348889&amp;x-signature=iOK20By2yzCloslqiAOno%2F1G%2F38%3D"></p>
+<p>所以，对于每一个输出的 token，只有这一个 token 会经过模型。在这样的硬件上跑 7B 模型，在 1k 左右的上下文下 Decode 速度 ≈ 100 tokens/sec。这意味着，你的平均 Decode 时间 = 每个 token 约 10 ms。</p>
+<p>那么，生成 100 个 token 时，Decode 延迟将会是 = 生成的 Tokens 数 x 平均 Decode 耗时 = 100 x 10 ms = 1,000 ms = 1s</p>
+<p>是不是挺简单的？现在，让我们来看看这几种典型情况。</p>
+<p><strong>情况 1. 你的提示词很短</strong></p>
+<p>假设输入的 token 长度为 100。</p>
+<p>那么，你的</p>
+<p>Prefill 延迟 = 输入的 Token 长度 / Prefill 吞吐量 = 100 / 5,000 = 20 ms</p>
+<p>&amp;</p>
+<p>Decode 延迟 = 输入的 Token 长度 x 平均 Decode 耗时 = 100 x 10 ms = 1000 ms</p>
+<p>模型总延迟 = T_prefill(L_in) + T_decode(L_out) = 20 ms + 1000 ms = 1020 ms</p>
+<p>这就意味着，</p>
+<p>Prefill 时间占比 20x100/1020 ~ 2%，Decode 时间占比 1000X100/1020 ~ 98%</p>
+<p>这说明你的模型是 **Decode-dominant（解码阶段主导型）**的。也就是说：</p>
+<p>你在读取提示词上几乎没花什么时间，全在干等 token 一个个吐出来。</p>
+<p><strong>情况 2. 假设你有一个中等长度的提示词</strong></p>
+<p>对于这种情况，假设你输入的 token 长度是 1000。</p>
+<p>那么，你的 Prefill 延迟 = 1,000 / 5,000 = 200 ms</p>
+<p>而你的 Decode 延迟 = 100 X 10 ms = 1000 ms = 1 s</p>
+<p>你可能会纳闷，难道不应该是 1000x10ms 吗？——其实不然，decode 延迟取决于输出的 token 数量，而不是输入 token 数。所以，输入长度影响的是 prefill，而你的输出长度是不变的，除非你手动去增加它。</p>
+<p>这就意味着，由于 KV cache 的存在，每个 token 的 decode 时间大致上总是大致恒定的（摊销后）。因此，</p>
+<p>Prefill = L_input / Prefill 吞吐量 &amp; Decode = L_output x 平均 Decode 耗时 (per token)</p>
+<p>模型总延迟 = T_prefill(L_in) + T_decode(L_out) = 200 ms + 1000 ms = 1200 ms</p>
+<p>Prefill 时间占比 200x100/1200 ~ 17%，Decode 时间占比 1000X100/1200 ~ 83%</p>
+<p>这说明你的模型仍然是 <strong>Decode-dominant（解码阶段主导型）</strong> 的，但 prefill 的时间已经肉眼可见了。</p>
+<p>现在，我们来看看</p>
+<p><strong>情况 3. 当你的 prefill 和 decode 时间大致相当时</strong></p>
+<p>即 T_prefill(L_in) ≈ T_decode = 1 s</p>
+<p>当你输入的 token 长度在 5000 个左右时就会出现这种情况</p>
+<p>所以，你的 Prefill 延迟 = 5,000 / 5,000 = 1 s</p>
+<p>而你的 Decode 延迟 = 100 X 10 ms = 1000 ms = 1s</p>
+<p>模型总延迟 = T_prefill(L_in) + T_decode(L_out) = 1s + 1s = 2s</p>
+<p>这便是转折点，此时</p>
+<p><strong>Prefill 时间占比 1x100/2 ~ 50%，解码时间占比 1X100/2 ~ 50%</strong></p>
+<p>最后，</p>
+<p><strong>情况 4. 当你有一个超长提示词，也就是超长上下文窗口时</strong></p>
+<p>假设你输入的 token 长度是 10,000 个。</p>
+<p>那么，Prefill 延迟 = 10,000 / 5,000 = 2.0 s</p>
+<p>而你的 Decode 延迟 = 100 X 10 ms = 1000 ms = 1s</p>
+<p>模型总延迟 = T_prefill(L_in) + T_decode(L_out) = 2s + 1s = 3s</p>
+<p>Prefill 时间占比 2x100/3 ~ 67%，Decode 时间占比 1X100/3 ~ 33%</p>
+<p>这说明你的模型变成了 **Prefill-dominant（预填充阶段主导型）**的。也就是说：</p>
+<p>在第一个 token 冒出来之前，你绝大部分的时间都花在读取提示词上了。</p>
+<p><strong>TLDR;</strong></p>
+<p>你的 Decode 阶段耗时 = 10 ms × 100 tokens = 1 秒</p>
+<p>在这个阶段，既没有并行计算，也无法用任何手段隐藏延迟。</p>
+<p>在 1 秒的延迟下，用户能真切地“感受”到每一个 token 的生成。还记得咱们前面说的耐心吗？</p>
+<p>这就是为什么短 prompt 依然让人觉得慢。所以你的优化方向是：</p>
+<ul>
+<li>
+<p>投机解码（Speculative decoding）（把需要逐个生成的 token 从 100 个砍到 30 个）</p>
+</li>
+<li>
+<p>降低 Kernel 启动开销</p>
+</li>
+<li>
+<p>提高时钟频率，换用更低延迟的内存</p>
+</li>
+</ul>
+<p>哪怕每个 token 只省下 2 ms：100 × (10 − 8) ms = 200 ms 的总节省</p>
+<p>这种用户感知上的耗时减少会非常明显。</p>
+<p>而到了长上下文窗口中，也就是 Prefill-dominant 模式下，你的瓶颈就来自 L_in / 5000，所以优化重点变成：</p>
+<ul>
+<li>
+<p>提升 Attention 机制的计算效率</p>
+</li>
+<li>
+<p>采用 FlashAttention</p>
+</li>
+<li>
+<p>上下文压缩</p>
+</li>
+<li>
+<p>提高 FLOPs 利用率</p>
+</li>
+</ul>
+<p>在 10k tokens 的输入下，哪怕只优化掉 20% 的 prefill 时间：2.0 s → 1.6 s</p>
+<p>这是在生成第一个 token 之前就能取得的巨大收益。</p>
+<p><strong>END</strong></p>
+<p><strong>本期互动内容 🍻</strong></p>
+<p><strong>❓等 AI 开始说话（Prefill）和听它一个字一个字往外蹦（Decode），哪种延迟更让你抓狂？在你们现在做的产品里，哪个才是真正的瓶颈？</strong></p>
+<p><strong>文中链接</strong></p>
+<p>[1]<a href="https://link.juejin.cn/?target=https%3A%2F%2Fmaven.com%2Fp%2F52b7f0%2Fwhat-happens-when-you-make-an-llm-call" ref="nofollow noopener noreferrer" target="_blank" title="https://maven.com/p/52b7f0/what-happens-when-you-make-an-llm-call" rel="external nofollow noopener noreferrer">maven.com/p/52b7f0/wh…</a></p>
+<p><strong><strong>本文经原作者授权，由</strong> <strong>Baihai IDP</strong> <strong>编译。如需转载译文，请联系获取授权。</strong></strong></p>
+<p><strong>原文链接：</strong></p>
+<p><a href="https://link.juejin.cn/?target=https%3A%2F%2Fmodelcraft.substack.com%2Fp%2Fthe-real-reason-llms-feel-slow" ref="nofollow noopener noreferrer" target="_blank" title="https://modelcraft.substack.com/p/the-real-reason-llms-feel-slow" rel="external nofollow noopener noreferrer">modelcraft.substack.com/p/the-real-…</a></p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="使用场景不同，模型“推理速度慢”的原因也不同" href="https://juejin.cn/post/7709761919902171170" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">使用场景不同，模型“推理速度慢”的原因也不同</span><span class="desc fs12">https://juejin.cn/post/7709761919902171170</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/64a0e5f1.html">从源码到第一关：在 Apple 芯片 Mac 上重访 1995 年的《Tyrian》<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/dfea132.html">Nginx2root: Five New Nginx Vulnerabilities, and How Cloudflare Protects Origins From the Worst of Them<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/49d11339.html" title="Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5797"></div><span class="title">Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面</span></a><a class="item" href="/rss/23c09a6d.html" title="CentOS 目录穿梭"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1894"></div><span class="title">CentOS 目录穿梭</span></a><a class="item" href="/rss/e8fc4120.html" title="Linux 终端（Terminal）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7624"></div><span class="title">Linux 终端（Terminal）</span></a><a class="item" href="/rss/a4aebfc4.html" title="SQL Server 2008 T-SQL 系统函数参考手册"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1636"></div><span class="title">SQL Server 2008 T-SQL 系统函数参考手册</span></a><a class="item" href="/rss/c52712e7.html" title="MIT 6.S081 操作系统工程：Lab4-Traps实验笔记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/98d45f40336a41038d5eddb9fe6d7fc2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&x-expires=1796043376&x-signature=foLw49zMlKhwYQVxcScaTXC7j9s%3D"></div><span class="title">MIT 6.S081 操作系统工程：Lab4-Traps实验笔记</span></a><a class="item" href="/rss/ddbf35cc.html" title="SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3656"></div><span class="title">SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）</span></a><a class="item" href="/rss/77c551a3.html" title="《潮水漫过十七岁》好久没写了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8594"></div><span class="title">《潮水漫过十七岁》好久没写了</span></a><a class="item" href="/rss/24f5f1ed.html" title="从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/65b49996c9f34b7f917129515f07de66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR6KaB5oiQ5Li6VHlwZVNjcmlwdOmrmOaJiw==:q75.awebp?rk3s=f64ab15b&x-expires=1796092950&x-signature=6rpYcQwwTMZN98zC%2B790gVgHvuE%3D"></div><span class="title">从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单</span></a><a class="item" href="/rss/554203e6.html" title="便宜又好用的模型，为什么越来越集中在闭源阵营？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9b9327524011445da09955f353d2e746~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1796176758&x-signature=YtqdbnEJuqh5G9Xhfy%2BtohB4jr4%3D"></div><span class="title">便宜又好用的模型，为什么越来越集中在闭源阵营？</span></a><a class="item" href="/rss/ad2f1c97.html" title="【维克】KDJ量化实战：如何用它判断买卖点？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/953bf6d18afb4013b04492a537f56405~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57u05YWL5YWc546H5aSp:q75.awebp?rk3s=f64ab15b&x-expires=1796067989&x-signature=3XaBmdpbRoZH4u3cc9UoCsD%2B7v8%3D"></div><span class="title">【维克】KDJ量化实战：如何用它判断买卖点？</span></a><a class="item" href="/rss/d7265482.html" title="多平台架构对比"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5423"></div><span class="title">多平台架构对比</span></a><a class="item" href="/rss/7fd72ad8.html" title="理解 JavaScript 对象、原型与包装类"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=4161"></div><span class="title">理解 JavaScript 对象、原型与包装类</span></a><a class="item" href="/rss/d9aaee88.html" title="消息丢了、重复消费了，MQ 这套账该怎么算"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2781"></div><span class="title">消息丢了、重复消费了，MQ 这套账该怎么算</span></a><a class="item" href="/rss/a4f9bb9b.html" title="痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7c05b5c5d31640a6a179ac3239f0fe71~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVvYmVydGxhbg==:q75.awebp?rk3s=f64ab15b&x-expires=1795937722&x-signature=QGC2bkMeOkMYF%2Bwp15CyDx6IMEI%3D"></div><span class="title">痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>

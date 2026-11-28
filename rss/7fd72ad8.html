@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta name="generator" content="Hexo 6.3.0">
+  <meta charset="utf-8">
+  
+
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://fastly.jsdelivr.net">
+  <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin>
+  <link rel="dns-prefetch" href="//unpkg.com">
+
+  <meta name="renderer" content="webkit">
+  <meta name="force-rendering" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+  <meta name="HandheldFriendly" content="True">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#f8f8f8">
+  <title>理解 JavaScript 对象、原型与包装类 - RSSBOX</title>
+
+  
+    <meta name="description" content="理解 JavaScript 对象、原型与包装类 前言 前面我们学习了作用域链、闭包、执行上下文。而对象、原型 prototype &#x2F; __proto__、包装类就是建立在 JS 对象机制之上的核心知识点。很多人分不清显式原型和隐式原型，也搞不懂原始值为什么调用方法时 V8 会自动 new，本文顺着对象创建的逻辑，把数据类型、构造函数、原型查找、包装类串起来。 一、JS 数据类型 JS 里常说万物">
+<meta property="og:type" content="article">
+<meta property="og:title" content="理解 JavaScript 对象、原型与包装类">
+<meta property="og:url" content="https://rssbox.mhuig.top/rss/7fd72ad8.html">
+<meta property="og:site_name" content="RSSBOX">
+<meta property="og:description" content="理解 JavaScript 对象、原型与包装类 前言 前面我们学习了作用域链、闭包、执行上下文。而对象、原型 prototype &#x2F; __proto__、包装类就是建立在 JS 对象机制之上的核心知识点。很多人分不清显式原型和隐式原型，也搞不懂原始值为什么调用方法时 V8 会自动 new，本文顺着对象创建的逻辑，把数据类型、构造函数、原型查找、包装类串起来。 一、JS 数据类型 JS 里常说万物">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-11-20T09:48:07.000Z">
+<meta property="article:modified_time" content="2026-11-20T09:48:07.000Z">
+<meta property="article:author" content="MHuiG">
+<meta property="article:tag" content="媒体">
+<meta property="article:tag" content="掘金">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+
+  <!-- feed -->
+  
+    <link rel="alternate" href="/atom.xml" title="RSSBOX" type="application/atom+xml">
+  
+
+  
+    
+<link rel="stylesheet" href="/css/main.css">
+
+  
+
+  
+
+  
+
+  
+
+
+  
+</head>
+
+<body>
+  
+
+
+
+
+  <div class="l_body" id="start">
+    <aside class="l_left" layout="post">
+    
+
+
+<header class="header">
+
+<div class="logo-wrap"><a class="avatar" target="_blank" rel="noopener" href="https://mhuig.top/"><div class="bg" style="opacity:0;background-image:url(https://static.mhuig.top/gh/cdn-x/placeholder@1.0.2/avatar/round/rainbow64@3x.webp);"></div><img no-lazy class="avatar" src="/avatar.png" onerror="javascript:this.classList.add('error');this.src='https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/image/2659360.svg';"></a><a class="title" href="/"><div class="main">RSSBOX</div><div class="sub normal cap">MHuiGのRSS订阅</div><div class="sub hover cap" style="opacity:0">rssbox.mhuig.top</div></a></div>
+<nav class="menu dis-select"><a class="nav-item active" href="/">RSS</a><a class="nav-item" target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a class="nav-item" target="_blank" rel="noopener" href="https://mhuig.top/">关于</a></nav></header>
+
+<div class="widgets">
+
+<div class="widget-wrap single" id="toc"><div class="widget-header cap dis-select"><span class="name">本文目录</span></div><div class="widget-body fs14"><div class="doc-tree active"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link"><span class="toc-text">理解 JavaScript 对象、原型与包装类</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">一、JS 数据类型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">二、构造函数，批量创建对象实例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">三、prototype（显式原型）与 proto（隐式原型）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">四、包装类</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">五、常见问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link"><span class="toc-text">总结</span></a></li></ol></li></ol></div></div></div>
+
+
+</div>
+<footer class="footer dis-select"><div class="social-wrap"><a class="social" href="https://github.com/MHuiG" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/08a41b181ce68.svg"></a><a class="social" href="https://music.163.com/#/user/home?id=63035382" target="_blank" rel="external nofollow noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/3845874.svg"></a><a class="social" href="/contact/" rel="noopener noreferrer"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.3/social/a1b00e20f425d.svg"></a></div></footer>
+
+    </aside>
+    <div class="l_main">
+      
+
+      
+
+
+<div class="bread-nav fs12"><div id="breadcrumb"><a class="cap breadcrumb" href="/">主页</a><span class="sep"></span><a class="cap breadcrumb" href="/">文章</a><span class="sep"></span><a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/">媒体</a> <span class="sep"></span> <a class="cap breadcrumb-link" href="/categories/%E5%AA%92%E4%BD%93/%E6%8E%98%E9%87%91/">掘金</a></div><div id="post-meta">发布于&nbsp;<time datetime="2026-11-20T09:48:07.000Z">2026-11-20</time></div></div>
+
+<article class="content md post">
+<h1 class="article-title"><span>理解 JavaScript 对象、原型与包装类</span></h1>
+<div>
+<h2 data-id="heading-0">理解 JavaScript 对象、原型与包装类</h2>
+<p>前言
+前面我们学习了作用域链、闭包、执行上下文。而对象、原型 <code>prototype</code> / <code>__proto__</code>、包装类就是建立在 JS 对象机制之上的核心知识点。很多人分不清显式原型和隐式原型，也搞不懂原始值为什么调用方法时 V8 会自动 new，本文顺着对象创建的逻辑，把数据类型、构造函数、原型查找、包装类串起来。</p>
+<h3 data-id="heading-1">一、JS 数据类型</h3>
+<p>JS 里常说万物皆对象，这是通俗说法。<strong>当我们定义一个原始字面量值的时候，V8 并不会立刻执行 new，只有在访问它的属性 / 方法那一刻，才会自动执行 new 包装类生成临时对象</strong>。数据类型分为两大类：基本数据类型和引用数据类型。
+基本数据类型：<code>number</code>、<code>string</code>、<code>boolean</code>、<code>null</code>、<code>undefined</code>、<code>bigint</code>、<code>symbol</code>
+引用数据类型：<code>object</code>、<code>array</code>、<code>function</code></p>
+<p>基本类型的值本身不是对象；引用类型本质都是对象，可以自由挂载属性和方法。
+示例：</p>
+<pre><code class="hljs language-ini" lang="ini">let <span class="hljs-attr">num</span> = <span class="hljs-number">10</span>
+let <span class="hljs-attr">str</span> = <span class="hljs-string">'hello'</span>
+let <span class="hljs-attr">obj</span> = &#123; name: <span class="hljs-string">'张三'</span> &#125;
+let <span class="hljs-attr">arr</span> = [<span class="hljs-number">1</span>,<span class="hljs-number">2</span>,<span class="hljs-number">3</span>]
+function fn()&#123;&#125;
+</code></pre>
+<p>解读：
+<code>num</code>、<code>str</code> 属于原始值，定义的时候只是存原始值，没有 new；只有写 <code>str.toUpperCase()</code> 访问方法时，V8 才会自动 new；<code>obj</code>、<code>arr</code>、<code>fn</code> 属于引用类型对象。</p>
+<h3 data-id="heading-2">二、构造函数，批量创建对象实例</h3>
+<p>想要批量生成结构相同的对象实例，最常用的方式就是构造函数。
+构造函数就是可以被 <code>new</code> 调用的函数，JS 内置提供了 <code>Object</code>、<code>Array</code> 等原生构造函数。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-keyword">function</span> <span class="hljs-title function_">Person</span>(<span class="hljs-params">name</span>)&#123;
+  <span class="hljs-variable language_">this</span>.<span class="hljs-property">name</span> = name
+&#125;
+<span class="hljs-keyword">const</span> p1 = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Person</span>(<span class="hljs-string">'小明'</span>)
+<span class="hljs-keyword">const</span> p2 = <span class="hljs-keyword">new</span> <span class="hljs-title class_">Person</span>(<span class="hljs-string">'小红'</span>)
+</code></pre>
+<p>执行流程：
+通过 <code>new</code> 调用构造函数，生成一个全新的实例对象；实例和构造函数通过原型建立关联，多个实例可以复用原型上的方法。</p>
+<h3 data-id="heading-3">三、prototype（显式原型）与 <strong>proto</strong>（隐式原型）</h3>
+<p><code>prototype</code>：<strong>函数天生自带</strong>的属性，它本身是一个对象
+<code>__proto__</code>：<strong>对象天生自带</strong>的属性，它本身是一个对象</p>
+<p>核心等式：<strong>实例.</strong><code>p1.__proto__</code> === 构造函数.prototype**
+V8 引擎访问对象属性的查找规则：优先查找对象自身显式拥有的属性，如果找不到，顺着 <code>__proto__</code> 去原型对象中查找。</p>
+<pre><code class="hljs language-javascript" lang="javascript"><span class="hljs-title class_">Person</span>.<span class="hljs-property"><span class="hljs-keyword">prototype</span></span>.<span class="hljs-property">say</span> = <span class="hljs-keyword">function</span>(<span class="hljs-params"></span>)&#123;
+  <span class="hljs-variable language_">console</span>.<span class="hljs-title function_">log</span>(<span class="hljs-string">'你好'</span>)
+&#125;
+p1.<span class="hljs-title function_">say</span>()
+</code></pre>
+<p>分析：<code>p1</code> 自身没有 <code>say</code> 方法，顺着 <code>p1.__proto__</code> 找到 <code>Person.prototype</code> 上的 <code>say</code>。</p>
+<h3 data-id="heading-4">四、包装类</h3>
+<p>原始类型本身不能添加属性和方法，但是我们可以直接调用原始值身上的方法，这就是包装类的作用。
+当我们使用字面量写一个原始值，<strong>定义阶段不会 new</strong>；只有访问它的属性或者方法时，V8 才会默认执行 <code>new Xxx()</code>，创建一个临时对象实例；操作完成之后，V8 会立刻做拆箱操作销毁这个临时对象。</p>
+<pre><code class="hljs language-ini" lang="ini">let <span class="hljs-attr">s</span> = <span class="hljs-string">'test'</span>
+<span class="hljs-attr">s.age</span> = <span class="hljs-number">18</span>
+console.log(s.age) // undefined
+</code></pre>
+<p>分析：给 <code>s.age</code> 赋值，触发装箱，只是给临时生成的包装对象添加属性，赋值结束临时对象马上销毁；再次读取的时候，又会触发装箱，生成全新的临时对象，找不到这个属性，返回 undefined。</p>
+<blockquote>
+<p>重点结果：赋值语句不会报错，看似添加成功，但是读取的时候拿不到我们添加的属性，最终结果为 undefined。</p>
+</blockquote>
+<h3 data-id="heading-5">五、常见问题</h3>
+<p>是不是所有类型都有包装类？不是，<code>null</code> 和 <code>undefined</code> 没有包装类，直接调用方法会报错。
+<code>prototype</code> 和 <code>__proto__</code> 的区别？<code>prototype</code> 属于函数，用来给实例共享方法；<code>__proto__</code> 属于对象，用来向上查找原型属性，是原型链的依托。
+为什么给原始值添加属性不报错但读不到？装箱是访问属性 / 方法时才临时创建对象，属性加在临时对象上，临时对象销毁后数据丢失，再次访问又新建一个独立的临时包装对象。
+怎么理解 JS 中 “万物皆是对象”？这句话并不是说原始值本身就是对象。引用类型（数组、函数、普通对象）天然就是对象；而 <code>string</code>、<code>number</code>、<code>boolean</code>、<code>bigint</code>、<code>symbol</code> 这些原始值，之所以也会被说成 “对象”，根源就是包装类机制：在读取方法时会自动装箱，临时变成包装实例对象，能够访问原型链上的方法，并且它们的包装实例原型链最终都追溯到 <code>Object.prototype</code>。<code>null</code>、<code>undefined</code> 是特例，没有包装对象，不属于对象。这句话是方便理解的通俗概括，不是严谨定义。</p>
+<h3 data-id="heading-6">总结</h3>
+<p>JS 数据类型分为基本类型与引用类型；<strong>定义原始字面量时 V8 不会立刻 new，访问属性 / 方法才自动 new 包装类</strong>；构造函数配合 <code>new</code> 批量创建实例。
+<code>prototype</code> 是函数的显式原型，<code>__proto__</code> 是对象的隐式原型，实例的隐式原型等于构造函数的显式原型。
+对象属性查找优先自身，找不到顺着 <code>__proto__</code> 向上查找；包装类通过自动装箱拆箱，让原始值可以调用方法。给原始值添加属性不会报错，但属性保存在临时对象上，对象销毁后无法读取，访问结果是 undefined。
+“万物皆是对象” 是通俗说法：引用类型本身就是对象；原始值本身不是对象，但因为有包装类，可以临时包装成对象，拥有访问原型方法的能力，所以口语里也把原始值归到 “万物皆对象” 里面，<code>null</code> 和 <code>undefined</code> 除外。</p>
+</div>
+
+<div>
+<div class="tag-plugin link dis-select"><a class="link-card plain" title="理解 JavaScript 对象、原型与包装类" href="https://juejin.cn/post/7710090550490710026" target="_blank" rel="external nofollow noopener noreferrer"><div class="left"><span class="title">理解 JavaScript 对象、原型与包装类</span><span class="desc fs12">https://juejin.cn/post/7710090550490710026</span></div><div class="right"><div class="lazy img" data-bg="https://static.mhuig.top/gh/cdn-x/placeholder@1.0.1/link/8f277b4ee0ecd.svg"></div></div></a></div>
+</div>
+
+
+
+<div class="article-footer reveal fs14"><section id="license"><div class="header"><span>许可协议</span></div><div class="body"><p>本文采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议。</p>
+</div></section></div>
+
+</article>
+
+<div class="related-wrap reveal" id="read-next"><section class="header cap theme"><span>接下来阅读</span></section><section class="body fs14"><a id="next" href="/rss/ddbf35cc.html">SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）<span class="note">较早</span></a><div class="line"></div><a id="prev" href="/rss/4f020cd9.html">Combatting Adversarial Distillation<span class="note">较新</span></a></section></div>
+
+
+<div class="related-wrap reveal" id="related-posts">
+    <section class="header">
+      <div class="title cap theme">您可能感兴趣的文章</div>
+    </section>
+    <section class="body">
+    <div class="related-posts"><a class="item" href="/rss/49d11339.html" title="Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5797"></div><span class="title">Arch 系用 Greetd 实现开机自动进 Plasma Wayland，注销自动回桌面</span></a><a class="item" href="/rss/23c09a6d.html" title="CentOS 目录穿梭"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1894"></div><span class="title">CentOS 目录穿梭</span></a><a class="item" href="/rss/e8fc4120.html" title="Linux 终端（Terminal）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=7624"></div><span class="title">Linux 终端（Terminal）</span></a><a class="item" href="/rss/a4aebfc4.html" title="SQL Server 2008 T-SQL 系统函数参考手册"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=1636"></div><span class="title">SQL Server 2008 T-SQL 系统函数参考手册</span></a><a class="item" href="/rss/c52712e7.html" title="MIT 6.S081 操作系统工程：Lab4-Traps实验笔记"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/98d45f40336a41038d5eddb9fe6d7fc2~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgU2VhRXhjdWxidXI=:q75.awebp?rk3s=f64ab15b&x-expires=1796043376&x-signature=foLw49zMlKhwYQVxcScaTXC7j9s%3D"></div><span class="title">MIT 6.S081 操作系统工程：Lab4-Traps实验笔记</span></a><a class="item" href="/rss/ddbf35cc.html" title="SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=3656"></div><span class="title">SQL Server 2008 系统存储过程手册（Sp_ / Xp_ 分类速查，适配 10.0 / 10.5）</span></a><a class="item" href="/rss/77c551a3.html" title="《潮水漫过十七岁》好久没写了"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=8594"></div><span class="title">《潮水漫过十七岁》好久没写了</span></a><a class="item" href="/rss/24f5f1ed.html" title="从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/65b49996c9f34b7f917129515f07de66~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg5oiR6KaB5oiQ5Li6VHlwZVNjcmlwdOmrmOaJiw==:q75.awebp?rk3s=f64ab15b&x-expires=1796092950&x-signature=6rpYcQwwTMZN98zC%2B790gVgHvuE%3D"></div><span class="title">从「本地能跑」到「敢给别人看」：个人项目的 12 项生产就绪清单</span></a><a class="item" href="/rss/c03d1945.html" title="使用场景不同，模型“推理速度慢”的原因也不同"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/e834659e7ba64d3cb36bc0a181c74fb7~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1796348889&x-signature=OUc7e%2Fi%2BYO6Wu23dEgH0g7iMAY0%3D"></div><span class="title">使用场景不同，模型“推理速度慢”的原因也不同</span></a><a class="item" href="/rss/554203e6.html" title="便宜又好用的模型，为什么越来越集中在闭源阵营？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p9-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/9b9327524011445da09955f353d2e746~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgQmFpaGFpX0lEUA==:q75.awebp?rk3s=f64ab15b&x-expires=1796176758&x-signature=YtqdbnEJuqh5G9Xhfy%2BtohB4jr4%3D"></div><span class="title">便宜又好用的模型，为什么越来越集中在闭源阵营？</span></a><a class="item" href="/rss/ad2f1c97.html" title="【维克】KDJ量化实战：如何用它判断买卖点？"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/953bf6d18afb4013b04492a537f56405~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAg57u05YWL5YWc546H5aSp:q75.awebp?rk3s=f64ab15b&x-expires=1796067989&x-signature=3XaBmdpbRoZH4u3cc9UoCsD%2B7v8%3D"></div><span class="title">【维克】KDJ量化实战：如何用它判断买卖点？</span></a><a class="item" href="/rss/d7265482.html" title="多平台架构对比"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=5423"></div><span class="title">多平台架构对比</span></a><a class="item" href="/rss/d9aaee88.html" title="消息丢了、重复消费了，MQ 这套账该怎么算"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://picsum.photos/400/300?random=2781"></div><span class="title">消息丢了、重复消费了，MQ 这套账该怎么算</span></a><a class="item" href="/rss/a4f9bb9b.html" title="痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位"><div class="img"><img class="lazy" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABGdBTUEAALGPC/xhBQAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAAaADAAQAAAABAAAAAQAAAADa6r/EAAAAC0lEQVQIHWNgAAIAAAUAAY27m/MAAAAASUVORK5CYII=" data-src="https://cors.mhuig.top/?r=https://juejin.cn&url=https://p3-xtjj-sign.byteimg.com/tos-cn-i-73owjymdk6/7c05b5c5d31640a6a179ac3239f0fe71~tplv-73owjymdk6-jj-mark-v1:0:0:0:0:5o6Y6YeR5oqA5pyv56S-5Yy6IEAgbGVvYmVydGxhbg==:q75.awebp?rk3s=f64ab15b&x-expires=1795937722&x-signature=QGC2bkMeOkMYF%2Bwp15CyDx6IMEI%3D"></div><span class="title">痛苦系列 | DSP-04 截断时空的“窗”：FIR 滤波器设计与线性相位</span></a></div></section></div>
+
+
+
+
+
+      
+<footer class="page-footer reveal fs12"><hr><div class="sitemap"><div class="sitemap-group"><span class="fs14">RSS</span><a href="/">近期</a><a href="/categories/">分类</a><a href="/tags/">标签</a><a href="/archives/">归档</a></div><div class="sitemap-group"><span class="fs14">Support</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/">博客</a><a target="_blank" rel="noopener" href="https://ssl.mhuig.top/">SSL Status</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://mhuig.instatus.com/">Status Monitors</a></div><div class="sitemap-group"><span class="fs14">社交</span><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/friends/">友链</a><a target="_blank" rel="noopener" href="https://blog.mhuig.top/pages/about/">留言板</a></div><div class="sitemap-group"><span class="fs14">更多</span><a target="_blank" rel="noopener" href="https://mhuig.top/">关于我</a><a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHuiG">GitHub</a><a href="/contact/">Contact</a><a href="/privacy-policy/">隐私政策</a></div></div><div class="text"><p>本站由 <a target="_blank" rel="noopener" href="https://mhuig.top/">MHuiG</a> 使用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/xaoxuu/hexo-theme-stellar">Stellar</a> 主题创建，您可以在 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/MHG-LAB/RSSBOX">GitHub</a> 找到本站源码<br>本博客所有文章除特别声明外，均采用 <a target="_blank" rel="external nofollow noopener noreferrer" href="https://github.com/me-shaon/GLWTPL/blob/master/translations/LICENSE_zh-CN">GLWT（Good Luck With That，祝你好运）公共许可证</a> 许可协议，转载请注明出处。</p>
+</div></footer>
+
+      <div class="float-panel mobile-only blur" style="display:none">
+  <button type="button" class="sidebar-toggle mobile" onclick="sidebar.toggle()">
+    <svg class="icon" style="width: 1em; height: 1em;vertical-align: middle;fill: currentColor;overflow: hidden;" viewbox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="15301"><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 2.3 26.8 24.6 47.5 51.6 47.6h416.5v4z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15302"/><path d="M566.407 808.3c26.9-0.1 49.3-20.8 51.6-47.6-1.9-27.7-23.9-49.7-51.6-51.6h-412.6c-28.2-1.4-52.6 19.5-55.5 47.6 1.9 27.7 23.9 49.7 51.6 51.6h416.5z m309.3-249.9c26.9-0.1 49.3-20.8 51.6-47.6-2.2-26.8-24.6-47.5-51.6-47.6h-721.9c-27.7-2.8-52.5 17.4-55.3 45.1-0.1 0.8-0.1 1.7-0.2 2.5 0.9 27.2 23.6 48.5 50.7 47.6H875.707z m-103.1-245.9c26.9-0.1 49.3-20.8 51.6-47.6-0.4-28.3-23.2-51.1-51.5-51.6h-618.9c-29.5-1.1-54.3 21.9-55.5 51.4v0.2c1.4 27.8 25.2 49.2 53 47.8 0.8 0 1.7-0.1 2.5-0.2h618.8z" p-id="15303"/></svg>
+  </button>
+</div>
+
+    </div>
+  </div>
+  <div class="scripts">
+    <script type="text/javascript">
+  stellar = {
+    // 懒加载 css https://github.com/filamentgroup/loadCSS
+    loadCSS: (href, before, media, attributes) => {
+      var doc = window.document;
+      var ss = doc.createElement("link");
+      var ref;
+      if (before) {
+        ref = before;
+      } else {
+        var refs = (doc.body || doc.getElementsByTagName("head")[0]).childNodes;
+        ref = refs[refs.length - 1];
+      }
+      var sheets = doc.styleSheets;
+      if (attributes) {
+        for (var attributeName in attributes) {
+          if (attributes.hasOwnProperty(attributeName)) {
+            ss.setAttribute(attributeName, attributes[attributeName]);
+          }
+        }
+      }
+      ss.rel = "stylesheet";
+      ss.href = href;
+      ss.media = "only x";
+      function ready(cb) {
+        if (doc.body) {
+          return cb();
+        }
+        setTimeout(function () {
+          ready(cb);
+        });
+      }
+      ready(function () {
+        ref.parentNode.insertBefore(ss, before ? ref : ref.nextSibling);
+      });
+      var onloadcssdefined = function (cb) {
+        var resolvedHref = ss.href;
+        var i = sheets.length;
+        while (i--) {
+          if (sheets[i].href === resolvedHref) {
+            return cb();
+          }
+        }
+        setTimeout(function () {
+          onloadcssdefined(cb);
+        });
+      };
+      function loadCB() {
+        if (ss.addEventListener) {
+          ss.removeEventListener("load", loadCB);
+        }
+        ss.media = media || "all";
+      }
+      if (ss.addEventListener) {
+        ss.addEventListener("load", loadCB);
+      }
+      ss.onloadcssdefined = onloadcssdefined;
+      onloadcssdefined(loadCB);
+      return ss;
+    },
+
+    // 从 butterfly 和 volantis 获得灵感
+    loadScript: (src, opt) => new Promise((resolve, reject) => {
+      var script = document.createElement('script');
+      script.src = src;
+      if (opt) {
+        for (let key of Object.keys(opt)) {
+          script[key] = opt[key]
+        }
+      } else {
+        // 默认异步，如果需要同步，第二个参数传入 {} 即可
+        script.async = true
+      }
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    }),
+
+    // https://github.com/jerryc127/hexo-theme-butterfly
+    jQuery: (fn) => {
+      if (typeof jQuery === 'undefined') {
+        stellar.loadScript(stellar.plugins.jQuery).then(fn)
+      } else {
+        fn()
+      }
+    }
+  };
+  stellar.github = 'https://github.com/xaoxuu/hexo-theme-stellar/tree/1.9.0';
+  stellar.config = {
+    date_suffix: {
+      just: '刚刚',
+      min: '分钟前',
+      hour: '小时前',
+      day: '天前',
+      month: '个月前',
+    },
+  };
+
+  // required plugins (only load if needs)
+  stellar.plugins = {
+    jQuery: 'https://static.mhuig.top/npm/jquery@3.5.1/dist/jquery.min.js',
+    sitesjs: '/js/plugins/sites.js',
+    friendsjs: '/js/plugins/friends.js',
+  };
+
+  // optional plugins
+  if ('true' == 'true') {
+    stellar.plugins.lazyload = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/vanilla-lazyload@17.3.1/dist/lazyload.min.js","transition":"blur"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.swiper = Object.assign({"enable":true,"css":"https://unpkg.com/swiper@6/swiper-bundle.min.css","js":"https://unpkg.com/swiper@6/swiper-bundle.min.js"});
+  }
+  if ('' == 'true') {
+    stellar.plugins.scrollreveal = Object.assign({"enable":null,"js":"https://static.mhuig.top/npm/scrollreveal@4.0.9/dist/scrollreveal.min.js","distance":"8px","duration":500,"interval":100,"scale":1});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.preload = Object.assign({"enable":true,"service":"flying_pages","instant_page":"https://static.mhuig.top/gh/volantis-x/cdn-volantis@4.1.2/js/instant_page.js","flying_pages":"https://static.mhuig.top/gh/gijo-varghese/flying-pages@2.1.2/flying-pages.min.js"});
+  }
+  if ('true' == 'true') {
+    stellar.plugins.fancybox = Object.assign({"enable":true,"js":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js","css":"https://static.mhuig.top/npm/@fancyapps/ui@4.0/dist/fancybox.css","selector":".swiper-slide img,article.content img"});
+  }
+  if ('false' == 'true') {
+    stellar.plugins.heti = Object.assign({"enable":false,"css":"https://unpkg.com/heti/umd/heti.min.css","js":"https://unpkg.com/heti/umd/heti-addon.min.js"});
+  }
+</script>
+
+<!-- required -->
+
+  
+<script src="/js/main.js" async></script>
+
+
+
+<!-- optional -->
+
+
+
+<!-- inject -->
+
+
+  </div>
+</body>
+</html>
